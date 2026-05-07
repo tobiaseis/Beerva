@@ -32,7 +32,10 @@ export const FeedScreen = () => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={typography.h2}>Brewva Feed</Text>
+        <View style={styles.logoContainer}>
+          <Beer color={colors.primary} size={28} />
+          <Text style={styles.logoText}>Beerva</Text>
+        </View>
       </View>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {MOCK_FEED.map((item) => (
@@ -84,6 +87,16 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+  },
+  logoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  logoText: {
+    fontFamily: 'Righteous_400Regular',
+    fontSize: 28,
+    color: colors.primary,
+    marginLeft: 8,
   },
   scrollContent: {
     padding: 16,
