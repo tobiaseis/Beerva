@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, Platform, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, FlatList, Platform, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Search, UserCheck, UserPlus, Users } from 'lucide-react-native';
 
+import { CachedImage } from '../components/CachedImage';
 import { supabase } from '../lib/supabase';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
@@ -36,13 +37,22 @@ export const PeopleScreen = ({ navigation }: any) => {
   const [pendingFollowIds, setPendingFollowIds] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const fetchRequestId = useRef(0);
+  const hasLoadedOnce = useRef(false);
   const debouncedQuery = useDebouncedValue(query.trim(), 250);
 
   const fetchPeople = useCallback(async () => {
+    const requestId = fetchRequestId.current + 1;
+    fetchRequestId.current = requestId;
+
     try {
-      setLoading(true);
+      if (!hasLoadedOnce.current) {
+        setLoading(true);
+      }
 
       const { data: { user } } = await supabase.auth.getUser();
+      if (requestId !== fetchRequestId.current) return;
+
       if (!user) {
         setPeople([]);
         return;
@@ -70,6 +80,7 @@ export const PeopleScreen = ({ navigation }: any) => {
       ]);
 
       if (profilesResult.error) throw profilesResult.error;
+      if (requestId !== fetchRequestId.current) return;
 
       if (followsResult.error) {
         console.error('Follows fetch error:', followsResult.error);
@@ -79,10 +90,15 @@ export const PeopleScreen = ({ navigation }: any) => {
       setFollowingIds(new Set(((followsResult.data || []) as FollowRow[]).map((follow) => follow.following_id)));
     } catch (error) {
       console.error('People fetch error:', error);
-      setPeople([]);
+      if (!hasLoadedOnce.current) {
+        setPeople([]);
+      }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (requestId === fetchRequestId.current) {
+        hasLoadedOnce.current = true;
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, [debouncedQuery]);
 
@@ -170,9 +186,12 @@ export const PeopleScreen = ({ navigation }: any) => {
           onPress={() => openProfile(item.id)}
           activeOpacity={0.72}
         >
-          <Image
-            source={{ uri: item.avatar_url || `https://i.pravatar.cc/150?u=${item.id}` }}
+          <CachedImage
+            uri={item.avatar_url}
+            fallbackUri={`https://i.pravatar.cc/150?u=${item.id}`}
             style={styles.avatar}
+            recyclingKey={`person-${item.id}-${item.avatar_url || 'fallback'}`}
+            accessibilityLabel={`${item.username || 'Beer Lover'}'s avatar`}
           />
           <View style={styles.personText}>
             <Text style={styles.username}>{item.username || 'Beer Lover'}</Text>
@@ -231,6 +250,10 @@ export const PeopleScreen = ({ navigation }: any) => {
           data={people}
           keyExtractor={(item) => item.id}
           renderItem={renderPerson}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={7}
+          removeClippedSubviews={Platform.OS !== 'web'}
           contentContainerStyle={[styles.listContent, people.length === 0 ? styles.emptyContent : null]}
           keyboardShouldPersistTaps="handled"
           refreshControl={

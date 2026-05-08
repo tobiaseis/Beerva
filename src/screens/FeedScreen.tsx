@@ -6,6 +6,8 @@ import { Beer, MapPin, Trash2, Users, Bell } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { confirmDestructive } from '../lib/dialogs';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { CachedImage } from '../components/CachedImage';
+import { deletePublicImageUrl } from '../lib/imageUpload';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
 
@@ -62,6 +64,107 @@ const getTimeAgo = (dateString: string) => {
   return `${Math.round(diffHours / 24)} days ago`;
 };
 
+type FeedSessionCardProps = {
+  item: FeedSession;
+  currentUserId: string | null;
+  isCheering: boolean;
+  onDeleteSession: (session: FeedSession) => void;
+  onOpenProfile: (userId: string) => void;
+  onToggleCheers: (session: FeedSession) => void;
+};
+
+const FeedSessionCard = React.memo(({
+  item,
+  currentUserId,
+  isCheering,
+  onDeleteSession,
+  onOpenProfile,
+  onToggleCheers,
+}: FeedSessionCardProps) => {
+  const isOwnPost = item.user_id === currentUserId;
+  const cheersColor = item.has_cheered ? colors.primary : colors.textMuted;
+  const username = item.profiles?.username || 'Unknown';
+
+  return (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <TouchableOpacity
+          style={styles.profileLink}
+          onPress={() => onOpenProfile(item.user_id)}
+          activeOpacity={0.75}
+        >
+          <CachedImage
+            uri={item.profiles?.avatar_url}
+            fallbackUri={`https://i.pravatar.cc/150?u=${item.user_id}`}
+            style={styles.avatar}
+            recyclingKey={`avatar-${item.user_id}-${item.profiles?.avatar_url || 'fallback'}`}
+            accessibilityLabel={`${username}'s avatar`}
+          />
+          <View style={styles.userInfo}>
+            <Text style={styles.userName}>{username}</Text>
+            <Text style={styles.timeText}>{getTimeAgo(item.created_at)}</Text>
+          </View>
+        </TouchableOpacity>
+        {isOwnPost ? (
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={() => onDeleteSession(item)}
+            hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+          >
+            <Trash2 color={colors.danger} size={18} />
+          </TouchableOpacity>
+        ) : null}
+      </View>
+
+      {item.image_url ? (
+        <CachedImage
+          uri={item.image_url}
+          style={styles.feedImage}
+          recyclingKey={`session-${item.id}-${item.image_url}`}
+          accessibilityLabel={`${username}'s beer session photo`}
+        />
+      ) : null}
+
+      <View style={styles.cardContent}>
+        <View style={styles.row}>
+          <MapPin color={colors.primary} size={16} />
+          <Text style={styles.locationText}> Drinking at <Text style={styles.bold}>{item.pub_name}</Text></Text>
+        </View>
+        <View style={[styles.row, { marginTop: 8 }]}>
+          <Beer color={colors.primary} size={16} />
+          <Text style={styles.beerText}> {getDrinkLabel(item)} of <Text style={styles.bold}>{item.beer_name}</Text></Text>
+        </View>
+        {item.comment ? (
+          <View style={styles.commentBlock}>
+            <Text style={styles.commentText}>{item.comment}</Text>
+          </View>
+        ) : null}
+      </View>
+
+      <View style={styles.cardFooter}>
+        <TouchableOpacity
+          style={[
+            styles.actionBtn,
+            item.has_cheered ? styles.actionBtnActive : null,
+            isOwnPost ? styles.actionBtnDisabled : null,
+          ]}
+          onPress={() => onToggleCheers(item)}
+          disabled={isOwnPost || isCheering || !currentUserId}
+          activeOpacity={0.72}
+          accessibilityRole="button"
+          accessibilityLabel={`Give cheers to ${username}`}
+          accessibilityState={{ disabled: isOwnPost || isCheering || !currentUserId, selected: item.has_cheered }}
+        >
+          <Beer color={cheersColor} fill={item.has_cheered ? 'rgba(245, 158, 11, 0.2)' : 'transparent'} size={20} />
+          <Text style={[styles.actionText, item.has_cheered ? styles.actionTextActive : null]}>
+            {getCheersLabel(item.cheers_count)}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+});
+
 export const FeedScreen = () => {
   const navigation = useNavigation<any>();
   const [sessions, setSessions] = useState<FeedSession[]>([]);
@@ -76,7 +179,10 @@ export const FeedScreen = () => {
   const [pullDistance, setPullDistance] = useState(0);
   const sessionsRef = useRef<FeedSession[]>([]);
   const hasMoreRef = useRef(true);
-  const fetchingPageRef = useRef(false);
+  const loadingMoreRef = useRef(false);
+  const refreshingRef = useRef(false);
+  const latestRequestIdRef = useRef(0);
+  const cheeringSessionIdsRef = useRef<Set<string>>(new Set());
   const scrollOffsetY = useRef(0);
   const touchStartY = useRef(0);
   const isPulling = useRef(false);
@@ -89,25 +195,38 @@ export const FeedScreen = () => {
     hasMoreRef.current = hasMore;
   }, [hasMore]);
 
+  useEffect(() => {
+    cheeringSessionIdsRef.current = cheeringSessionIds;
+  }, [cheeringSessionIds]);
+
   const fetchSessions = useCallback(async ({ reset = false }: { reset?: boolean } = {}) => {
-    if (fetchingPageRef.current || (!reset && !hasMoreRef.current)) {
+    if (!reset && (loadingMoreRef.current || refreshingRef.current || !hasMoreRef.current)) {
       return;
     }
 
     const offset = reset ? 0 : sessionsRef.current.length;
-    fetchingPageRef.current = true;
+    const requestId = latestRequestIdRef.current + 1;
+    latestRequestIdRef.current = requestId;
+    const isLatestRequest = () => requestId === latestRequestIdRef.current;
 
     if (reset) {
+      refreshingRef.current = true;
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
       setLoading(sessionsRef.current.length === 0);
     } else {
+      loadingMoreRef.current = true;
       setLoadingMore(true);
     }
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
+      if (!isLatestRequest()) return;
+
       setCurrentUserId(user?.id || null);
 
       if (!user) {
+        if (!isLatestRequest()) return;
         setSessions([]);
         sessionsRef.current = [];
         setFollowedUserCount(0);
@@ -132,6 +251,7 @@ export const FeedScreen = () => {
       ]);
 
       const { data: followsData, error: followsError } = followsResult;
+      if (!isLatestRequest()) return;
 
       if (followsError) {
         console.error('Feed follows fetch error:', followsError);
@@ -169,6 +289,7 @@ export const FeedScreen = () => {
         .range(offset, offset + FEED_PAGE_SIZE);
 
       if (error) throw error;
+      if (!isLatestRequest()) return;
 
       const rowsWithExtra = ((data || []) as any[]).map((session) => ({
         ...session,
@@ -195,6 +316,7 @@ export const FeedScreen = () => {
           cheers = cheersData || [];
         }
       }
+      if (!isLatestRequest()) return;
 
       const cheersBySession = cheers.reduce((acc, cheer) => {
         const existing = acc.get(cheer.session_id) || [];
@@ -221,10 +343,19 @@ export const FeedScreen = () => {
     } catch (error) {
       console.error('Feed fetch error:', error);
     } finally {
-      fetchingPageRef.current = false;
-      setLoading(false);
-      setRefreshing(false);
-      setLoadingMore(false);
+      if (reset) {
+        if (isLatestRequest()) {
+          refreshingRef.current = false;
+          setRefreshing(false);
+        }
+      } else {
+        loadingMoreRef.current = false;
+        setLoadingMore(false);
+      }
+
+      if (isLatestRequest()) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -248,7 +379,7 @@ export const FeedScreen = () => {
   };
 
   const handleTouchStart = (e: any) => {
-    if (Platform.OS !== 'web' || refreshing || fetchingPageRef.current) return;
+    if (Platform.OS !== 'web' || refreshing) return;
     if (scrollOffsetY.current > 0) {
       isPulling.current = false;
       return;
@@ -279,7 +410,7 @@ export const FeedScreen = () => {
   const handleTouchEnd = () => {
     if (Platform.OS !== 'web' || !isPulling.current) return;
     isPulling.current = false;
-    if (pullDistance >= PULL_REFRESH_THRESHOLD && !refreshing && !fetchingPageRef.current) {
+    if (pullDistance >= PULL_REFRESH_THRESHOLD && !refreshing) {
       setRefreshing(true);
       fetchSessions({ reset: true });
     }
@@ -311,7 +442,6 @@ export const FeedScreen = () => {
   }, [currentUserId]);
 
   const onRefresh = useCallback(() => {
-    if (fetchingPageRef.current) return;
     setRefreshing(true);
     fetchSessions({ reset: true });
   }, [fetchSessions]);
@@ -335,7 +465,7 @@ export const FeedScreen = () => {
   }, [navigation]);
 
   const toggleCheers = useCallback(async (item: FeedSession) => {
-    if (!currentUserId || item.user_id === currentUserId || cheeringSessionIds.has(item.id)) {
+    if (!currentUserId || item.user_id === currentUserId || cheeringSessionIdsRef.current.has(item.id)) {
       return;
     }
 
@@ -343,11 +473,10 @@ export const FeedScreen = () => {
     const previousHasCheered = item.has_cheered;
     const previousCheersCount = item.cheers_count;
 
-    setCheeringSessionIds((previous) => {
-      const next = new Set(previous);
-      next.add(item.id);
-      return next;
-    });
+    const pendingCheers = new Set(cheeringSessionIdsRef.current);
+    pendingCheers.add(item.id);
+    cheeringSessionIdsRef.current = pendingCheers;
+    setCheeringSessionIds(pendingCheers);
 
     setSessions((previous) => {
       const nextSessions = previous.map((session) => {
@@ -413,22 +542,21 @@ export const FeedScreen = () => {
       });
       Alert.alert('Could not update cheers', error?.message || 'Please try again.');
     } finally {
-      setCheeringSessionIds((previous) => {
-        const next = new Set(previous);
-        next.delete(item.id);
-        return next;
-      });
+      const nextPendingCheers = new Set(cheeringSessionIdsRef.current);
+      nextPendingCheers.delete(item.id);
+      cheeringSessionIdsRef.current = nextPendingCheers;
+      setCheeringSessionIds(nextPendingCheers);
     }
-  }, [cheeringSessionIds, currentUserId]);
+  }, [currentUserId]);
 
-  const deleteSession = useCallback((sessionId: string) => {
+  const deleteSession = useCallback((session: FeedSession) => {
     if (!currentUserId) return;
 
     confirmDestructive('Delete Post', 'Remove this beer session from your feed?', 'Delete', async () => {
       const { error } = await supabase
         .from('sessions')
         .delete()
-        .eq('id', sessionId)
+        .eq('id', session.id)
         .eq('user_id', currentUserId);
 
       if (error) {
@@ -437,10 +565,14 @@ export const FeedScreen = () => {
       }
 
       setSessions((previous) => {
-        const nextSessions = previous.filter((session) => session.id !== sessionId);
+        const nextSessions = previous.filter((feedSession) => feedSession.id !== session.id);
         sessionsRef.current = nextSessions;
         return nextSessions;
       });
+
+      if (session.image_url) {
+        deletePublicImageUrl('session_images', session.image_url);
+      }
     });
   }, [currentUserId]);
 
@@ -492,76 +624,15 @@ export const FeedScreen = () => {
   }, [loadingMore]);
 
   const renderSession = useCallback(({ item }: { item: FeedSession }) => {
-    const isOwnPost = item.user_id === currentUserId;
-    const isCheering = cheeringSessionIds.has(item.id);
-    const cheersColor = item.has_cheered ? colors.primary : colors.textMuted;
-
     return (
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <TouchableOpacity
-            style={styles.profileLink}
-            onPress={() => openProfile(item.user_id)}
-            activeOpacity={0.75}
-          >
-            <Image source={{ uri: item.profiles?.avatar_url || 'https://i.pravatar.cc/150' }} style={styles.avatar} />
-            <View style={styles.userInfo}>
-              <Text style={styles.userName}>{item.profiles?.username || 'Unknown'}</Text>
-              <Text style={styles.timeText}>{getTimeAgo(item.created_at)}</Text>
-            </View>
-          </TouchableOpacity>
-          {isOwnPost ? (
-            <TouchableOpacity
-              style={styles.deleteButton}
-              onPress={() => deleteSession(item.id)}
-              hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-            >
-              <Trash2 color={colors.danger} size={18} />
-            </TouchableOpacity>
-          ) : null}
-        </View>
-
-        {item.image_url ? (
-          <Image source={{ uri: item.image_url }} style={styles.feedImage} />
-        ) : null}
-
-        <View style={styles.cardContent}>
-          <View style={styles.row}>
-            <MapPin color={colors.primary} size={16} />
-            <Text style={styles.locationText}> Drinking at <Text style={styles.bold}>{item.pub_name}</Text></Text>
-          </View>
-          <View style={[styles.row, { marginTop: 8 }]}>
-            <Beer color={colors.primary} size={16} />
-            <Text style={styles.beerText}> {getDrinkLabel(item)} of <Text style={styles.bold}>{item.beer_name}</Text></Text>
-          </View>
-          {item.comment ? (
-            <View style={styles.commentBlock}>
-              <Text style={styles.commentText}>{item.comment}</Text>
-            </View>
-          ) : null}
-        </View>
-
-        <View style={styles.cardFooter}>
-          <TouchableOpacity
-            style={[
-              styles.actionBtn,
-              item.has_cheered ? styles.actionBtnActive : null,
-              isOwnPost ? styles.actionBtnDisabled : null,
-            ]}
-            onPress={() => toggleCheers(item)}
-            disabled={isOwnPost || isCheering || !currentUserId}
-            activeOpacity={0.72}
-            accessibilityRole="button"
-            accessibilityLabel={`Give cheers to ${item.profiles?.username || 'this post'}`}
-            accessibilityState={{ disabled: isOwnPost || isCheering || !currentUserId, selected: item.has_cheered }}
-          >
-            <Beer color={cheersColor} fill={item.has_cheered ? 'rgba(245, 158, 11, 0.2)' : 'transparent'} size={20} />
-            <Text style={[styles.actionText, item.has_cheered ? styles.actionTextActive : null]}>
-              {getCheersLabel(item.cheers_count)}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      <FeedSessionCard
+        item={item}
+        currentUserId={currentUserId}
+        isCheering={cheeringSessionIds.has(item.id)}
+        onDeleteSession={deleteSession}
+        onOpenProfile={openProfile}
+        onToggleCheers={toggleCheers}
+      />
     );
   }, [cheeringSessionIds, currentUserId, deleteSession, openProfile, toggleCheers]);
 
@@ -594,10 +665,16 @@ export const FeedScreen = () => {
           data={sessions}
           keyExtractor={(item) => item.id}
           renderItem={renderSession}
+          extraData={cheeringSessionIds}
           contentContainerStyle={[
             styles.scrollContent,
             sessions.length === 0 ? styles.emptyContent : null,
           ]}
+          initialNumToRender={6}
+          maxToRenderPerBatch={6}
+          windowSize={7}
+          updateCellsBatchingPeriod={60}
+          removeClippedSubviews={Platform.OS !== 'web'}
           onScroll={handleScroll}
           scrollEventThrottle={16}
           onTouchStart={handleTouchStart}

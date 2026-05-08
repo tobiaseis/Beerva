@@ -6,15 +6,17 @@ import { typography } from '../theme/typography';
 import { Bell, BellOff, Camera, Edit2, LogOut, X } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { confirmDestructive, showAlert } from '../lib/dialogs';
-import { prepareWebImageFromPickerAsset, SelectedImage, UPLOAD_IMAGE_MAX_WIDTH, uploadImageToBucket } from '../lib/imageUpload';
+import { deletePublicImageUrl, prepareWebImageFromPickerAsset, SelectedImage, UPLOAD_IMAGE_MAX_WIDTH, uploadImageToBucket } from '../lib/imageUpload';
 import { ProfileStatsPanel } from '../components/ProfileStatsPanel';
-import { calculateStats, emptyStats, Stats } from '../lib/profileStats';
+import { emptyStats, Stats } from '../lib/profileStats';
+import { fetchProfileStats } from '../lib/profileStatsApi';
+import { CachedImage } from '../components/CachedImage';
 import {
   disablePushNotifications,
   enablePushNotifications,
   getPushPermissionStatus,
+  getPushSupportInfo,
   isCurrentlySubscribed,
-  isPushSupported,
 } from '../lib/pushNotifications';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -31,13 +33,15 @@ export const ProfileScreen = () => {
   const [saving, setSaving] = useState(false);
 
   const [pushSupported, setPushSupported] = useState(false);
+  const [pushUnsupportedReason, setPushUnsupportedReason] = useState<string | null>(null);
   const [pushSubscribed, setPushSubscribed] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
 
   const refreshPushState = useCallback(async () => {
-    const supported = isPushSupported();
-    setPushSupported(supported);
-    if (!supported) {
+    const support = getPushSupportInfo();
+    setPushSupported(support.supported);
+    setPushUnsupportedReason(support.supported ? null : support.reason || null);
+    if (!support.supported) {
       setPushSubscribed(false);
       return;
     }
@@ -86,11 +90,16 @@ export const ProfileScreen = () => {
         updated_at: user.created_at || new Date().toISOString(),
       };
 
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle();
+      const [profileResult, profileStats] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .maybeSingle(),
+        fetchProfileStats(user.id),
+      ]);
+
+      const { data: profileData, error: profileError } = profileResult;
       
       if (profileError) {
         console.error(profileError);
@@ -101,13 +110,7 @@ export const ProfileScreen = () => {
       setEditUsername(currentProfile.username || '');
       setEditAvatarUri(currentProfile.avatar_url);
       setEditAvatar(null);
-
-      const { data: sessions } = await supabase
-        .from('sessions')
-        .select('pub_name, beer_name, volume, quantity, abv, created_at')
-        .eq('user_id', user.id);
-
-      setStats(calculateStats(sessions || []));
+      setStats(profileStats);
     } catch (e) {
       console.error(e);
     } finally {
@@ -175,8 +178,9 @@ export const ProfileScreen = () => {
       if (!user) throw new Error('Not logged in');
 
       let avatarUrl = editAvatarUri;
+      const previousAvatarUrl = profile?.avatar_url;
       if (editAvatar) {
-        avatarUrl = await uploadImageToBucket('session_images', editAvatar, 'avatar');
+        avatarUrl = await uploadImageToBucket('session_images', editAvatar, `users/${user.id}/avatars`);
       }
 
       const { error } = await supabase.from('profiles').upsert({
@@ -197,6 +201,10 @@ export const ProfileScreen = () => {
 
       if (userError) {
         console.error(userError);
+      }
+
+      if (editAvatar && previousAvatarUrl && previousAvatarUrl !== avatarUrl) {
+        deletePublicImageUrl('session_images', previousAvatarUrl);
       }
 
       await fetchProfile();
@@ -222,9 +230,12 @@ export const ProfileScreen = () => {
     <ScrollView style={styles.container}>
       <View style={styles.header}>
         <View style={styles.avatarContainer}>
-          <Image 
-            source={{ uri: profile?.avatar_url || 'https://i.pravatar.cc/150?u=' + profile?.id }} 
-            style={styles.avatar} 
+          <CachedImage
+            uri={profile?.avatar_url}
+            fallbackUri={'https://i.pravatar.cc/150?u=' + profile?.id}
+            style={styles.avatar}
+            recyclingKey={`profile-${profile?.id}-${profile?.avatar_url || 'fallback'}`}
+            accessibilityLabel={`${profile?.username || 'Beer Lover'}'s avatar`}
           />
           <TouchableOpacity style={styles.editBadge} onPress={() => setIsEditing(true)}>
             <Edit2 color={colors.background} size={16} />
@@ -253,9 +264,14 @@ export const ProfileScreen = () => {
               ? 'Working…'
               : pushSubscribed
                 ? 'Push notifications enabled'
-                : 'Enable push notifications'}
+            : 'Enable push notifications'}
           </Text>
         </TouchableOpacity>
+      ) : pushUnsupportedReason ? (
+        <View style={styles.pushHint}>
+          <BellOff color={colors.textMuted} size={18} />
+          <Text style={styles.pushHintText}>{pushUnsupportedReason}</Text>
+        </View>
       ) : null}
 
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
@@ -498,6 +514,24 @@ const styles = StyleSheet.create({
   },
   pushButtonTextOn: {
     color: colors.primary,
+  },
+  pushHint: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginHorizontal: 16,
+    marginTop: 16,
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    gap: 10,
+  },
+  pushHintText: {
+    ...typography.caption,
+    flex: 1,
+    color: colors.textMuted,
+    lineHeight: 19,
   },
   logoutButton: {
     flexDirection: 'row',

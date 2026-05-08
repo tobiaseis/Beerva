@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { Award, Beer, CalendarDays, Flame, MapPin, Moon, PartyPopper, Repeat, Sparkles, Sunrise, Trophy } from 'lucide-react-native';
 
@@ -11,9 +11,9 @@ type ProfileStatsPanelProps = {
 };
 
 export const ProfileStatsPanel = ({ stats }: ProfileStatsPanelProps) => {
-  const trophies = getTrophies(stats);
-  const earnedTrophies = trophies.filter((trophy) => trophy.earned);
-  const orderedTrophies = trophies
+  const trophies = useMemo(() => getTrophies(stats), [stats]);
+  const earnedTrophies = useMemo(() => trophies.filter((trophy) => trophy.earned), [trophies]);
+  const orderedTrophies = useMemo(() => trophies
     .map((trophy, index) => ({ trophy, index }))
     .sort((a, b) => {
       if (a.trophy.earned !== b.trophy.earned) {
@@ -22,7 +22,7 @@ export const ProfileStatsPanel = ({ stats }: ProfileStatsPanelProps) => {
 
       return a.index - b.index;
     })
-    .map(({ trophy }) => trophy);
+    .map(({ trophy }) => trophy), [trophies]);
 
   const renderTrophyIcon = (kind: TrophyKind, earned: boolean) => {
     const iconColor = earned ? colors.primary : colors.textMuted;

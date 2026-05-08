@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Camera, LogOut } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 
-import { prepareWebImageFromPickerAsset, SelectedImage, UPLOAD_IMAGE_MAX_WIDTH, uploadImageToBucket } from '../lib/imageUpload';
+import { deletePublicImageUrl, prepareWebImageFromPickerAsset, SelectedImage, UPLOAD_IMAGE_MAX_WIDTH, uploadImageToBucket } from '../lib/imageUpload';
+import { CachedImage } from '../components/CachedImage';
 import { supabase } from '../lib/supabase';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
@@ -16,6 +17,7 @@ export const ProfileSetupScreen = ({ onComplete }: ProfileSetupScreenProps) => {
   const [username, setUsername] = useState('');
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [avatar, setAvatar] = useState<SelectedImage | null>(null);
+  const [previousAvatarUri, setPreviousAvatarUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -37,7 +39,9 @@ export const ProfileSetupScreen = ({ onComplete }: ProfileSetupScreenProps) => {
           || '';
 
         setUsername(defaultUsername);
-        setAvatarUri(profile?.avatar_url || user.user_metadata?.avatar_url || null);
+        const defaultAvatar = profile?.avatar_url || user.user_metadata?.avatar_url || null;
+        setAvatarUri(defaultAvatar);
+        setPreviousAvatarUri(defaultAvatar);
       } catch (error) {
         console.error('Profile setup defaults error:', error);
       } finally {
@@ -96,7 +100,7 @@ export const ProfileSetupScreen = ({ onComplete }: ProfileSetupScreenProps) => {
 
       let avatarUrl = avatarUri;
       if (avatar) {
-        avatarUrl = await uploadImageToBucket('session_images', avatar, 'avatar');
+        avatarUrl = await uploadImageToBucket('session_images', avatar, `users/${user.id}/avatars`);
       }
 
       const { error } = await supabase.from('profiles').upsert({
@@ -117,6 +121,10 @@ export const ProfileSetupScreen = ({ onComplete }: ProfileSetupScreenProps) => {
 
       if (userError) {
         console.error('Auth metadata update error:', userError);
+      }
+
+      if (avatar && previousAvatarUri && previousAvatarUri !== avatarUrl) {
+        deletePublicImageUrl('session_images', previousAvatarUri);
       }
 
       onComplete();
@@ -149,7 +157,12 @@ export const ProfileSetupScreen = ({ onComplete }: ProfileSetupScreenProps) => {
 
       <TouchableOpacity style={styles.avatarButton} onPress={pickAvatar} activeOpacity={0.78}>
         {avatarUri ? (
-          <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
+          <CachedImage
+            uri={avatarUri}
+            style={styles.avatarImage}
+            recyclingKey={`setup-avatar-${avatarUri}`}
+            accessibilityLabel="Profile avatar"
+          />
         ) : (
           <Camera color={colors.primary} size={38} />
         )}

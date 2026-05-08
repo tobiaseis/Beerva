@@ -25,6 +25,33 @@ const getContentType = (image: SelectedImage) => {
   return image.mimeType || (getExtension(image) === 'png' ? 'image/png' : 'image/jpeg');
 };
 
+const cleanPathSegment = (segment: string) => segment.replace(/[^a-zA-Z0-9_-]/g, '');
+
+const createStoragePath = (prefix: string, extension: string) => {
+  const folder = prefix
+    .split('/')
+    .map(cleanPathSegment)
+    .filter(Boolean)
+    .join('/');
+  const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${extension}`;
+
+  return folder ? `${folder}/${fileName}` : fileName;
+};
+
+const getPublicStoragePath = (bucket: string, publicUrl?: string | null) => {
+  if (!publicUrl) return null;
+
+  try {
+    const url = new URL(publicUrl);
+    const marker = `/storage/v1/object/public/${bucket}/`;
+    const markerIndex = url.pathname.indexOf(marker);
+    if (markerIndex === -1) return null;
+    return decodeURIComponent(url.pathname.slice(markerIndex + marker.length));
+  } catch {
+    return null;
+  }
+};
+
 export const imageFromPickerAsset = (asset: ImagePickerAsset): SelectedImage => {
   return {
     uri: asset.uri,
@@ -114,7 +141,7 @@ export const uploadImageToBucket = async (
   prefix: string
 ) => {
   const ext = getExtension(image);
-  const fileName = `${prefix}_${Date.now()}.${ext}`;
+  const fileName = createStoragePath(prefix, ext);
   const contentType = getContentType(image);
 
   if (Platform.OS === 'web') {
@@ -181,4 +208,20 @@ export const uploadImageToBucket = async (
     .getPublicUrl(fileName);
 
   return publicUrl;
+};
+
+export const deletePublicImageUrl = async (bucket: string, publicUrl?: string | null) => {
+  const storagePath = getPublicStoragePath(bucket, publicUrl);
+  if (!storagePath) return false;
+
+  const { error } = await supabase.storage
+    .from(bucket)
+    .remove([storagePath]);
+
+  if (error) {
+    console.warn('Image cleanup failed:', error.message);
+    return false;
+  }
+
+  return true;
 };

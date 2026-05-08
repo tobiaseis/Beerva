@@ -1,10 +1,11 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Image, ActivityIndicator, RefreshControl, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, RefreshControl, TouchableOpacity, Platform } from 'react-native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { supabase } from '../lib/supabase';
 import { Bell, ArrowLeft, Beer, PartyPopper } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { CachedImage } from '../components/CachedImage';
 
 type NotificationRow = {
   id: string;
@@ -99,22 +100,28 @@ export const NotificationsScreen = ({ navigation }: any) => {
     }, [fetchNotifications])
   );
 
-  const onRefresh = () => {
+  const onRefresh = useCallback(() => {
     setRefreshing(true);
     fetchNotifications();
-  };
+  }, [fetchNotifications]);
 
-  const openProfile = (userId: string) => {
+  const openProfile = useCallback((userId: string) => {
     navigation.navigate('UserProfile', { userId });
-  };
+  }, [navigation]);
 
-  const renderItem = ({ item }: { item: NotificationRow }) => {
+  const renderItem = useCallback(({ item }: { item: NotificationRow }) => {
     const isCheer = item.type === 'cheer';
 
     return (
       <View style={[styles.card, !item.read && styles.unreadCard]}>
         <TouchableOpacity onPress={() => openProfile(item.actor_id)} style={styles.avatarContainer}>
-          <Image source={{ uri: item.profiles?.avatar_url || 'https://i.pravatar.cc/150' }} style={styles.avatar} />
+          <CachedImage
+            uri={item.profiles?.avatar_url}
+            fallbackUri={`https://i.pravatar.cc/150?u=${item.actor_id}`}
+            style={styles.avatar}
+            recyclingKey={`notification-${item.actor_id}-${item.profiles?.avatar_url || 'fallback'}`}
+            accessibilityLabel={`${item.profiles?.username || 'Someone'}'s avatar`}
+          />
         </TouchableOpacity>
         <View style={styles.content}>
           <Text style={styles.message}>
@@ -128,7 +135,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
         </View>
       </View>
     );
-  };
+  }, [openProfile]);
 
   return (
     <View style={styles.container}>
@@ -149,6 +156,10 @@ export const NotificationsScreen = ({ navigation }: any) => {
           data={notifications}
           keyExtractor={item => item.id}
           renderItem={renderItem}
+          initialNumToRender={12}
+          maxToRenderPerBatch={12}
+          windowSize={7}
+          removeClippedSubviews={Platform.OS !== 'web'}
           contentContainerStyle={[styles.listContent, notifications.length === 0 ? styles.emptyContent : null]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
           ListEmptyComponent={

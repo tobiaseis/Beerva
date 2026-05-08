@@ -5,6 +5,12 @@ import { supabase } from './supabase';
 // Safe to ship in client code — only the private key must stay secret.
 export const VAPID_PUBLIC_KEY = 'BFFNJlO-5vCdNg6M0nLgs2mTcJwy0XWoXQItXu8IvWSbI7z2l09a_lvikodkQK2q1IhjDKAxLxyuWEtdDRG-lAU';
 
+type PushSupportInfo = {
+  supported: boolean;
+  reason?: string;
+  shouldInstall?: boolean;
+};
+
 const urlBase64ToUint8Array = (base64String: string): Uint8Array => {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -14,15 +20,49 @@ const urlBase64ToUint8Array = (base64String: string): Uint8Array => {
   return out;
 };
 
-export const isPushSupported = (): boolean => {
-  return (
-    Platform.OS === 'web' &&
-    typeof window !== 'undefined' &&
-    typeof navigator !== 'undefined' &&
+export const isStandalonePwa = (): boolean => {
+  if (Platform.OS !== 'web' || typeof window === 'undefined' || typeof navigator === 'undefined') {
+    return false;
+  }
+
+  const navigatorWithStandalone = navigator as Navigator & { standalone?: boolean };
+  return window.matchMedia?.('(display-mode: standalone)').matches || navigatorWithStandalone.standalone === true;
+};
+
+export const getPushSupportInfo = (): PushSupportInfo => {
+  if (Platform.OS !== 'web') {
+    return { supported: false, reason: 'Push notifications are only configured for the web app.' };
+  }
+
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+    return { supported: false, reason: 'Push notifications are not available yet.' };
+  }
+
+  const userAgent = navigator.userAgent || '';
+  const isIos = /iphone|ipad|ipod/i.test(userAgent);
+  const hasRequiredApis = (
     'serviceWorker' in navigator &&
     'PushManager' in window &&
     'Notification' in window
   );
+
+  if (hasRequiredApis) {
+    return { supported: true };
+  }
+
+  if (isIos && !isStandalonePwa()) {
+    return {
+      supported: false,
+      shouldInstall: true,
+      reason: 'Install Beerva to your home screen to enable push notifications on iPhone or iPad.',
+    };
+  }
+
+  return { supported: false, reason: 'Push notifications are not supported by this browser.' };
+};
+
+export const isPushSupported = (): boolean => {
+  return getPushSupportInfo().supported;
 };
 
 export const getPushPermissionStatus = (): 'unsupported' | NotificationPermission => {
@@ -35,7 +75,8 @@ export const registerServiceWorker = async (): Promise<ServiceWorkerRegistration
   try {
     const existing = await navigator.serviceWorker.getRegistration('/');
     if (existing) return existing;
-    return await navigator.serviceWorker.register('/sw.js');
+    const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    return await navigator.serviceWorker.ready.catch(() => registration);
   } catch (e) {
     console.error('Service worker registration failed', e);
     return null;

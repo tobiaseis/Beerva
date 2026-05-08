@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Image, ScrollView, TextInput, Platform, Modal } from 'react-native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { Camera, MapPin, Beer, Minus, Plus, MessageSquare, Images, X } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
-import { prepareWebImageFromPickerAsset, SelectedImage, UPLOAD_IMAGE_MAX_WIDTH, uploadImageToBucket } from '../lib/imageUpload';
+import { deletePublicImageUrl, prepareWebImageFromPickerAsset, SelectedImage, UPLOAD_IMAGE_MAX_WIDTH, uploadImageToBucket } from '../lib/imageUpload';
 import { AutocompleteInput } from '../components/AutocompleteInput';
 import { showAlert } from '../lib/dialogs';
 import * as ImagePicker from 'expo-image-picker';
@@ -66,18 +66,37 @@ export const RecordScreen = ({ navigation }: any) => {
   const [selectedImage, setSelectedImage] = useState<SelectedImage | null>(null);
   const [photoChoiceVisible, setPhotoChoiceVisible] = useState(false);
   const [loading, setLoading] = useState(false);
+  const pubSearchCache = useRef<Map<string, string[]>>(new Map());
+  const pubSearchAbort = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (pub.length < 3) {
+    const cleanPub = pub.trim();
+
+    if (cleanPub.length < 3) {
       setPubOptions([]);
       return;
     }
+
+    const cacheKey = cleanPub.toLowerCase();
+    const cachedOptions = pubSearchCache.current.get(cacheKey);
+    if (cachedOptions) {
+      setPubOptions(cachedOptions);
+      return;
+    }
+
+    pubSearchAbort.current?.abort();
+    const abortController = new AbortController();
+    pubSearchAbort.current = abortController;
+
     const delayDebounceFn = setTimeout(async () => {
       try {
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(pub + ' pub')}&format=json&addressdetails=1&countrycodes=dk&limit=8`, {
-          headers: { 'User-Agent': 'BeervaApp/1.0 (info@beerva.test)' }
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cleanPub + ' pub')}&format=json&addressdetails=1&countrycodes=dk&limit=8`, {
+          headers: { 'User-Agent': 'BeervaApp/1.0 (info@beerva.test)' },
+          signal: abortController.signal,
         });
         const data = await response.json();
+
+        if (abortController.signal.aborted) return;
         
         if (!Array.isArray(data)) {
           console.warn('Nominatim returned unexpected format:', data);
@@ -92,13 +111,18 @@ export const RecordScreen = ({ navigation }: any) => {
         }).filter(Boolean);
         
         const uniquePubs = Array.from(new Set(pubs));
+        pubSearchCache.current.set(cacheKey, uniquePubs);
         setPubOptions(uniquePubs);
-      } catch (e) {
+      } catch (e: any) {
+        if (e?.name === 'AbortError') return;
         console.error('Nominatim error:', e);
       }
     }, 600);
 
-    return () => clearTimeout(delayDebounceFn);
+    return () => {
+      clearTimeout(delayDebounceFn);
+      abortController.abort();
+    };
   }, [pub]);
 
   const handleImageAsset = async (asset: ImagePicker.ImagePickerAsset) => {
@@ -165,13 +189,14 @@ export const RecordScreen = ({ navigation }: any) => {
 
     setLoading(true);
     
+    let uploadedUrl: string | null = null;
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not logged in!');
 
-      let uploadedUrl = null;
       if (selectedImage) {
-        uploadedUrl = await uploadImageToBucket('session_images', selectedImage, 'session');
+        uploadedUrl = await uploadImageToBucket('session_images', selectedImage, `users/${user.id}/sessions`);
       }
 
       const { data: existingProfile } = await supabase
@@ -227,6 +252,9 @@ export const RecordScreen = ({ navigation }: any) => {
       navigation.navigate('Feed');
     } catch (e: any) {
       console.error('Save session error:', e);
+      if (uploadedUrl) {
+        deletePublicImageUrl('session_images', uploadedUrl);
+      }
       showAlert('Could not save session', e?.message || 'Please try again.');
     } finally {
       setLoading(false);

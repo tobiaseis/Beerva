@@ -1,10 +1,12 @@
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { ArrowLeft, Beer, CalendarDays, MapPin, UserCheck, UserPlus } from 'lucide-react-native';
 
+import { CachedImage } from '../components/CachedImage';
 import { ProfileStatsPanel } from '../components/ProfileStatsPanel';
-import { calculateStats, emptyStats, getVolumeMl, ProfileSessionStatsRow, Stats } from '../lib/profileStats';
+import { emptyStats, getVolumeMl, ProfileSessionStatsRow, Stats } from '../lib/profileStats';
+import { fetchProfileStats } from '../lib/profileStatsApi';
 import { supabase } from '../lib/supabase';
 import { showAlert } from '../lib/dialogs';
 import { colors } from '../theme/colors';
@@ -81,6 +83,7 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [stats, setStats] = useState<Stats>(emptyStats);
   const [sessions, setSessions] = useState<PublicSession[]>([]);
+  const [sessionCount, setSessionCount] = useState(0);
   const [followCounts, setFollowCounts] = useState<FollowCounts>({ followers: 0, following: 0 });
   const [isFollowing, setIsFollowing] = useState(false);
   const [isMutual, setIsMutual] = useState(false);
@@ -98,6 +101,7 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
       const [
         profileResult,
         sessionsResult,
+        profileStats,
         followersResult,
         followingResult,
       ] = await Promise.all([
@@ -108,9 +112,11 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
           .maybeSingle(),
         supabase
           .from('sessions')
-          .select('id, pub_name, beer_name, volume, quantity, abv, comment, image_url, created_at')
+          .select('id, pub_name, beer_name, volume, quantity, abv, comment, image_url, created_at', { count: 'exact' })
           .eq('user_id', profileId)
-          .order('created_at', { ascending: false }),
+          .order('created_at', { ascending: false })
+          .limit(5),
+        fetchProfileStats(profileId),
         supabase
           .from('follows')
           .select('*', { count: 'exact', head: true })
@@ -126,7 +132,8 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
 
       setProfile(profileResult.data as UserProfile | null);
       setSessions((sessionsResult.data || []) as PublicSession[]);
-      setStats(calculateStats((sessionsResult.data || []) as PublicSession[]));
+      setSessionCount(sessionsResult.count || sessionsResult.data?.length || 0);
+      setStats(profileStats);
       setFollowCounts({
         followers: followersResult.count || 0,
         following: followingResult.count || 0,
@@ -265,7 +272,7 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
   const joinDate = profile.updated_at
     ? new Date(profile.updated_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
     : 'Recently';
-  const recentSessions = sessions.slice(0, 5);
+  const recentSessions = sessions;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -278,9 +285,12 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
       </View>
 
       <View style={styles.header}>
-        <Image
-          source={{ uri: profile.avatar_url || `https://i.pravatar.cc/150?u=${profile.id}` }}
+        <CachedImage
+          uri={profile.avatar_url}
+          fallbackUri={`https://i.pravatar.cc/150?u=${profile.id}`}
           style={styles.avatar}
+          recyclingKey={`profile-${profile.id}-${profile.avatar_url || 'fallback'}`}
+          accessibilityLabel={`${profile.username || 'Beer Lover'}'s avatar`}
         />
         <Text style={typography.h1}>{profile.username || 'Beer Lover'}</Text>
         <Text style={typography.bodyMuted}>Joined {joinDate}</Text>
@@ -336,7 +346,7 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
       <View style={styles.recentSection}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Recent Beers</Text>
-          <Text style={styles.sectionMeta}>{sessions.length}</Text>
+          <Text style={styles.sectionMeta}>{sessionCount}</Text>
         </View>
 
         {recentSessions.length === 0 ? (
@@ -348,7 +358,12 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
           recentSessions.map((session) => (
             <View key={session.id} style={styles.sessionRow}>
               {session.image_url ? (
-                <Image source={{ uri: session.image_url }} style={styles.sessionImage} />
+                <CachedImage
+                  uri={session.image_url}
+                  style={styles.sessionImage}
+                  recyclingKey={`profile-session-${session.id}-${session.image_url}`}
+                  accessibilityLabel={`${profile.username || 'Beer Lover'}'s beer session photo`}
+                />
               ) : (
                 <View style={styles.sessionIcon}>
                   <Beer color={colors.primary} size={20} />
