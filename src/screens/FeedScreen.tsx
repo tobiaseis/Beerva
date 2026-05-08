@@ -209,6 +209,12 @@ const FeedSessionCard = React.memo(({
         ) : null}
       </View>
 
+      {item.comment ? (
+        <View style={styles.commentTop}>
+          <Text style={styles.commentText}>{item.comment}</Text>
+        </View>
+      ) : null}
+
       {item.image_url ? (
         <TouchableWithoutFeedback onPress={handleImagePress} accessibilityLabel={`Double tap to cheer ${username}`}>
           <View style={styles.imageWrap}>
@@ -240,11 +246,6 @@ const FeedSessionCard = React.memo(({
           <Image source={beervaLogo} style={styles.inlineLogoSmall} />
           <Text style={styles.beerText}> {getDrinkLabel(item)} of <Text style={styles.bold}>{item.beer_name}</Text></Text>
         </View>
-        {item.comment ? (
-          <View style={styles.commentBlock}>
-            <Text style={styles.commentText}>{item.comment}</Text>
-          </View>
-        ) : null}
       </View>
 
       <View style={styles.cardFooter}>
@@ -1022,11 +1023,9 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginTop: spacing.sm,
   },
-  commentBlock: {
-    marginTop: spacing.md,
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderSoft,
+  commentTop: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.md,
   },
   commentText: {
     ...typography.body,
