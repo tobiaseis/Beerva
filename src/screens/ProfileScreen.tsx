@@ -3,114 +3,13 @@ import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Modal, Tex
 import { useFocusEffect } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
-import { Award, Beer, Camera, Edit2, Flame, LogOut, MapPin, Moon, Trophy, X } from 'lucide-react-native';
+import { Camera, Edit2, LogOut, X } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { confirmDestructive } from '../lib/dialogs';
 import { imageFromPickerAsset, SelectedImage, uploadImageToBucket } from '../lib/imageUpload';
+import { ProfileStatsPanel } from '../components/ProfileStatsPanel';
+import { calculateStats, emptyStats, Stats } from '../lib/profileStats';
 import * as ImagePicker from 'expo-image-picker';
-
-const getVolumeMl = (vol: string) => {
-  switch (vol?.toLowerCase()) {
-    case '25cl': return 250;
-    case '33cl': return 330;
-    case 'schooner': return 379; // UK standard
-    case 'pint': return 568; // UK pint
-    case '50cl': return 500;
-    default: return 568; // Default to pint if unknown
-  }
-};
-
-type Stats = {
-  totalPints: number;
-  uniquePubs: number;
-  avgAbv: number;
-  maxSessionPints: number;
-  strongestAbv: number;
-  hasLateNightSession: boolean;
-};
-
-type TrophyKind = 'pints' | 'pubs' | 'session' | 'abv' | 'late';
-
-type TrophyDefinition = {
-  id: string;
-  title: string;
-  description: string;
-  kind: TrophyKind;
-  earned: boolean;
-};
-
-const emptyStats: Stats = {
-  totalPints: 0,
-  uniquePubs: 0,
-  avgAbv: 0,
-  maxSessionPints: 0,
-  strongestAbv: 0,
-  hasLateNightSession: false,
-};
-
-const roundStat = (value: number) => Math.round(value * 10) / 10;
-
-const isLateNightSession = (createdAt?: string) => {
-  if (!createdAt) return false;
-
-  const hour = new Date(createdAt).getHours();
-  return hour >= 3 && hour < 6;
-};
-
-const getTrophies = (stats: Stats): TrophyDefinition[] => {
-  const totalPintTrophies = [10, 50, 100, 200, 500, 1000].map((threshold) => ({
-    id: `total-${threshold}`,
-    title: `${threshold} Pint Club`,
-    description: `${threshold}+ true pints recorded`,
-    kind: 'pints' as const,
-    earned: stats.totalPints >= threshold,
-  }));
-
-  const pubTrophies = [5, 10, 20, 50, 100].map((threshold) => ({
-    id: `pubs-${threshold}`,
-    title: `${threshold} Pub Tour`,
-    description: `${threshold}+ unique pubs visited`,
-    kind: 'pubs' as const,
-    earned: stats.uniquePubs >= threshold,
-  }));
-
-  const sessionTrophies = [5, 10, 15, 20, 25].map((threshold) => ({
-    id: `session-${threshold}`,
-    title: `${threshold} Pint Session`,
-    description: `${threshold}+ true pints in one session`,
-    kind: 'session' as const,
-    earned: stats.maxSessionPints >= threshold,
-  }));
-
-  const abvTrophies = [6, 7, 8, 9, 10, 11].map((threshold) => ({
-    id: `abv-${threshold}`,
-    title: `Over ${threshold}% ABV`,
-    description: `Logged a beer above ${threshold}%`,
-    kind: 'abv' as const,
-    earned: stats.strongestAbv > threshold,
-  }));
-
-  return [
-    {
-      id: 'first-pint',
-      title: 'First Pint',
-      description: 'Record your first beer session',
-      kind: 'pints',
-      earned: stats.totalPints > 0,
-    },
-    ...totalPintTrophies,
-    ...pubTrophies,
-    ...sessionTrophies,
-    ...abvTrophies,
-    {
-      id: 'late-night',
-      title: 'Late Night Beer',
-      description: 'Record a session after 3am',
-      kind: 'late',
-      earned: stats.hasLateNightSession,
-    },
-  ];
-};
 
 export const ProfileScreen = () => {
   const [profile, setProfile] = useState<any>(null);
@@ -157,45 +56,7 @@ export const ProfileScreen = () => {
         .select('pub_name, volume, quantity, abv, created_at')
         .eq('user_id', user.id);
 
-      if (sessions && sessions.length > 0) {
-        const uniquePubs = new Set(sessions.map(s => s.pub_name)).size;
-        
-        let totalMl = 0;
-        let weightedAbvSum = 0;
-        let maxSessionPints = 0;
-        let strongestAbv = 0;
-        let hasLateNightSession = false;
-
-        sessions.forEach(s => {
-          const ml = getVolumeMl(s.volume);
-          const qty = s.quantity || 1; // Default to 1 for older logs
-          const abv = s.abv || 0; // Default to 0 for older logs
-
-          const sessionVolMl = ml * qty;
-          const sessionPints = sessionVolMl / 568;
-
-          totalMl += sessionVolMl;
-          weightedAbvSum += sessionVolMl * abv;
-          maxSessionPints = Math.max(maxSessionPints, sessionPints);
-          strongestAbv = Math.max(strongestAbv, abv);
-          hasLateNightSession = hasLateNightSession || isLateNightSession(s.created_at);
-        });
-
-        // Convert total ml to UK Pints (568ml)
-        const truePints = roundStat(totalMl / 568);
-        const avgAbv = totalMl > 0 ? roundStat(weightedAbvSum / totalMl) : 0;
-
-        setStats({ 
-          totalPints: truePints, 
-          uniquePubs, 
-          avgAbv,
-          maxSessionPints: roundStat(maxSessionPints),
-          strongestAbv: roundStat(strongestAbv),
-          hasLateNightSession,
-        });
-      } else {
-        setStats(emptyStats);
-      }
+      setStats(calculateStats(sessions || []));
     } catch (e) {
       console.error(e);
     } finally {
@@ -304,28 +165,6 @@ export const ProfileScreen = () => {
   }
 
   const joinDate = profile?.updated_at ? new Date(profile.updated_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'Recently';
-  const trophies = getTrophies(stats);
-  const earnedTrophies = trophies.filter((trophy) => trophy.earned);
-
-  const renderTrophyIcon = (kind: TrophyKind, earned: boolean) => {
-    const iconColor = earned ? colors.primary : colors.textMuted;
-    const iconSize = 28;
-
-    switch (kind) {
-      case 'pints':
-        return <Beer color={iconColor} size={iconSize} />;
-      case 'pubs':
-        return <MapPin color={iconColor} size={iconSize} />;
-      case 'session':
-        return <Trophy color={iconColor} size={iconSize} />;
-      case 'abv':
-        return <Flame color={iconColor} size={iconSize} />;
-      case 'late':
-        return <Moon color={iconColor} size={iconSize} />;
-      default:
-        return <Award color={iconColor} size={iconSize} />;
-    }
-  };
 
   return (
     <ScrollView style={styles.container}>
@@ -343,63 +182,7 @@ export const ProfileScreen = () => {
         <Text style={typography.bodyMuted}>Joined {joinDate}</Text>
       </View>
 
-      <View style={styles.statsContainer}>
-        <View style={styles.statBox}>
-          <Text style={styles.statValue}>{stats.totalPints}</Text>
-          <Text style={styles.statLabel}>True Pints</Text>
-        </View>
-        <View style={styles.divider} />
-        <View style={styles.statBox}>
-          <Text style={styles.statValue}>{stats.uniquePubs}</Text>
-          <Text style={styles.statLabel}>Unique Pubs</Text>
-        </View>
-        <View style={styles.divider} />
-        <View style={styles.statBox}>
-          <Text style={styles.statValue}>{stats.avgAbv}%</Text>
-          <Text style={styles.statLabel}>Avg ABV</Text>
-        </View>
-      </View>
-
-      <View style={styles.highScoreContainer}>
-        <View>
-          <Text style={styles.highScoreLabel}>Best Session</Text>
-          <Text style={styles.highScoreHint}>Most true pints logged in one session</Text>
-        </View>
-        <Text style={styles.highScoreValue}>{stats.maxSessionPints}</Text>
-      </View>
-
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Trophy Cabinet</Text>
-          <Text style={styles.sectionMeta}>{earnedTrophies.length}/{trophies.length}</Text>
-        </View>
-
-        <View style={styles.badges}>
-          {trophies.map((trophy) => (
-            <View
-              key={trophy.id}
-              style={[
-                styles.badge,
-                trophy.earned ? styles.badgeEarned : styles.badgeLocked,
-              ]}
-            >
-              <View style={[
-                styles.badgeIcon,
-                trophy.earned ? styles.badgeIconEarned : styles.badgeIconLocked,
-              ]}>
-                {renderTrophyIcon(trophy.kind, trophy.earned)}
-              </View>
-              <Text style={[
-                styles.badgeText,
-                trophy.earned ? styles.badgeTextEarned : styles.badgeTextLocked,
-              ]}>
-                {trophy.title}
-              </Text>
-              <Text style={styles.badgeDescription}>{trophy.description}</Text>
-            </View>
-          ))}
-        </View>
-      </View>
+      <ProfileStatsPanel stats={stats} />
 
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
         <LogOut color={colors.danger} size={20} />

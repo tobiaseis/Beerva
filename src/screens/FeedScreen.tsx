@@ -2,16 +2,20 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Image, ActivityIndicator, RefreshControl, TouchableOpacity, Alert, Platform } from 'react-native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
-import { Beer, MapPin, Trash2 } from 'lucide-react-native';
+import { Beer, MapPin, Trash2, Users } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { confirmDestructive } from '../lib/dialogs';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 
 const beervaLogo = require('../../assets/beerva-app-icon.png');
 
 type SessionCheer = {
   session_id: string;
   user_id: string;
+};
+
+type FollowRow = {
+  following_id: string;
 };
 
 type FeedSession = {
@@ -33,8 +37,10 @@ type FeedSession = {
 };
 
 export const FeedScreen = () => {
+  const navigation = useNavigation<any>();
   const [sessions, setSessions] = useState<FeedSession[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [followedUserCount, setFollowedUserCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [cheeringSessionIds, setCheeringSessionIds] = useState<Set<string>>(() => new Set());
@@ -43,6 +49,24 @@ export const FeedScreen = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       setCurrentUserId(user?.id || null);
+
+      if (!user) {
+        setSessions([]);
+        return;
+      }
+
+      const { data: followsData, error: followsError } = await supabase
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', user.id);
+
+      if (followsError) {
+        console.error('Feed follows fetch error:', followsError);
+      }
+
+      const followingIds = ((followsData || []) as FollowRow[]).map((follow) => follow.following_id);
+      const feedUserIds = Array.from(new Set([user.id, ...followingIds]));
+      setFollowedUserCount(followingIds.length);
 
       const { data, error } = await supabase
         .from('sessions')
@@ -61,6 +85,7 @@ export const FeedScreen = () => {
             avatar_url
           )
         `)
+        .in('user_id', feedUserIds)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -129,6 +154,20 @@ export const FeedScreen = () => {
 
   const getCheersLabel = (count: number) => {
     return `${count} ${count === 1 ? 'Cheer' : 'Cheers'}`;
+  };
+
+  const openProfile = (userId: string) => {
+    if (userId === currentUserId) {
+      navigation.navigate('Profile');
+      return;
+    }
+
+    const parentNavigation = navigation.getParent?.();
+    (parentNavigation || navigation).navigate('UserProfile', { userId });
+  };
+
+  const openPeople = () => {
+    navigation.navigate('People');
   };
 
   const toggleCheers = async (item: FeedSession) => {
@@ -246,9 +285,22 @@ export const FeedScreen = () => {
           }
         >
           {sessions.length === 0 ? (
-            <Text style={[typography.bodyMuted, { textAlign: 'center', marginTop: 40 }]}>
-              No sessions yet. Be the first to record a pint!
-            </Text>
+            <View style={styles.emptyState}>
+              <Users color={colors.textMuted} size={34} />
+              <Text style={styles.emptyTitle}>
+                {followedUserCount === 0 ? 'Build your beer crew' : 'Quiet feed'}
+              </Text>
+              <Text style={styles.emptyText}>
+                {followedUserCount === 0
+                  ? 'Follow friends to see their sessions here alongside your own.'
+                  : 'No one in your feed has posted a session yet.'}
+              </Text>
+              {followedUserCount === 0 ? (
+                <TouchableOpacity style={styles.emptyButton} onPress={openPeople} activeOpacity={0.75}>
+                  <Text style={styles.emptyButtonText}>Find People</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
           ) : null}
 
           {sessions.map((item) => {
@@ -259,11 +311,17 @@ export const FeedScreen = () => {
             return (
               <View key={item.id} style={styles.card}>
               <View style={styles.cardHeader}>
-                <Image source={{ uri: item.profiles?.avatar_url || 'https://i.pravatar.cc/150' }} style={styles.avatar} />
-                <View style={styles.userInfo}>
-                  <Text style={styles.userName}>{item.profiles?.username || 'Unknown'}</Text>
-                  <Text style={styles.timeText}>{getTimeAgo(item.created_at)}</Text>
-                </View>
+                <TouchableOpacity
+                  style={styles.profileLink}
+                  onPress={() => openProfile(item.user_id)}
+                  activeOpacity={0.75}
+                >
+                  <Image source={{ uri: item.profiles?.avatar_url || 'https://i.pravatar.cc/150' }} style={styles.avatar} />
+                  <View style={styles.userInfo}>
+                    <Text style={styles.userName}>{item.profiles?.username || 'Unknown'}</Text>
+                    <Text style={styles.timeText}>{getTimeAgo(item.created_at)}</Text>
+                  </View>
+                </TouchableOpacity>
                 {item.user_id === currentUserId ? (
                   <TouchableOpacity
                     style={styles.deleteButton}
@@ -374,6 +432,12 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: 'center',
   },
+  profileLink: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
+  },
   avatar: {
     width: 40,
     height: 40,
@@ -464,5 +528,35 @@ const styles = StyleSheet.create({
   },
   actionTextActive: {
     color: colors.primary,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 64,
+    gap: 10,
+  },
+  emptyTitle: {
+    ...typography.h3,
+    textAlign: 'center',
+  },
+  emptyText: {
+    ...typography.bodyMuted,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  emptyButton: {
+    marginTop: 8,
+    minHeight: 42,
+    borderRadius: 21,
+    paddingHorizontal: 18,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyButtonText: {
+    color: colors.background,
+    fontWeight: '800',
+    fontSize: 15,
   },
 });
