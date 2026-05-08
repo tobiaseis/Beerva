@@ -4,7 +4,7 @@ import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { Camera, MapPin, Beer, Minus, Plus, MessageSquare, Images, X } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
-import { imageFromPickerAsset, prepareWebImageFromPickerAsset, SelectedImage, uploadImageToBucket } from '../lib/imageUpload';
+import { prepareWebImageFromPickerAsset, SelectedImage, UPLOAD_IMAGE_MAX_WIDTH, uploadImageToBucket } from '../lib/imageUpload';
 import { AutocompleteInput } from '../components/AutocompleteInput';
 import { showAlert } from '../lib/dialogs';
 import * as ImagePicker from 'expo-image-picker';
@@ -110,7 +110,7 @@ export const RecordScreen = ({ navigation }: any) => {
     const ImageManipulator = await import('expo-image-manipulator');
     const manipResult = await ImageManipulator.manipulateAsync(
       asset.uri,
-      [{ resize: { width: 1080 } }],
+      [{ resize: { width: UPLOAD_IMAGE_MAX_WIDTH } }],
       { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG }
     );
     setSelectedImage({

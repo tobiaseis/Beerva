@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, Image, Platform, ScrollView, StyleSheet, Text
 import { Camera, LogOut } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 
-import { imageFromPickerAsset, SelectedImage, uploadImageToBucket } from '../lib/imageUpload';
+import { prepareWebImageFromPickerAsset, SelectedImage, UPLOAD_IMAGE_MAX_WIDTH, uploadImageToBucket } from '../lib/imageUpload';
 import { supabase } from '../lib/supabase';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
@@ -61,7 +61,7 @@ export const ProfileSetupScreen = ({ onComplete }: ProfileSetupScreenProps) => {
     const asset = result.assets[0];
 
     if (Platform.OS === 'web') {
-      const image = imageFromPickerAsset(asset);
+      const image = await prepareWebImageFromPickerAsset(asset);
       setAvatarUri(image.uri);
       setAvatar(image);
       return;
@@ -70,7 +70,7 @@ export const ProfileSetupScreen = ({ onComplete }: ProfileSetupScreenProps) => {
     const ImageManipulator = await import('expo-image-manipulator');
     const manipResult = await ImageManipulator.manipulateAsync(
       asset.uri,
-      [{ resize: { width: 400, height: 400 } }],
+      [{ resize: { width: UPLOAD_IMAGE_MAX_WIDTH, height: UPLOAD_IMAGE_MAX_WIDTH } }],
       { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
     );
     const image = {

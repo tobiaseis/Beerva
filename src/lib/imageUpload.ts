@@ -3,6 +3,8 @@ import type { ImagePickerAsset } from 'expo-image-picker';
 
 import { supabase } from './supabase';
 
+export const UPLOAD_IMAGE_MAX_WIDTH = 720;
+
 export type SelectedImage = {
   uri: string;
   blob?: Blob;
@@ -35,7 +37,7 @@ export const imageFromPickerAsset = (asset: ImagePickerAsset): SelectedImage => 
 
 export const prepareWebImageFromPickerAsset = async (
   asset: ImagePickerAsset,
-  maxWidth = 1080,
+  maxWidth = UPLOAD_IMAGE_MAX_WIDTH,
   quality = 0.72
 ): Promise<SelectedImage> => {
   const source = imageFromPickerAsset(asset);

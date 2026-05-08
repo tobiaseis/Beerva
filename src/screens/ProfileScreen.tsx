@@ -6,7 +6,7 @@ import { typography } from '../theme/typography';
 import { Bell, BellOff, Camera, Edit2, LogOut, X } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { confirmDestructive, showAlert } from '../lib/dialogs';
-import { imageFromPickerAsset, SelectedImage, uploadImageToBucket } from '../lib/imageUpload';
+import { prepareWebImageFromPickerAsset, SelectedImage, UPLOAD_IMAGE_MAX_WIDTH, uploadImageToBucket } from '../lib/imageUpload';
 import { ProfileStatsPanel } from '../components/ProfileStatsPanel';
 import { calculateStats, emptyStats, Stats } from '../lib/profileStats';
 import {
@@ -140,7 +140,7 @@ export const ProfileScreen = () => {
       const asset = result.assets[0];
 
       if (Platform.OS === 'web') {
-        const image = imageFromPickerAsset(asset);
+        const image = await prepareWebImageFromPickerAsset(asset);
         setEditAvatarUri(image.uri);
         setEditAvatar(image);
         return;
@@ -149,7 +149,7 @@ export const ProfileScreen = () => {
       const ImageManipulator = await import('expo-image-manipulator');
       const manipResult = await ImageManipulator.manipulateAsync(
         asset.uri,
-        [{ resize: { width: 400, height: 400 } }],
+        [{ resize: { width: UPLOAD_IMAGE_MAX_WIDTH, height: UPLOAD_IMAGE_MAX_WIDTH } }],
         { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
       );
       const image = {
