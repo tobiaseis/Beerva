@@ -13,6 +13,16 @@ type ProfileStatsPanelProps = {
 export const ProfileStatsPanel = ({ stats }: ProfileStatsPanelProps) => {
   const trophies = getTrophies(stats);
   const earnedTrophies = trophies.filter((trophy) => trophy.earned);
+  const orderedTrophies = trophies
+    .map((trophy, index) => ({ trophy, index }))
+    .sort((a, b) => {
+      if (a.trophy.earned !== b.trophy.earned) {
+        return a.trophy.earned ? -1 : 1;
+      }
+
+      return a.index - b.index;
+    })
+    .map(({ trophy }) => trophy);
 
   const renderTrophyIcon = (kind: TrophyKind, earned: boolean) => {
     const iconColor = earned ? colors.primary : colors.textMuted;
@@ -78,7 +88,7 @@ export const ProfileStatsPanel = ({ stats }: ProfileStatsPanelProps) => {
         </View>
 
         <View style={styles.badges}>
-          {trophies.map((trophy) => (
+          {orderedTrophies.map((trophy) => (
             <View
               key={trophy.id}
               style={[

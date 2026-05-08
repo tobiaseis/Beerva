@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#0F172A" />
     <meta name="application-name" content="Beerva" />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -33,6 +33,22 @@
         overscroll-behavior: none;
         -webkit-font-smoothing: antialiased;
         -webkit-tap-highlight-color: transparent;
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
+      }
+
+      input, textarea {
+        -webkit-user-select: auto;
+        user-select: auto;
+      }
+
+      ::-webkit-scrollbar {
+        display: none;
+      }
+
+      * {
+        scrollbar-width: none;
       }
 
       #root {
