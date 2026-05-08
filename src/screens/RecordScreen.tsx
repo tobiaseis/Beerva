@@ -309,15 +309,16 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   header: {
-    paddingTop: 60,
+    paddingTop: Platform.OS === 'web' ? 18 : 60,
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: Platform.OS === 'web' ? 14 : 20,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    backgroundColor: colors.background,
     zIndex: 10,
   },
   content: {
-    padding: 20,
+    padding: Platform.OS === 'web' ? 16 : 20,
     zIndex: 1,
   },
   sectionLabel: {
@@ -414,8 +415,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
-    height: 150,
-    marginBottom: 32,
+    height: Platform.OS === 'web' ? 132 : 150,
+    marginBottom: 24,
     borderStyle: 'dashed',
     overflow: 'hidden',
     zIndex: 0,
@@ -438,6 +439,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 'auto',
+    marginBottom: Platform.OS === 'web' ? 10 : 0,
     zIndex: 0,
   },
   submitText: {

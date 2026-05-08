@@ -53,11 +53,16 @@ export const RootNavigator = () => {
               borderTopColor: colors.border,
               borderTopWidth: 1,
               ...(Platform.OS === 'web' ? {
-                height: 72,
-                paddingTop: 8,
-                paddingBottom: 10,
+                height: 64,
+                paddingTop: 6,
+                paddingBottom: 8,
               } : null),
             },
+            tabBarLabelStyle: Platform.OS === 'web' ? {
+              fontSize: 12,
+              fontWeight: '600',
+              paddingBottom: 2,
+            } : undefined,
             tabBarActiveTintColor: colors.primary,
             tabBarInactiveTintColor: colors.textMuted,
           }}

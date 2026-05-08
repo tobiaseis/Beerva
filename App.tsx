@@ -35,8 +35,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     ...(Platform.OS === 'web' ? {
       width: '100%',
-      maxWidth: 640,
+      maxWidth: 680,
       alignSelf: 'center',
+      borderLeftWidth: 1,
+      borderRightWidth: 1,
+      borderColor: colors.border,
     } : null),
   },
 });

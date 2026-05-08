@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, ActivityIndicator, RefreshControl, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, ActivityIndicator, RefreshControl, TouchableOpacity, Alert, Platform } from 'react-native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { Beer, MapPin, Trash2 } from 'lucide-react-native';
@@ -181,11 +181,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   header: {
-    paddingTop: 60,
+    paddingTop: Platform.OS === 'web' ? 18 : 60,
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: Platform.OS === 'web' ? 14 : 20,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    backgroundColor: colors.background,
   },
   logoContainer: {
     flexDirection: 'row',
@@ -198,12 +199,13 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   scrollContent: {
-    padding: 16,
+    padding: Platform.OS === 'web' ? 14 : 16,
+    paddingBottom: Platform.OS === 'web' ? 24 : 16,
   },
   card: {
     backgroundColor: colors.card,
-    borderRadius: 16,
-    marginBottom: 20,
+    borderRadius: 14,
+    marginBottom: 14,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: colors.border,
@@ -241,7 +243,7 @@ const styles = StyleSheet.create({
   },
   feedImage: {
     width: '100%',
-    height: 250,
+    height: Platform.OS === 'web' ? 220 : 250,
   },
   cardContent: {
     padding: 16,

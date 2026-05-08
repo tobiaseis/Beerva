@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Modal, Tex
 import { useFocusEffect } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
-import { Award, Droplet, Edit2, LogOut, Camera, X } from 'lucide-react-native';
+import { Award, Beer, Camera, Edit2, Flame, LogOut, MapPin, Moon, Trophy, X } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { confirmDestructive } from '../lib/dialogs';
 import { imageFromPickerAsset, SelectedImage, uploadImageToBucket } from '../lib/imageUpload';
@@ -20,9 +20,101 @@ const getVolumeMl = (vol: string) => {
   }
 };
 
+type Stats = {
+  totalPints: number;
+  uniquePubs: number;
+  avgAbv: number;
+  maxSessionPints: number;
+  strongestAbv: number;
+  hasLateNightSession: boolean;
+};
+
+type TrophyKind = 'pints' | 'pubs' | 'session' | 'abv' | 'late';
+
+type TrophyDefinition = {
+  id: string;
+  title: string;
+  description: string;
+  kind: TrophyKind;
+  earned: boolean;
+};
+
+const emptyStats: Stats = {
+  totalPints: 0,
+  uniquePubs: 0,
+  avgAbv: 0,
+  maxSessionPints: 0,
+  strongestAbv: 0,
+  hasLateNightSession: false,
+};
+
+const roundStat = (value: number) => Math.round(value * 10) / 10;
+
+const isLateNightSession = (createdAt?: string) => {
+  if (!createdAt) return false;
+
+  const hour = new Date(createdAt).getHours();
+  return hour >= 3 && hour < 6;
+};
+
+const getTrophies = (stats: Stats): TrophyDefinition[] => {
+  const totalPintTrophies = [10, 50, 100, 200, 500, 1000].map((threshold) => ({
+    id: `total-${threshold}`,
+    title: `${threshold} Pint Club`,
+    description: `${threshold}+ true pints recorded`,
+    kind: 'pints' as const,
+    earned: stats.totalPints >= threshold,
+  }));
+
+  const pubTrophies = [5, 10, 20, 50, 100].map((threshold) => ({
+    id: `pubs-${threshold}`,
+    title: `${threshold} Pub Tour`,
+    description: `${threshold}+ unique pubs visited`,
+    kind: 'pubs' as const,
+    earned: stats.uniquePubs >= threshold,
+  }));
+
+  const sessionTrophies = [5, 10, 15, 20, 25].map((threshold) => ({
+    id: `session-${threshold}`,
+    title: `${threshold} Pint Session`,
+    description: `${threshold}+ true pints in one session`,
+    kind: 'session' as const,
+    earned: stats.maxSessionPints >= threshold,
+  }));
+
+  const abvTrophies = [6, 7, 8, 9, 10, 11].map((threshold) => ({
+    id: `abv-${threshold}`,
+    title: `Over ${threshold}% ABV`,
+    description: `Logged a beer above ${threshold}%`,
+    kind: 'abv' as const,
+    earned: stats.strongestAbv > threshold,
+  }));
+
+  return [
+    {
+      id: 'first-pint',
+      title: 'First Pint',
+      description: 'Record your first beer session',
+      kind: 'pints',
+      earned: stats.totalPints > 0,
+    },
+    ...totalPintTrophies,
+    ...pubTrophies,
+    ...sessionTrophies,
+    ...abvTrophies,
+    {
+      id: 'late-night',
+      title: 'Late Night Beer',
+      description: 'Record a session after 3am',
+      kind: 'late',
+      earned: stats.hasLateNightSession,
+    },
+  ];
+};
+
 export const ProfileScreen = () => {
   const [profile, setProfile] = useState<any>(null);
-  const [stats, setStats] = useState({ totalPints: 0, uniquePubs: 0, avgAbv: 0 });
+  const [stats, setStats] = useState<Stats>(emptyStats);
   const [loading, setLoading] = useState(true);
   
   // Edit Modal State
@@ -62,7 +154,7 @@ export const ProfileScreen = () => {
 
       const { data: sessions } = await supabase
         .from('sessions')
-        .select('pub_name, volume, quantity, abv')
+        .select('pub_name, volume, quantity, abv, created_at')
         .eq('user_id', user.id);
 
       if (sessions && sessions.length > 0) {
@@ -70,6 +162,9 @@ export const ProfileScreen = () => {
         
         let totalMl = 0;
         let weightedAbvSum = 0;
+        let maxSessionPints = 0;
+        let strongestAbv = 0;
+        let hasLateNightSession = false;
 
         sessions.forEach(s => {
           const ml = getVolumeMl(s.volume);
@@ -77,21 +172,29 @@ export const ProfileScreen = () => {
           const abv = s.abv || 0; // Default to 0 for older logs
 
           const sessionVolMl = ml * qty;
+          const sessionPints = sessionVolMl / 568;
+
           totalMl += sessionVolMl;
           weightedAbvSum += sessionVolMl * abv;
+          maxSessionPints = Math.max(maxSessionPints, sessionPints);
+          strongestAbv = Math.max(strongestAbv, abv);
+          hasLateNightSession = hasLateNightSession || isLateNightSession(s.created_at);
         });
 
         // Convert total ml to UK Pints (568ml)
-        const truePints = (totalMl / 568).toFixed(1);
-        const avgAbv = totalMl > 0 ? (weightedAbvSum / totalMl).toFixed(1) : '0.0';
+        const truePints = roundStat(totalMl / 568);
+        const avgAbv = totalMl > 0 ? roundStat(weightedAbvSum / totalMl) : 0;
 
         setStats({ 
-          totalPints: parseFloat(truePints), 
+          totalPints: truePints, 
           uniquePubs, 
-          avgAbv: parseFloat(avgAbv) 
+          avgAbv,
+          maxSessionPints: roundStat(maxSessionPints),
+          strongestAbv: roundStat(strongestAbv),
+          hasLateNightSession,
         });
       } else {
-        setStats({ totalPints: 0, uniquePubs: 0, avgAbv: 0 });
+        setStats(emptyStats);
       }
     } catch (e) {
       console.error(e);
@@ -201,6 +304,28 @@ export const ProfileScreen = () => {
   }
 
   const joinDate = profile?.updated_at ? new Date(profile.updated_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'Recently';
+  const trophies = getTrophies(stats);
+  const earnedTrophies = trophies.filter((trophy) => trophy.earned);
+
+  const renderTrophyIcon = (kind: TrophyKind, earned: boolean) => {
+    const iconColor = earned ? colors.primary : colors.textMuted;
+    const iconSize = 28;
+
+    switch (kind) {
+      case 'pints':
+        return <Beer color={iconColor} size={iconSize} />;
+      case 'pubs':
+        return <MapPin color={iconColor} size={iconSize} />;
+      case 'session':
+        return <Trophy color={iconColor} size={iconSize} />;
+      case 'abv':
+        return <Flame color={iconColor} size={iconSize} />;
+      case 'late':
+        return <Moon color={iconColor} size={iconSize} />;
+      default:
+        return <Award color={iconColor} size={iconSize} />;
+    }
+  };
 
   return (
     <ScrollView style={styles.container}>
@@ -235,26 +360,45 @@ export const ProfileScreen = () => {
         </View>
       </View>
 
+      <View style={styles.highScoreContainer}>
+        <View>
+          <Text style={styles.highScoreLabel}>Best Session</Text>
+          <Text style={styles.highScoreHint}>Most true pints logged in one session</Text>
+        </View>
+        <Text style={styles.highScoreValue}>{stats.maxSessionPints}</Text>
+      </View>
+
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Trophy Cabinet</Text>
-        {stats.totalPints === 0 ? (
-           <Text style={[typography.bodyMuted, { textAlign: 'center', marginTop: 20 }]}>Log your first pint to earn a badge!</Text>
-        ) : (
-          <View style={styles.badges}>
-            {stats.totalPints > 0 && (
-              <View style={styles.badge}>
-                <Droplet color={colors.success} size={32} />
-                <Text style={styles.badgeText}>First Pint</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Trophy Cabinet</Text>
+          <Text style={styles.sectionMeta}>{earnedTrophies.length}/{trophies.length}</Text>
+        </View>
+
+        <View style={styles.badges}>
+          {trophies.map((trophy) => (
+            <View
+              key={trophy.id}
+              style={[
+                styles.badge,
+                trophy.earned ? styles.badgeEarned : styles.badgeLocked,
+              ]}
+            >
+              <View style={[
+                styles.badgeIcon,
+                trophy.earned ? styles.badgeIconEarned : styles.badgeIconLocked,
+              ]}>
+                {renderTrophyIcon(trophy.kind, trophy.earned)}
               </View>
-            )}
-            {stats.uniquePubs >= 5 && (
-              <View style={styles.badge}>
-                <Award color={colors.primary} size={32} />
-                <Text style={styles.badgeText}>Pub Crawler</Text>
-              </View>
-            )}
-          </View>
-        )}
+              <Text style={[
+                styles.badgeText,
+                trophy.earned ? styles.badgeTextEarned : styles.badgeTextLocked,
+              ]}>
+                {trophy.title}
+              </Text>
+              <Text style={styles.badgeDescription}>{trophy.description}</Text>
+            </View>
+          ))}
+        </View>
       </View>
 
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
@@ -317,17 +461,17 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    paddingTop: 60,
-    paddingBottom: 30,
+    paddingTop: Platform.OS === 'web' ? 22 : 60,
+    paddingBottom: Platform.OS === 'web' ? 22 : 30,
   },
   avatarContainer: {
     position: 'relative',
     marginBottom: 16,
   },
   avatar: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: Platform.OS === 'web' ? 104 : 120,
+    height: Platform.OS === 'web' ? 104 : 120,
+    borderRadius: Platform.OS === 'web' ? 52 : 60,
     borderWidth: 3,
     borderColor: colors.primary,
   },
@@ -348,8 +492,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: colors.card,
     marginHorizontal: 16,
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 14,
+    padding: Platform.OS === 'web' ? 16 : 20,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -370,32 +514,105 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: 'center',
   },
+  highScoreContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.card,
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderRadius: 14,
+    padding: Platform.OS === 'web' ? 16 : 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  highScoreLabel: {
+    ...typography.h3,
+    color: colors.text,
+    fontSize: 18,
+  },
+  highScoreHint: {
+    ...typography.caption,
+    marginTop: 4,
+  },
+  highScoreValue: {
+    fontFamily: 'Righteous_400Regular',
+    fontSize: 36,
+    color: colors.primary,
+    marginLeft: 16,
+  },
   section: {
-    padding: 20,
+    padding: Platform.OS === 'web' ? 16 : 20,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
   },
   sectionTitle: {
     ...typography.h3,
-    marginBottom: 16,
+  },
+  sectionMeta: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: '700',
   },
   badges: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 16,
+    gap: 12,
   },
   badge: {
-    backgroundColor: colors.card,
-    padding: 16,
+    flexGrow: 1,
+    flexBasis: '30%',
+    minWidth: 104,
+    minHeight: Platform.OS === 'web' ? 146 : 154,
+    padding: 12,
     borderRadius: 12,
     alignItems: 'center',
-    width: 100,
     borderWidth: 1,
+  },
+  badgeEarned: {
+    backgroundColor: colors.card,
     borderColor: colors.border,
+  },
+  badgeLocked: {
+    backgroundColor: 'rgba(30, 41, 59, 0.45)',
+    borderColor: 'rgba(148, 163, 184, 0.16)',
+  },
+  badgeIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  badgeIconEarned: {
+    backgroundColor: 'rgba(245, 158, 11, 0.14)',
+  },
+  badgeIconLocked: {
+    backgroundColor: 'rgba(148, 163, 184, 0.08)',
   },
   badgeText: {
     ...typography.caption,
-    marginTop: 8,
     textAlign: 'center',
-    fontWeight: '600',
+    fontWeight: '700',
+    minHeight: 34,
+  },
+  badgeTextEarned: {
+    color: colors.text,
+  },
+  badgeTextLocked: {
+    color: colors.textMuted,
+  },
+  badgeDescription: {
+    ...typography.caption,
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 6,
+    lineHeight: 16,
   },
   logoutButton: {
     flexDirection: 'row',
@@ -421,7 +638,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 20,
-    paddingTop: 60,
+    paddingTop: Platform.OS === 'web' ? 20 : 60,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
