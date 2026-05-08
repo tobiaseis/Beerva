@@ -253,7 +253,7 @@ export const RecordScreen = ({ navigation }: any) => {
       setSelectedImage(null);
       hapticSuccess();
       showAlert('Cheers!', 'Your pint has been recorded.');
-      navigation.navigate('MainTabs', { screen: 'Feed' });
+      navigation.navigate('Feed');
     } catch (e: any) {
       console.error('Save session error:', e);
       if (uploadedUrl) {
@@ -276,15 +276,6 @@ export const RecordScreen = ({ navigation }: any) => {
     >
       <View style={styles.header}>
         <Text style={typography.h2}>Record a Session</Text>
-        <TouchableOpacity
-          style={styles.closeButton}
-          onPress={() => navigation.goBack()}
-          hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-          accessibilityRole="button"
-          accessibilityLabel="Close"
-        >
-          <X color={colors.text} size={22} />
-        </TouchableOpacity>
       </View>
 
       <View style={styles.content}>
@@ -429,19 +420,6 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.borderSoft,
     backgroundColor: colors.background,
     zIndex: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  closeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
   },
   content: {
     padding: Platform.OS === 'web' ? 16 : 20,

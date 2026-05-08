@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, FlatList, Image, ActivityIndicator, RefreshControl, TouchableOpacity, TouchableWithoutFeedback, Alert, Platform, Animated } from 'react-native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
-import { Beer, MapPin, Trash2, Users, Bell, AlertTriangle, RefreshCw } from 'lucide-react-native';
+import { MapPin, Trash2, Users, Bell, AlertTriangle, RefreshCw } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { confirmDestructive } from '../lib/dialogs';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -133,7 +133,6 @@ const FeedSessionCard = React.memo(({
   onToggleCheers,
 }: FeedSessionCardProps) => {
   const isOwnPost = item.user_id === currentUserId;
-  const cheersColor = item.has_cheered ? colors.primary : colors.textMuted;
   const username = item.profiles?.username || 'Unknown';
   const cheersScale = React.useRef(new Animated.Value(1)).current;
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
@@ -226,7 +225,7 @@ const FeedSessionCard = React.memo(({
                 { opacity: overlayOpacity, transform: [{ scale: overlayScale }] },
               ]}
             >
-              <Beer color={colors.primary} fill="rgba(247, 181, 58, 0.92)" size={86} />
+              <Image source={beervaLogo} style={styles.cheerOverlayLogo} />
             </Animated.View>
           </View>
         </TouchableWithoutFeedback>
@@ -238,7 +237,7 @@ const FeedSessionCard = React.memo(({
           <Text style={styles.locationText}> Drinking at <Text style={styles.bold}>{item.pub_name}</Text></Text>
         </View>
         <View style={[styles.row, { marginTop: 8 }]}>
-          <Beer color={colors.primary} size={16} />
+          <Image source={beervaLogo} style={styles.inlineLogoSmall} />
           <Text style={styles.beerText}> {getDrinkLabel(item)} of <Text style={styles.bold}>{item.beer_name}</Text></Text>
         </View>
         {item.comment ? (
@@ -263,7 +262,10 @@ const FeedSessionCard = React.memo(({
           accessibilityLabel={`Give cheers to ${username}`}
           accessibilityState={{ disabled: isOwnPost || isCheering || !currentUserId, selected: item.has_cheered }}
         >
-          <Beer color={cheersColor} fill={item.has_cheered ? 'rgba(245, 158, 11, 0.2)' : 'transparent'} size={20} />
+          <Image
+            source={beervaLogo}
+            style={[styles.cheersLogo, { opacity: item.has_cheered ? 1 : 0.55 }]}
+          />
           <Text style={[styles.actionText, item.has_cheered ? styles.actionTextActive : null]}>
             {getCheersLabel(item.cheers_count)}
           </Text>
@@ -957,6 +959,21 @@ const styles = StyleSheet.create({
     bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  cheerOverlayLogo: {
+    width: 110,
+    height: 104,
+    resizeMode: 'contain',
+  },
+  inlineLogoSmall: {
+    width: 18,
+    height: 18,
+    resizeMode: 'contain',
+  },
+  cheersLogo: {
+    width: 22,
+    height: 22,
+    resizeMode: 'contain',
   },
   cardContent: {
     padding: spacing.lg,
