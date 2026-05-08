@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -77,21 +77,31 @@ export const RootNavigator = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [profileCheckedUserId, setProfileCheckedUserId] = useState<string | null>(null);
   const [needsProfileSetup, setNeedsProfileSetup] = useState(false);
+  const profileCheckedUserIdRef = useRef<string | null>(null);
 
   const checkProfileSetup = useCallback(async (activeSession: Session | null) => {
     if (!activeSession?.user) {
       setNeedsProfileSetup(false);
+      setProfileCheckedUserId(null);
+      profileCheckedUserIdRef.current = null;
       setProfileLoading(false);
       return;
     }
 
-    setProfileLoading(true);
+    const userId = activeSession.user.id;
+    const isFirstCheckForUser = profileCheckedUserIdRef.current !== userId;
+
+    if (isFirstCheckForUser) {
+      setProfileLoading(true);
+    }
+
     try {
       const { data, error } = await supabase
         .from('profiles')
         .select('username')
-        .eq('id', activeSession.user.id)
+        .eq('id', userId)
         .maybeSingle();
 
       if (error) {
@@ -99,9 +109,13 @@ export const RootNavigator = () => {
       }
 
       setNeedsProfileSetup(!data?.username);
+      profileCheckedUserIdRef.current = userId;
+      setProfileCheckedUserId(userId);
     } catch (error) {
       console.error('Profile setup check error:', error);
       setNeedsProfileSetup(true);
+      profileCheckedUserIdRef.current = userId;
+      setProfileCheckedUserId(userId);
     } finally {
       setProfileLoading(false);
     }
@@ -125,7 +139,9 @@ export const RootNavigator = () => {
     return () => subscription.unsubscribe();
   }, [checkProfileSetup]);
 
-  if (loading || profileLoading) {
+  const waitingForProfileCheck = Boolean(session?.user && profileCheckedUserId !== session.user.id);
+
+  if (loading || profileLoading || waitingForProfileCheck) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', backgroundColor: colors.background }}>
         <ActivityIndicator size="large" color={colors.primary} />

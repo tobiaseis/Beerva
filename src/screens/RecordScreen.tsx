@@ -131,6 +131,7 @@ export const RecordScreen = ({ navigation }: any) => {
 
     if (!result.canceled && result.assets[0]) {
       await handleImageAsset(result.assets[0]);
+      navigation.navigate('Record');
     }
   };
 
