@@ -128,17 +128,14 @@ const FeedSessionCard = React.memo(({
       ) : null}
 
       <View style={styles.cardContent}>
-        <View style={styles.detailGrid}>
-          <View style={styles.detailPill}>
-            <MapPin color={colors.primary} size={15} />
-            <Text style={styles.detailText} numberOfLines={1}>{item.pub_name}</Text>
-          </View>
-          <View style={styles.detailPill}>
-            <Beer color={colors.primary} size={15} />
-            <Text style={styles.detailText} numberOfLines={1}>{item.beer_name}</Text>
-          </View>
+        <View style={styles.row}>
+          <MapPin color={colors.primary} size={16} />
+          <Text style={styles.locationText}> Drinking at <Text style={styles.bold}>{item.pub_name}</Text></Text>
         </View>
-        <Text style={styles.drinkLine}>{getDrinkLabel(item)} logged</Text>
+        <View style={[styles.row, { marginTop: 8 }]}>
+          <Beer color={colors.primary} size={16} />
+          <Text style={styles.beerText}> {getDrinkLabel(item)} of <Text style={styles.bold}>{item.beer_name}</Text></Text>
+        </View>
         {item.comment ? (
           <View style={styles.commentBlock}>
             <Text style={styles.commentText}>{item.comment}</Text>
