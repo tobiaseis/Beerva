@@ -146,10 +146,9 @@ You load `Righteous_400Regular` but only use it for the logo text and high-score
 ### 12. Empty States with Illustrations
 **Priority: Medium · Effort: Low**
 
-The current empty states are just text + an icon. Generate a few small illustrations/SVGs (beer glass tipping, friends clinking, trophy cabinet) for:
+The current empty states are just text + an icon. Generate a few small illustrations/SVGs (beer glass tipping, friends clinking) for:
 - Empty feed → illustration of friends drinking together
 - Empty notifications → quiet beer mug
-- Empty trophy cabinet → locked trophy illustration
 - Empty search results → magnifying glass over a beer
 
 These add personality and make the app feel finished rather than skeletal.
@@ -283,4 +282,4 @@ Generate proper iOS splash images for common screen sizes — without these, iOS
 
 ----------- NOT IMPLEMENTED YET ----------
 
-Still untouched from the doc: #1 offline cache, #4 blurhash, #5 session detail, #6 SW update flow, #8 smart pub search, #12 empty illustrations, #20 iOS PWA polish.
+Still untouched from the doc: #1 offline cache, #4 blurhash, #5 session detail, #6 SW update flow, #8 smart pub search.

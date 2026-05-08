@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, FlatList, Image, ActivityIndicator, RefreshControl, TouchableOpacity, TouchableWithoutFeedback, Alert, Platform, Animated } from 'react-native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
-import { MapPin, Trash2, Users, Bell, AlertTriangle, RefreshCw } from 'lucide-react-native';
+import { MapPin, Trash2, Bell, AlertTriangle, RefreshCw } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { confirmDestructive } from '../lib/dialogs';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -13,6 +13,7 @@ import { SkeletonFeedCard } from '../components/Skeleton';
 import { radius, shadows, spacing } from '../theme/layout';
 import { hapticLight, hapticMedium, hapticWarning } from '../lib/haptics';
 import { useNotifications } from '../lib/notificationsContext';
+import { EmptyIllustration } from '../components/EmptyIllustration';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
 
@@ -683,7 +684,7 @@ export const FeedScreen = () => {
 
   const renderEmptyFeed = useCallback(() => (
     <View style={styles.emptyState}>
-      <Users color={colors.textMuted} size={34} />
+      <EmptyIllustration kind="feed" size={170} />
       <Text style={styles.emptyTitle}>
         {followedUserCount === 0 ? 'Build your beer crew' : 'Quiet feed'}
       </Text>

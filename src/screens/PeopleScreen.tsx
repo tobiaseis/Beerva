@@ -8,6 +8,8 @@ import { colors } from '../theme/colors';
 import { radius, shadows, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
 import { SkeletonPersonRow } from '../components/Skeleton';
+import { EmptyIllustration } from '../components/EmptyIllustration';
+import { useFocused } from '../lib/useFocused';
 
 type UserProfileRow = {
   id: string;
@@ -34,6 +36,7 @@ const useDebouncedValue = <T,>(value: T, delayMs: number) => {
 export const PeopleScreen = ({ navigation }: any) => {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const searchFocus = useFocused();
   const [people, setPeople] = useState<UserProfileRow[]>([]);
   const [followingIds, setFollowingIds] = useState<Set<string>>(() => new Set());
   const [pendingFollowIds, setPendingFollowIds] = useState<Set<string>>(() => new Set());
@@ -229,7 +232,7 @@ export const PeopleScreen = ({ navigation }: any) => {
           <Users color={colors.primary} size={26} />
           <Text style={styles.title}>People</Text>
         </View>
-        <View style={styles.searchBox}>
+        <View style={[styles.searchBox, searchFocus.focused ? styles.searchBoxFocused : null]}>
           <Search color={colors.textMuted} size={18} />
           <TextInput
             value={query}
@@ -239,6 +242,8 @@ export const PeopleScreen = ({ navigation }: any) => {
             autoCapitalize="none"
             autoCorrect={false}
             style={styles.searchInput}
+            onFocus={searchFocus.onFocus}
+            onBlur={searchFocus.onBlur}
           />
         </View>
       </View>
@@ -268,7 +273,7 @@ export const PeopleScreen = ({ navigation }: any) => {
           }
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <Users color={colors.textMuted} size={34} />
+              <EmptyIllustration kind="search" size={170} />
               <Text style={styles.emptyText}>{emptyText}</Text>
             </View>
           }
@@ -311,6 +316,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  searchBoxFocused: {
+    borderColor: colors.primary,
   },
   searchInput: {
     flex: 1,

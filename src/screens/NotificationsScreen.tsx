@@ -3,11 +3,12 @@ import { View, Text, StyleSheet, FlatList, ActivityIndicator, RefreshControl, To
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { supabase } from '../lib/supabase';
-import { Bell, ArrowLeft, Beer, PartyPopper } from 'lucide-react-native';
+import { ArrowLeft, Beer, PartyPopper } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { CachedImage } from '../components/CachedImage';
 import { radius, shadows, spacing } from '../theme/layout';
 import { useNotifications } from '../lib/notificationsContext';
+import { EmptyIllustration } from '../components/EmptyIllustration';
 
 type NotificationRow = {
   id: string;
@@ -169,7 +170,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <Bell color={colors.textMuted} size={40} />
+              <EmptyIllustration kind="notifications" size={170} />
               <Text style={styles.emptyTitle}>No notifications</Text>
               <Text style={styles.emptyText}>When someone cheers your beer or invites you, you'll see it here.</Text>
             </View>

@@ -12,6 +12,7 @@ import { getUsernameSaveErrorMessage, normalizeUsername } from '../lib/usernames
 import { AppButton } from '../components/AppButton';
 import { Surface } from '../components/Surface';
 import { radius, spacing } from '../theme/layout';
+import { useFocused } from '../lib/useFocused';
 import {
   disablePushNotifications,
   enablePushNotifications,
@@ -26,6 +27,7 @@ type ProfileSetupScreenProps = {
 
 export const ProfileSetupScreen = ({ onComplete }: ProfileSetupScreenProps) => {
   const [username, setUsername] = useState('');
+  const usernameFocus = useFocused();
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [avatar, setAvatar] = useState<SelectedImage | null>(null);
   const [previousAvatarUri, setPreviousAvatarUri] = useState<string | null>(null);
@@ -247,7 +249,9 @@ export const ProfileSetupScreen = ({ onComplete }: ProfileSetupScreenProps) => {
           placeholderTextColor={colors.textMuted}
           autoCapitalize="none"
           autoCorrect={false}
-          style={styles.input}
+          style={[styles.input, usernameFocus.focused ? styles.inputFocused : null]}
+          onFocus={usernameFocus.onFocus}
+          onBlur={usernameFocus.onBlur}
         />
 
         {pushSupported ? (
@@ -376,6 +380,9 @@ const styles = StyleSheet.create({
     padding: 16,
     color: colors.text,
     marginBottom: 18,
+  },
+  inputFocused: {
+    borderColor: colors.primary,
   },
   pushButton: {
     minHeight: 52,

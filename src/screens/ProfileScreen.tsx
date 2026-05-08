@@ -15,6 +15,7 @@ import { getUsernameSaveErrorMessage, normalizeUsername } from '../lib/usernames
 import { AppButton } from '../components/AppButton';
 import { radius, spacing } from '../theme/layout';
 import { SkeletonProfile } from '../components/Skeleton';
+import { useFocused } from '../lib/useFocused';
 import {
   disablePushNotifications,
   enablePushNotifications,
@@ -32,6 +33,7 @@ export const ProfileScreen = () => {
   // Edit Modal State
   const [isEditing, setIsEditing] = useState(false);
   const [editUsername, setEditUsername] = useState('');
+  const usernameFocus = useFocused();
   const [editAvatarUri, setEditAvatarUri] = useState<string | null>(null);
   const [editAvatar, setEditAvatar] = useState<SelectedImage | null>(null);
   const [saving, setSaving] = useState(false);
@@ -306,11 +308,13 @@ export const ProfileScreen = () => {
 
             <Text style={styles.inputLabel}>Username</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, usernameFocus.focused ? styles.inputFocused : null]}
               value={editUsername}
               onChangeText={setEditUsername}
               placeholder="BeerLover99"
               placeholderTextColor={colors.textMuted}
+              onFocus={usernameFocus.onFocus}
+              onBlur={usernameFocus.onBlur}
             />
 
             <AppButton label="Save Changes" onPress={saveProfile} loading={saving} />
@@ -603,5 +607,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Righteous_400Regular',
     marginBottom: 32,
+  },
+  inputFocused: {
+    borderColor: colors.primary,
   },
 });

@@ -12,6 +12,7 @@ import { AppButton } from '../components/AppButton';
 import { Surface } from '../components/Surface';
 import { radius, spacing } from '../theme/layout';
 import { hapticError, hapticSuccess } from '../lib/haptics';
+import { useFocused } from '../lib/useFocused';
 
 const DANISH_BEERS_DATA = [
   { name: 'Tuborg Grøn', abv: 4.6 }, { name: 'Tuborg Classic', abv: 4.6 }, { name: 'Carlsberg Pilsner', abv: 4.6 },
@@ -66,6 +67,7 @@ export const RecordScreen = ({ navigation }: any) => {
   const [volume, setVolume] = useState('Pint');
   const [quantity, setQuantity] = useState(1);
   const [comment, setComment] = useState('');
+  const commentFocus = useFocused();
 
   const [selectedImage, setSelectedImage] = useState<SelectedImage | null>(null);
   const [photoChoiceVisible, setPhotoChoiceVisible] = useState(false);
@@ -329,7 +331,7 @@ export const RecordScreen = ({ navigation }: any) => {
         </View>
 
         <Text style={styles.sectionLabel}>Comment</Text>
-        <View style={styles.commentContainer}>
+        <View style={[styles.commentContainer, commentFocus.focused ? styles.inputFocused : null]}>
           <MessageSquare color={colors.textMuted} size={20} />
           <TextInput
             style={styles.commentInput}
@@ -340,6 +342,8 @@ export const RecordScreen = ({ navigation }: any) => {
             multiline
             maxLength={220}
             textAlignVertical="top"
+            onFocus={commentFocus.onFocus}
+            onBlur={commentFocus.onBlur}
           />
         </View>
         <Text style={styles.characterCount}>{comment.length}/220</Text>
@@ -479,6 +483,9 @@ const styles = StyleSheet.create({
     minHeight: 104,
     marginBottom: 8,
     gap: 12,
+  },
+  inputFocused: {
+    borderColor: colors.primary,
   },
   commentInput: {
     flex: 1,

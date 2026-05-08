@@ -7,6 +7,7 @@ import { Beer, MailCheck } from 'lucide-react-native';
 import { Surface } from '../components/Surface';
 import { AppButton } from '../components/AppButton';
 import { radius, spacing } from '../theme/layout';
+import { useFocused } from '../lib/useFocused';
 
 type AuthNotice = {
   type: 'success' | 'error';
@@ -24,6 +25,8 @@ const getEmailRedirectTo = () => {
 export const AuthScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const emailFocus = useFocused();
+  const passwordFocus = useFocused();
   const [loading, setLoading] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
   const [notice, setNotice] = useState<AuthNotice | null>(null);
@@ -93,7 +96,7 @@ export const AuthScreen = () => {
 
       <Surface style={styles.formContainer}>
         <TextInput
-          style={styles.input}
+          style={[styles.input, emailFocus.focused ? styles.inputFocused : null]}
           placeholder="Email"
           placeholderTextColor={colors.textMuted}
           onChangeText={setEmail}
@@ -102,9 +105,11 @@ export const AuthScreen = () => {
           autoCorrect={false}
           keyboardType="email-address"
           textContentType="emailAddress"
+          onFocus={emailFocus.onFocus}
+          onBlur={emailFocus.onBlur}
         />
         <TextInput
-          style={styles.input}
+          style={[styles.input, passwordFocus.focused ? styles.inputFocused : null]}
           placeholder="Password"
           placeholderTextColor={colors.textMuted}
           onChangeText={setPassword}
@@ -112,6 +117,8 @@ export const AuthScreen = () => {
           secureTextEntry
           autoCapitalize="none"
           textContentType={isLogin ? 'password' : 'newPassword'}
+          onFocus={passwordFocus.onFocus}
+          onBlur={passwordFocus.onBlur}
         />
 
         {notice ? (
@@ -176,6 +183,9 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 16,
     color: colors.text,
+  },
+  inputFocused: {
+    borderColor: colors.primary,
   },
   notice: {
     flexDirection: 'row',

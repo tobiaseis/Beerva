@@ -14,6 +14,7 @@ interface Props {
 
 export const AutocompleteInput = ({ value, onChangeText, data, placeholder, icon }: Props) => {
   const [showDropdown, setShowDropdown] = useState(false);
+  const [focused, setFocused] = useState(false);
   const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touchingDropdownRef = useRef(false);
   const scrollingDropdownRef = useRef(false);
@@ -59,7 +60,7 @@ export const AutocompleteInput = ({ value, onChangeText, data, placeholder, icon
 
   return (
     <View style={[styles.container, { zIndex: showDropdown ? 100 : 1 }]}>
-      <View style={styles.inputWrapper}>
+      <View style={[styles.inputWrapper, focused ? styles.inputWrapperFocused : null]}>
         {icon && <View style={styles.icon}>{icon}</View>}
         <TextInput
           style={styles.input}
@@ -70,8 +71,14 @@ export const AutocompleteInput = ({ value, onChangeText, data, placeholder, icon
             onChangeText(text);
             setShowDropdown(true);
           }}
-          onFocus={() => setShowDropdown(true)}
-          onBlur={closeAfterBlur}
+          onFocus={() => {
+            setFocused(true);
+            setShowDropdown(true);
+          }}
+          onBlur={() => {
+            setFocused(false);
+            closeAfterBlur();
+          }}
         />
       </View>
       
@@ -126,6 +133,9 @@ const styles = StyleSheet.create({
     borderColor: colors.borderSoft,
     paddingHorizontal: 16,
     height: 56,
+  },
+  inputWrapperFocused: {
+    borderColor: colors.primary,
   },
   icon: {
     marginRight: 12,
