@@ -4,7 +4,7 @@ import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { Camera, MapPin, Beer, Minus, Plus, MessageSquare, Images, X } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
-import { imageFromPickerAsset, SelectedImage, uploadImageToBucket } from '../lib/imageUpload';
+import { imageFromPickerAsset, prepareWebImageFromPickerAsset, SelectedImage, uploadImageToBucket } from '../lib/imageUpload';
 import { AutocompleteInput } from '../components/AutocompleteInput';
 import { showAlert } from '../lib/dialogs';
 import * as ImagePicker from 'expo-image-picker';
@@ -103,7 +103,7 @@ export const RecordScreen = ({ navigation }: any) => {
 
   const handleImageAsset = async (asset: ImagePicker.ImagePickerAsset) => {
     if (Platform.OS === 'web') {
-      setSelectedImage(imageFromPickerAsset(asset));
+      setSelectedImage(await prepareWebImageFromPickerAsset(asset));
       return;
     }
 
@@ -131,7 +131,6 @@ export const RecordScreen = ({ navigation }: any) => {
 
     if (!result.canceled && result.assets[0]) {
       await handleImageAsset(result.assets[0]);
-      navigation.navigate('Record');
     }
   };
 
@@ -154,6 +153,7 @@ export const RecordScreen = ({ navigation }: any) => {
 
     if (!result.canceled && result.assets[0]) {
       await handleImageAsset(result.assets[0]);
+      navigation.navigate('Record');
     }
   };
 
