@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { NavigationContainer } from '@react-navigation/native';
+import { DefaultTheme, NavigationContainer, type Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Beer, PlusCircle, User, Users } from 'lucide-react-native';
 import { View, ActivityIndicator, Platform } from 'react-native';
@@ -21,29 +21,53 @@ import { radius, shadows } from '../theme/layout';
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
+const navigationTheme: Theme = {
+  ...DefaultTheme,
+  dark: true,
+  colors: {
+    ...DefaultTheme.colors,
+    primary: colors.primary,
+    background: colors.background,
+    card: colors.background,
+    text: colors.text,
+    border: colors.borderSoft,
+    notification: colors.primary,
+  },
+};
+
 const MainTabs = () => (
   <Tab.Navigator
     screenOptions={{
       headerShown: false,
-      tabBarStyle: {
-        backgroundColor: colors.surfaceRaised,
-        borderTopColor: colors.borderSoft,
-        borderTopWidth: 1,
-        ...(Platform.OS === 'web' ? {
-          height: 68,
-          paddingTop: 6,
-          paddingBottom: 8,
-          marginHorizontal: 10,
-          marginBottom: 10,
-          borderRadius: radius.xl,
-          borderWidth: 1,
-          ...shadows.card,
-        } : null),
-      },
+      sceneStyle: { backgroundColor: colors.background },
+      tabBarStyle: Platform.OS === 'web'
+        ? {
+            backgroundColor: colors.surfaceRaised,
+            height: 64,
+            paddingTop: 8,
+            paddingBottom: 8,
+            marginHorizontal: 12,
+            marginBottom: 12,
+            borderRadius: radius.xl,
+            borderWidth: 1,
+            borderTopWidth: 1,
+            borderColor: colors.borderSoft,
+            borderTopColor: colors.borderSoft,
+            ...shadows.card,
+          }
+        : {
+            backgroundColor: colors.surfaceRaised,
+            borderTopColor: colors.borderSoft,
+            borderTopWidth: 1,
+          },
       tabBarLabelStyle: Platform.OS === 'web' ? {
         fontSize: 12,
         fontWeight: '600',
-        paddingBottom: 2,
+        marginTop: 2,
+      } : undefined,
+      tabBarItemStyle: Platform.OS === 'web' ? {
+        paddingVertical: 4,
+        borderRadius: radius.lg,
       } : undefined,
       tabBarActiveTintColor: colors.primary,
       tabBarInactiveTintColor: colors.textMuted,
@@ -157,7 +181,7 @@ export const RootNavigator = () => {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer theme={navigationTheme}>
       {session && session.user ? (
         needsProfileSetup ? (
           <ProfileSetupScreen onComplete={() => checkProfileSetup(session)} />
@@ -165,6 +189,7 @@ export const RootNavigator = () => {
           <Stack.Navigator
             screenOptions={{
               headerShown: false,
+              contentStyle: { backgroundColor: colors.background },
             }}
           >
             <Stack.Screen name="MainTabs" component={MainTabs} />

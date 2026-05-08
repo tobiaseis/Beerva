@@ -283,11 +283,7 @@ export const FeedScreen = () => {
           quantity,
           comment,
           image_url,
-          created_at,
-          profiles (
-            username,
-            avatar_url
-          )
+          created_at
         `)
         .in('user_id', feedUserIds)
         .order('created_at', { ascending: false })
@@ -296,32 +292,45 @@ export const FeedScreen = () => {
       if (error) throw error;
       if (!isLatestRequest()) return;
 
-      const rowsWithExtra = ((data || []) as any[]).map((session) => ({
-        ...session,
-        profiles: Array.isArray(session.profiles) ? session.profiles[0] || null : session.profiles,
-      }));
-
-      const hasNextPage = rowsWithExtra.length > FEED_PAGE_SIZE;
-      const sessionRows = rowsWithExtra.slice(0, FEED_PAGE_SIZE);
+      const rawRows = (data || []) as any[];
+      const hasNextPage = rawRows.length > FEED_PAGE_SIZE;
+      const sessionRows = rawRows.slice(0, FEED_PAGE_SIZE);
       setHasMore(hasNextPage);
       hasMoreRef.current = hasNextPage;
 
       const sessionIds = sessionRows.map((session) => session.id);
-      let cheers: SessionCheer[] = [];
+      const profileIds = Array.from(new Set(sessionRows.map((session) => session.user_id)));
 
-      if (sessionIds.length > 0) {
-        const { data: cheersData, error: cheersError } = await supabase
-          .from('session_cheers')
-          .select('session_id, user_id')
-          .in('session_id', sessionIds);
+      const [profilesResult, cheersResult] = await Promise.all([
+        profileIds.length > 0
+          ? supabase
+              .from('profiles')
+              .select('id, username, avatar_url')
+              .in('id', profileIds)
+          : Promise.resolve({ data: [] as any[], error: null }),
+        sessionIds.length > 0
+          ? supabase
+              .from('session_cheers')
+              .select('session_id, user_id')
+              .in('session_id', sessionIds)
+          : Promise.resolve({ data: [] as SessionCheer[], error: null }),
+      ]);
 
-        if (cheersError) {
-          console.error('Cheers fetch error:', cheersError);
-        } else {
-          cheers = cheersData || [];
-        }
-      }
       if (!isLatestRequest()) return;
+
+      if (profilesResult.error) {
+        console.error('Feed profiles fetch error:', profilesResult.error);
+      }
+      if (cheersResult.error) {
+        console.error('Cheers fetch error:', cheersResult.error);
+      }
+
+      const profilesById = new Map<string, { username: string | null; avatar_url: string | null }>();
+      for (const profile of (profilesResult.data || []) as any[]) {
+        profilesById.set(profile.id, { username: profile.username, avatar_url: profile.avatar_url });
+      }
+
+      const cheers: SessionCheer[] = (cheersResult.data || []) as SessionCheer[];
 
       const cheersBySession = cheers.reduce((acc, cheer) => {
         const existing = acc.get(cheer.session_id) || [];
@@ -335,6 +344,7 @@ export const FeedScreen = () => {
 
         return {
           ...session,
+          profiles: profilesById.get(session.user_id) || null,
           cheers_count: sessionCheers.length,
           has_cheered: user ? sessionCheers.some((cheer) => cheer.user_id === user.id) : false,
         };
