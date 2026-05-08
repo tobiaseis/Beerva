@@ -42,40 +42,47 @@ export const NotificationsScreen = ({ navigation }: any) => {
 
       const { data, error } = await supabase
         .from('notifications')
-        .select(`
-          id,
-          actor_id,
-          type,
-          reference_id,
-          read,
-          created_at,
-          profiles!notifications_actor_id_fkey (
-            username,
-            avatar_url
-          )
-        `)
+        .select('id, actor_id, type, reference_id, read, created_at')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(50);
 
       if (error) throw error;
 
-      const rows = ((data || []) as any[]).map((n) => ({
+      const baseRows = (data || []) as Array<Omit<NotificationRow, 'profiles'>>;
+      const actorIds = Array.from(new Set(baseRows.map((n) => n.actor_id).filter(Boolean)));
+
+      const profilesById = new Map<string, { username: string | null; avatar_url: string | null }>();
+      if (actorIds.length > 0) {
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, username, avatar_url')
+          .in('id', actorIds);
+
+        if (profilesError) {
+          console.error('Notification profiles fetch error', profilesError);
+        } else {
+          (profilesData || []).forEach((p: any) => {
+            profilesById.set(p.id, { username: p.username, avatar_url: p.avatar_url });
+          });
+        }
+      }
+
+      const rows: NotificationRow[] = baseRows.map((n) => ({
         ...n,
-        profiles: Array.isArray(n.profiles) ? n.profiles[0] || null : n.profiles,
+        profiles: profilesById.get(n.actor_id) || null,
       }));
 
       setNotifications(rows);
 
-      // Mark as read
-      const unreadIds = rows.filter(n => !n.read).map(n => n.id);
+      const unreadIds = rows.filter((n) => !n.read).map((n) => n.id);
       if (unreadIds.length > 0) {
         supabase
           .from('notifications')
           .update({ read: true })
           .in('id', unreadIds)
-          .then(({ error }) => {
-            if (error) console.error('Error marking notifications as read', error);
+          .then(({ error: updateError }) => {
+            if (updateError) console.error('Error marking notifications as read', updateError);
           });
       }
     } catch (e) {

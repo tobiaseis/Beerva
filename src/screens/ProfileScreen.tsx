@@ -3,12 +3,19 @@ import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Modal, Tex
 import { useFocusEffect } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
-import { Camera, Edit2, LogOut, X } from 'lucide-react-native';
+import { Bell, BellOff, Camera, Edit2, LogOut, X } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
-import { confirmDestructive } from '../lib/dialogs';
+import { confirmDestructive, showAlert } from '../lib/dialogs';
 import { imageFromPickerAsset, SelectedImage, uploadImageToBucket } from '../lib/imageUpload';
 import { ProfileStatsPanel } from '../components/ProfileStatsPanel';
 import { calculateStats, emptyStats, Stats } from '../lib/profileStats';
+import {
+  disablePushNotifications,
+  enablePushNotifications,
+  getPushPermissionStatus,
+  isCurrentlySubscribed,
+  isPushSupported,
+} from '../lib/pushNotifications';
 import * as ImagePicker from 'expo-image-picker';
 
 export const ProfileScreen = () => {
@@ -22,6 +29,50 @@ export const ProfileScreen = () => {
   const [editAvatarUri, setEditAvatarUri] = useState<string | null>(null);
   const [editAvatar, setEditAvatar] = useState<SelectedImage | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const [pushSupported, setPushSupported] = useState(false);
+  const [pushSubscribed, setPushSubscribed] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+
+  const refreshPushState = useCallback(async () => {
+    const supported = isPushSupported();
+    setPushSupported(supported);
+    if (!supported) {
+      setPushSubscribed(false);
+      return;
+    }
+    setPushSubscribed(await isCurrentlySubscribed());
+  }, []);
+
+  const togglePush = async () => {
+    if (pushBusy) return;
+    setPushBusy(true);
+    try {
+      if (pushSubscribed) {
+        await disablePushNotifications();
+        setPushSubscribed(false);
+        showAlert('Push notifications off', 'You will no longer get push alerts on this device.');
+      } else {
+        const result = await enablePushNotifications();
+        if (result.ok) {
+          setPushSubscribed(true);
+          showAlert('🍻 Push notifications on', 'We\'ll buzz you when someone cheers or invites you.');
+        } else {
+          const status = getPushPermissionStatus();
+          if (status === 'denied') {
+            showAlert(
+              'Notifications blocked',
+              'Your browser is blocking notifications for Beerva. Re-enable them in your browser settings, then try again.'
+            );
+          } else {
+            showAlert('Could not enable push', result.reason || 'Please try again.');
+          }
+        }
+      }
+    } finally {
+      setPushBusy(false);
+    }
+  };
 
   const fetchProfile = async () => {
     try {
@@ -67,7 +118,8 @@ export const ProfileScreen = () => {
   useFocusEffect(
     useCallback(() => {
       fetchProfile();
-    }, [])
+      refreshPushState();
+    }, [refreshPushState])
   );
 
   const handleLogout = async () => {
@@ -183,6 +235,28 @@ export const ProfileScreen = () => {
       </View>
 
       <ProfileStatsPanel stats={stats} />
+
+      {pushSupported ? (
+        <TouchableOpacity
+          style={[styles.pushButton, pushSubscribed ? styles.pushButtonOn : styles.pushButtonOff]}
+          onPress={togglePush}
+          disabled={pushBusy}
+          activeOpacity={0.75}
+        >
+          {pushSubscribed ? (
+            <Bell color={colors.primary} size={20} />
+          ) : (
+            <BellOff color={colors.textMuted} size={20} />
+          )}
+          <Text style={[styles.pushButtonText, pushSubscribed ? styles.pushButtonTextOn : null]}>
+            {pushBusy
+              ? 'Working…'
+              : pushSubscribed
+                ? 'Push notifications enabled'
+                : 'Enable push notifications'}
+          </Text>
+        </TouchableOpacity>
+      ) : null}
 
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
         <LogOut color={colors.danger} size={20} />
@@ -396,6 +470,34 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 6,
     lineHeight: 16,
+  },
+  pushButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 16,
+    marginTop: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 10,
+  },
+  pushButtonOn: {
+    backgroundColor: 'rgba(245, 158, 11, 0.10)',
+    borderColor: 'rgba(245, 158, 11, 0.32)',
+  },
+  pushButtonOff: {
+    backgroundColor: colors.card,
+    borderColor: colors.border,
+  },
+  pushButtonText: {
+    ...typography.body,
+    fontWeight: '700',
+    color: colors.textMuted,
+  },
+  pushButtonTextOn: {
+    color: colors.primary,
   },
   logoutButton: {
     flexDirection: 'row',

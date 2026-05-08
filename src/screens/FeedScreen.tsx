@@ -4,7 +4,7 @@ import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { Beer, MapPin, Trash2, Users, Bell } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
-import { confirmDestructive, showAlert } from '../lib/dialogs';
+import { confirmDestructive } from '../lib/dialogs';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 
 const beervaLogo = require('../../assets/beerva-app-icon.png');
@@ -306,13 +306,7 @@ export const FeedScreen = () => {
           type: 'cheer',
           reference_id: item.id,
         });
-        if (notifError) {
-          console.error('Cheer notification insert error:', notifError);
-          showAlert(
-            'Notification debug',
-            `code: ${notifError.code || 'n/a'}\nmessage: ${notifError.message || 'n/a'}\ndetails: ${notifError.details || 'n/a'}\nhint: ${notifError.hint || 'n/a'}`
-          );
-        }
+        if (notifError) console.error('Cheer notification insert error:', notifError);
       } else {
         const { error } = await supabase
           .from('session_cheers')
