@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Image, ScrollView, TextInput, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Image, ScrollView, TextInput, Platform, Modal } from 'react-native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
-import { Camera, MapPin, Beer, Minus, Plus, MessageSquare } from 'lucide-react-native';
+import { Camera, MapPin, Beer, Minus, Plus, MessageSquare, Images, X } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { imageFromPickerAsset, SelectedImage, uploadImageToBucket } from '../lib/imageUpload';
 import { AutocompleteInput } from '../components/AutocompleteInput';
@@ -63,6 +63,7 @@ export const RecordScreen = ({ navigation }: any) => {
   const [comment, setComment] = useState('');
 
   const [selectedImage, setSelectedImage] = useState<SelectedImage | null>(null);
+  const [photoChoiceVisible, setPhotoChoiceVisible] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -99,32 +100,58 @@ export const RecordScreen = ({ navigation }: any) => {
     return () => clearTimeout(delayDebounceFn);
   }, [pub]);
 
-  const pickImage = async () => {
-    let result = await ImagePicker.launchImageLibraryAsync({
+  const handleImageAsset = async (asset: ImagePicker.ImagePickerAsset) => {
+    if (Platform.OS === 'web') {
+      setSelectedImage(imageFromPickerAsset(asset));
+      return;
+    }
+
+    const ImageManipulator = await import('expo-image-manipulator');
+    const manipResult = await ImageManipulator.manipulateAsync(
+      asset.uri,
+      [{ resize: { width: 1080 } }],
+      { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG }
+    );
+    setSelectedImage({
+      uri: manipResult.uri,
+      mimeType: 'image/jpeg',
+    });
+  };
+
+  const chooseFromLibrary = async () => {
+    setPhotoChoiceVisible(false);
+
+    const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [4, 3],
       quality: 1, // We will compress manually
     });
 
-    if (!result.canceled) {
-      const asset = result.assets[0];
+    if (!result.canceled && result.assets[0]) {
+      await handleImageAsset(result.assets[0]);
+    }
+  };
 
-      if (Platform.OS === 'web') {
-        setSelectedImage(imageFromPickerAsset(asset));
-        return;
-      }
+  const takePhoto = async () => {
+    setPhotoChoiceVisible(false);
 
-      const ImageManipulator = await import('expo-image-manipulator');
-      const manipResult = await ImageManipulator.manipulateAsync(
-        asset.uri,
-        [{ resize: { width: 1080 } }],
-        { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG }
-      );
-      setSelectedImage({
-        uri: manipResult.uri,
-        mimeType: 'image/jpeg',
-      });
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Camera access needed', 'Allow camera access to take a new session photo.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 1, // We will compress manually
+      cameraType: ImagePicker.CameraType.back,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      await handleImageAsset(result.assets[0]);
     }
   };
 
@@ -273,7 +300,7 @@ export const RecordScreen = ({ navigation }: any) => {
         </View>
         <Text style={styles.characterCount}>{comment.length}/220</Text>
 
-        <TouchableOpacity style={styles.photoButton} onPress={pickImage}>
+        <TouchableOpacity style={styles.photoButton} onPress={() => setPhotoChoiceVisible(true)}>
           {selectedImage ? (
             <Image source={{ uri: selectedImage.uri }} style={styles.imagePreview} />
           ) : (
@@ -296,6 +323,48 @@ export const RecordScreen = ({ navigation }: any) => {
           )}
         </TouchableOpacity>
       </View>
+
+      <Modal
+        visible={photoChoiceVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPhotoChoiceVisible(false)}
+      >
+        <View style={styles.photoChoiceBackdrop}>
+          <View style={styles.photoChoiceSheet}>
+            <View style={styles.photoChoiceHeader}>
+              <Text style={styles.photoChoiceTitle}>Add Photo</Text>
+              <TouchableOpacity
+                style={styles.photoChoiceClose}
+                onPress={() => setPhotoChoiceVisible(false)}
+                hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+              >
+                <X color={colors.text} size={22} />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity style={styles.photoChoiceOption} onPress={takePhoto} activeOpacity={0.76}>
+              <View style={styles.photoChoiceIcon}>
+                <Camera color={colors.primary} size={22} />
+              </View>
+              <View style={styles.photoChoiceText}>
+                <Text style={styles.photoChoiceLabel}>Take Photo</Text>
+                <Text style={styles.photoChoiceHint}>Open camera</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.photoChoiceOption} onPress={chooseFromLibrary} activeOpacity={0.76}>
+              <View style={styles.photoChoiceIcon}>
+                <Images color={colors.primary} size={22} />
+              </View>
+              <View style={styles.photoChoiceText}>
+                <Text style={styles.photoChoiceLabel}>Upload Photo</Text>
+                <Text style={styles.photoChoiceHint}>Choose from library</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 };
@@ -445,5 +514,67 @@ const styles = StyleSheet.create({
   submitText: {
     ...typography.h3,
     color: colors.background,
+  },
+  photoChoiceBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(2, 6, 23, 0.72)',
+    justifyContent: 'flex-end',
+    padding: 16,
+  },
+  photoChoiceSheet: {
+    backgroundColor: colors.card,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 16,
+    gap: 12,
+  },
+  photoChoiceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  photoChoiceTitle: {
+    ...typography.h3,
+    color: colors.text,
+  },
+  photoChoiceClose: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.background,
+  },
+  photoChoiceOption: {
+    minHeight: 68,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    gap: 12,
+  },
+  photoChoiceIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoChoiceText: {
+    flex: 1,
+  },
+  photoChoiceLabel: {
+    ...typography.body,
+    fontWeight: '800',
+  },
+  photoChoiceHint: {
+    ...typography.caption,
+    marginTop: 3,
   },
 });

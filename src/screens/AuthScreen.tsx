@@ -3,38 +3,79 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, Platform } 
 import { supabase } from '../lib/supabase';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
-import { Beer } from 'lucide-react-native';
+import { Beer, MailCheck } from 'lucide-react-native';
+
+type AuthNotice = {
+  type: 'success' | 'error';
+  message: string;
+};
+
+const getEmailRedirectTo = () => {
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+
+  return undefined;
+};
 
 export const AuthScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
+  const [notice, setNotice] = useState<AuthNotice | null>(null);
 
   async function signInWithEmail() {
+    const cleanEmail = email.trim();
+
+    if (!cleanEmail || !password) {
+      setNotice({ type: 'error', message: 'Enter your email and password first.' });
+      return;
+    }
+
     setLoading(true);
+    setNotice(null);
     const { error } = await supabase.auth.signInWithPassword({
-      email: email,
-      password: password,
+      email: cleanEmail,
+      password,
     });
 
-    if (error) Alert.alert('Error', error.message);
+    if (error) {
+      setNotice({ type: 'error', message: error.message });
+      Alert.alert('Error', error.message);
+    }
     setLoading(false);
   }
 
   async function signUpWithEmail() {
+    const cleanEmail = email.trim();
+
+    if (!cleanEmail || !password) {
+      setNotice({ type: 'error', message: 'Enter your email and choose a password first.' });
+      return;
+    }
+
     setLoading(true);
+    setNotice(null);
+    const emailRedirectTo = getEmailRedirectTo();
     const { data, error } = await supabase.auth.signUp({
-      email: email,
-      password: password,
+      email: cleanEmail,
+      password,
+      options: emailRedirectTo ? { emailRedirectTo } : undefined,
     });
 
     if (error) {
+      setNotice({ type: 'error', message: error.message });
       Alert.alert('Error', error.message);
+    } else if (data.session) {
+      setNotice({ type: 'success', message: 'Account created. Let’s finish your profile.' });
     } else {
-      // In a real app, we'd also insert into the profiles table here or via a Supabase trigger.
-      Alert.alert('Success', 'Check your email for the login link or log in now if auto-confirmed!');
+      setPassword('');
       setIsLogin(true);
+      setNotice({
+        type: 'success',
+        message: `Confirmation email sent to ${cleanEmail}. Open the link in your inbox, then log in here to finish your profile.`,
+      });
     }
     setLoading(false);
   }
@@ -55,6 +96,9 @@ export const AuthScreen = () => {
           onChangeText={setEmail}
           value={email}
           autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="email-address"
+          textContentType="emailAddress"
         />
         <TextInput
           style={styles.input}
@@ -64,7 +108,19 @@ export const AuthScreen = () => {
           value={password}
           secureTextEntry
           autoCapitalize="none"
+          textContentType={isLogin ? 'password' : 'newPassword'}
         />
+
+        {notice ? (
+          <View style={[styles.notice, notice.type === 'success' ? styles.noticeSuccess : styles.noticeError]}>
+            {notice.type === 'success' ? (
+              <MailCheck color={colors.success} size={20} />
+            ) : (
+              <Beer color={colors.danger} size={20} />
+            )}
+            <Text style={styles.noticeText}>{notice.message}</Text>
+          </View>
+        ) : null}
 
         <TouchableOpacity 
           style={styles.primaryButton} 
@@ -76,7 +132,13 @@ export const AuthScreen = () => {
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => setIsLogin(!isLogin)} style={styles.toggleButton}>
+        <TouchableOpacity
+          onPress={() => {
+            setIsLogin(!isLogin);
+            setNotice(null);
+          }}
+          style={styles.toggleButton}
+        >
           <Text style={styles.toggleText}>
             {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Log In"}
           </Text>
@@ -119,6 +181,29 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 16,
     color: colors.text,
+  },
+  notice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 16,
+    gap: 10,
+  },
+  noticeSuccess: {
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    borderColor: 'rgba(16, 185, 129, 0.28)',
+  },
+  noticeError: {
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderColor: 'rgba(239, 68, 68, 0.28)',
+  },
+  noticeText: {
+    ...typography.caption,
+    flex: 1,
+    color: colors.text,
+    lineHeight: 19,
   },
   primaryButton: {
     backgroundColor: colors.primary,

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -13,6 +13,7 @@ import { ProfileScreen } from '../screens/ProfileScreen';
 import { PeopleScreen } from '../screens/PeopleScreen';
 import { UserProfileScreen } from '../screens/UserProfileScreen';
 import { AuthScreen } from '../screens/AuthScreen';
+import { ProfileSetupScreen } from '../screens/ProfileSetupScreen';
 import { colors } from '../theme/colors';
 
 const Tab = createBottomTabNavigator();
@@ -75,10 +76,41 @@ const MainTabs = () => (
 export const RootNavigator = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [needsProfileSetup, setNeedsProfileSetup] = useState(false);
+
+  const checkProfileSetup = useCallback(async (activeSession: Session | null) => {
+    if (!activeSession?.user) {
+      setNeedsProfileSetup(false);
+      setProfileLoading(false);
+      return;
+    }
+
+    setProfileLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', activeSession.user.id)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Profile setup check error:', error);
+      }
+
+      setNeedsProfileSetup(!data?.username);
+    } catch (error) {
+      console.error('Profile setup check error:', error);
+      setNeedsProfileSetup(true);
+    } finally {
+      setProfileLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      checkProfileSetup(session);
       setLoading(false);
     }).catch((error) => {
       console.error('Supabase session error:', error);
@@ -87,12 +119,13 @@ export const RootNavigator = () => {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      checkProfileSetup(session);
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [checkProfileSetup]);
 
-  if (loading) {
+  if (loading || profileLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', backgroundColor: colors.background }}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -103,14 +136,18 @@ export const RootNavigator = () => {
   return (
     <NavigationContainer>
       {session && session.user ? (
-        <Stack.Navigator
-          screenOptions={{
-            headerShown: false,
-          }}
-        >
-          <Stack.Screen name="MainTabs" component={MainTabs} />
-          <Stack.Screen name="UserProfile" component={UserProfileScreen} />
-        </Stack.Navigator>
+        needsProfileSetup ? (
+          <ProfileSetupScreen onComplete={() => checkProfileSetup(session)} />
+        ) : (
+          <Stack.Navigator
+            screenOptions={{
+              headerShown: false,
+            }}
+          >
+            <Stack.Screen name="MainTabs" component={MainTabs} />
+            <Stack.Screen name="UserProfile" component={UserProfileScreen} />
+          </Stack.Navigator>
+        )
       ) : (
         <AuthScreen />
       )}
