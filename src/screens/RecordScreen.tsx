@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Image, ScrollView, TextInput, Platform, Modal } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, TextInput, Platform, Modal } from 'react-native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { Camera, MapPin, Beer, Minus, Plus, MessageSquare, Images, X } from 'lucide-react-native';
@@ -8,6 +8,9 @@ import { deletePublicImageUrl, prepareWebImageFromPickerAsset, SelectedImage, UP
 import { AutocompleteInput } from '../components/AutocompleteInput';
 import { showAlert } from '../lib/dialogs';
 import * as ImagePicker from 'expo-image-picker';
+import { AppButton } from '../components/AppButton';
+import { Surface } from '../components/Surface';
+import { radius, spacing } from '../theme/layout';
 
 const DANISH_BEERS_DATA = [
   { name: 'Tuborg Grøn', abv: 4.6 }, { name: 'Tuborg Classic', abv: 4.6 }, { name: 'Carlsberg Pilsner', abv: 4.6 },
@@ -265,6 +268,7 @@ export const RecordScreen = ({ navigation }: any) => {
     <ScrollView 
       style={styles.container} 
       contentContainerStyle={styles.scrollContent}
+      contentInsetAdjustmentBehavior="automatic"
       keyboardShouldPersistTaps="always"
       nestedScrollEnabled={true}
     >
@@ -273,6 +277,7 @@ export const RecordScreen = ({ navigation }: any) => {
       </View>
 
       <View style={styles.content}>
+        <Surface style={styles.formSurface}>
         <AutocompleteInput
           value={pub}
           onChangeText={setPub}
@@ -348,17 +353,8 @@ export const RecordScreen = ({ navigation }: any) => {
           )}
         </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={styles.submitButton} 
-          onPress={saveSession}
-          disabled={loading}
-        >
-          {loading ? (
-             <ActivityIndicator color={colors.background} />
-          ) : (
-             <Text style={styles.submitText}>Save Session</Text>
-          )}
-        </TouchableOpacity>
+        <AppButton label="Save Session" onPress={saveSession} loading={loading} />
+        </Surface>
       </View>
 
       <Modal
@@ -419,13 +415,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: Platform.OS === 'web' ? 14 : 20,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.borderSoft,
     backgroundColor: colors.background,
     zIndex: 10,
   },
   content: {
     padding: Platform.OS === 'web' ? 16 : 20,
     zIndex: 1,
+  },
+  formSurface: {
+    gap: spacing.sm,
   },
   sectionLabel: {
     ...typography.body,
@@ -444,12 +443,12 @@ const styles = StyleSheet.create({
     flexBasis: '30%',
     minWidth: 96,
     minHeight: 48,
-    backgroundColor: colors.card,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderSoft,
     paddingVertical: 12,
     paddingHorizontal: 12,
-    borderRadius: 12,
+    borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -470,10 +469,10 @@ const styles = StyleSheet.create({
   commentContainer: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: colors.card,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
+    borderColor: colors.borderSoft,
+    borderRadius: radius.md,
     padding: 16,
     minHeight: 104,
     marginBottom: 8,
@@ -495,17 +494,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.card,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
+    borderColor: colors.borderSoft,
+    borderRadius: radius.md,
     padding: 8,
     marginBottom: 32,
   },
   quantityBtn: {
     padding: 12,
     backgroundColor: colors.glass,
-    borderRadius: 8,
+    borderRadius: radius.sm,
   },
   quantityText: {
     ...typography.h1,
@@ -517,10 +516,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.glass,
-    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderSoft,
     height: Platform.OS === 'web' ? 132 : 150,
     marginBottom: 24,
     borderStyle: 'dashed',
@@ -538,31 +537,17 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontWeight: '600',
   },
-  submitButton: {
-    backgroundColor: colors.primary,
-    borderRadius: 12,
-    height: 56,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 'auto',
-    marginBottom: Platform.OS === 'web' ? 10 : 0,
-    zIndex: 0,
-  },
-  submitText: {
-    ...typography.h3,
-    color: colors.background,
-  },
   photoChoiceBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(2, 6, 23, 0.72)',
+    backgroundColor: colors.overlay,
     justifyContent: 'flex-end',
     padding: 16,
   },
   photoChoiceSheet: {
     backgroundColor: colors.card,
-    borderRadius: 18,
+    borderRadius: radius.xl,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderSoft,
     padding: 16,
     gap: 12,
   },
@@ -579,17 +564,17 @@ const styles = StyleSheet.create({
   photoChoiceClose: {
     width: 34,
     height: 34,
-    borderRadius: 17,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
   },
   photoChoiceOption: {
     minHeight: 68,
-    borderRadius: 14,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.background,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.surface,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 14,
@@ -599,7 +584,7 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    backgroundColor: colors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -10,6 +10,7 @@ import { fetchProfileStats } from '../lib/profileStatsApi';
 import { supabase } from '../lib/supabase';
 import { showAlert } from '../lib/dialogs';
 import { colors } from '../theme/colors';
+import { radius, shadows, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
 
 const INVITE_MESSAGES = [
@@ -18,14 +19,14 @@ const INVITE_MESSAGES = [
   '{name} has been summoned to the bar. May the foam be with you both.',
   'The brewski bat-signal is lit! {name} better answer.',
   '{name} has been pinged. If they ghost you, drink theirs too.',
-  'Pigeon dispatched with a frothy demand. {name} is on notice.',
+  'Taproom signal sent. {name} is officially on notice.',
   '{name} is being paged from the tap. Stay hydrated (with hops).',
 ];
 
 const INVITE_FAILURE_MESSAGES = [
-  'The pigeon got drunk on the way. Try again.',
   'Beer signal jammed. The bartender will retry the call.',
   'Cosmic foam interference. Pour another and try again.',
+  'The taproom signal fizzled. Try again.',
 ];
 
 type UserProfile = {
@@ -275,7 +276,11 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
   const recentSessions = sessions;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      contentInsetAdjustmentBehavior="automatic"
+    >
       <View style={styles.topBar}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <ArrowLeft color={colors.text} size={22} />
@@ -407,7 +412,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.borderSoft,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -415,12 +420,12 @@ const styles = StyleSheet.create({
   backButton: {
     width: 38,
     height: 38,
-    borderRadius: 19,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.card,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderSoft,
   },
   backButtonPlaceholder: {
     width: 38,
@@ -441,15 +446,15 @@ const styles = StyleSheet.create({
     height: Platform.OS === 'web' ? 104 : 120,
     borderRadius: Platform.OS === 'web' ? 52 : 60,
     borderWidth: 3,
-    borderColor: colors.primary,
+    borderColor: colors.primaryBorder,
     marginBottom: 16,
   },
   followStats: {
     flexDirection: 'row',
     backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
+    borderColor: colors.borderSoft,
+    borderRadius: radius.lg,
     marginTop: 18,
     marginBottom: 14,
     minWidth: 220,
@@ -470,11 +475,11 @@ const styles = StyleSheet.create({
   },
   followDivider: {
     width: 1,
-    backgroundColor: colors.border,
+    backgroundColor: colors.borderSoft,
   },
   followButton: {
     minHeight: 44,
-    borderRadius: 22,
+    borderRadius: radius.pill,
     paddingHorizontal: 18,
     backgroundColor: colors.primary,
     flexDirection: 'row',
@@ -496,7 +501,7 @@ const styles = StyleSheet.create({
   },
   inviteButton: {
     minHeight: 44,
-    borderRadius: 22,
+    borderRadius: radius.pill,
     paddingHorizontal: 18,
     backgroundColor: '#10b981', // Emerald for distinct invite action
     flexDirection: 'row',
@@ -513,9 +518,9 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     paddingHorizontal: 14,
     justifyContent: 'center',
-    backgroundColor: 'rgba(148, 163, 184, 0.12)',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.22)',
+    borderColor: colors.borderSoft,
   },
   selfBadgeText: {
     color: colors.textMuted,
@@ -524,7 +529,7 @@ const styles = StyleSheet.create({
   recentSection: {
     paddingHorizontal: 16,
     paddingTop: 4,
-    gap: 12,
+    gap: spacing.md,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -542,25 +547,26 @@ const styles = StyleSheet.create({
   sessionRow: {
     flexDirection: 'row',
     backgroundColor: colors.card,
-    borderRadius: 14,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderSoft,
     padding: 12,
     gap: 12,
+    ...shadows.card,
   },
   sessionImage: {
     width: 58,
     height: 58,
-    borderRadius: 10,
+    borderRadius: radius.md,
     backgroundColor: colors.background,
   },
   sessionIcon: {
     width: 58,
     height: 58,
-    borderRadius: 10,
+    borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    backgroundColor: colors.primarySoft,
   },
   sessionText: {
     flex: 1,
@@ -584,9 +590,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.card,
-    borderRadius: 14,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderSoft,
     padding: 24,
     gap: 10,
   },

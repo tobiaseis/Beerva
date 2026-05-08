@@ -16,6 +16,7 @@ import { AuthScreen } from '../screens/AuthScreen';
 import { ProfileSetupScreen } from '../screens/ProfileSetupScreen';
 import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { colors } from '../theme/colors';
+import { radius, shadows } from '../theme/layout';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -25,13 +26,18 @@ const MainTabs = () => (
     screenOptions={{
       headerShown: false,
       tabBarStyle: {
-        backgroundColor: colors.card,
-        borderTopColor: colors.border,
+        backgroundColor: colors.surfaceRaised,
+        borderTopColor: colors.borderSoft,
         borderTopWidth: 1,
         ...(Platform.OS === 'web' ? {
-          height: 64,
+          height: 68,
           paddingTop: 6,
           paddingBottom: 8,
+          marginHorizontal: 10,
+          marginBottom: 10,
+          borderRadius: radius.xl,
+          borderWidth: 1,
+          ...shadows.card,
         } : null),
       },
       tabBarLabelStyle: Platform.OS === 'web' ? {

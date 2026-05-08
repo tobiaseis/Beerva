@@ -12,6 +12,8 @@ import { emptyStats, Stats } from '../lib/profileStats';
 import { fetchProfileStats } from '../lib/profileStatsApi';
 import { CachedImage } from '../components/CachedImage';
 import { getUsernameSaveErrorMessage, normalizeUsername } from '../lib/usernames';
+import { AppButton } from '../components/AppButton';
+import { radius, spacing } from '../theme/layout';
 import {
   disablePushNotifications,
   enablePushNotifications,
@@ -228,7 +230,7 @@ export const ProfileScreen = () => {
   const joinDate = profile?.updated_at ? new Date(profile.updated_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'Recently';
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} contentInsetAdjustmentBehavior="automatic">
       <View style={styles.header}>
         <View style={styles.avatarContainer}>
           <CachedImage
@@ -310,17 +312,7 @@ export const ProfileScreen = () => {
               placeholderTextColor={colors.textMuted}
             />
 
-            <TouchableOpacity 
-              style={styles.saveButton} 
-              onPress={saveProfile}
-              disabled={saving}
-            >
-              {saving ? (
-                <ActivityIndicator color={colors.background} />
-              ) : (
-                <Text style={styles.saveButtonText}>Save Changes</Text>
-              )}
-            </TouchableOpacity>
+            <AppButton label="Save Changes" onPress={saveProfile} loading={saving} />
           </View>
         </View>
       </Modal>
@@ -347,7 +339,7 @@ const styles = StyleSheet.create({
     height: Platform.OS === 'web' ? 104 : 120,
     borderRadius: Platform.OS === 'web' ? 52 : 60,
     borderWidth: 3,
-    borderColor: colors.primary,
+    borderColor: colors.primaryBorder,
   },
   editBadge: {
     position: 'absolute',
@@ -369,7 +361,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: Platform.OS === 'web' ? 16 : 20,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderSoft,
   },
   statBox: {
     flex: 1,
@@ -501,12 +493,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   pushButtonOn: {
-    backgroundColor: 'rgba(245, 158, 11, 0.10)',
-    borderColor: 'rgba(245, 158, 11, 0.32)',
+    backgroundColor: colors.primarySoft,
+    borderColor: colors.primaryBorder,
   },
   pushButtonOff: {
-    backgroundColor: colors.card,
-    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    borderColor: colors.borderSoft,
   },
   pushButtonText: {
     ...typography.body,
@@ -524,8 +516,8 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.surface,
     gap: 10,
   },
   pushHintText: {
@@ -560,7 +552,7 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: Platform.OS === 'web' ? 20 : 60,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.borderSoft,
   },
   modalContent: {
     padding: 20,
@@ -570,12 +562,12 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: colors.card,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 32,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderSoft,
     overflow: 'hidden',
   },
   editAvatarImage: {
@@ -586,7 +578,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     width: '100%',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(2, 6, 23, 0.64)',
     paddingVertical: 4,
     alignItems: 'center',
   },
@@ -601,25 +593,14 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   input: {
-    backgroundColor: colors.card,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
+    borderColor: colors.borderSoft,
+    borderRadius: radius.md,
     padding: 16,
     color: colors.text,
     fontSize: 16,
     fontFamily: 'Righteous_400Regular',
     marginBottom: 32,
-  },
-  saveButton: {
-    backgroundColor: colors.primary,
-    borderRadius: 12,
-    height: 56,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  saveButtonText: {
-    ...typography.h3,
-    color: colors.background,
   },
 });

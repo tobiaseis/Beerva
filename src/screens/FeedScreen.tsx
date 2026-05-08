@@ -8,6 +8,8 @@ import { confirmDestructive } from '../lib/dialogs';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { CachedImage } from '../components/CachedImage';
 import { deletePublicImageUrl } from '../lib/imageUpload';
+import { Surface } from '../components/Surface';
+import { radius, shadows, spacing } from '../theme/layout';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
 
@@ -86,7 +88,7 @@ const FeedSessionCard = React.memo(({
   const username = item.profiles?.username || 'Unknown';
 
   return (
-    <View style={styles.card}>
+    <Surface padded={false} style={styles.card}>
       <View style={styles.cardHeader}>
         <TouchableOpacity
           style={styles.profileLink}
@@ -126,14 +128,17 @@ const FeedSessionCard = React.memo(({
       ) : null}
 
       <View style={styles.cardContent}>
-        <View style={styles.row}>
-          <MapPin color={colors.primary} size={16} />
-          <Text style={styles.locationText}> Drinking at <Text style={styles.bold}>{item.pub_name}</Text></Text>
+        <View style={styles.detailGrid}>
+          <View style={styles.detailPill}>
+            <MapPin color={colors.primary} size={15} />
+            <Text style={styles.detailText} numberOfLines={1}>{item.pub_name}</Text>
+          </View>
+          <View style={styles.detailPill}>
+            <Beer color={colors.primary} size={15} />
+            <Text style={styles.detailText} numberOfLines={1}>{item.beer_name}</Text>
+          </View>
         </View>
-        <View style={[styles.row, { marginTop: 8 }]}>
-          <Beer color={colors.primary} size={16} />
-          <Text style={styles.beerText}> {getDrinkLabel(item)} of <Text style={styles.bold}>{item.beer_name}</Text></Text>
-        </View>
+        <Text style={styles.drinkLine}>{getDrinkLabel(item)} logged</Text>
         {item.comment ? (
           <View style={styles.commentBlock}>
             <Text style={styles.commentText}>{item.comment}</Text>
@@ -161,7 +166,7 @@ const FeedSessionCard = React.memo(({
           </Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </Surface>
   );
 });
 
@@ -675,6 +680,7 @@ export const FeedScreen = () => {
           windowSize={7}
           updateCellsBatchingPeriod={60}
           removeClippedSubviews={Platform.OS !== 'web'}
+          contentInsetAdjustmentBehavior="automatic"
           onScroll={handleScroll}
           scrollEventThrottle={16}
           onTouchStart={handleTouchStart}
@@ -710,9 +716,9 @@ const styles = StyleSheet.create({
   header: {
     paddingTop: Platform.OS === 'web' ? 18 : 60,
     paddingHorizontal: 20,
-    paddingBottom: Platform.OS === 'web' ? 14 : 20,
+    paddingBottom: Platform.OS === 'web' ? 16 : 20,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.borderSoft,
     backgroundColor: colors.background,
     flexDirection: 'row',
     alignItems: 'center',
@@ -721,6 +727,10 @@ const styles = StyleSheet.create({
   bellButton: {
     padding: 8,
     position: 'relative',
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
   },
   badge: {
     position: 'absolute',
@@ -780,16 +790,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   card: {
-    backgroundColor: colors.card,
-    borderRadius: 14,
-    marginBottom: 14,
+    borderRadius: radius.xl,
+    marginBottom: spacing.lg,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border,
+    ...shadows.card,
   },
   cardHeader: {
     flexDirection: 'row',
-    padding: 16,
+    padding: spacing.lg,
     alignItems: 'center',
   },
   profileLink: {
@@ -799,10 +807,12 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     marginRight: 12,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
   },
   userInfo: {
     flex: 1,
@@ -813,7 +823,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    backgroundColor: colors.dangerSoft,
     borderWidth: 1,
     borderColor: 'rgba(239, 68, 68, 0.24)',
   },
@@ -826,12 +836,13 @@ const styles = StyleSheet.create({
   },
   feedImage: {
     width: '100%',
-    height: Platform.OS === 'web' ? 220 : 250,
+    height: Platform.OS === 'web' ? 236 : 250,
+    backgroundColor: colors.cardMuted,
   },
   cardContent: {
-    padding: 16,
+    padding: spacing.lg,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.borderSoft,
   },
   row: {
     flexDirection: 'row',
@@ -845,11 +856,41 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.text,
   },
+  detailGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  detailPill: {
+    flexGrow: 1,
+    flexBasis: '44%',
+    minHeight: 38,
+    minWidth: 0,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  detailText: {
+    ...typography.caption,
+    flex: 1,
+    color: colors.text,
+    fontWeight: '800',
+  },
+  drinkLine: {
+    ...typography.caption,
+    color: colors.textMuted,
+    marginTop: spacing.sm,
+  },
   commentBlock: {
-    marginTop: 14,
-    paddingTop: 14,
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: colors.borderSoft,
   },
   commentText: {
     ...typography.body,
@@ -861,8 +902,8 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   cardFooter: {
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
     flexDirection: 'row',
   },
   actionBtn: {
@@ -870,13 +911,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minHeight: 40,
     paddingHorizontal: 12,
-    borderRadius: 20,
+    borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: 'transparent',
   },
   actionBtnActive: {
-    backgroundColor: 'rgba(245, 158, 11, 0.12)',
-    borderColor: 'rgba(245, 158, 11, 0.32)',
+    backgroundColor: colors.primarySoft,
+    borderColor: colors.primaryBorder,
   },
   actionBtnDisabled: {
     opacity: 0.62,

@@ -9,6 +9,9 @@ import { supabase } from '../lib/supabase';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { getUsernameSaveErrorMessage, normalizeUsername } from '../lib/usernames';
+import { AppButton } from '../components/AppButton';
+import { Surface } from '../components/Surface';
+import { radius, spacing } from '../theme/layout';
 import {
   disablePushNotifications,
   enablePushNotifications,
@@ -207,7 +210,12 @@ export const ProfileSetupScreen = ({ onComplete }: ProfileSetupScreenProps) => {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      contentInsetAdjustmentBehavior="automatic"
+      keyboardShouldPersistTaps="handled"
+    >
       <View style={styles.header}>
         <Text style={styles.eyebrow}>One last step</Text>
         <Text style={styles.title}>Set up your beer identity</Text>
@@ -230,7 +238,7 @@ export const ProfileSetupScreen = ({ onComplete }: ProfileSetupScreenProps) => {
         </View>
       </TouchableOpacity>
 
-      <View style={styles.form}>
+      <Surface style={styles.form}>
         <Text style={styles.inputLabel}>Username</Text>
         <TextInput
           value={username}
@@ -269,19 +277,13 @@ export const ProfileSetupScreen = ({ onComplete }: ProfileSetupScreenProps) => {
           </View>
         ) : null}
 
-        <TouchableOpacity style={styles.primaryButton} onPress={saveProfile} disabled={saving} activeOpacity={0.78}>
-          {saving ? (
-            <ActivityIndicator color={colors.background} />
-          ) : (
-            <Text style={styles.primaryButtonText}>Finish Profile</Text>
-          )}
-        </TouchableOpacity>
+        <AppButton label="Finish Profile" onPress={saveProfile} loading={saving} />
 
         <TouchableOpacity style={styles.signOutButton} onPress={signOut} activeOpacity={0.7}>
           <LogOut color={colors.textMuted} size={18} />
           <Text style={styles.signOutText}>Use another account</Text>
         </TouchableOpacity>
-      </View>
+      </Surface>
     </ScrollView>
   );
 };
@@ -294,7 +296,7 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: Platform.OS === 'web' ? 24 : 20,
+    padding: Platform.OS === 'web' ? spacing.xl : 20,
     paddingBottom: Platform.OS === 'web' ? 32 : 36,
   },
   loader: {
@@ -305,7 +307,7 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: 26,
+    marginBottom: spacing.xl,
   },
   eyebrow: {
     ...typography.caption,
@@ -333,11 +335,11 @@ const styles = StyleSheet.create({
     borderRadius: 66,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.card,
+    backgroundColor: colors.surfaceRaised,
     borderWidth: 2,
-    borderColor: colors.border,
+    borderColor: colors.borderSoft,
     overflow: 'hidden',
-    marginBottom: 24,
+    marginBottom: spacing.xl,
   },
   avatarImage: {
     width: '100%',
@@ -358,10 +360,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   form: {
-    backgroundColor: colors.card,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
     padding: Platform.OS === 'web' ? 18 : 20,
   },
   inputLabel: {
@@ -371,17 +369,17 @@ const styles = StyleSheet.create({
   },
   input: {
     ...typography.body,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 10,
+    borderColor: colors.borderSoft,
+    borderRadius: radius.md,
     padding: 16,
     color: colors.text,
     marginBottom: 18,
   },
   pushButton: {
     minHeight: 52,
-    borderRadius: 12,
+    borderRadius: radius.md,
     borderWidth: 1,
     paddingHorizontal: 14,
     marginBottom: 18,
@@ -391,12 +389,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   pushButtonOn: {
-    backgroundColor: 'rgba(245, 158, 11, 0.10)',
-    borderColor: 'rgba(245, 158, 11, 0.32)',
+    backgroundColor: colors.primarySoft,
+    borderColor: colors.primaryBorder,
   },
   pushButtonOff: {
-    backgroundColor: colors.background,
-    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    borderColor: colors.borderSoft,
   },
   pushButtonText: {
     ...typography.body,
@@ -409,10 +407,10 @@ const styles = StyleSheet.create({
   pushHint: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
+    borderColor: colors.borderSoft,
+    borderRadius: radius.md,
     padding: 12,
     marginBottom: 18,
     gap: 10,
@@ -422,17 +420,6 @@ const styles = StyleSheet.create({
     flex: 1,
     color: colors.textMuted,
     lineHeight: 19,
-  },
-  primaryButton: {
-    minHeight: 54,
-    borderRadius: 12,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  primaryButtonText: {
-    ...typography.h3,
-    color: colors.background,
   },
   signOutButton: {
     minHeight: 44,

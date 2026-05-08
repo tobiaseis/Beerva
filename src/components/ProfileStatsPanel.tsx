@@ -4,7 +4,10 @@ import { Award, Beer, CalendarDays, Flame, MapPin, Moon, PartyPopper, Repeat, Sp
 
 import { getTrophies, Stats, TrophyKind } from '../lib/profileStats';
 import { colors } from '../theme/colors';
+import { radius, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
+import { SectionHeader } from './SectionHeader';
+import { Surface } from './Surface';
 
 type ProfileStatsPanelProps = {
   stats: Stats;
@@ -56,7 +59,7 @@ export const ProfileStatsPanel = ({ stats }: ProfileStatsPanelProps) => {
 
   return (
     <>
-      <View style={styles.statsContainer}>
+      <Surface style={styles.statsContainer}>
         <View style={styles.statBox}>
           <Text style={styles.statValue}>{stats.totalPints}</Text>
           <Text style={styles.statLabel}>True Pints</Text>
@@ -71,21 +74,22 @@ export const ProfileStatsPanel = ({ stats }: ProfileStatsPanelProps) => {
           <Text style={styles.statValue}>{stats.avgAbv}%</Text>
           <Text style={styles.statLabel}>Avg ABV</Text>
         </View>
-      </View>
+      </Surface>
 
-      <View style={styles.highScoreContainer}>
+      <Surface style={styles.highScoreContainer}>
         <View>
           <Text style={styles.highScoreLabel}>Best Session</Text>
           <Text style={styles.highScoreHint}>Most true pints logged in one session</Text>
         </View>
         <Text style={styles.highScoreValue}>{stats.maxSessionPints}</Text>
-      </View>
+      </Surface>
 
       <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Trophy Cabinet</Text>
-          <Text style={styles.sectionMeta}>{earnedTrophies.length}/{trophies.length}</Text>
-        </View>
+        <SectionHeader
+          title="Trophy Cabinet"
+          subtitle="Completed trophies stay at the top."
+          meta={`${earnedTrophies.length}/${trophies.length}`}
+        />
 
         <View style={styles.badges}>
           {orderedTrophies.map((trophy) => (
@@ -120,12 +124,8 @@ export const ProfileStatsPanel = ({ stats }: ProfileStatsPanelProps) => {
 const styles = StyleSheet.create({
   statsContainer: {
     flexDirection: 'row',
-    backgroundColor: colors.card,
     marginHorizontal: 16,
-    borderRadius: 14,
     padding: Platform.OS === 'web' ? 16 : 20,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   statBox: {
     flex: 1,
@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     width: 1,
-    backgroundColor: colors.border,
+    backgroundColor: colors.borderSoft,
   },
   statValue: {
     ...typography.h2,
@@ -148,13 +148,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.card,
     marginHorizontal: 16,
     marginTop: 12,
-    borderRadius: 14,
     padding: Platform.OS === 'web' ? 16 : 18,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   highScoreLabel: {
     ...typography.h3,
@@ -173,6 +169,7 @@ const styles = StyleSheet.create({
   },
   section: {
     padding: Platform.OS === 'web' ? 16 : 20,
+    gap: spacing.md,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -199,17 +196,17 @@ const styles = StyleSheet.create({
     minWidth: 104,
     minHeight: Platform.OS === 'web' ? 146 : 154,
     padding: 12,
-    borderRadius: 12,
+    borderRadius: radius.lg,
     alignItems: 'center',
     borderWidth: 1,
   },
   badgeEarned: {
     backgroundColor: colors.card,
-    borderColor: colors.border,
+    borderColor: colors.primaryBorder,
   },
   badgeLocked: {
-    backgroundColor: 'rgba(30, 41, 59, 0.45)',
-    borderColor: 'rgba(148, 163, 184, 0.16)',
+    backgroundColor: colors.cardMuted,
+    borderColor: colors.borderSoft,
   },
   badgeIcon: {
     width: 52,
@@ -220,7 +217,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   badgeIconEarned: {
-    backgroundColor: 'rgba(245, 158, 11, 0.14)',
+    backgroundColor: colors.primarySoft,
   },
   badgeIconLocked: {
     backgroundColor: 'rgba(148, 163, 184, 0.08)',

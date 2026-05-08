@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
+import { radius, shadows } from '../theme/layout';
 
 interface Props {
   value: string;
@@ -119,10 +120,10 @@ const styles = StyleSheet.create({
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.card,
-    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderSoft,
     paddingHorizontal: 16,
     height: 56,
   },
@@ -136,18 +137,18 @@ const styles = StyleSheet.create({
   },
   dropdown: {
     marginTop: 4,
-    backgroundColor: colors.card,
-    borderRadius: 12,
+    backgroundColor: colors.surfaceRaised,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderSoft,
     maxHeight: 220,
     overflow: 'hidden',
-    elevation: 12,
+    ...shadows.raised,
   },
   dropdownItem: {
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.borderSoft,
   },
   dropdownItemPressed: {
     backgroundColor: colors.glass,

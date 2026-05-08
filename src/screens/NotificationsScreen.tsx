@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase';
 import { Bell, ArrowLeft, Beer, PartyPopper } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { CachedImage } from '../components/CachedImage';
+import { radius, shadows, spacing } from '../theme/layout';
 
 type NotificationRow = {
   id: string;
@@ -160,6 +161,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
           maxToRenderPerBatch={12}
           windowSize={7}
           removeClippedSubviews={Platform.OS !== 'web'}
+          contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={[styles.listContent, notifications.length === 0 ? styles.emptyContent : null]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
           ListEmptyComponent={
@@ -185,7 +187,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.borderSoft,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -193,12 +195,12 @@ const styles = StyleSheet.create({
   backButton: {
     width: 38,
     height: 38,
-    borderRadius: 19,
+    borderRadius: radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.card,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderSoft,
   },
   backButtonPlaceholder: {
     width: 38,
@@ -215,7 +217,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: 16,
-    gap: 12,
+    gap: spacing.md,
   },
   emptyContent: {
     flexGrow: 1,
@@ -223,15 +225,16 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     backgroundColor: colors.card,
-    borderRadius: 14,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderSoft,
     padding: 16,
     alignItems: 'center',
+    ...shadows.card,
   },
   unreadCard: {
-    backgroundColor: 'rgba(245, 158, 11, 0.06)',
-    borderColor: 'rgba(245, 158, 11, 0.3)',
+    backgroundColor: colors.primarySoft,
+    borderColor: colors.primaryBorder,
   },
   avatarContainer: {
     marginRight: 14,
@@ -264,7 +267,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    backgroundColor: colors.primarySoft,
     alignItems: 'center',
     justifyContent: 'center',
   },

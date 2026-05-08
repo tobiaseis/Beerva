@@ -5,6 +5,7 @@ import { Search, UserCheck, UserPlus, Users } from 'lucide-react-native';
 import { CachedImage } from '../components/CachedImage';
 import { supabase } from '../lib/supabase';
 import { colors } from '../theme/colors';
+import { radius, shadows, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
 
 type UserProfileRow = {
@@ -254,6 +255,7 @@ export const PeopleScreen = ({ navigation }: any) => {
           maxToRenderPerBatch={10}
           windowSize={7}
           removeClippedSubviews={Platform.OS !== 'web'}
+          contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={[styles.listContent, people.length === 0 ? styles.emptyContent : null]}
           keyboardShouldPersistTaps="handled"
           refreshControl={
@@ -281,7 +283,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 14,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.borderSoft,
     backgroundColor: colors.background,
     gap: 14,
   },
@@ -297,10 +299,10 @@ const styles = StyleSheet.create({
   },
   searchBox: {
     minHeight: 46,
-    borderRadius: 12,
-    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderSoft,
     paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
@@ -320,20 +322,21 @@ const styles = StyleSheet.create({
   listContent: {
     padding: Platform.OS === 'web' ? 14 : 16,
     paddingBottom: Platform.OS === 'web' ? 24 : 16,
-    gap: 12,
+    gap: spacing.md,
   },
   emptyContent: {
     flexGrow: 1,
   },
   personRow: {
     backgroundColor: colors.card,
-    borderRadius: 14,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.borderSoft,
     padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    ...shadows.card,
   },
   personIdentity: {
     flex: 1,
@@ -346,7 +349,7 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 24,
     borderWidth: 2,
-    borderColor: 'rgba(245, 158, 11, 0.35)',
+    borderColor: colors.primaryBorder,
     marginRight: 12,
   },
   personText: {
@@ -363,7 +366,7 @@ const styles = StyleSheet.create({
   },
   followButton: {
     minHeight: 38,
-    borderRadius: 19,
+    borderRadius: radius.pill,
     paddingHorizontal: 12,
     backgroundColor: colors.primary,
     flexDirection: 'row',

@@ -4,6 +4,9 @@ import { supabase } from '../lib/supabase';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { Beer, MailCheck } from 'lucide-react-native';
+import { Surface } from '../components/Surface';
+import { AppButton } from '../components/AppButton';
+import { radius, spacing } from '../theme/layout';
 
 type AuthNotice = {
   type: 'success' | 'error';
@@ -88,7 +91,7 @@ export const AuthScreen = () => {
         <Text style={typography.bodyMuted}>The social network for beer lovers</Text>
       </View>
 
-      <View style={styles.formContainer}>
+      <Surface style={styles.formContainer}>
         <TextInput
           style={styles.input}
           placeholder="Email"
@@ -122,15 +125,11 @@ export const AuthScreen = () => {
           </View>
         ) : null}
 
-        <TouchableOpacity 
-          style={styles.primaryButton} 
-          disabled={loading}
+        <AppButton
+          label={loading ? 'Loading...' : (isLogin ? 'Log In' : 'Sign Up')}
+          loading={loading}
           onPress={isLogin ? signInWithEmail : signUpWithEmail}
-        >
-          <Text style={styles.primaryButtonText}>
-            {loading ? 'Loading...' : (isLogin ? 'Log In' : 'Sign Up')}
-          </Text>
-        </TouchableOpacity>
+        />
 
         <TouchableOpacity
           onPress={() => {
@@ -143,7 +142,7 @@ export const AuthScreen = () => {
             {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Log In"}
           </Text>
         </TouchableOpacity>
-      </View>
+      </Surface>
     </View>
   );
 };
@@ -166,18 +165,14 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   formContainer: {
-    backgroundColor: colors.card,
-    padding: Platform.OS === 'web' ? 18 : 20,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
+    padding: Platform.OS === 'web' ? spacing.lg : spacing.xl,
   },
   input: {
     ...typography.body,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
+    borderColor: colors.borderSoft,
+    borderRadius: radius.md,
     padding: 16,
     marginBottom: 16,
     color: colors.text,
@@ -185,18 +180,18 @@ const styles = StyleSheet.create({
   notice: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    borderRadius: 12,
+    borderRadius: radius.lg,
     borderWidth: 1,
     padding: 12,
     marginBottom: 16,
     gap: 10,
   },
   noticeSuccess: {
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    backgroundColor: colors.successSoft,
     borderColor: 'rgba(16, 185, 129, 0.28)',
   },
   noticeError: {
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    backgroundColor: colors.dangerSoft,
     borderColor: 'rgba(239, 68, 68, 0.28)',
   },
   noticeText: {
@@ -204,17 +199,6 @@ const styles = StyleSheet.create({
     flex: 1,
     color: colors.text,
     lineHeight: 19,
-  },
-  primaryButton: {
-    backgroundColor: colors.primary,
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  primaryButtonText: {
-    ...typography.h3,
-    color: colors.background,
   },
   toggleButton: {
     marginTop: 20,
