@@ -11,6 +11,7 @@ import { ProfileStatsPanel } from '../components/ProfileStatsPanel';
 import { emptyStats, Stats } from '../lib/profileStats';
 import { fetchProfileStats } from '../lib/profileStatsApi';
 import { CachedImage } from '../components/CachedImage';
+import { getUsernameSaveErrorMessage, normalizeUsername } from '../lib/usernames';
 import {
   disablePushNotifications,
   enablePushNotifications,
@@ -165,7 +166,7 @@ export const ProfileScreen = () => {
   };
 
   const saveProfile = async () => {
-    const username = editUsername.trim();
+    const username = normalizeUsername(editUsername);
 
     if (!username) {
       Alert.alert('Error', 'Username cannot be empty');
@@ -210,7 +211,7 @@ export const ProfileScreen = () => {
       await fetchProfile();
       setIsEditing(false);
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      Alert.alert('Could not save profile', getUsernameSaveErrorMessage(e));
     } finally {
       setSaving(false);
     }

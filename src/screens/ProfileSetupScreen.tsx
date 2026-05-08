@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { Camera, LogOut } from 'lucide-react-native';
+import { Bell, BellOff, Camera, LogOut } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 
 import { deletePublicImageUrl, prepareWebImageFromPickerAsset, SelectedImage, UPLOAD_IMAGE_MAX_WIDTH, uploadImageToBucket } from '../lib/imageUpload';
@@ -8,6 +8,14 @@ import { CachedImage } from '../components/CachedImage';
 import { supabase } from '../lib/supabase';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
+import { getUsernameSaveErrorMessage, normalizeUsername } from '../lib/usernames';
+import {
+  disablePushNotifications,
+  enablePushNotifications,
+  getPushPermissionStatus,
+  getPushSupportInfo,
+  isCurrentlySubscribed,
+} from '../lib/pushNotifications';
 
 type ProfileSetupScreenProps = {
   onComplete: () => void;
@@ -20,6 +28,23 @@ export const ProfileSetupScreen = ({ onComplete }: ProfileSetupScreenProps) => {
   const [previousAvatarUri, setPreviousAvatarUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [pushSupported, setPushSupported] = useState(false);
+  const [pushUnsupportedReason, setPushUnsupportedReason] = useState<string | null>(null);
+  const [pushSubscribed, setPushSubscribed] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+
+  const refreshPushState = async () => {
+    const support = getPushSupportInfo();
+    setPushSupported(support.supported);
+    setPushUnsupportedReason(support.supported ? null : support.reason || null);
+
+    if (!support.supported) {
+      setPushSubscribed(false);
+      return;
+    }
+
+    setPushSubscribed(await isCurrentlySubscribed());
+  };
 
   useEffect(() => {
     const loadDefaults = async () => {
@@ -50,7 +75,41 @@ export const ProfileSetupScreen = ({ onComplete }: ProfileSetupScreenProps) => {
     };
 
     loadDefaults();
+    refreshPushState();
   }, []);
+
+  const togglePush = async () => {
+    if (pushBusy) return;
+
+    setPushBusy(true);
+    try {
+      if (pushSubscribed) {
+        await disablePushNotifications();
+        setPushSubscribed(false);
+        Alert.alert('Push notifications off', 'You will no longer get push alerts on this device.');
+        return;
+      }
+
+      const result = await enablePushNotifications();
+      if (result.ok) {
+        setPushSubscribed(true);
+        Alert.alert('Push notifications on', 'We will buzz you when someone cheers or invites you.');
+        return;
+      }
+
+      const status = getPushPermissionStatus();
+      if (status === 'denied') {
+        Alert.alert(
+          'Notifications blocked',
+          'Your browser is blocking notifications for Beerva. Re-enable them in your browser settings, then try again.'
+        );
+      } else {
+        Alert.alert('Could not enable push', result.reason || 'Please try again.');
+      }
+    } finally {
+      setPushBusy(false);
+    }
+  };
 
   const pickAvatar = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -86,7 +145,7 @@ export const ProfileSetupScreen = ({ onComplete }: ProfileSetupScreenProps) => {
   };
 
   const saveProfile = async () => {
-    const cleanUsername = username.trim();
+    const cleanUsername = normalizeUsername(username);
 
     if (!cleanUsername) {
       Alert.alert('Username needed', 'Choose a username so friends can find you.');
@@ -129,7 +188,7 @@ export const ProfileSetupScreen = ({ onComplete }: ProfileSetupScreenProps) => {
 
       onComplete();
     } catch (error: any) {
-      Alert.alert('Could not save profile', error?.message || 'Please try again.');
+      Alert.alert('Could not save profile', getUsernameSaveErrorMessage(error));
     } finally {
       setSaving(false);
     }
@@ -182,6 +241,33 @@ export const ProfileSetupScreen = ({ onComplete }: ProfileSetupScreenProps) => {
           autoCorrect={false}
           style={styles.input}
         />
+
+        {pushSupported ? (
+          <TouchableOpacity
+            style={[styles.pushButton, pushSubscribed ? styles.pushButtonOn : styles.pushButtonOff]}
+            onPress={togglePush}
+            disabled={pushBusy}
+            activeOpacity={0.78}
+          >
+            {pushSubscribed ? (
+              <Bell color={colors.primary} size={20} />
+            ) : (
+              <BellOff color={colors.textMuted} size={20} />
+            )}
+            <Text style={[styles.pushButtonText, pushSubscribed ? styles.pushButtonTextOn : null]}>
+              {pushBusy
+                ? 'Working...'
+                : pushSubscribed
+                  ? 'Push notifications enabled'
+                  : 'Enable push notifications'}
+            </Text>
+          </TouchableOpacity>
+        ) : pushUnsupportedReason ? (
+          <View style={styles.pushHint}>
+            <BellOff color={colors.textMuted} size={18} />
+            <Text style={styles.pushHintText}>{pushUnsupportedReason}</Text>
+          </View>
+        ) : null}
 
         <TouchableOpacity style={styles.primaryButton} onPress={saveProfile} disabled={saving} activeOpacity={0.78}>
           {saving ? (
@@ -292,6 +378,50 @@ const styles = StyleSheet.create({
     padding: 16,
     color: colors.text,
     marginBottom: 18,
+  },
+  pushButton: {
+    minHeight: 52,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    marginBottom: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  pushButtonOn: {
+    backgroundColor: 'rgba(245, 158, 11, 0.10)',
+    borderColor: 'rgba(245, 158, 11, 0.32)',
+  },
+  pushButtonOff: {
+    backgroundColor: colors.background,
+    borderColor: colors.border,
+  },
+  pushButtonText: {
+    ...typography.body,
+    color: colors.textMuted,
+    fontWeight: '800',
+  },
+  pushButtonTextOn: {
+    color: colors.primary,
+  },
+  pushHint: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 18,
+    gap: 10,
+  },
+  pushHintText: {
+    ...typography.caption,
+    flex: 1,
+    color: colors.textMuted,
+    lineHeight: 19,
   },
   primaryButton: {
     minHeight: 54,
