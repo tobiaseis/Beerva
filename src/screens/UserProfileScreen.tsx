@@ -66,6 +66,7 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
   const [sessions, setSessions] = useState<PublicSession[]>([]);
   const [followCounts, setFollowCounts] = useState<FollowCounts>({ followers: 0, following: 0 });
   const [isFollowing, setIsFollowing] = useState(false);
+  const [isMutual, setIsMutual] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -124,8 +125,22 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
 
         if (followError) throw followError;
         setIsFollowing(Boolean(followData));
+
+        if (followData) {
+          const { data: mutualData } = await supabase
+            .from('follows')
+            .select('follower_id')
+            .eq('follower_id', profileId)
+            .eq('following_id', user.id)
+            .maybeSingle();
+            
+          setIsMutual(Boolean(mutualData));
+        } else {
+          setIsMutual(false);
+        }
       } else {
         setIsFollowing(false);
+        setIsMutual(false);
       }
     } catch (error) {
       console.error('User profile fetch error:', error);
@@ -180,6 +195,24 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
       Alert.alert('Could not update follow', error?.message || 'Please try again.');
     } finally {
       setFollowLoading(false);
+    }
+  };
+
+  const inviteToDrink = async () => {
+    if (!currentUserId || !profileId) return;
+
+    try {
+      const { error } = await supabase.from('notifications').insert({
+        user_id: profileId,
+        actor_id: currentUserId,
+        type: 'invite'
+      });
+
+      if (error) throw error;
+      Alert.alert('Invite Sent', `You've invited ${profile?.username || 'them'} to drink! 🍻`);
+    } catch (e: any) {
+      console.error('Error sending invite', e);
+      Alert.alert('Could not send invite', 'Please try again later.');
     }
   };
 
@@ -248,19 +281,32 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
             <Text style={styles.selfBadgeText}>This is you</Text>
           </View>
         ) : (
-          <TouchableOpacity
-            style={[styles.followButton, isFollowing ? styles.followingButton : null]}
-            onPress={toggleFollow}
-            disabled={followLoading}
-            activeOpacity={0.75}
-          >
-            {isFollowing ? (
-              <UserCheck color={colors.background} size={18} />
-            ) : (
-              <UserPlus color={colors.background} size={18} />
+          <View style={styles.actionButtons}>
+            <TouchableOpacity
+              style={[styles.followButton, isFollowing ? styles.followingButton : null]}
+              onPress={toggleFollow}
+              disabled={followLoading}
+              activeOpacity={0.75}
+            >
+              {isFollowing ? (
+                <UserCheck color={colors.background} size={18} />
+              ) : (
+                <UserPlus color={colors.background} size={18} />
+              )}
+              <Text style={styles.followButtonText}>{isFollowing ? 'Following' : 'Follow'}</Text>
+            </TouchableOpacity>
+            
+            {isMutual && (
+              <TouchableOpacity
+                style={styles.inviteButton}
+                onPress={inviteToDrink}
+                activeOpacity={0.75}
+              >
+                <Beer color={colors.background} size={18} />
+                <Text style={styles.inviteButtonText}>Invite to drink</Text>
+              </TouchableOpacity>
             )}
-            <Text style={styles.followButtonText}>{isFollowing ? 'Following' : 'Follow'}</Text>
-          </TouchableOpacity>
+          </View>
         )}
       </View>
 
@@ -403,6 +449,25 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryDark,
   },
   followButtonText: {
+    color: colors.background,
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
+  },
+  inviteButton: {
+    minHeight: 44,
+    borderRadius: 22,
+    paddingHorizontal: 18,
+    backgroundColor: '#10b981', // Emerald for distinct invite action
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  inviteButtonText: {
     color: colors.background,
     fontSize: 16,
     fontWeight: '800',

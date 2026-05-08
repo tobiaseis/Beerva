@@ -14,6 +14,7 @@ import { PeopleScreen } from '../screens/PeopleScreen';
 import { UserProfileScreen } from '../screens/UserProfileScreen';
 import { AuthScreen } from '../screens/AuthScreen';
 import { ProfileSetupScreen } from '../screens/ProfileSetupScreen';
+import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { colors } from '../theme/colors';
 
 const Tab = createBottomTabNavigator();
@@ -162,6 +163,7 @@ export const RootNavigator = () => {
           >
             <Stack.Screen name="MainTabs" component={MainTabs} />
             <Stack.Screen name="UserProfile" component={UserProfileScreen} />
+            <Stack.Screen name="Notifications" component={NotificationsScreen} />
           </Stack.Navigator>
         )
       ) : (

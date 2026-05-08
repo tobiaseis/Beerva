@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Image, ActivityIndicator, RefreshControl, TouchableOpacity, Alert, Platform } from 'react-native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
-import { Beer, MapPin, Trash2, Users } from 'lucide-react-native';
+import { Beer, MapPin, Trash2, Users, Bell } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { confirmDestructive } from '../lib/dialogs';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -44,6 +44,7 @@ export const FeedScreen = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [cheeringSessionIds, setCheeringSessionIds] = useState<Set<string>>(() => new Set());
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const fetchSessions = async () => {
     try {
@@ -67,6 +68,16 @@ export const FeedScreen = () => {
       const followingIds = ((followsData || []) as FollowRow[]).map((follow) => follow.following_id);
       const feedUserIds = Array.from(new Set([user.id, ...followingIds]));
       setFollowedUserCount(followingIds.length);
+
+      const { count: unreadCountResult, error: unreadError } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('read', false);
+        
+      if (!unreadError) {
+        setUnreadCount(unreadCountResult || 0);
+      }
 
       const { data, error } = await supabase
         .from('sessions')
@@ -205,6 +216,14 @@ export const FeedScreen = () => {
           });
 
         if (error && error.code !== '23505') throw error;
+        
+        // Insert notification (ignore if fails or duplicate)
+        await supabase.from('notifications').insert({
+          user_id: item.user_id,
+          actor_id: currentUserId,
+          type: 'cheer',
+          reference_id: item.id
+        }).select().maybeSingle();
       } else {
         const { error } = await supabase
           .from('session_cheers')
@@ -213,6 +232,13 @@ export const FeedScreen = () => {
           .eq('user_id', currentUserId);
 
         if (error) throw error;
+        
+        await supabase.from('notifications')
+          .delete()
+          .eq('user_id', item.user_id)
+          .eq('actor_id', currentUserId)
+          .eq('type', 'cheer')
+          .eq('reference_id', item.id);
       }
     } catch (error: any) {
       setSessions((previous) => previous.map((session) => (
@@ -271,6 +297,17 @@ export const FeedScreen = () => {
           <Image source={beervaLogo} style={styles.logoImage} />
           <Text style={styles.logoText}>Beerva</Text>
         </View>
+        <TouchableOpacity 
+          style={styles.bellButton}
+          onPress={() => navigation.navigate('Notifications')}
+        >
+          <Bell color={colors.text} size={24} />
+          {unreadCount > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
       </View>
       
       {loading ? (
@@ -399,6 +436,32 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
     backgroundColor: colors.background,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  bellButton: {
+    padding: 8,
+    position: 'relative',
+  },
+  badge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: colors.danger,
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: colors.background,
+  },
+  badgeText: {
+    color: colors.background,
+    fontSize: 10,
+    fontWeight: '800',
+    paddingHorizontal: 3,
   },
   logoContainer: {
     flexDirection: 'row',
