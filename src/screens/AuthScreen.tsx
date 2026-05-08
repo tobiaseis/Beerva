@@ -111,6 +111,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   input: {
+    ...typography.body,
     backgroundColor: colors.background,
     borderWidth: 1,
     borderColor: colors.border,
@@ -118,7 +119,6 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 16,
     color: colors.text,
-    ...typography.body,
   },
   primaryButton: {
     backgroundColor: colors.primary,

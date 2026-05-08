@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { NavigationContainer } from '@react-navigation/native';
 import { Beer, PlusCircle, User } from 'lucide-react-native';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, Platform } from 'react-native';
 import { Session } from '@supabase/supabase-js';
 
 import { supabase } from '../lib/supabase';
@@ -22,11 +22,16 @@ export const RootNavigator = () => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
+    }).catch((error) => {
+      console.error('Supabase session error:', error);
+      setLoading(false);
     });
 
-    supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   if (loading) {
@@ -47,6 +52,11 @@ export const RootNavigator = () => {
               backgroundColor: colors.card,
               borderTopColor: colors.border,
               borderTopWidth: 1,
+              ...(Platform.OS === 'web' ? {
+                height: 72,
+                paddingTop: 8,
+                paddingBottom: 10,
+              } : null),
             },
             tabBarActiveTintColor: colors.primary,
             tabBarInactiveTintColor: colors.textMuted,

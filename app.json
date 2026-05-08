@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "brewva",
-    "slug": "brewva",
+    "name": "Beerva",
+    "slug": "beerva",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -24,6 +24,15 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
+      "bundler": "metro",
+      "output": "single",
+      "name": "Beerva",
+      "shortName": "Beerva",
+      "lang": "en",
+      "themeColor": "#0F172A",
+      "backgroundColor": "#0F172A",
+      "display": "standalone",
+      "scope": "/",
       "favicon": "./assets/favicon.png"
     }
   }
