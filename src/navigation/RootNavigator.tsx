@@ -2,8 +2,9 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { DefaultTheme, NavigationContainer, type Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Beer, PlusCircle, User, Users } from 'lucide-react-native';
-import { View, ActivityIndicator, Platform } from 'react-native';
+import { Beer, Plus, User, Users } from 'lucide-react-native';
+import { View, ActivityIndicator, Platform, Pressable, StyleSheet } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { Session } from '@supabase/supabase-js';
 
 import { supabase } from '../lib/supabase';
@@ -17,6 +18,8 @@ import { ProfileSetupScreen } from '../screens/ProfileSetupScreen';
 import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { colors } from '../theme/colors';
 import { radius, shadows } from '../theme/layout';
+import { NotificationsProvider, useNotifications } from '../lib/notificationsContext';
+import { hapticLight } from '../lib/haptics';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -35,11 +38,32 @@ const navigationTheme: Theme = {
   },
 };
 
-const MainTabs = () => (
+const RecordFab = () => {
+  const navigation = useNavigation<any>();
+  return (
+    <Pressable
+      style={({ pressed }) => [fabStyles.fab, pressed ? fabStyles.fabPressed : null]}
+      onPress={() => {
+        hapticLight();
+        navigation.navigate('Record');
+      }}
+      accessibilityRole="button"
+      accessibilityLabel="Record a new session"
+    >
+      <Plus color={colors.background} size={32} strokeWidth={3} />
+    </Pressable>
+  );
+};
+
+const MainTabs = () => {
+  const { unreadCount } = useNotifications();
+  return (
+  <View style={{ flex: 1 }}>
   <Tab.Navigator
     screenOptions={{
       headerShown: false,
       sceneStyle: { backgroundColor: colors.background },
+      animation: 'fade',
       tabBarStyle: Platform.OS === 'web'
         ? {
             backgroundColor: colors.surfaceRaised,
@@ -64,7 +88,10 @@ const MainTabs = () => (
         fontSize: 12,
         fontWeight: '600',
         marginTop: 2,
-      } : undefined,
+        fontFamily: 'Inter_600SemiBold',
+      } : {
+        fontFamily: 'Inter_500Medium',
+      },
       tabBarItemStyle: Platform.OS === 'web' ? {
         paddingVertical: 4,
         borderRadius: radius.lg,
@@ -77,14 +104,19 @@ const MainTabs = () => (
       name="Feed"
       component={FeedScreen}
       options={{
-        tabBarIcon: ({ color, size }) => <Beer color={color} size={size} />
-      }}
-    />
-    <Tab.Screen
-      name="Record"
-      component={RecordScreen}
-      options={{
-        tabBarIcon: ({ color, size }) => <PlusCircle color={color} size={size} />
+        tabBarIcon: ({ color, size }) => <Beer color={color} size={size} />,
+        tabBarBadge: unreadCount > 0 ? (unreadCount > 9 ? '9+' : unreadCount) : undefined,
+        tabBarBadgeStyle: {
+          backgroundColor: colors.danger,
+          color: colors.background,
+          fontSize: 10,
+          fontWeight: '800',
+          minWidth: 18,
+          height: 18,
+          lineHeight: 18,
+          borderRadius: 9,
+          paddingHorizontal: 4,
+        },
       }}
     />
     <Tab.Screen
@@ -102,7 +134,10 @@ const MainTabs = () => (
       }}
     />
   </Tab.Navigator>
-);
+  <RecordFab />
+  </View>
+  );
+};
 
 export const RootNavigator = () => {
   const [session, setSession] = useState<Session | null>(null);
@@ -186,16 +221,24 @@ export const RootNavigator = () => {
         needsProfileSetup ? (
           <ProfileSetupScreen onComplete={() => checkProfileSetup(session)} />
         ) : (
-          <Stack.Navigator
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: colors.background },
-            }}
-          >
-            <Stack.Screen name="MainTabs" component={MainTabs} />
-            <Stack.Screen name="UserProfile" component={UserProfileScreen} />
-            <Stack.Screen name="Notifications" component={NotificationsScreen} />
-          </Stack.Navigator>
+          <NotificationsProvider>
+            <Stack.Navigator
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: colors.background },
+                animation: 'slide_from_right',
+              }}
+            >
+              <Stack.Screen name="MainTabs" component={MainTabs} />
+              <Stack.Screen
+                name="Record"
+                component={RecordScreen}
+                options={{ animation: 'slide_from_bottom' }}
+              />
+              <Stack.Screen name="UserProfile" component={UserProfileScreen} />
+              <Stack.Screen name="Notifications" component={NotificationsScreen} />
+            </Stack.Navigator>
+          </NotificationsProvider>
         )
       ) : (
         <AuthScreen />
@@ -203,3 +246,29 @@ export const RootNavigator = () => {
     </NavigationContainer>
   );
 };
+
+const fabStyles = StyleSheet.create({
+  fab: {
+    position: 'absolute',
+    alignSelf: 'center',
+    bottom: Platform.OS === 'web' ? 36 : 24,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 4,
+    borderColor: colors.background,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    zIndex: 10,
+  },
+  fabPressed: {
+    backgroundColor: colors.primaryDark,
+    transform: [{ scale: 0.94 }],
+  },
+});

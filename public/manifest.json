@@ -3,6 +3,7 @@
   "name": "Beerva",
   "description": "A social beer session tracker for friends.",
   "id": "/",
+  "categories": ["social", "food", "lifestyle"],
   "icons": [
     {
       "src": "/favicon.ico",
@@ -34,10 +35,36 @@
       "purpose": "maskable"
     }
   ],
+  "shortcuts": [
+    {
+      "name": "Record a Session",
+      "short_name": "Record",
+      "url": "/?tab=record",
+      "icons": [
+        {
+          "src": "/beerva-icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "View Feed",
+      "short_name": "Feed",
+      "url": "/",
+      "icons": [
+        {
+          "src": "/beerva-icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "theme_color": "#0B111C",
-  "background_color": "#0B111C"
+  "theme_color": "#0D121A",
+  "background_color": "#0D121A"
 }

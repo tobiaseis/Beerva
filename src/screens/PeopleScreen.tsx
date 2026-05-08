@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase';
 import { colors } from '../theme/colors';
 import { radius, shadows, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
+import { SkeletonPersonRow } from '../components/Skeleton';
 
 type UserProfileRow = {
   id: string;
@@ -243,8 +244,12 @@ export const PeopleScreen = ({ navigation }: any) => {
       </View>
 
       {loading && !refreshing ? (
-        <View style={styles.loader}>
-          <ActivityIndicator color={colors.primary} size="large" />
+        <View style={styles.listContent}>
+          <SkeletonPersonRow />
+          <SkeletonPersonRow />
+          <SkeletonPersonRow />
+          <SkeletonPersonRow />
+          <SkeletonPersonRow />
         </View>
       ) : (
         <FlatList

@@ -7,6 +7,7 @@ import { Bell, ArrowLeft, Beer, PartyPopper } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { CachedImage } from '../components/CachedImage';
 import { radius, shadows, spacing } from '../theme/layout';
+import { useNotifications } from '../lib/notificationsContext';
 
 type NotificationRow = {
   id: string;
@@ -36,6 +37,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const { markAllRead } = useNotifications();
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -79,6 +81,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
 
       const unreadIds = rows.filter((n) => !n.read).map((n) => n.id);
       if (unreadIds.length > 0) {
+        markAllRead();
         supabase
           .from('notifications')
           .update({ read: true })
@@ -93,7 +96,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [markAllRead]);
 
   useFocusEffect(
     useCallback(() => {

@@ -1,15 +1,18 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, Image, ActivityIndicator, RefreshControl, TouchableOpacity, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Image, ActivityIndicator, RefreshControl, TouchableOpacity, TouchableWithoutFeedback, Alert, Platform, Animated } from 'react-native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
-import { Beer, MapPin, Trash2, Users, Bell } from 'lucide-react-native';
+import { Beer, MapPin, Trash2, Users, Bell, AlertTriangle, RefreshCw } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { confirmDestructive } from '../lib/dialogs';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { CachedImage } from '../components/CachedImage';
 import { deletePublicImageUrl } from '../lib/imageUpload';
 import { Surface } from '../components/Surface';
+import { SkeletonFeedCard } from '../components/Skeleton';
 import { radius, shadows, spacing } from '../theme/layout';
+import { hapticLight, hapticMedium, hapticWarning } from '../lib/haptics';
+import { useNotifications } from '../lib/notificationsContext';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
 
@@ -44,6 +47,47 @@ const PULL_REFRESH_THRESHOLD = 65;
 const PULL_MAX_DISTANCE = 110;
 const FEED_PAGE_SIZE = 20;
 
+type PullIndicatorProps = {
+  pullDistance: number;
+  refreshing: boolean;
+};
+
+const PullIndicator = ({ pullDistance, refreshing }: PullIndicatorProps) => {
+  const spin = useRef(new Animated.Value(0)).current;
+  const loopRef = useRef<Animated.CompositeAnimation | null>(null);
+
+  useEffect(() => {
+    if (refreshing) {
+      spin.setValue(0);
+      loopRef.current = Animated.loop(
+        Animated.timing(spin, { toValue: 1, duration: 900, useNativeDriver: true }),
+      );
+      loopRef.current.start();
+    } else {
+      loopRef.current?.stop();
+      loopRef.current = null;
+    }
+    return () => {
+      loopRef.current?.stop();
+    };
+  }, [refreshing, spin]);
+
+  const progress = Math.min(pullDistance / PULL_REFRESH_THRESHOLD, 1);
+  const dragRotation = `${progress * 270}deg`;
+  const spinRotation = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+  const rotate = refreshing ? spinRotation : dragRotation;
+  const opacity = refreshing ? 1 : Math.max(0.35, progress);
+
+  return (
+    <View style={[styles.pullIndicator, { height: refreshing ? 56 : pullDistance }]}>
+      <Animated.Image
+        source={beervaLogo}
+        style={[styles.pullLogo, { opacity, transform: [{ rotate }] }]}
+      />
+    </View>
+  );
+};
+
 const getDrinkLabel = (item: FeedSession) => {
   const volume = item.volume || 'Pint';
   const quantity = item.quantity || 1;
@@ -60,10 +104,15 @@ const getTimeAgo = (dateString: string) => {
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.round(diffMs / 60000);
+  if (diffMins < 1) return 'Just now';
+  if (diffMins === 1) return '1 min ago';
   if (diffMins < 60) return `${diffMins} mins ago`;
   const diffHours = Math.round(diffMins / 60);
+  if (diffHours === 1) return '1 hour ago';
   if (diffHours < 24) return `${diffHours} hours ago`;
-  return `${Math.round(diffHours / 24)} days ago`;
+  const diffDays = Math.round(diffHours / 24);
+  if (diffDays === 1) return '1 day ago';
+  return `${diffDays} days ago`;
 };
 
 type FeedSessionCardProps = {
@@ -86,6 +135,49 @@ const FeedSessionCard = React.memo(({
   const isOwnPost = item.user_id === currentUserId;
   const cheersColor = item.has_cheered ? colors.primary : colors.textMuted;
   const username = item.profiles?.username || 'Unknown';
+  const cheersScale = React.useRef(new Animated.Value(1)).current;
+  const overlayOpacity = React.useRef(new Animated.Value(0)).current;
+  const overlayScale = React.useRef(new Animated.Value(0.6)).current;
+  const lastTapRef = React.useRef(0);
+
+  const playOverlay = React.useCallback(() => {
+    overlayOpacity.setValue(0);
+    overlayScale.setValue(0.6);
+    Animated.parallel([
+      Animated.sequence([
+        Animated.timing(overlayOpacity, { toValue: 1, duration: 120, useNativeDriver: true }),
+        Animated.delay(280),
+        Animated.timing(overlayOpacity, { toValue: 0, duration: 220, useNativeDriver: true }),
+      ]),
+      Animated.spring(overlayScale, { toValue: 1.15, tension: 200, friction: 6, useNativeDriver: true }),
+    ]).start();
+  }, [overlayOpacity, overlayScale]);
+
+  const triggerCheers = React.useCallback(() => {
+    hapticMedium();
+    Animated.sequence([
+      Animated.spring(cheersScale, { toValue: 1.18, tension: 300, friction: 6, useNativeDriver: true }),
+      Animated.spring(cheersScale, { toValue: 1, tension: 200, friction: 8, useNativeDriver: true }),
+    ]).start();
+    onToggleCheers(item);
+  }, [cheersScale, item, onToggleCheers]);
+
+  const handleCheersPress = triggerCheers;
+
+  const handleImagePress = React.useCallback(() => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 280) {
+      lastTapRef.current = 0;
+      if (isOwnPost || !currentUserId || item.has_cheered) {
+        playOverlay();
+        return;
+      }
+      playOverlay();
+      triggerCheers();
+    } else {
+      lastTapRef.current = now;
+    }
+  }, [currentUserId, isOwnPost, item.has_cheered, playOverlay, triggerCheers]);
 
   return (
     <Surface padded={false} style={styles.card}>
@@ -119,12 +211,25 @@ const FeedSessionCard = React.memo(({
       </View>
 
       {item.image_url ? (
-        <CachedImage
-          uri={item.image_url}
-          style={styles.feedImage}
-          recyclingKey={`session-${item.id}-${item.image_url}`}
-          accessibilityLabel={`${username}'s beer session photo`}
-        />
+        <TouchableWithoutFeedback onPress={handleImagePress} accessibilityLabel={`Double tap to cheer ${username}`}>
+          <View style={styles.imageWrap}>
+            <CachedImage
+              uri={item.image_url}
+              style={styles.feedImage}
+              recyclingKey={`session-${item.id}-${item.image_url}`}
+              accessibilityLabel={`${username}'s beer session photo`}
+            />
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.cheerOverlay,
+                { opacity: overlayOpacity, transform: [{ scale: overlayScale }] },
+              ]}
+            >
+              <Beer color={colors.primary} fill="rgba(247, 181, 58, 0.92)" size={86} />
+            </Animated.View>
+          </View>
+        </TouchableWithoutFeedback>
       ) : null}
 
       <View style={styles.cardContent}>
@@ -144,13 +249,14 @@ const FeedSessionCard = React.memo(({
       </View>
 
       <View style={styles.cardFooter}>
+        <Animated.View style={{ transform: [{ scale: cheersScale }] }}>
         <TouchableOpacity
           style={[
             styles.actionBtn,
             item.has_cheered ? styles.actionBtnActive : null,
             isOwnPost ? styles.actionBtnDisabled : null,
           ]}
-          onPress={() => onToggleCheers(item)}
+          onPress={handleCheersPress}
           disabled={isOwnPost || isCheering || !currentUserId}
           activeOpacity={0.72}
           accessibilityRole="button"
@@ -162,6 +268,7 @@ const FeedSessionCard = React.memo(({
             {getCheersLabel(item.cheers_count)}
           </Text>
         </TouchableOpacity>
+        </Animated.View>
       </View>
     </Surface>
   );
@@ -177,8 +284,9 @@ export const FeedScreen = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [cheeringSessionIds, setCheeringSessionIds] = useState<Set<string>>(() => new Set());
-  const [unreadCount, setUnreadCount] = useState(0);
+  const { unreadCount } = useNotifications();
   const [pullDistance, setPullDistance] = useState(0);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const sessionsRef = useRef<FeedSession[]>([]);
   const hasMoreRef = useRef(true);
   const loadingMoreRef = useRef(false);
@@ -216,6 +324,7 @@ export const FeedScreen = () => {
       loadingMoreRef.current = false;
       setLoadingMore(false);
       setLoading(sessionsRef.current.length === 0);
+      setFetchError(null);
     } else {
       loadingMoreRef.current = true;
       setLoadingMore(true);
@@ -232,27 +341,15 @@ export const FeedScreen = () => {
         setSessions([]);
         sessionsRef.current = [];
         setFollowedUserCount(0);
-        setUnreadCount(0);
         setHasMore(false);
         hasMoreRef.current = false;
         return;
       }
 
-      const [followsResult, unreadResult] = await Promise.all([
-        supabase
-          .from('follows')
-          .select('following_id')
-          .eq('follower_id', user.id),
-        reset
-          ? supabase
-              .from('notifications')
-              .select('*', { count: 'exact', head: true })
-              .eq('user_id', user.id)
-              .eq('read', false)
-          : Promise.resolve({ count: null, error: null }),
-      ]);
-
-      const { data: followsData, error: followsError } = followsResult;
+      const { data: followsData, error: followsError } = await supabase
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', user.id);
       if (!isLatestRequest()) return;
 
       if (followsError) {
@@ -262,12 +359,6 @@ export const FeedScreen = () => {
       const followingIds = ((followsData || []) as FollowRow[]).map((follow) => follow.following_id);
       const feedUserIds = Array.from(new Set([user.id, ...followingIds]));
       setFollowedUserCount(followingIds.length);
-
-      if (reset && !unreadResult.error) {
-        setUnreadCount(unreadResult.count || 0);
-      } else if (reset && unreadResult.error) {
-        console.error('Unread notification count error:', unreadResult.error);
-      }
 
       const { data, error } = await supabase
         .from('sessions')
@@ -352,8 +443,11 @@ export const FeedScreen = () => {
         sessionsRef.current = nextSessions;
         return nextSessions;
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Feed fetch error:', error);
+      if (isLatestRequest()) {
+        setFetchError(error?.message || 'Could not load feed.');
+      }
     } finally {
       if (reset) {
         if (isLatestRequest()) {
@@ -402,10 +496,12 @@ export const FeedScreen = () => {
     isPulling.current = true;
   };
 
+  const reachedThresholdRef = useRef(false);
   const handleTouchMove = (e: any) => {
     if (Platform.OS !== 'web' || !isPulling.current || refreshing) return;
     if (scrollOffsetY.current > 0) {
       isPulling.current = false;
+      reachedThresholdRef.current = false;
       setPullDistance(0);
       return;
     }
@@ -413,8 +509,16 @@ export const FeedScreen = () => {
     if (!touch) return;
     const delta = touch.pageY - touchStartY.current;
     if (delta > 0) {
-      setPullDistance(Math.min(delta * 0.55, PULL_MAX_DISTANCE));
+      const next = Math.min(delta * 0.55, PULL_MAX_DISTANCE);
+      if (next >= PULL_REFRESH_THRESHOLD && !reachedThresholdRef.current) {
+        reachedThresholdRef.current = true;
+        hapticLight();
+      } else if (next < PULL_REFRESH_THRESHOLD) {
+        reachedThresholdRef.current = false;
+      }
+      setPullDistance(next);
     } else {
+      reachedThresholdRef.current = false;
       setPullDistance(0);
     }
   };
@@ -422,36 +526,13 @@ export const FeedScreen = () => {
   const handleTouchEnd = () => {
     if (Platform.OS !== 'web' || !isPulling.current) return;
     isPulling.current = false;
+    reachedThresholdRef.current = false;
     if (pullDistance >= PULL_REFRESH_THRESHOLD && !refreshing) {
       setRefreshing(true);
       fetchSessions({ reset: true });
     }
     setPullDistance(0);
   };
-
-  useEffect(() => {
-    if (!currentUserId) return;
-
-    const channel = supabase
-      .channel(`notifications-${currentUserId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${currentUserId}`,
-        },
-        () => {
-          setUnreadCount((prev) => prev + 1);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [currentUserId]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -564,6 +645,7 @@ export const FeedScreen = () => {
   const deleteSession = useCallback((session: FeedSession) => {
     if (!currentUserId) return;
 
+    hapticWarning();
     confirmDestructive('Delete Post', 'Remove this beer session from your feed?', 'Delete', async () => {
       const { error } = await supabase
         .from('sessions')
@@ -593,17 +675,7 @@ export const FeedScreen = () => {
       return null;
     }
 
-    return (
-      <View style={[styles.pullIndicator, { height: refreshing ? 56 : pullDistance }]}>
-        {refreshing ? (
-          <ActivityIndicator color={colors.primary} />
-        ) : (
-          <Text style={styles.pullText}>
-            {pullDistance >= PULL_REFRESH_THRESHOLD ? 'Release to refresh' : 'Pull to refresh'}
-          </Text>
-        )}
-      </View>
-    );
+    return <PullIndicator pullDistance={pullDistance} refreshing={refreshing} />;
   }, [pullDistance, refreshing]);
 
   const renderEmptyFeed = useCallback(() => (
@@ -668,9 +740,32 @@ export const FeedScreen = () => {
         </TouchableOpacity>
       </View>
 
+      {fetchError && !loading ? (
+        <View style={styles.errorBanner}>
+          <AlertTriangle color={colors.danger} size={18} />
+          <Text style={styles.errorText} numberOfLines={2}>
+            {sessions.length > 0 ? 'Couldn’t refresh feed.' : 'Couldn’t load feed.'}
+          </Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => {
+              setFetchError(null);
+              setRefreshing(true);
+              fetchSessions({ reset: true });
+            }}
+            activeOpacity={0.75}
+          >
+            <RefreshCw color={colors.background} size={14} />
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
       {loading ? (
-        <View style={styles.loader}>
-          <ActivityIndicator size="large" color={colors.primary} />
+        <View style={styles.scrollContent}>
+          <SkeletonFeedCard />
+          <SkeletonFeedCard />
+          <SkeletonFeedCard />
         </View>
       ) : (
         <FlatList
@@ -791,6 +886,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.primary,
   },
+  pullLogo: {
+    width: 36,
+    height: 34,
+    resizeMode: 'contain',
+  },
   footerLoader: {
     paddingVertical: 16,
     alignItems: 'center',
@@ -841,10 +941,22 @@ const styles = StyleSheet.create({
   timeText: {
     ...typography.caption,
   },
+  imageWrap: {
+    position: 'relative',
+  },
   feedImage: {
     width: '100%',
     height: Platform.OS === 'web' ? 236 : 250,
     backgroundColor: colors.cardMuted,
+  },
+  cheerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cardContent: {
     padding: spacing.lg,
@@ -936,6 +1048,39 @@ const styles = StyleSheet.create({
   },
   actionTextActive: {
     color: colors.primary,
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginHorizontal: 14,
+    marginTop: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: radius.lg,
+    backgroundColor: colors.dangerSoft,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.32)',
+  },
+  errorText: {
+    ...typography.caption,
+    color: colors.text,
+    flex: 1,
+    fontWeight: '600',
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    minHeight: 32,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary,
+  },
+  retryText: {
+    color: colors.background,
+    fontWeight: '800',
+    fontSize: 13,
   },
   emptyState: {
     flex: 1,

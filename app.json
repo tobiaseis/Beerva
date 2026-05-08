@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0B111C"
+      "backgroundColor": "#0D121A"
     },
     "ios": {
       "supportsTablet": true
@@ -18,7 +18,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0B111C"
+        "backgroundColor": "#0D121A"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
@@ -29,8 +29,8 @@
       "name": "Beerva",
       "shortName": "Beerva",
       "lang": "en",
-      "themeColor": "#0B111C",
-      "backgroundColor": "#0B111C",
+      "themeColor": "#0D121A",
+      "backgroundColor": "#0D121A",
       "display": "standalone",
       "scope": "/",
       "favicon": "./assets/favicon.png"

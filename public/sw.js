@@ -1,11 +1,12 @@
 // Beerva Service Worker (Push + Offline Caching)
 
-const CACHE_NAME = 'beerva-cache-v2';
+const CACHE_NAME = 'beerva-cache-v3';
 const OFFLINE_URLS = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
   '/favicon-32.png',
+  '/beerva-icon-192.png',
 ];
 
 self.addEventListener('install', (event) => {
@@ -28,6 +29,23 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// Helper: is this a static asset that should be cached?
+const isStaticAsset = (url) => {
+  return (
+    url.includes('/_expo/static/') ||
+    url.includes('/assets/') ||
+    url.endsWith('.js') ||
+    url.endsWith('.css') ||
+    url.endsWith('.woff') ||
+    url.endsWith('.woff2') ||
+    url.endsWith('.ttf') ||
+    url.endsWith('.png') ||
+    url.endsWith('.jpg') ||
+    url.endsWith('.svg') ||
+    url.endsWith('.ico')
+  );
+};
+
 self.addEventListener('fetch', (event) => {
   // Only handle GET requests for our origin
   if (event.request.method !== 'GET' || !event.request.url.startsWith(self.location.origin)) {
@@ -42,16 +60,48 @@ self.addEventListener('fetch', (event) => {
   // Network-first for HTML navigation requests to ensure latest version
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request).catch(() => {
-        return caches.match(event.request).then((response) => {
-          return response || caches.match('/');
+      fetch(event.request)
+        .then((response) => {
+          const responseClone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseClone);
+          });
+          return response;
+        })
+        .catch(() => {
+          return caches.match(event.request).then((response) => {
+            return response || caches.match('/');
+          });
+        })
+    );
+    return;
+  }
+
+  // Cache-first for static assets (JS bundles, CSS, fonts, images)
+  if (isStaticAsset(event.request.url)) {
+    event.respondWith(
+      caches.match(event.request).then((cachedResponse) => {
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+
+        return fetch(event.request).then((response) => {
+          if (response.ok) {
+            const responseClone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseClone);
+            });
+          }
+          return response;
+        }).catch(() => {
+          // Asset not available offline
         });
       })
     );
     return;
   }
 
-  // Stale-while-revalidate for static assets
+  // Stale-while-revalidate for other requests
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       const networkFetch = fetch(event.request).then((response) => {

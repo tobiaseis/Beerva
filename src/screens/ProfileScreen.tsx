@@ -14,6 +14,7 @@ import { CachedImage } from '../components/CachedImage';
 import { getUsernameSaveErrorMessage, normalizeUsername } from '../lib/usernames';
 import { AppButton } from '../components/AppButton';
 import { radius, spacing } from '../theme/layout';
+import { SkeletonProfile } from '../components/Skeleton';
 import {
   disablePushNotifications,
   enablePushNotifications,
@@ -221,8 +222,8 @@ export const ProfileScreen = () => {
 
   if (loading) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator color={colors.primary} size="large" />
+      <View style={styles.container}>
+        <SkeletonProfile />
       </View>
     );
   }

@@ -11,6 +11,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { AppButton } from '../components/AppButton';
 import { Surface } from '../components/Surface';
 import { radius, spacing } from '../theme/layout';
+import { hapticError, hapticSuccess } from '../lib/haptics';
 
 const DANISH_BEERS_DATA = [
   { name: 'Tuborg Grøn', abv: 4.6 }, { name: 'Tuborg Classic', abv: 4.6 }, { name: 'Carlsberg Pilsner', abv: 4.6 },
@@ -180,7 +181,6 @@ export const RecordScreen = ({ navigation }: any) => {
 
     if (!result.canceled && result.assets[0]) {
       await handleImageAsset(result.assets[0]);
-      navigation.navigate('Record');
     }
   };
 
@@ -251,13 +251,15 @@ export const RecordScreen = ({ navigation }: any) => {
       setQuantity(1);
       setComment('');
       setSelectedImage(null);
+      hapticSuccess();
       showAlert('Cheers!', 'Your pint has been recorded.');
-      navigation.navigate('Feed');
+      navigation.navigate('MainTabs', { screen: 'Feed' });
     } catch (e: any) {
       console.error('Save session error:', e);
       if (uploadedUrl) {
         deletePublicImageUrl('session_images', uploadedUrl);
       }
+      hapticError();
       showAlert('Could not save session', e?.message || 'Please try again.');
     } finally {
       setLoading(false);
@@ -274,6 +276,15 @@ export const RecordScreen = ({ navigation }: any) => {
     >
       <View style={styles.header}>
         <Text style={typography.h2}>Record a Session</Text>
+        <TouchableOpacity
+          style={styles.closeButton}
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+        >
+          <X color={colors.text} size={22} />
+        </TouchableOpacity>
       </View>
 
       <View style={styles.content}>
@@ -418,6 +429,19 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.borderSoft,
     backgroundColor: colors.background,
     zIndex: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  closeButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
   },
   content: {
     padding: Platform.OS === 'web' ? 16 : 20,
