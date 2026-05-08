@@ -5,9 +5,27 @@ export type Stats = {
   maxSessionPints: number;
   strongestAbv: number;
   hasLateNightSession: boolean;
+  maxSessionsInOneDay: number;
+  maxPubsInOneDay: number;
+  maxSessionsAtSamePub: number;
+  longestDayStreak: number;
+  uniqueBeers: number;
+  maxBeersInOneDay: number;
+  hasEarlyBirdSession: boolean;
+  monthsLogged: number;
 };
 
-export type TrophyKind = 'pints' | 'pubs' | 'session' | 'abv' | 'late';
+export type TrophyKind =
+  | 'pints'
+  | 'pubs'
+  | 'session'
+  | 'abv'
+  | 'late'
+  | 'spree'
+  | 'streak'
+  | 'variety'
+  | 'morning'
+  | 'calendar';
 
 export type TrophyDefinition = {
   id: string;
@@ -19,6 +37,7 @@ export type TrophyDefinition = {
 
 export type ProfileSessionStatsRow = {
   pub_name?: string | null;
+  beer_name?: string | null;
   volume?: string | null;
   quantity?: number | null;
   abv?: number | null;
@@ -32,6 +51,26 @@ export const emptyStats: Stats = {
   maxSessionPints: 0,
   strongestAbv: 0,
   hasLateNightSession: false,
+  maxSessionsInOneDay: 0,
+  maxPubsInOneDay: 0,
+  maxSessionsAtSamePub: 0,
+  longestDayStreak: 0,
+  uniqueBeers: 0,
+  maxBeersInOneDay: 0,
+  hasEarlyBirdSession: false,
+  monthsLogged: 0,
+};
+
+// A "drinking day" runs 6am-to-6am local time, so sessions from a long night out
+// (e.g. 11pm to 2am) all bucket into the same day instead of splitting at midnight.
+const DAY_ROLLOVER_HOURS = 6;
+
+const localDateKey = (createdAt?: string | null): string | null => {
+  if (!createdAt) return null;
+  const d = new Date(createdAt);
+  if (Number.isNaN(d.getTime())) return null;
+  const shifted = new Date(d.getTime() - DAY_ROLLOVER_HOURS * 60 * 60 * 1000);
+  return `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, '0')}-${String(shifted.getDate()).padStart(2, '0')}`;
 };
 
 export const getVolumeMl = (volume?: string | null) => {
@@ -65,11 +104,19 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
   }
 
   const uniquePubs = new Set(sessions.map((session) => session.pub_name).filter(Boolean)).size;
+  const uniqueBeerSet = new Set<string>();
+  const monthsLoggedSet = new Set<number>();
+  const sessionsPerDay = new Map<string, number>();
+  const sessionsPerPub = new Map<string, number>();
+  const pubsPerDay = new Map<string, Set<string>>();
+  const beersPerDay = new Map<string, Set<string>>();
+
   let totalMl = 0;
   let weightedAbvSum = 0;
   let maxSessionPints = 0;
   let strongestAbv = 0;
   let hasLateNightSession = false;
+  let hasEarlyBirdSession = false;
 
   sessions.forEach((session) => {
     const volumeMl = getVolumeMl(session.volume);
@@ -83,7 +130,74 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
     maxSessionPints = Math.max(maxSessionPints, sessionPints);
     strongestAbv = Math.max(strongestAbv, abv);
     hasLateNightSession = hasLateNightSession || isLateNightSession(session.created_at);
+
+    if (session.beer_name) uniqueBeerSet.add(session.beer_name);
+    if (session.pub_name) {
+      sessionsPerPub.set(session.pub_name, (sessionsPerPub.get(session.pub_name) || 0) + 1);
+    }
+
+    const dayKey = localDateKey(session.created_at);
+    if (dayKey) {
+      sessionsPerDay.set(dayKey, (sessionsPerDay.get(dayKey) || 0) + 1);
+      if (session.pub_name) {
+        if (!pubsPerDay.has(dayKey)) pubsPerDay.set(dayKey, new Set());
+        pubsPerDay.get(dayKey)!.add(session.pub_name);
+      }
+      if (session.beer_name) {
+        if (!beersPerDay.has(dayKey)) beersPerDay.set(dayKey, new Set());
+        beersPerDay.get(dayKey)!.add(session.beer_name);
+      }
+    }
+
+    if (session.created_at) {
+      const d = new Date(session.created_at);
+      if (!Number.isNaN(d.getTime())) {
+        const hour = d.getHours();
+        if (hour >= 6 && hour < 10) hasEarlyBirdSession = true;
+        monthsLoggedSet.add(d.getMonth());
+      }
+    }
   });
+
+  let maxSessionsInOneDay = 0;
+  sessionsPerDay.forEach((count) => {
+    if (count > maxSessionsInOneDay) maxSessionsInOneDay = count;
+  });
+
+  let maxPubsInOneDay = 0;
+  pubsPerDay.forEach((set) => {
+    if (set.size > maxPubsInOneDay) maxPubsInOneDay = set.size;
+  });
+
+  let maxBeersInOneDay = 0;
+  beersPerDay.forEach((set) => {
+    if (set.size > maxBeersInOneDay) maxBeersInOneDay = set.size;
+  });
+
+  let maxSessionsAtSamePub = 0;
+  sessionsPerPub.forEach((count) => {
+    if (count > maxSessionsAtSamePub) maxSessionsAtSamePub = count;
+  });
+
+  // Longest consecutive-day streak
+  const sortedDays = Array.from(sessionsPerDay.keys()).sort();
+  let longestDayStreak = 0;
+  let currentStreak = 0;
+  let prevTime = -Infinity;
+  const ONE_DAY_MS = 86400000;
+  for (const key of sortedDays) {
+    const [y, m, d] = key.split('-').map(Number);
+    const t = new Date(y, m - 1, d).getTime();
+    if (currentStreak === 0) {
+      currentStreak = 1;
+    } else if (Math.round((t - prevTime) / ONE_DAY_MS) === 1) {
+      currentStreak += 1;
+    } else {
+      currentStreak = 1;
+    }
+    if (currentStreak > longestDayStreak) longestDayStreak = currentStreak;
+    prevTime = t;
+  }
 
   return {
     totalPints: roundStat(totalMl / 568),
@@ -92,6 +206,14 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
     maxSessionPints: roundStat(maxSessionPints),
     strongestAbv: roundStat(strongestAbv),
     hasLateNightSession,
+    maxSessionsInOneDay,
+    maxPubsInOneDay,
+    maxSessionsAtSamePub,
+    longestDayStreak,
+    uniqueBeers: uniqueBeerSet.size,
+    maxBeersInOneDay,
+    hasEarlyBirdSession,
+    monthsLogged: monthsLoggedSet.size,
   };
 };
 
@@ -128,6 +250,89 @@ export const getTrophies = (stats: Stats): TrophyDefinition[] => {
     earned: stats.strongestAbv > threshold,
   }));
 
+  const spreeTrophies: TrophyDefinition[] = [
+    {
+      id: 'spree-3',
+      title: 'Triple Round',
+      description: '3+ sessions logged in one day',
+      kind: 'spree',
+      earned: stats.maxSessionsInOneDay >= 3,
+    },
+    {
+      id: 'spree-5',
+      title: 'High Five',
+      description: '5+ sessions logged in one day',
+      kind: 'spree',
+      earned: stats.maxSessionsInOneDay >= 5,
+    },
+    {
+      id: 'spree-7',
+      title: 'Lucky Seven',
+      description: '7+ sessions logged in one day',
+      kind: 'spree',
+      earned: stats.maxSessionsInOneDay >= 7,
+    },
+  ];
+
+  const extraTrophies: TrophyDefinition[] = [
+    {
+      id: 'pub-crawler',
+      title: 'Pub Crawler',
+      description: '3+ different pubs in one day',
+      kind: 'pubs',
+      earned: stats.maxPubsInOneDay >= 3,
+    },
+    {
+      id: 'local-legend',
+      title: 'Local Legend',
+      description: '10+ sessions at the same pub',
+      kind: 'pubs',
+      earned: stats.maxSessionsAtSamePub >= 10,
+    },
+    {
+      id: 'streak-3',
+      title: 'Hat Trick',
+      description: 'Sessions on 3 days in a row',
+      kind: 'streak',
+      earned: stats.longestDayStreak >= 3,
+    },
+    {
+      id: 'streak-7',
+      title: 'Week-long Tour',
+      description: 'Sessions on 7 days in a row',
+      kind: 'streak',
+      earned: stats.longestDayStreak >= 7,
+    },
+    {
+      id: 'sommelier',
+      title: 'Beer Sommelier',
+      description: '25+ unique beers tried',
+      kind: 'variety',
+      earned: stats.uniqueBeers >= 25,
+    },
+    {
+      id: 'variety-pack',
+      title: 'Variety Pack',
+      description: '3+ different beers in one day',
+      kind: 'variety',
+      earned: stats.maxBeersInOneDay >= 3,
+    },
+    {
+      id: 'early-bird',
+      title: 'Early Bird',
+      description: 'Logged a session between 6–10am',
+      kind: 'morning',
+      earned: stats.hasEarlyBirdSession,
+    },
+    {
+      id: 'all-year-round',
+      title: 'All Year Round',
+      description: 'At least one session in all 12 months',
+      kind: 'calendar',
+      earned: stats.monthsLogged >= 12,
+    },
+  ];
+
   return [
     {
       id: 'first-pint',
@@ -140,6 +345,8 @@ export const getTrophies = (stats: Stats): TrophyDefinition[] => {
     ...pubTrophies,
     ...sessionTrophies,
     ...abvTrophies,
+    ...spreeTrophies,
+    ...extraTrophies,
     {
       id: 'late-night',
       title: 'Late Night Beer',

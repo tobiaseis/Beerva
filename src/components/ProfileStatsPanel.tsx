@@ -1,6 +1,6 @@
 import React from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
-import { Award, Beer, Flame, MapPin, Moon, Trophy } from 'lucide-react-native';
+import { Award, Beer, CalendarDays, Flame, MapPin, Moon, PartyPopper, Repeat, Sparkles, Sunrise, Trophy } from 'lucide-react-native';
 
 import { getTrophies, Stats, TrophyKind } from '../lib/profileStats';
 import { colors } from '../theme/colors';
@@ -29,6 +29,16 @@ export const ProfileStatsPanel = ({ stats }: ProfileStatsPanelProps) => {
         return <Flame color={iconColor} size={iconSize} />;
       case 'late':
         return <Moon color={iconColor} size={iconSize} />;
+      case 'spree':
+        return <PartyPopper color={iconColor} size={iconSize} />;
+      case 'streak':
+        return <Repeat color={iconColor} size={iconSize} />;
+      case 'variety':
+        return <Sparkles color={iconColor} size={iconSize} />;
+      case 'morning':
+        return <Sunrise color={iconColor} size={iconSize} />;
+      case 'calendar':
+        return <CalendarDays color={iconColor} size={iconSize} />;
       default:
         return <Award color={iconColor} size={iconSize} />;
     }

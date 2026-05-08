@@ -104,7 +104,7 @@ export const ProfileScreen = () => {
 
       const { data: sessions } = await supabase
         .from('sessions')
-        .select('pub_name, volume, quantity, abv, created_at')
+        .select('pub_name, beer_name, volume, quantity, abv, created_at')
         .eq('user_id', user.id);
 
       setStats(calculateStats(sessions || []));
