@@ -6,8 +6,25 @@ import { ArrowLeft, Beer, CalendarDays, MapPin, UserCheck, UserPlus } from 'luci
 import { ProfileStatsPanel } from '../components/ProfileStatsPanel';
 import { calculateStats, emptyStats, getVolumeMl, ProfileSessionStatsRow, Stats } from '../lib/profileStats';
 import { supabase } from '../lib/supabase';
+import { showAlert } from '../lib/dialogs';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
+
+const INVITE_MESSAGES = [
+  '{name} has been beer-summoned. Hope they\'re thirsty.',
+  'Beer signal activated! {name} has been alerted to the call of the pint.',
+  '{name} has been summoned to the bar. May the foam be with you both.',
+  'The brewski bat-signal is lit! {name} better answer.',
+  '{name} has been pinged. If they ghost you, drink theirs too.',
+  'Pigeon dispatched with a frothy demand. {name} is on notice.',
+  '{name} is being paged from the tap. Stay hydrated (with hops).',
+];
+
+const INVITE_FAILURE_MESSAGES = [
+  'The pigeon got drunk on the way. Try again.',
+  'Beer signal jammed. The bartender will retry the call.',
+  'Cosmic foam interference. Pour another and try again.',
+];
 
 type UserProfile = {
   id: string;
@@ -205,14 +222,18 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
       const { error } = await supabase.from('notifications').insert({
         user_id: profileId,
         actor_id: currentUserId,
-        type: 'invite'
+        type: 'invite',
       });
 
       if (error) throw error;
-      Alert.alert('Invite Sent', `You've invited ${profile?.username || 'them'} to drink! 🍻`);
+
+      const name = profile?.username || 'They';
+      const template = INVITE_MESSAGES[Math.floor(Math.random() * INVITE_MESSAGES.length)];
+      showAlert('🍻 Cheers Incoming!', template.replace('{name}', name));
     } catch (e: any) {
       console.error('Error sending invite', e);
-      Alert.alert('Could not send invite', 'Please try again later.');
+      const fallback = INVITE_FAILURE_MESSAGES[Math.floor(Math.random() * INVITE_FAILURE_MESSAGES.length)];
+      showAlert('🍺 Invite stuck in the keg', fallback);
     }
   };
 

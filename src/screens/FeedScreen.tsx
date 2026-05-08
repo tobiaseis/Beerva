@@ -1,10 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, Image, ActivityIndicator, RefreshControl, TouchableOpacity, Alert, Platform } from 'react-native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { Beer, MapPin, Trash2, Users, Bell } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
-import { confirmDestructive } from '../lib/dialogs';
+import { confirmDestructive, showAlert } from '../lib/dialogs';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 
 const beervaLogo = require('../../assets/beerva-app-icon.png');
@@ -36,6 +36,9 @@ type FeedSession = {
   has_cheered: boolean;
 };
 
+const PULL_REFRESH_THRESHOLD = 65;
+const PULL_MAX_DISTANCE = 110;
+
 export const FeedScreen = () => {
   const navigation = useNavigation<any>();
   const [sessions, setSessions] = useState<FeedSession[]>([]);
@@ -45,6 +48,10 @@ export const FeedScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [cheeringSessionIds, setCheeringSessionIds] = useState<Set<string>>(() => new Set());
   const [unreadCount, setUnreadCount] = useState(0);
+  const [pullDistance, setPullDistance] = useState(0);
+  const scrollOffsetY = useRef(0);
+  const touchStartY = useRef(0);
+  const isPulling = useRef(false);
 
   const fetchSessions = async () => {
     try {
@@ -151,6 +158,82 @@ export const FeedScreen = () => {
     }, [])
   );
 
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const previous = document.body.style.overscrollBehaviorY;
+    document.body.style.overscrollBehaviorY = 'contain';
+    return () => {
+      document.body.style.overscrollBehaviorY = previous;
+    };
+  }, []);
+
+  const handleScroll = (e: any) => {
+    scrollOffsetY.current = e.nativeEvent.contentOffset.y;
+  };
+
+  const handleTouchStart = (e: any) => {
+    if (Platform.OS !== 'web' || refreshing) return;
+    if (scrollOffsetY.current > 0) {
+      isPulling.current = false;
+      return;
+    }
+    const touch = e.nativeEvent.touches?.[0];
+    if (!touch) return;
+    touchStartY.current = touch.pageY;
+    isPulling.current = true;
+  };
+
+  const handleTouchMove = (e: any) => {
+    if (Platform.OS !== 'web' || !isPulling.current || refreshing) return;
+    if (scrollOffsetY.current > 0) {
+      isPulling.current = false;
+      setPullDistance(0);
+      return;
+    }
+    const touch = e.nativeEvent.touches?.[0];
+    if (!touch) return;
+    const delta = touch.pageY - touchStartY.current;
+    if (delta > 0) {
+      setPullDistance(Math.min(delta * 0.55, PULL_MAX_DISTANCE));
+    } else {
+      setPullDistance(0);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (Platform.OS !== 'web' || !isPulling.current) return;
+    isPulling.current = false;
+    if (pullDistance >= PULL_REFRESH_THRESHOLD && !refreshing) {
+      setRefreshing(true);
+      fetchSessions();
+    }
+    setPullDistance(0);
+  };
+
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const channel = supabase
+      .channel(`notifications-${currentUserId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${currentUserId}`,
+        },
+        () => {
+          setUnreadCount((prev) => prev + 1);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUserId]);
+
   const onRefresh = () => {
     setRefreshing(true);
     fetchSessions();
@@ -217,13 +300,19 @@ export const FeedScreen = () => {
 
         if (error && error.code !== '23505') throw error;
         
-        // Insert notification (ignore if fails or duplicate)
-        await supabase.from('notifications').insert({
+        const { error: notifError } = await supabase.from('notifications').insert({
           user_id: item.user_id,
           actor_id: currentUserId,
           type: 'cheer',
-          reference_id: item.id
-        }).select().maybeSingle();
+          reference_id: item.id,
+        });
+        if (notifError) {
+          console.error('Cheer notification insert error:', notifError);
+          showAlert(
+            'Notification debug',
+            `code: ${notifError.code || 'n/a'}\nmessage: ${notifError.message || 'n/a'}\ndetails: ${notifError.details || 'n/a'}\nhint: ${notifError.hint || 'n/a'}`
+          );
+        }
       } else {
         const { error } = await supabase
           .from('session_cheers')
@@ -315,12 +404,33 @@ export const FeedScreen = () => {
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : (
-        <ScrollView 
+        <ScrollView
           contentContainerStyle={styles.scrollContent}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchEnd}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+            Platform.OS !== 'web'
+              ? <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+              : undefined
           }
         >
+          {Platform.OS === 'web' && (pullDistance > 0 || refreshing) ? (
+            <View style={[styles.pullIndicator, { height: refreshing ? 56 : pullDistance }]}>
+              {refreshing ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : (
+                <>
+                  <Text style={styles.pullText}>
+                    {pullDistance >= PULL_REFRESH_THRESHOLD ? '🍺 Release to refresh' : '🍻 Pull to refresh'}
+                  </Text>
+                </>
+              )}
+            </View>
+          ) : null}
           {sessions.length === 0 ? (
             <View style={styles.emptyState}>
               <Users color={colors.textMuted} size={34} />
@@ -481,6 +591,17 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: Platform.OS === 'web' ? 14 : 16,
     paddingBottom: Platform.OS === 'web' ? 24 : 16,
+  },
+  pullIndicator: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    marginBottom: 6,
+  },
+  pullText: {
+    ...typography.bodyMuted,
+    fontWeight: '700',
+    color: colors.primary,
   },
   card: {
     backgroundColor: colors.card,
