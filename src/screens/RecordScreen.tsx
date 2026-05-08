@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Image, ScrollView, TextInput, Platform, Modal } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Image, ScrollView, TextInput, Platform, Modal } from 'react-native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { Camera, MapPin, Beer, Minus, Plus, MessageSquare, Images, X } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { imageFromPickerAsset, SelectedImage, uploadImageToBucket } from '../lib/imageUpload';
 import { AutocompleteInput } from '../components/AutocompleteInput';
+import { showAlert } from '../lib/dialogs';
 import * as ImagePicker from 'expo-image-picker';
 
 const DANISH_BEERS_DATA = [
@@ -138,7 +139,7 @@ export const RecordScreen = ({ navigation }: any) => {
 
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Camera access needed', 'Allow camera access to take a new session photo.');
+      showAlert('Camera access needed', 'Allow camera access to take a new session photo.');
       return;
     }
 
@@ -157,7 +158,7 @@ export const RecordScreen = ({ navigation }: any) => {
 
   const saveSession = async () => {
     if (!beer || !pub) {
-      Alert.alert('Missing fields', 'Please enter where and what you are drinking!');
+      showAlert('Missing fields', 'Please enter where and what you are drinking!');
       return;
     }
 
@@ -172,21 +173,19 @@ export const RecordScreen = ({ navigation }: any) => {
         uploadedUrl = await uploadImageToBucket('session_images', selectedImage, 'session');
       }
 
-      const { data: existingProfile, error: profileFetchError } = await supabase
+      const { data: existingProfile } = await supabase
         .from('profiles')
         .select('id')
         .eq('id', user.id)
         .maybeSingle();
 
-      if (profileFetchError) throw profileFetchError;
-
       if (!existingProfile) {
-        const { error: profileCreateError } = await supabase.from('profiles').insert({
+        const { error: profileCreateError } = await supabase.from('profiles').upsert({
           id: user.id,
           username: user.user_metadata?.username || user.email?.split('@')[0] || 'beer_lover',
           avatar_url: user.user_metadata?.avatar_url || 'https://i.pravatar.cc/150?u=' + user.id,
           updated_at: new Date().toISOString()
-        });
+        }, { onConflict: 'id' });
 
         if (profileCreateError) throw profileCreateError;
       }
@@ -196,16 +195,24 @@ export const RecordScreen = ({ navigation }: any) => {
       const abv = beerMatch ? beerMatch.abv : 5.0; // Default to 5.0 if custom
       const trimmedComment = comment.trim();
 
-      const { error } = await supabase.from('sessions').insert({
+      const sessionPayload = {
         user_id: user.id,
         pub_name: pub,
         beer_name: beer,
-        volume: volume,
-        quantity: quantity,
-        abv: abv,
+        volume,
+        quantity,
+        abv,
         comment: trimmedComment || null,
         image_url: uploadedUrl,
-      });
+      };
+
+      let { error } = await supabase.from('sessions').insert(sessionPayload);
+
+      if (error && error.message?.toLowerCase().includes('comment')) {
+        const { comment: _comment, ...payloadWithoutComment } = sessionPayload;
+        const retry = await supabase.from('sessions').insert(payloadWithoutComment);
+        error = retry.error;
+      }
 
       if (error) throw error;
 
@@ -215,10 +222,11 @@ export const RecordScreen = ({ navigation }: any) => {
       setQuantity(1);
       setComment('');
       setSelectedImage(null);
-      Alert.alert('Cheers!', 'Your pint has been recorded.');
+      showAlert('Cheers!', 'Your pint has been recorded.');
       navigation.navigate('Feed');
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      console.error('Save session error:', e);
+      showAlert('Could not save session', e?.message || 'Please try again.');
     } finally {
       setLoading(false);
     }
