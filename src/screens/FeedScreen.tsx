@@ -324,6 +324,12 @@ const FeedSessionCard = React.memo(({
         ) : null}
       </View>
 
+      {item.comment ? (
+        <View style={styles.commentTop}>
+          <Text style={styles.commentText}>{item.comment}</Text>
+        </View>
+      ) : null}
+
       {item.image_url ? (
         <Pressable
           onPress={handleImagePress}
@@ -353,11 +359,6 @@ const FeedSessionCard = React.memo(({
       ) : null}
 
       <View style={styles.cardContent}>
-        {item.comment ? (
-          <View style={styles.commentTop}>
-            <Text style={styles.commentText}>{item.comment}</Text>
-          </View>
-        ) : null}
 
         <View style={styles.sessionSummary}>
           <View style={styles.summaryRow}>
