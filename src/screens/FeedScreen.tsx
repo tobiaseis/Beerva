@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, FlatList, Image, ActivityIndicator, RefreshControl, TouchableOpacity, TouchableWithoutFeedback, Alert, Platform, Animated } from 'react-native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
-import { MapPin, Trash2, Bell, AlertTriangle, RefreshCw } from 'lucide-react-native';
+import { Edit3, MapPin, Trash2, Bell, AlertTriangle, RefreshCw } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { confirmDestructive } from '../lib/dialogs';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -14,6 +14,7 @@ import { radius, shadows, spacing } from '../theme/layout';
 import { hapticLight, hapticMedium, hapticWarning } from '../lib/haptics';
 import { useNotifications } from '../lib/notificationsContext';
 import { EmptyIllustration } from '../components/EmptyIllustration';
+import { getBeerLine, getSessionBeerSummary, SessionBeer } from '../lib/sessionBeers';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
 
@@ -35,7 +36,13 @@ type FeedSession = {
   quantity: number | null;
   comment: string | null;
   image_url: string | null;
+  status?: string | null;
+  started_at?: string | null;
+  ended_at?: string | null;
+  published_at?: string | null;
+  edited_at?: string | null;
   created_at: string;
+  session_beers: SessionBeer[];
   profiles?: {
     username?: string | null;
     avatar_url?: string | null;
@@ -90,10 +97,14 @@ const PullIndicator = ({ pullDistance, refreshing }: PullIndicatorProps) => {
 };
 
 const getDrinkLabel = (item: FeedSession) => {
+  if (item.session_beers.length > 0) {
+    return getSessionBeerSummary(item.session_beers);
+  }
+
   const volume = item.volume || 'Pint';
   const quantity = item.quantity || 1;
-
-  return quantity > 1 ? `${quantity} x ${volume}` : volume;
+  const drink = quantity > 1 ? `${quantity} x ${volume}` : volume;
+  return `${drink} of ${item.beer_name}`;
 };
 
 const getCheersLabel = (count: number) => {
@@ -121,6 +132,7 @@ type FeedSessionCardProps = {
   currentUserId: string | null;
   isCheering: boolean;
   onDeleteSession: (session: FeedSession) => void;
+  onEditSession: (session: FeedSession) => void;
   onOpenProfile: (userId: string) => void;
   onToggleCheers: (session: FeedSession) => void;
 };
@@ -130,6 +142,7 @@ const FeedSessionCard = React.memo(({
   currentUserId,
   isCheering,
   onDeleteSession,
+  onEditSession,
   onOpenProfile,
   onToggleCheers,
 }: FeedSessionCardProps) => {
@@ -200,13 +213,26 @@ const FeedSessionCard = React.memo(({
           </View>
         </TouchableOpacity>
         {isOwnPost ? (
-          <TouchableOpacity
-            style={styles.deleteButton}
-            onPress={() => onDeleteSession(item)}
-            hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
-          >
-            <Trash2 color={colors.danger} size={18} />
-          </TouchableOpacity>
+          <View style={styles.ownerActions}>
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={() => onEditSession(item)}
+              hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+              accessibilityRole="button"
+              accessibilityLabel="Edit post"
+            >
+              <Edit3 color={colors.primary} size={17} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.deleteButton}
+              onPress={() => onDeleteSession(item)}
+              hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+              accessibilityRole="button"
+              accessibilityLabel="Delete post"
+            >
+              <Trash2 color={colors.danger} size={18} />
+            </TouchableOpacity>
+          </View>
         ) : null}
       </View>
 
@@ -245,8 +271,20 @@ const FeedSessionCard = React.memo(({
         </View>
         <View style={[styles.row, { marginTop: 8 }]}>
           <Image source={beervaLogo} style={styles.inlineLogoSmall} />
-          <Text style={styles.beerText}> {getDrinkLabel(item)} of <Text style={styles.bold}>{item.beer_name}</Text></Text>
+          <Text style={styles.beerText}> {getDrinkLabel(item)}</Text>
         </View>
+        {item.session_beers.length > 1 ? (
+          <View style={styles.beerBreakdown}>
+            {item.session_beers.map((beer) => (
+              <Text key={beer.id || `${beer.beer_name}-${beer.consumed_at}`} style={styles.beerBreakdownText}>
+                {getBeerLine(beer)}
+              </Text>
+            ))}
+          </View>
+        ) : null}
+        {item.edited_at ? (
+          <Text style={styles.editedText}>Edited</Text>
+        ) : null}
       </View>
 
       <View style={styles.cardFooter}>
@@ -375,10 +413,16 @@ export const FeedScreen = () => {
           quantity,
           comment,
           image_url,
+          status,
+          started_at,
+          ended_at,
+          published_at,
+          edited_at,
           created_at
         `)
         .in('user_id', feedUserIds)
-        .order('created_at', { ascending: false })
+        .eq('status', 'published')
+        .order('published_at', { ascending: false, nullsFirst: false })
         .range(offset, offset + FEED_PAGE_SIZE);
 
       if (error) throw error;
@@ -393,7 +437,7 @@ export const FeedScreen = () => {
       const sessionIds = sessionRows.map((session) => session.id);
       const profileIds = Array.from(new Set(sessionRows.map((session) => session.user_id)));
 
-      const [profilesResult, cheersResult] = await Promise.all([
+      const [profilesResult, cheersResult, beersResult] = await Promise.all([
         profileIds.length > 0
           ? supabase
               .from('profiles')
@@ -406,6 +450,13 @@ export const FeedScreen = () => {
               .select('session_id, user_id')
               .in('session_id', sessionIds)
           : Promise.resolve({ data: [] as SessionCheer[], error: null }),
+        sessionIds.length > 0
+          ? supabase
+              .from('session_beers')
+              .select('id, session_id, beer_name, volume, quantity, abv, note, consumed_at, created_at')
+              .in('session_id', sessionIds)
+              .order('consumed_at', { ascending: true })
+          : Promise.resolve({ data: [] as SessionBeer[], error: null }),
       ]);
 
       if (!isLatestRequest()) return;
@@ -416,6 +467,9 @@ export const FeedScreen = () => {
       if (cheersResult.error) {
         console.error('Cheers fetch error:', cheersResult.error);
       }
+      if (beersResult.error) {
+        console.error('Session beers fetch error:', beersResult.error);
+      }
 
       const profilesById = new Map<string, { username: string | null; avatar_url: string | null }>();
       for (const profile of (profilesResult.data || []) as any[]) {
@@ -423,6 +477,7 @@ export const FeedScreen = () => {
       }
 
       const cheers: SessionCheer[] = (cheersResult.data || []) as SessionCheer[];
+      const beerRows: SessionBeer[] = (beersResult.data || []) as SessionBeer[];
 
       const cheersBySession = cheers.reduce((acc, cheer) => {
         const existing = acc.get(cheer.session_id) || [];
@@ -431,11 +486,32 @@ export const FeedScreen = () => {
         return acc;
       }, new Map<string, SessionCheer[]>());
 
+      const beersBySession = beerRows.reduce((acc, beer) => {
+        if (!beer.session_id) return acc;
+        const existing = acc.get(beer.session_id) || [];
+        existing.push(beer);
+        acc.set(beer.session_id, existing);
+        return acc;
+      }, new Map<string, SessionBeer[]>());
+
       const pageSessions = sessionRows.map((session) => {
         const sessionCheers = cheersBySession.get(session.id) || [];
+        const sessionBeers = beersBySession.get(session.id) || (
+          session.beer_name
+            ? [{
+                session_id: session.id,
+                beer_name: session.beer_name,
+                volume: session.volume,
+                quantity: session.quantity,
+                abv: null,
+                consumed_at: session.created_at,
+              }]
+            : []
+        );
 
         return {
           ...session,
+          session_beers: sessionBeers,
           profiles: profilesById.get(session.user_id) || null,
           cheers_count: sessionCheers.length,
           has_cheered: user ? sessionCheers.some((cheer) => cheer.user_id === user.id) : false,
@@ -556,6 +632,10 @@ export const FeedScreen = () => {
     const parentNavigation = navigation.getParent?.();
     (parentNavigation || navigation).navigate('UserProfile', { userId });
   }, [currentUserId, navigation]);
+
+  const editSession = useCallback((session: FeedSession) => {
+    navigation.navigate('EditSession', { sessionId: session.id });
+  }, [navigation]);
 
   const openPeople = useCallback(() => {
     navigation.navigate('People');
@@ -718,11 +798,12 @@ export const FeedScreen = () => {
         currentUserId={currentUserId}
         isCheering={cheeringSessionIds.has(item.id)}
         onDeleteSession={deleteSession}
+        onEditSession={editSession}
         onOpenProfile={openProfile}
         onToggleCheers={toggleCheers}
       />
     );
-  }, [cheeringSessionIds, currentUserId, deleteSession, openProfile, toggleCheers]);
+  }, [cheeringSessionIds, currentUserId, deleteSession, editSession, openProfile, toggleCheers]);
 
   return (
     <View style={styles.container}>
@@ -928,6 +1009,22 @@ const styles = StyleSheet.create({
   userInfo: {
     flex: 1,
   },
+  ownerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginLeft: 8,
+  },
+  editButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primarySoft,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+  },
   deleteButton: {
     width: 36,
     height: 36,
@@ -993,6 +1090,21 @@ const styles = StyleSheet.create({
   beerText: {
     ...typography.body,
     color: colors.text,
+    flex: 1,
+  },
+  beerBreakdown: {
+    marginTop: 10,
+    paddingLeft: 26,
+    gap: 4,
+  },
+  beerBreakdownText: {
+    ...typography.caption,
+    color: colors.textMuted,
+  },
+  editedText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    marginTop: 10,
   },
   detailGrid: {
     flexDirection: 'row',

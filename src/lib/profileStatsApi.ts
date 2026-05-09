@@ -43,12 +43,50 @@ const statsFromRpcRow = (row?: ProfileStatsRpcRow | null): Stats => {
 
 const fetchStatsFallback = async (userId: string): Promise<Stats> => {
   const { data, error } = await supabase
+    .from('session_beers')
+    .select(`
+      session_id,
+      beer_name,
+      volume,
+      quantity,
+      abv,
+      consumed_at,
+      sessions!inner(user_id, pub_name, status, started_at, published_at, created_at)
+    `)
+    .eq('sessions.user_id', userId)
+    .eq('sessions.status', 'published');
+
+  if (!error) {
+    const rows = ((data || []) as any[]).map((beer) => ({
+      session_id: beer.session_id,
+      pub_name: beer.sessions?.pub_name,
+      beer_name: beer.beer_name,
+      volume: beer.volume,
+      quantity: beer.quantity,
+      abv: beer.abv,
+      created_at: beer.consumed_at || beer.sessions?.started_at || beer.sessions?.created_at,
+    }));
+
+    return calculateStats(rows as ProfileSessionStatsRow[]);
+  }
+
+  console.warn('Session beer stats unavailable, using legacy sessions fallback:', error.message);
+
+  const legacy = await supabase
     .from('sessions')
-    .select('pub_name, beer_name, volume, quantity, abv, created_at')
+    .select('id, pub_name, beer_name, volume, quantity, abv, created_at')
     .eq('user_id', userId);
 
-  if (error) throw error;
-  return calculateStats((data || []) as ProfileSessionStatsRow[]);
+  if (legacy.error) throw legacy.error;
+  return calculateStats(((legacy.data || []) as any[]).map((session) => ({
+    session_id: session.id,
+    pub_name: session.pub_name,
+    beer_name: session.beer_name,
+    volume: session.volume,
+    quantity: session.quantity,
+    abv: session.abv,
+    created_at: session.created_at,
+  })) as ProfileSessionStatsRow[]);
 };
 
 export const fetchProfileStats = async (userId: string): Promise<Stats> => {

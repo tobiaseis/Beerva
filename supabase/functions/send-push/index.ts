@@ -1,10 +1,10 @@
-// Beerva push delivery — invoked by a Supabase Database Webhook on `notifications` INSERT.
+// Beerva push delivery, invoked by a Supabase Database Webhook on notifications INSERT.
 //
-// Required secrets (set via `supabase secrets set ...`):
-//   VAPID_PUBLIC_KEY    public key from `npx web-push generate-vapid-keys`
-//   VAPID_PRIVATE_KEY   private key from same command
-//   VAPID_EMAIL         contact email (e.g. mailto:you@example.com or just an address)
-//   WEBHOOK_SECRET      shared secret matching the webhook's custom Authorization header
+// Required secrets:
+//   VAPID_PUBLIC_KEY
+//   VAPID_PRIVATE_KEY
+//   VAPID_EMAIL
+//   WEBHOOK_SECRET
 
 import webpush from 'npm:web-push@3.6.7';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
@@ -23,7 +23,7 @@ type NotificationRow = {
   id: string;
   user_id: string;
   actor_id: string;
-  type: 'cheer' | 'invite';
+  type: 'cheer' | 'invite' | 'session_started';
   reference_id: string | null;
 };
 
@@ -49,12 +49,15 @@ Deno.serve(async (req) => {
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-  const [{ data: actor }, { data: subscriptions }] = await Promise.all([
+  const [{ data: actor }, { data: subscriptions }, { data: referencedSession }] = await Promise.all([
     supabase.from('profiles').select('username').eq('id', record.actor_id).maybeSingle(),
     supabase
       .from('push_subscriptions')
       .select('endpoint, p256dh, auth_key')
       .eq('user_id', record.user_id),
+    record.type === 'session_started' && record.reference_id
+      ? supabase.from('sessions').select('pub_name').eq('id', record.reference_id).maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
 
   if (!subscriptions || subscriptions.length === 0) {
@@ -66,11 +69,16 @@ Deno.serve(async (req) => {
   let title = 'Beerva';
   let bodyText = '';
   if (record.type === 'cheer') {
-    title = '🍺 Cheers received!';
+    title = 'Cheers received!';
     bodyText = `${actorName} cheered your beer session`;
   } else if (record.type === 'invite') {
-    title = '🍻 Invitation to drink';
+    title = 'Invitation to drink';
     bodyText = `${actorName} wants to grab a beer with you`;
+  } else if (record.type === 'session_started') {
+    title = 'Drinking session started';
+    bodyText = referencedSession?.pub_name
+      ? `${actorName} started a session at ${referencedSession.pub_name}`
+      : `${actorName} started a drinking session`;
   }
 
   const payload = JSON.stringify({

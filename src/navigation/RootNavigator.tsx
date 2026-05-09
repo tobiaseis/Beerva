@@ -15,6 +15,7 @@ import { UserProfileScreen } from '../screens/UserProfileScreen';
 import { AuthScreen } from '../screens/AuthScreen';
 import { ProfileSetupScreen } from '../screens/ProfileSetupScreen';
 import { NotificationsScreen } from '../screens/NotificationsScreen';
+import { EditSessionScreen } from '../screens/EditSessionScreen';
 import { colors } from '../theme/colors';
 import { radius, shadows } from '../theme/layout';
 import { NotificationsProvider, useNotifications } from '../lib/notificationsContext';
@@ -229,6 +230,7 @@ export const RootNavigator = () => {
               <Stack.Screen name="MainTabs" component={MainTabs} />
               <Stack.Screen name="UserProfile" component={UserProfileScreen} />
               <Stack.Screen name="Notifications" component={NotificationsScreen} />
+              <Stack.Screen name="EditSession" component={EditSessionScreen} />
             </Stack.Navigator>
           </NotificationsProvider>
         )

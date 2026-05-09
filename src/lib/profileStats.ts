@@ -36,6 +36,7 @@ export type TrophyDefinition = {
 };
 
 export type ProfileSessionStatsRow = {
+  session_id?: string | null;
   pub_name?: string | null;
   beer_name?: string | null;
   volume?: string | null;
@@ -106,10 +107,11 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
   const uniquePubs = new Set(sessions.map((session) => session.pub_name).filter(Boolean)).size;
   const uniqueBeerSet = new Set<string>();
   const monthsLoggedSet = new Set<number>();
-  const sessionsPerDay = new Map<string, number>();
-  const sessionsPerPub = new Map<string, number>();
+  const sessionsPerDay = new Map<string, Set<string>>();
+  const sessionsPerPub = new Map<string, Set<string>>();
   const pubsPerDay = new Map<string, Set<string>>();
   const beersPerDay = new Map<string, Set<string>>();
+  const pintsPerSession = new Map<string, number>();
 
   let totalMl = 0;
   let weightedAbvSum = 0;
@@ -118,7 +120,8 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
   let hasLateNightSession = false;
   let hasEarlyBirdSession = false;
 
-  sessions.forEach((session) => {
+  sessions.forEach((session, index) => {
+    const sessionKey = session.session_id || `row-${index}`;
     const volumeMl = getVolumeMl(session.volume);
     const quantity = session.quantity || 1;
     const abv = session.abv || 0;
@@ -127,18 +130,20 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
 
     totalMl += sessionVolumeMl;
     weightedAbvSum += sessionVolumeMl * abv;
-    maxSessionPints = Math.max(maxSessionPints, sessionPints);
+    pintsPerSession.set(sessionKey, (pintsPerSession.get(sessionKey) || 0) + sessionPints);
     strongestAbv = Math.max(strongestAbv, abv);
     hasLateNightSession = hasLateNightSession || isLateNightSession(session.created_at);
 
     if (session.beer_name) uniqueBeerSet.add(session.beer_name);
     if (session.pub_name) {
-      sessionsPerPub.set(session.pub_name, (sessionsPerPub.get(session.pub_name) || 0) + 1);
+      if (!sessionsPerPub.has(session.pub_name)) sessionsPerPub.set(session.pub_name, new Set());
+      sessionsPerPub.get(session.pub_name)!.add(sessionKey);
     }
 
     const dayKey = localDateKey(session.created_at);
     if (dayKey) {
-      sessionsPerDay.set(dayKey, (sessionsPerDay.get(dayKey) || 0) + 1);
+      if (!sessionsPerDay.has(dayKey)) sessionsPerDay.set(dayKey, new Set());
+      sessionsPerDay.get(dayKey)!.add(sessionKey);
       if (session.pub_name) {
         if (!pubsPerDay.has(dayKey)) pubsPerDay.set(dayKey, new Set());
         pubsPerDay.get(dayKey)!.add(session.pub_name);
@@ -160,8 +165,8 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
   });
 
   let maxSessionsInOneDay = 0;
-  sessionsPerDay.forEach((count) => {
-    if (count > maxSessionsInOneDay) maxSessionsInOneDay = count;
+  sessionsPerDay.forEach((set) => {
+    if (set.size > maxSessionsInOneDay) maxSessionsInOneDay = set.size;
   });
 
   let maxPubsInOneDay = 0;
@@ -175,8 +180,12 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
   });
 
   let maxSessionsAtSamePub = 0;
-  sessionsPerPub.forEach((count) => {
-    if (count > maxSessionsAtSamePub) maxSessionsAtSamePub = count;
+  sessionsPerPub.forEach((set) => {
+    if (set.size > maxSessionsAtSamePub) maxSessionsAtSamePub = set.size;
+  });
+
+  pintsPerSession.forEach((pints) => {
+    if (pints > maxSessionPints) maxSessionPints = pints;
   });
 
   // Longest consecutive-day streak

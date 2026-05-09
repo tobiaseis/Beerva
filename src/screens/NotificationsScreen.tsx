@@ -1,19 +1,20 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, RefreshControl, TouchableOpacity, Platform } from 'react-native';
-import { colors } from '../theme/colors';
-import { typography } from '../theme/typography';
-import { supabase } from '../lib/supabase';
-import { ArrowLeft, Beer, PartyPopper } from 'lucide-react-native';
+import { ActivityIndicator, FlatList, Platform, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { ArrowLeft, Beer, MapPin, PartyPopper } from 'lucide-react-native';
+
 import { CachedImage } from '../components/CachedImage';
-import { radius, shadows, spacing } from '../theme/layout';
-import { useNotifications } from '../lib/notificationsContext';
 import { EmptyIllustration } from '../components/EmptyIllustration';
+import { useNotifications } from '../lib/notificationsContext';
+import { supabase } from '../lib/supabase';
+import { colors } from '../theme/colors';
+import { radius, shadows, spacing } from '../theme/layout';
+import { typography } from '../theme/typography';
 
 type NotificationRow = {
   id: string;
   actor_id: string;
-  type: 'cheer' | 'invite';
+  type: 'cheer' | 'invite' | 'session_started';
   reference_id: string | null;
   read: boolean;
   created_at: string;
@@ -27,11 +28,18 @@ const getTimeAgo = (dateString: string) => {
   const date = new Date(dateString);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.round(diffMs / 60000);
+  const diffMins = Math.max(0, Math.round(diffMs / 60000));
+  if (diffMins < 1) return 'Just now';
   if (diffMins < 60) return `${diffMins} mins ago`;
   const diffHours = Math.round(diffMins / 60);
   if (diffHours < 24) return `${diffHours} hours ago`;
   return `${Math.round(diffHours / 24)} days ago`;
+};
+
+const getNotificationMessage = (item: NotificationRow) => {
+  if (item.type === 'cheer') return ' cheered your session!';
+  if (item.type === 'session_started') return ' started a drinking session.';
+  return ' invited you to drink!';
 };
 
 export const NotificationsScreen = ({ navigation }: any) => {
@@ -67,20 +75,20 @@ export const NotificationsScreen = ({ navigation }: any) => {
         if (profilesError) {
           console.error('Notification profiles fetch error', profilesError);
         } else {
-          (profilesData || []).forEach((p: any) => {
-            profilesById.set(p.id, { username: p.username, avatar_url: p.avatar_url });
+          (profilesData || []).forEach((profile: any) => {
+            profilesById.set(profile.id, { username: profile.username, avatar_url: profile.avatar_url });
           });
         }
       }
 
-      const rows: NotificationRow[] = baseRows.map((n) => ({
-        ...n,
-        profiles: profilesById.get(n.actor_id) || null,
+      const rows: NotificationRow[] = baseRows.map((notification) => ({
+        ...notification,
+        profiles: profilesById.get(notification.actor_id) || null,
       }));
 
       setNotifications(rows);
 
-      const unreadIds = rows.filter((n) => !n.read).map((n) => n.id);
+      const unreadIds = rows.filter((notification) => !notification.read).map((notification) => notification.id);
       if (unreadIds.length > 0) {
         markAllRead();
         supabase
@@ -91,8 +99,8 @@ export const NotificationsScreen = ({ navigation }: any) => {
             if (updateError) console.error('Error marking notifications as read', updateError);
           });
       }
-    } catch (e) {
-      console.error('Fetch notifications error', e);
+    } catch (error) {
+      console.error('Fetch notifications error', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -114,33 +122,35 @@ export const NotificationsScreen = ({ navigation }: any) => {
     navigation.navigate('UserProfile', { userId });
   }, [navigation]);
 
-  const renderItem = useCallback(({ item }: { item: NotificationRow }) => {
-    const isCheer = item.type === 'cheer';
+  const renderIcon = (type: NotificationRow['type']) => {
+    if (type === 'cheer') return <Beer color={colors.primary} size={24} />;
+    if (type === 'session_started') return <MapPin color={colors.primary} size={24} />;
+    return <PartyPopper color={colors.primary} size={24} />;
+  };
 
-    return (
-      <View style={[styles.card, !item.read && styles.unreadCard]}>
-        <TouchableOpacity onPress={() => openProfile(item.actor_id)} style={styles.avatarContainer}>
-          <CachedImage
-            uri={item.profiles?.avatar_url}
-            fallbackUri={`https://i.pravatar.cc/150?u=${item.actor_id}`}
-            style={styles.avatar}
-            recyclingKey={`notification-${item.actor_id}-${item.profiles?.avatar_url || 'fallback'}`}
-            accessibilityLabel={`${item.profiles?.username || 'Someone'}'s avatar`}
-          />
-        </TouchableOpacity>
-        <View style={styles.content}>
-          <Text style={styles.message}>
-            <Text style={styles.username}>{item.profiles?.username || 'Someone'}</Text>
-            {isCheer ? ' cheered your session!' : ' invited you to drink! 🍻'}
-          </Text>
-          <Text style={styles.time}>{getTimeAgo(item.created_at)}</Text>
-        </View>
-        <View style={styles.iconContainer}>
-          {isCheer ? <Beer color={colors.primary} size={24} /> : <PartyPopper color={colors.primary} size={24} />}
-        </View>
+  const renderItem = useCallback(({ item }: { item: NotificationRow }) => (
+    <View style={[styles.card, !item.read && styles.unreadCard]}>
+      <TouchableOpacity onPress={() => openProfile(item.actor_id)} style={styles.avatarContainer}>
+        <CachedImage
+          uri={item.profiles?.avatar_url}
+          fallbackUri={`https://i.pravatar.cc/150?u=${item.actor_id}`}
+          style={styles.avatar}
+          recyclingKey={`notification-${item.actor_id}-${item.profiles?.avatar_url || 'fallback'}`}
+          accessibilityLabel={`${item.profiles?.username || 'Someone'}'s avatar`}
+        />
+      </TouchableOpacity>
+      <View style={styles.content}>
+        <Text style={styles.message}>
+          <Text style={styles.username}>{item.profiles?.username || 'Someone'}</Text>
+          {getNotificationMessage(item)}
+        </Text>
+        <Text style={styles.time}>{getTimeAgo(item.created_at)}</Text>
       </View>
-    );
-  }, [openProfile]);
+      <View style={styles.iconContainer}>
+        {renderIcon(item.type)}
+      </View>
+    </View>
+  ), [openProfile]);
 
   return (
     <View style={styles.container}>
@@ -159,7 +169,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
       ) : (
         <FlatList
           data={notifications}
-          keyExtractor={item => item.id}
+          keyExtractor={(item) => item.id}
           renderItem={renderItem}
           initialNumToRender={12}
           maxToRenderPerBatch={12}
@@ -172,7 +182,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
             <View style={styles.emptyState}>
               <EmptyIllustration kind="notifications" size={170} />
               <Text style={styles.emptyTitle}>No notifications</Text>
-              <Text style={styles.emptyText}>When someone cheers your beer or invites you, you'll see it here.</Text>
+              <Text style={styles.emptyText}>When someone cheers your beer, invites you, or starts a session, you will see it here.</Text>
             </View>
           }
         />

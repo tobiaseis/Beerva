@@ -7,6 +7,7 @@ import { CachedImage } from '../components/CachedImage';
 import { ProfileStatsPanel } from '../components/ProfileStatsPanel';
 import { emptyStats, getVolumeMl, ProfileSessionStatsRow, Stats } from '../lib/profileStats';
 import { fetchProfileStats } from '../lib/profileStatsApi';
+import { getBeerLine, getSessionBeerSummary, SessionBeer } from '../lib/sessionBeers';
 import { supabase } from '../lib/supabase';
 import { showAlert } from '../lib/dialogs';
 import { colors } from '../theme/colors';
@@ -44,6 +45,9 @@ type PublicSession = ProfileSessionStatsRow & {
   quantity: number | null;
   comment: string | null;
   image_url: string | null;
+  status?: string | null;
+  published_at?: string | null;
+  session_beers: SessionBeer[];
   created_at: string | null;
 };
 
@@ -53,10 +57,15 @@ type FollowCounts = {
 };
 
 const getDrinkLabel = (session: PublicSession) => {
+  if (session.session_beers?.length > 0) {
+    return getSessionBeerSummary(session.session_beers);
+  }
+
   const volume = session.volume || 'Pint';
   const quantity = session.quantity || 1;
 
-  return quantity > 1 ? `${quantity} x ${volume}` : volume;
+  const drink = quantity > 1 ? `${quantity} x ${volume}` : volume;
+  return `${drink} of ${session.beer_name || 'Beer'}`;
 };
 
 const getTimeAgo = (dateString?: string | null) => {
@@ -73,9 +82,20 @@ const getTimeAgo = (dateString?: string | null) => {
 };
 
 const formatPints = (session: PublicSession) => {
-  const volumeMl = getVolumeMl(session.volume);
-  const quantity = session.quantity || 1;
-  return Math.round((volumeMl * quantity / 568) * 10) / 10;
+  const beers = session.session_beers?.length > 0
+    ? session.session_beers
+    : [{
+        volume: session.volume,
+        quantity: session.quantity,
+      }];
+
+  const pints = beers.reduce((sum, beer) => {
+    const volumeMl = getVolumeMl(beer.volume);
+    const quantity = beer.quantity || 1;
+    return sum + (volumeMl * quantity / 568);
+  }, 0);
+
+  return Math.round(pints * 10) / 10;
 };
 
 export const UserProfileScreen = ({ navigation, route }: any) => {
@@ -113,9 +133,10 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
           .maybeSingle(),
         supabase
           .from('sessions')
-          .select('id, pub_name, beer_name, volume, quantity, abv, comment, image_url, created_at', { count: 'exact' })
+          .select('id, pub_name, beer_name, volume, quantity, abv, comment, image_url, status, published_at, created_at', { count: 'exact' })
           .eq('user_id', profileId)
-          .order('created_at', { ascending: false })
+          .eq('status', 'published')
+          .order('published_at', { ascending: false, nullsFirst: false })
           .limit(5),
         fetchProfileStats(profileId),
         supabase
@@ -131,8 +152,47 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
       if (profileResult.error) throw profileResult.error;
       if (sessionsResult.error) throw sessionsResult.error;
 
+      const baseSessions = (sessionsResult.data || []) as PublicSession[];
+      const sessionIds = baseSessions.map((session) => session.id);
+      const beersBySession = new Map<string, SessionBeer[]>();
+
+      if (sessionIds.length > 0) {
+        const { data: beerRows, error: beersError } = await supabase
+          .from('session_beers')
+          .select('id, session_id, beer_name, volume, quantity, abv, note, consumed_at, created_at')
+          .in('session_id', sessionIds)
+          .order('consumed_at', { ascending: true });
+
+        if (beersError) {
+          console.error('Profile session beers fetch error:', beersError);
+        } else {
+          ((beerRows || []) as SessionBeer[]).forEach((beer) => {
+            if (!beer.session_id) return;
+            const existing = beersBySession.get(beer.session_id) || [];
+            existing.push(beer);
+            beersBySession.set(beer.session_id, existing);
+          });
+        }
+      }
+
+      const sessionsWithBeers = baseSessions.map((session) => ({
+        ...session,
+        session_beers: beersBySession.get(session.id) || (
+          session.beer_name
+            ? [{
+                session_id: session.id,
+                beer_name: session.beer_name,
+                volume: session.volume,
+                quantity: session.quantity,
+                abv: session.abv ?? null,
+                consumed_at: session.created_at,
+              }]
+            : []
+        ),
+      }));
+
       setProfile(profileResult.data as UserProfile | null);
-      setSessions((sessionsResult.data || []) as PublicSession[]);
+      setSessions(sessionsWithBeers);
       setSessionCount(sessionsResult.count || sessionsResult.data?.length || 0);
       setStats(profileStats);
       setFollowCounts({
@@ -375,7 +435,12 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
                 </View>
               )}
               <View style={styles.sessionText}>
-                <Text style={styles.sessionTitle}>{getDrinkLabel(session)} of {session.beer_name || 'Beer'}</Text>
+                <Text style={styles.sessionTitle}>{getDrinkLabel(session)}</Text>
+                {session.session_beers.length > 1 ? (
+                  <Text style={styles.sessionBreakdown} numberOfLines={2}>
+                    {session.session_beers.map((beer) => getBeerLine(beer)).join(' / ')}
+                  </Text>
+                ) : null}
                 <View style={styles.sessionMetaRow}>
                   <MapPin color={colors.textMuted} size={13} />
                   <Text style={styles.sessionMetaText}>{session.pub_name || 'Unknown pub'}</Text>
@@ -575,6 +640,11 @@ const styles = StyleSheet.create({
   sessionTitle: {
     ...typography.body,
     fontWeight: '700',
+  },
+  sessionBreakdown: {
+    ...typography.caption,
+    marginTop: 3,
+    color: colors.textMuted,
   },
   sessionMetaRow: {
     flexDirection: 'row',

@@ -1,84 +1,109 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, TextInput, Platform, Modal } from 'react-native';
-import { colors } from '../theme/colors';
-import { typography } from '../theme/typography';
-import { Camera, MapPin, Beer, Minus, Plus, MessageSquare, Images, X } from 'lucide-react-native';
-import { supabase } from '../lib/supabase';
-import { deletePublicImageUrl, prepareWebImageFromPickerAsset, SelectedImage, UPLOAD_IMAGE_MAX_WIDTH, uploadImageToBucket } from '../lib/imageUpload';
-import { AutocompleteInput } from '../components/AutocompleteInput';
-import { showAlert } from '../lib/dialogs';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Image,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { Beer, Camera, Clock, Images, Lock, MapPin, MessageSquare, Trash2, X } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
+
 import { AppButton } from '../components/AppButton';
+import { AutocompleteInput } from '../components/AutocompleteInput';
+import { BeerDraftForm } from '../components/BeerDraftForm';
 import { Surface } from '../components/Surface';
-import { radius, spacing } from '../theme/layout';
-import { hapticError, hapticSuccess } from '../lib/haptics';
+import { confirmDestructive, showAlert } from '../lib/dialogs';
+import { hapticError, hapticSuccess, hapticWarning } from '../lib/haptics';
+import {
+  deletePublicImageUrl,
+  prepareWebImageFromPickerAsset,
+  SelectedImage,
+  UPLOAD_IMAGE_MAX_WIDTH,
+  uploadImageToBucket,
+} from '../lib/imageUpload';
+import {
+  beerDraftToPayload,
+  createEmptyBeerDraft,
+  getBeerLine,
+  getLegacySessionBeerFields,
+  SessionBeer,
+} from '../lib/sessionBeers';
+import { supabase } from '../lib/supabase';
 import { useFocused } from '../lib/useFocused';
+import { colors } from '../theme/colors';
+import { radius, shadows, spacing } from '../theme/layout';
+import { typography } from '../theme/typography';
 
-const DANISH_BEERS_DATA = [
-  { name: 'Tuborg Grøn', abv: 4.6 }, { name: 'Tuborg Classic', abv: 4.6 }, { name: 'Carlsberg Pilsner', abv: 4.6 },
-  { name: 'Carlsberg 1883', abv: 4.6 }, { name: 'Carlsberg Elephant', abv: 7.2 }, { name: 'Tuborg Guld', abv: 5.6 },
-  { name: 'Tuborg Julebryg', abv: 5.6 }, { name: 'Tuborg Påskebryg', abv: 5.4 }, { name: 'Grimbergen Double Ambrée', abv: 6.5 },
-  { name: 'Grimbergen Blonde', abv: 6.7 }, { name: 'Kronenbourg 1664 Blanc', abv: 5.0 }, { name: 'Jacobsen Brown Ale', abv: 6.0 },
-  { name: 'Jacobsen Yakima IPA', abv: 6.5 }, { name: 'Jacobsen Saaz Blonde', abv: 7.1 }, { name: 'Albani Odense Pilsner', abv: 4.6 },
-  { name: 'Albani Classic', abv: 4.6 }, { name: 'Albani Giraf Beer', abv: 7.3 }, { name: 'Royal Pilsner', abv: 4.6 },
-  { name: 'Royal Classic', abv: 4.6 }, { name: 'Royal Export', abv: 5.4 }, { name: 'Royal Økologisk', abv: 4.8 },
-  { name: 'Schiøtz Mørk Mumme', abv: 6.5 }, { name: 'Schiøtz Gylden IPA', abv: 5.9 }, { name: 'Ceres Top', abv: 4.6 },
-  { name: 'Thor Pilsner', abv: 4.6 }, { name: 'Faxe Premium', abv: 5.0 }, { name: 'Faxe Kondi Booster', abv: 0.0 },
-  { name: 'Harboe Pilsner', abv: 4.6 }, { name: 'Harboe Classic', abv: 4.6 }, { name: 'Harboe Bear Beer', abv: 7.7 },
-  { name: 'Thisted Limfjordsporter', abv: 7.9 }, { name: 'Thisted Thy Pilsner', abv: 4.6 }, { name: 'Thisted Økologisk Humle', abv: 5.8 },
-  { name: 'Skagen Bryghus Drachmann', abv: 5.0 }, { name: 'Skagen Bryghus Skawbo', abv: 5.5 }, { name: 'Fur Vulcano Classic', abv: 4.6 },
-  { name: 'Fur Bock', abv: 7.6 }, { name: 'Fur IPA', abv: 6.2 }, { name: 'Nørrebro Bryghus New York Lager', abv: 5.2 },
-  { name: 'Nørrebro Bryghus Bombay IPA', abv: 6.1 }, { name: 'Nørrebro Bryghus Ravnsborg Rød', abv: 5.5 },
-  { name: 'Amager Bryghus Hr. Frederiksen', abv: 10.5 }, { name: 'Amager Bryghus Todd The Axe Man', abv: 6.5 },
-  { name: 'Mikkeller Peter Pale and Mary', abv: 4.6 }, { name: 'Mikkeller Burst IPA', abv: 5.5 },
-  { name: 'Mikkeller Visions Lager', abv: 4.5 }, { name: 'Mikkeller Beer Geek Breakfast', abv: 7.5 },
-  { name: 'To Øl City Session IPA', abv: 4.5 }, { name: 'To Øl Whirl Domination', abv: 6.2 },
-  { name: 'To Øl 45 Days Pilsner', abv: 4.7 }, { name: 'To Øl Gose to Hollywood', abv: 3.8 },
-  { name: 'Svaneke Classic', abv: 4.6 }, { name: 'Svaneke Mørk Guld', abv: 5.7 }, { name: 'Svaneke Craft Pilsner', abv: 4.6 },
-  { name: 'Svaneke Choco Stout', abv: 5.7 }, { name: 'Hornbeer Black Magic Woman', abv: 10.0 },
-  { name: 'Hornbeer Happy Hoppy', abv: 6.5 }, { name: 'Braw Ale', abv: 5.5 }, { name: 'Ale No. 16 (Refsvindinge)', abv: 5.7 },
-  { name: 'Mors Stout', abv: 5.7 }, { name: 'Hancock Høker Bajer', abv: 5.0 }, { name: 'Hancock Black Lager', abv: 5.0 },
-  { name: 'Hancock Gambrinus', abv: 9.6 }, { name: 'Willemoes Ale', abv: 5.2 }, { name: 'Willemoes Stout', abv: 5.3 },
-  { name: 'Skanderborg Bryghus', abv: 5.0 }, { name: 'Ebeltoft Gårdbryggeri Raw Power', abv: 8.5 },
-  { name: 'Ebeltoft Wildflower IPA', abv: 5.9 }, { name: 'Bøgedal Bryghus', abv: 6.5 },
-  { name: 'Herslev Bryghus Mark Hø', abv: 5.5 }, { name: 'Herslev Bryghus Pale Ale', abv: 5.9 },
-  { name: 'Midtfyns Bryghus Imperial Stout', abv: 9.5 }, { name: 'Midtfyns Bryghus Double IPA', abv: 9.2 },
-  { name: 'Ugly Duck Brewing Co. Miami Vice', abv: 4.7 }, { name: 'Ugly Duck Foxy Brown', abv: 5.8 },
-  { name: 'Det Lille Bryggeri', abv: 6.0 }, { name: 'Bryggeriet Skands', abv: 5.2 },
-  { name: 'Kissmeyer Pale Ale', abv: 5.5 }, { name: 'Kissmeyer Stockholm Syndrome', abv: 8.5 },
-  { name: 'Krenkerup Pilsner', abv: 4.6 }, { name: 'Krenkerup Classic', abv: 4.6 }, { name: 'Krenkerup Stout', abv: 5.3 },
-  { name: 'Syndikatet', abv: 6.0 }, { name: 'Munkebo Mikrobryg', abv: 5.5 }, { name: 'Fanø Bryghus', abv: 6.5 },
-  { name: 'Gourmetbryggeriet', abv: 5.0 }, { name: 'Indslev Bryghus Svanehvit', abv: 5.2 }, { name: 'Indslev Sort Hvede', abv: 6.5 },
-  { name: 'Braunstein', abv: 5.0 }, { name: 'Ørbæk Bryggeri Fynsk Forår', abv: 4.8 }, { name: 'Ørbæk Brown Ale', abv: 5.0 },
-  { name: 'Ørbæk IPA', abv: 5.0 }, { name: 'Hvidovre Bryghus', abv: 5.0 }, { name: 'Randers Bryghus', abv: 5.0 },
-  { name: 'Viborg Bryghus', abv: 5.0 }, { name: 'Grauballe Bryghus', abv: 5.0 }, { name: 'Halsnæs Bryghus', abv: 5.0 },
-  { name: 'Bies Bryghus', abv: 5.0 }, { name: 'Aarhus Bryghus', abv: 5.0 }, { name: 'Aarhus Bryghus Black Monster', abv: 10.0 },
-  { name: 'Aarhus Bryghus IPA', abv: 6.0 }, { name: 'Guinness', abv: 4.2 }, { name: 'Heineken', abv: 5.0 }
-];
+const beervaLogo = require('../../assets/beerva-header-logo.png');
 
-const DANISH_BEERS = DANISH_BEERS_DATA.map(b => b.name);
-const VOLUMES = ['25cl', '33cl', 'Schooner', 'Pint', '50cl'];
+type ActiveSession = {
+  id: string;
+  user_id: string;
+  pub_name: string;
+  status: 'active';
+  comment: string | null;
+  image_url: string | null;
+  started_at: string;
+};
+
+type FollowOutRow = {
+  following_id: string;
+};
+
+type FollowInRow = {
+  follower_id: string;
+};
+
+const PUB_SEARCH_MIN_LENGTH = 3;
+
+const getStartedLabel = (dateString?: string | null) => {
+  if (!dateString) return 'Started recently';
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return 'Started recently';
+  return `Started ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+};
+
+const createLegacyPlaceholder = () => ({
+  beer_name: 'Session in progress',
+  volume: 'Pint',
+  quantity: 1,
+  abv: 0,
+});
 
 export const RecordScreen = ({ navigation }: any) => {
-  const [beer, setBeer] = useState('');
+  const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
+  const [sessionBeers, setSessionBeers] = useState<SessionBeer[]>([]);
+  const [beerDraft, setBeerDraft] = useState(createEmptyBeerDraft);
+
   const [pub, setPub] = useState('');
   const [pubOptions, setPubOptions] = useState<string[]>([]);
-  
-  const [volume, setVolume] = useState('Pint');
-  const [quantity, setQuantity] = useState(1);
   const [comment, setComment] = useState('');
   const commentFocus = useFocused();
 
   const [selectedImage, setSelectedImage] = useState<SelectedImage | null>(null);
+  const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
   const [photoChoiceVisible, setPhotoChoiceVisible] = useState(false);
-  const [loading, setLoading] = useState(false);
+
+  const [loadingActive, setLoadingActive] = useState(true);
+  const [starting, setStarting] = useState(false);
+  const [addingBeer, setAddingBeer] = useState(false);
+  const [ending, setEnding] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+
   const pubSearchCache = useRef<Map<string, string[]>>(new Map());
   const pubSearchAbort = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const cleanPub = pub.trim();
 
-    if (cleanPub.length < 3) {
+    if (activeSession || cleanPub.length < PUB_SEARCH_MIN_LENGTH) {
       setPubOptions([]);
       return;
     }
@@ -103,25 +128,25 @@ export const RecordScreen = ({ navigation }: any) => {
         const data = await response.json();
 
         if (abortController.signal.aborted) return;
-        
+
         if (!Array.isArray(data)) {
-          console.warn('Nominatim returned unexpected format:', data);
           setPubOptions([]);
           return;
         }
 
         const pubs: string[] = data.map((item: any) => {
-           const name = item.name || item.address?.pub || item.address?.bar || item.address?.restaurant;
-           const city = item.address?.city || item.address?.town || item.address?.village || '';
-           return name ? (city ? `${name}, ${city}` : name) : null;
+          const name = item.name || item.address?.pub || item.address?.bar || item.address?.restaurant;
+          const city = item.address?.city || item.address?.town || item.address?.village || '';
+          return name ? (city ? `${name}, ${city}` : name) : null;
         }).filter(Boolean);
-        
+
         const uniquePubs = Array.from(new Set(pubs));
         pubSearchCache.current.set(cacheKey, uniquePubs);
         setPubOptions(uniquePubs);
       } catch (e: any) {
-        if (e?.name === 'AbortError') return;
-        console.error('Nominatim error:', e);
+        if (e?.name !== 'AbortError') {
+          console.error('Nominatim error:', e);
+        }
       }
     }, 600);
 
@@ -129,7 +154,251 @@ export const RecordScreen = ({ navigation }: any) => {
       clearTimeout(delayDebounceFn);
       abortController.abort();
     };
-  }, [pub]);
+  }, [activeSession, pub]);
+
+  const resetActiveState = useCallback(() => {
+    setActiveSession(null);
+    setSessionBeers([]);
+    setBeerDraft(createEmptyBeerDraft());
+    setComment('');
+    setSelectedImage(null);
+    setExistingImageUrl(null);
+  }, []);
+
+  const fetchSessionBeers = useCallback(async (sessionId: string) => {
+    const { data, error } = await supabase
+      .from('session_beers')
+      .select('id, session_id, beer_name, volume, quantity, abv, note, consumed_at, created_at')
+      .eq('session_id', sessionId)
+      .order('consumed_at', { ascending: true });
+
+    if (error) throw error;
+    setSessionBeers((data || []) as SessionBeer[]);
+  }, []);
+
+  const fetchActiveSession = useCallback(async () => {
+    try {
+      setLoadingActive(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        resetActiveState();
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('sessions')
+        .select('id, user_id, pub_name, status, comment, image_url, started_at')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .order('started_at', { ascending: false })
+        .limit(1);
+
+      if (error) throw error;
+
+      const session = (data || [])[0] as ActiveSession | undefined;
+      if (!session) {
+        resetActiveState();
+        return;
+      }
+
+      setActiveSession(session);
+      setPub('');
+      setComment(session.comment || '');
+      setExistingImageUrl(session.image_url || null);
+      setSelectedImage(null);
+      await fetchSessionBeers(session.id);
+    } catch (error: any) {
+      console.error('Active session fetch error:', error);
+      showAlert('Could not load session', error?.message || 'Please try again.');
+    } finally {
+      setLoadingActive(false);
+    }
+  }, [fetchSessionBeers, resetActiveState]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchActiveSession();
+    }, [fetchActiveSession])
+  );
+
+  const ensureProfile = async (user: any) => {
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (existingProfile) return;
+
+    const { error } = await supabase.from('profiles').upsert({
+      id: user.id,
+      username: user.user_metadata?.username || user.email?.split('@')[0] || 'beer_lover',
+      avatar_url: user.user_metadata?.avatar_url || 'https://i.pravatar.cc/150?u=' + user.id,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'id' });
+
+    if (error) throw error;
+  };
+
+  const notifyMatesSessionStarted = async (sessionId: string, userId: string) => {
+    try {
+      const [followingResult, followersResult] = await Promise.all([
+        supabase.from('follows').select('following_id').eq('follower_id', userId),
+        supabase.from('follows').select('follower_id').eq('following_id', userId),
+      ]);
+
+      if (followingResult.error) throw followingResult.error;
+      if (followersResult.error) throw followersResult.error;
+
+      const followers = new Set(((followersResult.data || []) as FollowInRow[]).map((row) => row.follower_id));
+      const mutualIds = ((followingResult.data || []) as FollowOutRow[])
+        .map((row) => row.following_id)
+        .filter((id) => followers.has(id));
+
+      if (mutualIds.length === 0) return;
+
+      const { error } = await supabase.from('notifications').insert(
+        mutualIds.map((mateId) => ({
+          user_id: mateId,
+          actor_id: userId,
+          type: 'session_started',
+          reference_id: sessionId,
+        }))
+      );
+
+      if (error) {
+        console.error('Session started notification insert error:', error);
+      }
+    } catch (error) {
+      console.error('Session started notification error:', error);
+    }
+  };
+
+  const startSession = async () => {
+    const trimmedPub = pub.trim();
+    if (!trimmedPub) {
+      showAlert('Missing pub', 'Choose where you are drinking before starting the session.');
+      return;
+    }
+
+    setStarting(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not logged in!');
+
+      await ensureProfile(user);
+
+      const now = new Date().toISOString();
+      const { data, error } = await supabase
+        .from('sessions')
+        .insert({
+          user_id: user.id,
+          pub_name: trimmedPub,
+          status: 'active',
+          started_at: now,
+          comment: null,
+          image_url: null,
+          ...createLegacyPlaceholder(),
+        })
+        .select('id, user_id, pub_name, status, comment, image_url, started_at')
+        .single();
+
+      if (error) throw error;
+
+      const session = data as ActiveSession;
+      setActiveSession(session);
+      setSessionBeers([]);
+      setComment('');
+      setSelectedImage(null);
+      setExistingImageUrl(null);
+      setPub('');
+      hapticSuccess();
+      notifyMatesSessionStarted(session.id, user.id);
+      showAlert('Session started', 'Your mates have been notified. Add beers as you drink them.');
+    } catch (error: any) {
+      console.error('Start session error:', error);
+      if (error?.code === '23505') {
+        await fetchActiveSession();
+        showAlert('Session already active', 'You already have a drinking session running.');
+      } else {
+        hapticError();
+        showAlert('Could not start session', error?.message || 'Please try again.');
+      }
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  const syncLegacyFields = async (sessionId: string, beers: SessionBeer[]) => {
+    const legacyFields = beers.length > 0 ? getLegacySessionBeerFields(beers) : createLegacyPlaceholder();
+    const { error } = await supabase
+      .from('sessions')
+      .update(legacyFields)
+      .eq('id', sessionId);
+
+    if (error) {
+      console.warn('Could not sync legacy session fields:', error.message);
+    }
+  };
+
+  const addBeerToSession = async () => {
+    if (!activeSession) return;
+    if (!beerDraft.beerName.trim()) {
+      showAlert('Missing beer', 'Add the beer you are drinking.');
+      return;
+    }
+
+    setAddingBeer(true);
+    try {
+      const payload = {
+        session_id: activeSession.id,
+        ...beerDraftToPayload(beerDraft),
+        consumed_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from('session_beers')
+        .insert(payload)
+        .select('id, session_id, beer_name, volume, quantity, abv, note, consumed_at, created_at')
+        .single();
+
+      if (error) throw error;
+
+      const nextBeers = [...sessionBeers, data as SessionBeer];
+      setSessionBeers(nextBeers);
+      setBeerDraft(createEmptyBeerDraft());
+      syncLegacyFields(activeSession.id, nextBeers);
+      hapticSuccess();
+    } catch (error: any) {
+      console.error('Add beer error:', error);
+      hapticError();
+      showAlert('Could not add beer', error?.message || 'Please try again.');
+    } finally {
+      setAddingBeer(false);
+    }
+  };
+
+  const removeBeerFromSession = async (beer: SessionBeer) => {
+    if (!activeSession || !beer.id) return;
+
+    hapticWarning();
+    const nextBeers = sessionBeers.filter((item) => item.id !== beer.id);
+    setSessionBeers(nextBeers);
+
+    const { error } = await supabase
+      .from('session_beers')
+      .delete()
+      .eq('id', beer.id)
+      .eq('session_id', activeSession.id);
+
+    if (error) {
+      setSessionBeers(sessionBeers);
+      showAlert('Could not remove beer', error.message);
+      return;
+    }
+
+    syncLegacyFields(activeSession.id, nextBeers);
+  };
 
   const handleImageAsset = async (asset: ImagePicker.ImagePickerAsset) => {
     if (Platform.OS === 'web') {
@@ -156,7 +425,7 @@ export const RecordScreen = ({ navigation }: any) => {
       mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [4, 3],
-      quality: 1, // We will compress manually
+      quality: 1,
     });
 
     if (!result.canceled && result.assets[0]) {
@@ -177,7 +446,7 @@ export const RecordScreen = ({ navigation }: any) => {
       mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [4, 3],
-      quality: 1, // We will compress manually
+      quality: 1,
       cameraType: ImagePicker.CameraType.back,
     });
 
@@ -186,14 +455,14 @@ export const RecordScreen = ({ navigation }: any) => {
     }
   };
 
-  const saveSession = async () => {
-    if (!beer || !pub) {
-      showAlert('Missing fields', 'Please enter where and what you are drinking!');
+  const endSession = async () => {
+    if (!activeSession) return;
+    if (sessionBeers.length === 0) {
+      showAlert('Add a beer first', 'A session needs at least one beer before it can be posted.');
       return;
     }
 
-    setLoading(true);
-    
+    setEnding(true);
     let uploadedUrl: string | null = null;
 
     try {
@@ -204,163 +473,214 @@ export const RecordScreen = ({ navigation }: any) => {
         uploadedUrl = await uploadImageToBucket('session_images', selectedImage, `users/${user.id}/sessions`);
       }
 
-      const { data: existingProfile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      if (!existingProfile) {
-        const { error: profileCreateError } = await supabase.from('profiles').upsert({
-          id: user.id,
-          username: user.user_metadata?.username || user.email?.split('@')[0] || 'beer_lover',
-          avatar_url: user.user_metadata?.avatar_url || 'https://i.pravatar.cc/150?u=' + user.id,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'id' });
-
-        if (profileCreateError) throw profileCreateError;
-      }
-
-      // Find ABV
-      const beerMatch = DANISH_BEERS_DATA.find(b => b.name.toLowerCase() === beer.toLowerCase());
-      const abv = beerMatch ? beerMatch.abv : 5.0; // Default to 5.0 if custom
-      const trimmedComment = comment.trim();
-
-      const sessionPayload = {
-        user_id: user.id,
-        pub_name: pub,
-        beer_name: beer,
-        volume,
-        quantity,
-        abv,
-        comment: trimmedComment || null,
-        image_url: uploadedUrl,
-      };
-
-      let { error } = await supabase.from('sessions').insert(sessionPayload);
-
-      if (error && error.message?.toLowerCase().includes('comment')) {
-        const { comment: _comment, ...payloadWithoutComment } = sessionPayload;
-        const retry = await supabase.from('sessions').insert(payloadWithoutComment);
-        error = retry.error;
-      }
+      const now = new Date().toISOString();
+      const imageUrl = uploadedUrl || existingImageUrl;
+      const { error } = await supabase
+        .from('sessions')
+        .update({
+          status: 'published',
+          ended_at: now,
+          published_at: now,
+          comment: comment.trim() || null,
+          image_url: imageUrl,
+          ...getLegacySessionBeerFields(sessionBeers),
+        })
+        .eq('id', activeSession.id)
+        .eq('user_id', user.id);
 
       if (error) throw error;
 
-      setBeer('');
+      if (uploadedUrl && existingImageUrl && existingImageUrl !== uploadedUrl) {
+        deletePublicImageUrl('session_images', existingImageUrl);
+      }
+
+      resetActiveState();
       setPub('');
-      setVolume('Pint');
-      setQuantity(1);
-      setComment('');
-      setSelectedImage(null);
       hapticSuccess();
-      showAlert('Cheers!', 'Your pint has been recorded.');
+      showAlert('Posted', 'Your drinking session is now on the feed.');
       navigation.navigate('Feed');
-    } catch (e: any) {
-      console.error('Save session error:', e);
+    } catch (error: any) {
+      console.error('End session error:', error);
       if (uploadedUrl) {
         deletePublicImageUrl('session_images', uploadedUrl);
       }
       hapticError();
-      showAlert('Could not save session', e?.message || 'Please try again.');
+      showAlert('Could not end session', error?.message || 'Please try again.');
     } finally {
-      setLoading(false);
+      setEnding(false);
     }
   };
 
+  const cancelSession = () => {
+    if (!activeSession || cancelling) return;
+
+    hapticWarning();
+    confirmDestructive('Cancel Session', 'Discard this active drinking session?', 'Cancel Session', async () => {
+      setCancelling(true);
+      try {
+        const { error } = await supabase
+          .from('sessions')
+          .update({ status: 'cancelled', ended_at: new Date().toISOString() })
+          .eq('id', activeSession.id)
+          .eq('status', 'active');
+
+        if (error) throw error;
+
+        if (existingImageUrl) {
+          deletePublicImageUrl('session_images', existingImageUrl);
+        }
+
+        resetActiveState();
+      } catch (error: any) {
+        showAlert('Could not cancel session', error?.message || 'Please try again.');
+      } finally {
+        setCancelling(false);
+      }
+    });
+  };
+
+  const previewImageUri = selectedImage?.uri || existingImageUrl;
+
+  if (loadingActive) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
   return (
-    <ScrollView 
-      style={styles.container} 
+    <ScrollView
+      style={styles.container}
       contentContainerStyle={styles.scrollContent}
       contentInsetAdjustmentBehavior="automatic"
       keyboardShouldPersistTaps="always"
-      nestedScrollEnabled={true}
+      nestedScrollEnabled
     >
       <View style={styles.header}>
-        <Text style={typography.h2}>Record a Session</Text>
+        <Text style={typography.h2}>{activeSession ? 'Drinking Session' : 'Start Session'}</Text>
       </View>
 
       <View style={styles.content}>
-        <Surface style={styles.formSurface}>
-        <AutocompleteInput
-          value={pub}
-          onChangeText={setPub}
-          data={pubOptions.length > 0 ? pubOptions : [pub]}
-          placeholder="Where are you drinking?"
-          icon={<MapPin color={colors.textMuted} size={20} />}
-        />
+        {!activeSession ? (
+          <Surface style={styles.formSurface}>
+            <Text style={styles.introTitle}>Where are you drinking?</Text>
+            <AutocompleteInput
+              value={pub}
+              onChangeText={setPub}
+              data={pubOptions.length > 0 ? pubOptions : [pub]}
+              placeholder="Search pub"
+              icon={<MapPin color={colors.textMuted} size={20} />}
+            />
+            <AppButton label="Start Session" onPress={startSession} loading={starting} />
+          </Surface>
+        ) : (
+          <>
+            <Surface style={styles.lockedPubSurface}>
+              <View style={styles.lockedPubHeader}>
+                <View style={styles.lockedPubIcon}>
+                  <Lock color={colors.primary} size={20} />
+                </View>
+                <View style={styles.lockedPubText}>
+                  <Text style={styles.lockedPubLabel}>Drinking at</Text>
+                  <Text style={styles.lockedPubName}>{activeSession.pub_name}</Text>
+                </View>
+              </View>
+              <View style={styles.startedRow}>
+                <Clock color={colors.textMuted} size={15} />
+                <Text style={styles.startedText}>{getStartedLabel(activeSession.started_at)}</Text>
+              </View>
+            </Surface>
 
-        <AutocompleteInput
-          value={beer}
-          onChangeText={setBeer}
-          data={DANISH_BEERS}
-          placeholder="What are you drinking?"
-          icon={<Beer color={colors.textMuted} size={20} />}
-        />
+            <Surface style={styles.formSurface}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Beers</Text>
+                <Text style={styles.sectionMeta}>{sessionBeers.length}</Text>
+              </View>
 
-        <Text style={styles.sectionLabel}>Size</Text>
-        <View style={styles.volumeRow}>
-          {VOLUMES.map((v) => (
-            <TouchableOpacity 
-              key={v} 
-              style={[styles.volumeButton, volume === v && styles.volumeButtonActive]}
-              onPress={() => setVolume(v)}
-            >
-              <Text style={[styles.volumeText, volume === v && styles.volumeTextActive]}>{v}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+              {sessionBeers.length === 0 ? (
+                <View style={styles.emptyBeerList}>
+                  <Beer color={colors.textMuted} size={24} />
+                  <Text style={styles.emptyBeerText}>No beers added yet.</Text>
+                </View>
+              ) : (
+                <View style={styles.beerList}>
+                  {sessionBeers.map((beer) => (
+                    <View key={beer.id || `${beer.beer_name}-${beer.consumed_at}`} style={styles.beerRow}>
+                      <Image source={beervaLogo} style={styles.beerRowLogo} />
+                      <View style={styles.beerRowText}>
+                        <Text style={styles.beerRowTitle}>{beer.beer_name}</Text>
+                        <Text style={styles.beerRowMeta}>{getBeerLine(beer)}</Text>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.removeBeerButton}
+                        onPress={() => removeBeerFromSession(beer)}
+                        hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                      >
+                        <Trash2 color={colors.danger} size={17} />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
 
-        <Text style={styles.sectionLabel}>Quantity</Text>
-        <View style={styles.quantityContainer}>
-          <TouchableOpacity 
-            style={styles.quantityBtn} 
-            onPress={() => setQuantity(Math.max(1, quantity - 1))}
-          >
-            <Minus color={colors.primary} size={24} />
-          </TouchableOpacity>
-          
-          <Text style={styles.quantityText}>{quantity}</Text>
+              <BeerDraftForm
+                draft={beerDraft}
+                onChange={setBeerDraft}
+                onSubmit={addBeerToSession}
+                submitLabel="Add Beer"
+                loading={addingBeer}
+              />
+            </Surface>
 
-          <TouchableOpacity 
-            style={styles.quantityBtn} 
-            onPress={() => setQuantity(quantity + 1)}
-          >
-            <Plus color={colors.primary} size={24} />
-          </TouchableOpacity>
-        </View>
+            <Surface style={styles.formSurface}>
+              <Text style={styles.sectionTitle}>Post Details</Text>
 
-        <Text style={styles.sectionLabel}>Comment</Text>
-        <View style={[styles.commentContainer, commentFocus.focused ? styles.inputFocused : null]}>
-          <MessageSquare color={colors.textMuted} size={20} />
-          <TextInput
-            style={styles.commentInput}
-            value={comment}
-            onChangeText={setComment}
-            placeholder="Add a tasting note, rating, or story..."
-            placeholderTextColor={colors.textMuted}
-            multiline
-            maxLength={220}
-            textAlignVertical="top"
-            onFocus={commentFocus.onFocus}
-            onBlur={commentFocus.onBlur}
-          />
-        </View>
-        <Text style={styles.characterCount}>{comment.length}/220</Text>
+              <Text style={styles.sectionLabel}>Comment</Text>
+              <View style={[styles.commentContainer, commentFocus.focused ? styles.inputFocused : null]}>
+                <MessageSquare color={colors.textMuted} size={20} />
+                <TextInput
+                  style={styles.commentInput}
+                  value={comment}
+                  onChangeText={setComment}
+                  placeholder="Add a tasting note, rating, or story..."
+                  placeholderTextColor={colors.textMuted}
+                  multiline
+                  maxLength={220}
+                  textAlignVertical="top"
+                  onFocus={commentFocus.onFocus}
+                  onBlur={commentFocus.onBlur}
+                />
+              </View>
+              <Text style={styles.characterCount}>{comment.length}/220</Text>
 
-        <TouchableOpacity style={styles.photoButton} onPress={() => setPhotoChoiceVisible(true)}>
-          {selectedImage ? (
-            <Image source={{ uri: selectedImage.uri }} style={styles.imagePreview} />
-          ) : (
-            <>
-              <Camera color={colors.primary} size={24} />
-              <Text style={styles.photoText}>Add Photo</Text>
-            </>
-          )}
-        </TouchableOpacity>
+              <TouchableOpacity style={styles.photoButton} onPress={() => setPhotoChoiceVisible(true)} activeOpacity={0.76}>
+                {previewImageUri ? (
+                  <Image source={{ uri: previewImageUri }} style={styles.imagePreview} />
+                ) : (
+                  <>
+                    <Camera color={colors.primary} size={24} />
+                    <Text style={styles.photoText}>Add Photo</Text>
+                  </>
+                )}
+              </TouchableOpacity>
 
-        <AppButton label="Save Session" onPress={saveSession} loading={loading} />
-        </Surface>
+              <View style={styles.endActions}>
+                <TouchableOpacity
+                  style={styles.cancelButton}
+                  onPress={cancelSession}
+                  disabled={cancelling}
+                  activeOpacity={0.76}
+                >
+                  <Text style={styles.cancelText}>{cancelling ? 'Cancelling...' : 'Cancel'}</Text>
+                </TouchableOpacity>
+                <View style={styles.endButtonWrap}>
+                  <AppButton label="End Session" onPress={endSession} loading={ending} />
+                </View>
+              </View>
+            </Surface>
+          </>
+        )}
       </View>
 
       <Modal
@@ -413,6 +733,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.background,
+  },
   scrollContent: {
     flexGrow: 1,
   },
@@ -427,50 +753,127 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: Platform.OS === 'web' ? 16 : 20,
-    zIndex: 1,
+    gap: spacing.lg,
   },
   formSurface: {
     gap: spacing.sm,
   },
+  introTitle: {
+    ...typography.h3,
+  },
+  lockedPubSurface: {
+    gap: spacing.md,
+    ...shadows.card,
+  },
+  lockedPubHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  lockedPubIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primarySoft,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+  },
+  lockedPubText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  lockedPubLabel: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontWeight: '700',
+  },
+  lockedPubName: {
+    ...typography.h3,
+    marginTop: 2,
+  },
+  startedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  startedText: {
+    ...typography.caption,
+    color: colors.textMuted,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sectionTitle: {
+    ...typography.h3,
+  },
+  sectionMeta: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: '800',
+  },
+  emptyBeerList: {
+    minHeight: 76,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.surface,
+    gap: 8,
+  },
+  emptyBeerText: {
+    ...typography.caption,
+    color: colors.textMuted,
+  },
+  beerList: {
+    gap: 10,
+  },
+  beerRow: {
+    minHeight: 62,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  beerRowLogo: {
+    width: 26,
+    height: 25,
+    resizeMode: 'contain',
+  },
+  beerRowText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  beerRowTitle: {
+    ...typography.body,
+    fontWeight: '800',
+  },
+  beerRowMeta: {
+    ...typography.caption,
+    marginTop: 2,
+  },
+  removeBeerButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.dangerSoft,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.24)',
+  },
   sectionLabel: {
     ...typography.body,
     color: colors.textMuted,
-    marginBottom: 8,
     marginTop: 8,
-  },
-  volumeRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 24,
-    gap: 10,
-  },
-  volumeButton: {
-    flexGrow: 1,
-    flexBasis: '30%',
-    minWidth: 96,
-    minHeight: 48,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  volumeButtonActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  volumeText: {
-    ...typography.caption,
-    color: colors.text,
-    fontWeight: '600',
-    textAlign: 'center',
-    backgroundColor: 'transparent',
-  },
-  volumeTextActive: {
-    color: colors.background,
   },
   commentContainer: {
     flexDirection: 'row',
@@ -481,7 +884,6 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     padding: 16,
     minHeight: 104,
-    marginBottom: 8,
     gap: 12,
   },
   inputFocused: {
@@ -497,29 +899,7 @@ const styles = StyleSheet.create({
   characterCount: {
     ...typography.caption,
     textAlign: 'right',
-    marginBottom: 24,
-  },
-  quantityContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
-    borderRadius: radius.md,
-    padding: 8,
-    marginBottom: 32,
-  },
-  quantityBtn: {
-    padding: 12,
-    backgroundColor: colors.glass,
-    borderRadius: radius.sm,
-  },
-  quantityText: {
-    ...typography.h1,
-    color: colors.text,
-    width: 60,
-    textAlign: 'center',
+    marginBottom: 14,
   },
   photoButton: {
     flexDirection: 'row',
@@ -530,10 +910,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderSoft,
     height: Platform.OS === 'web' ? 132 : 150,
-    marginBottom: 24,
+    marginBottom: spacing.md,
     borderStyle: 'dashed',
     overflow: 'hidden',
-    zIndex: 0,
   },
   imagePreview: {
     width: '100%',
@@ -545,6 +924,29 @@ const styles = StyleSheet.create({
     color: colors.primary,
     marginLeft: 8,
     fontWeight: '600',
+  },
+  endActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  cancelButton: {
+    minHeight: 48,
+    borderRadius: radius.md,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+  },
+  cancelText: {
+    ...typography.body,
+    fontWeight: '800',
+    color: colors.textMuted,
+  },
+  endButtonWrap: {
+    flex: 1,
   },
   photoChoiceBackdrop: {
     flex: 1,
