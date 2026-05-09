@@ -209,28 +209,38 @@ Deno.serve(async (req) => {
 
   try {
     const osmPubs = await fetchOsmPubsNear({ latitude, longitude }, query, radiusMeters);
-    cached = osmPubs.length;
 
-    if (osmPubs.length > 0) {
+    const validPubs = osmPubs.filter((pub) => {
+      const trimmed = pub.name.trim();
+      return trimmed.length >= 2 && trimmed.length <= 120;
+    });
+    cached = validPubs.length;
+
+    if (validPubs.length > 0) {
+      const rows = validPubs.map((pub) => ({
+        name: pub.name.trim(),
+        city: pub.city || null,
+        address: pub.address || null,
+        latitude: pub.latitude ?? null,
+        longitude: pub.longitude ?? null,
+        source: 'osm',
+        source_id: pub.source_id,
+        source_tags: pub.source_tags,
+        status: 'active',
+        created_by: user.id,
+      }));
+
       const { error: upsertError } = await admin
         .from('pubs')
-        .upsert(
-          osmPubs.map((pub) => ({
-            name: pub.name,
-            city: pub.city || null,
-            address: pub.address || null,
-            latitude: pub.latitude ?? null,
-            longitude: pub.longitude ?? null,
-            source: 'osm',
-            source_id: pub.source_id,
-            source_tags: pub.source_tags,
-            status: 'active',
-            created_by: user.id,
-          })),
-          { onConflict: 'source,source_id', ignoreDuplicates: true },
-        );
+        .upsert(rows, { onConflict: 'source,source_id', ignoreDuplicates: true });
 
-      if (upsertError) throw upsertError;
+      if (upsertError) {
+        console.error('OSM pub upsert failed:', upsertError);
+        lookupError = `OSM cache write failed: ${upsertError.message}`;
+        cached = 0;
+      }
+    } else {
+      console.log(`OSM returned ${osmPubs.length} pubs, ${validPubs.length} passed validation.`);
     }
   } catch (error: any) {
     lookupError = error?.message || 'OpenStreetMap lookup failed';

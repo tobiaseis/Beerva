@@ -66,10 +66,15 @@ export const searchCachedPubs = async (
   return (data || []) as PubRecord[];
 };
 
+export type NearbyPubLookup = {
+  pubs: PubRecord[];
+  lookupError: string | null;
+};
+
 export const fetchAndCacheNearbyPubs = async (
   location: UserLocation,
   query = ''
-): Promise<PubRecord[]> => {
+): Promise<NearbyPubLookup> => {
   let timeoutRef: ReturnType<typeof setTimeout> | null = null;
   const lookup = supabase.functions.invoke('nearby-pubs', {
     body: {
@@ -111,7 +116,10 @@ export const fetchAndCacheNearbyPubs = async (
     throw new Error(data.error);
   }
 
-  return ((data?.pubs || []) as PubRecord[]);
+  return {
+    pubs: (data?.pubs || []) as PubRecord[],
+    lookupError: typeof data?.lookupError === 'string' ? data.lookupError : null,
+  };
 };
 
 export const createUserPub = async (

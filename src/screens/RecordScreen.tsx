@@ -201,10 +201,13 @@ export const RecordScreen = ({ navigation }: any) => {
       if (nearbySeedKeys.current.has(cacheKey)) return;
 
       try {
-        await fetchAndCacheNearbyPubs(cachedLocation, '');
+        const { lookupError } = await fetchAndCacheNearbyPubs(cachedLocation, '');
         if (cancelled) return;
         nearbySeedKeys.current.add(cacheKey);
         pubSearchCache.current.clear();
+        if (lookupError) {
+          console.warn('Pre-warm pub cache lookup error:', lookupError);
+        }
       } catch (err) {
         console.warn('Pre-warm pub cache failed:', err);
       }
@@ -263,10 +266,13 @@ export const RecordScreen = ({ navigation }: any) => {
           const remoteKey = `${cleanPub.toLowerCase()}|${getLocationCacheKey(searchLocation)}`;
           if (!remotePubSearchCache.current.has(remoteKey)) {
             try {
-              const remoteResults = await fetchAndCacheNearbyPubs(searchLocation, cleanPub);
+              const remote = await fetchAndCacheNearbyPubs(searchLocation, cleanPub);
               remotePubSearchCache.current.add(remoteKey);
-              nextResults = mergePubRecords(remoteResults, results);
+              nextResults = mergePubRecords(remote.pubs, results);
               pubSearchCache.current.clear();
+              if (remote.lookupError && nextResults.length === 0) {
+                remoteError = remote.lookupError;
+              }
             } catch (err: any) {
               remoteError = err?.message || 'Remote pub search unavailable.';
               console.warn('Remote pub search unavailable:', err);
@@ -419,15 +425,16 @@ export const RecordScreen = ({ navigation }: any) => {
     const query = pub.trim();
 
     if (nearbySeedKeys.current.has(cacheKey)) {
-      return searchCachedPubs(query, location, 24);
+      const cachedPubs = await searchCachedPubs(query, location, 24);
+      return { pubs: cachedPubs, lookupError: null as string | null };
     }
 
-    if (signal?.aborted) return [];
-    const nearbyPubs = await fetchAndCacheNearbyPubs(location, query);
-    if (signal?.aborted) return [];
+    if (signal?.aborted) return { pubs: [] as PubRecord[], lookupError: null as string | null };
+    const remote = await fetchAndCacheNearbyPubs(location, query);
+    if (signal?.aborted) return { pubs: [] as PubRecord[], lookupError: null as string | null };
     nearbySeedKeys.current.add(cacheKey);
     pubSearchCache.current.clear();
-    return nearbyPubs;
+    return remote;
   }, [pub]);
 
   const useNearbyPubs = async () => {
@@ -441,13 +448,16 @@ export const RecordScreen = ({ navigation }: any) => {
     try {
       const location = await getCurrentBrowserLocation();
       setUserLocation(location);
-      const nearbyPubs = await seedNearbyPubs(location, abortController.signal);
+      const { pubs: nearbyPubs, lookupError } = await seedNearbyPubs(location, abortController.signal);
       if (abortController.signal.aborted) return;
       setPubOptions(nearbyPubs);
+      setPubSearchError(nearbyPubs.length === 0 && lookupError ? lookupError : null);
       hapticSuccess();
 
-      if (nearbyPubs.length === 0) {
+      if (nearbyPubs.length === 0 && !lookupError) {
         showAlert('No pubs nearby yet', 'Type the pub name and Beerva will add it.');
+      } else if (lookupError) {
+        showAlert('Pub data partial', lookupError);
       }
     } catch (error: any) {
       if (error?.name !== 'AbortError') {
