@@ -66,9 +66,17 @@ export const searchCachedPubs = async (
   return (data || []) as PubRecord[];
 };
 
+export type NearbyPubDiagnostics = {
+  osm_returned: number;
+  osm_validated: number;
+  upsert_ok: boolean;
+  pubs_matched: number;
+};
+
 export type NearbyPubLookup = {
   pubs: PubRecord[];
   lookupError: string | null;
+  diagnostics: NearbyPubDiagnostics | null;
 };
 
 export const fetchAndCacheNearbyPubs = async (
@@ -119,6 +127,7 @@ export const fetchAndCacheNearbyPubs = async (
   return {
     pubs: (data?.pubs || []) as PubRecord[],
     lookupError: typeof data?.lookupError === 'string' ? data.lookupError : null,
+    diagnostics: (data?.diagnostics ?? null) as NearbyPubDiagnostics | null,
   };
 };
 

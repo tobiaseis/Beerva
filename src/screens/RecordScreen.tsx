@@ -256,9 +256,14 @@ export const RecordScreen = ({ navigation }: any) => {
 
         if (!searchLocation && cleanPub.length >= PUB_SEARCH_MIN_LENGTH && !passiveLocationAttempted.current) {
           passiveLocationAttempted.current = true;
-          searchLocation = await getPreviouslyGrantedBrowserLocation();
-          if (searchLocation && !cancelled) {
-            setUserLocation(searchLocation);
+          try {
+            searchLocation = await getPreviouslyGrantedBrowserLocation()
+              || await getCurrentBrowserLocation();
+            if (searchLocation && !cancelled) {
+              setUserLocation(searchLocation);
+            }
+          } catch (locationErr) {
+            console.warn('Could not get location for pub search:', locationErr);
           }
         }
 
@@ -270,6 +275,13 @@ export const RecordScreen = ({ navigation }: any) => {
               remotePubSearchCache.current.add(remoteKey);
               nextResults = mergePubRecords(remote.pubs, results);
               pubSearchCache.current.clear();
+              console.log('[Beerva] Pub search remote response:', {
+                query: cleanPub,
+                location: searchLocation,
+                lookupError: remote.lookupError,
+                diagnostics: remote.diagnostics,
+                merged_count: nextResults.length,
+              });
               if (remote.lookupError && nextResults.length === 0) {
                 remoteError = remote.lookupError;
               }
@@ -278,6 +290,8 @@ export const RecordScreen = ({ navigation }: any) => {
               console.warn('Remote pub search unavailable:', err);
             }
           }
+        } else if (cleanPub.length >= PUB_SEARCH_MIN_LENGTH && !searchLocation) {
+          console.log('[Beerva] Pub search skipped remote: no location available.');
         }
 
         if (cancelled) return;
@@ -426,12 +440,12 @@ export const RecordScreen = ({ navigation }: any) => {
 
     if (nearbySeedKeys.current.has(cacheKey)) {
       const cachedPubs = await searchCachedPubs(query, location, 24);
-      return { pubs: cachedPubs, lookupError: null as string | null };
+      return { pubs: cachedPubs, lookupError: null, diagnostics: null };
     }
 
-    if (signal?.aborted) return { pubs: [] as PubRecord[], lookupError: null as string | null };
+    if (signal?.aborted) return { pubs: [] as PubRecord[], lookupError: null, diagnostics: null };
     const remote = await fetchAndCacheNearbyPubs(location, query);
-    if (signal?.aborted) return { pubs: [] as PubRecord[], lookupError: null as string | null };
+    if (signal?.aborted) return { pubs: [] as PubRecord[], lookupError: null, diagnostics: null };
     nearbySeedKeys.current.add(cacheKey);
     pubSearchCache.current.clear();
     return remote;

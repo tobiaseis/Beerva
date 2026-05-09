@@ -76,14 +76,6 @@ const toAddress = (tags: Record<string, string>) => {
   return [streetLine, postcode].filter(Boolean).join(', ') || null;
 };
 
-const pubMatchesQuery = (pub: OsmPubCandidate, query: string) => {
-  const cleanQuery = normalize(query);
-  if (cleanQuery.length < 2) return true;
-
-  return [pub.name, pub.city || '', pub.address || '']
-    .some((value) => normalize(value).includes(cleanQuery));
-};
-
 const buildOverpassQuery = (location: UserLocation, radiusMeters: number) => {
   const lat = location.latitude.toFixed(6);
   const lon = location.longitude.toFixed(6);
@@ -110,7 +102,6 @@ out center tags ${MAX_OSM_PUBS_TO_CACHE};
 
 const fetchOsmPubsNear = async (
   location: UserLocation,
-  query: string,
   radiusMeters: number,
 ): Promise<OsmPubCandidate[]> => {
   const response = await fetchWithTimeout(OVERPASS_URL, {
@@ -153,9 +144,7 @@ const fetchOsmPubsNear = async (
       source_tags: tags,
     };
 
-    if (pubMatchesQuery(candidate, query)) {
-      pubsBySource.set(sourceId, candidate);
-    }
+    pubsBySource.set(sourceId, candidate);
   });
 
   return Array.from(pubsBySource.values());
@@ -206,14 +195,19 @@ Deno.serve(async (req) => {
   const admin = createClient(supabaseUrl, supabaseServiceKey);
   let cached = 0;
   let lookupError: string | null = null;
+  let osmReturned = 0;
+  let osmValidated = 0;
+  let upsertOk = false;
 
   try {
-    const osmPubs = await fetchOsmPubsNear({ latitude, longitude }, query, radiusMeters);
+    const osmPubs = await fetchOsmPubsNear({ latitude, longitude }, radiusMeters);
+    osmReturned = osmPubs.length;
 
     const validPubs = osmPubs.filter((pub) => {
       const trimmed = pub.name.trim();
       return trimmed.length >= 2 && trimmed.length <= 120;
     });
+    osmValidated = validPubs.length;
     cached = validPubs.length;
 
     if (validPubs.length > 0) {
@@ -238,10 +232,11 @@ Deno.serve(async (req) => {
         console.error('OSM pub upsert failed:', upsertError);
         lookupError = `OSM cache write failed: ${upsertError.message}`;
         cached = 0;
+      } else {
+        upsertOk = true;
       }
-    } else {
-      console.log(`OSM returned ${osmPubs.length} pubs, ${validPubs.length} passed validation.`);
     }
+    console.log(`Nearby-pubs diagnostics: query="${query}" returned=${osmReturned} validated=${osmValidated} upsertOk=${upsertOk}`);
   } catch (error: any) {
     lookupError = error?.message || 'OpenStreetMap lookup failed';
     console.error('Nearby pubs lookup error:', lookupError);
@@ -266,5 +261,11 @@ Deno.serve(async (req) => {
     pubs: pubs || [],
     cached,
     lookupError,
+    diagnostics: {
+      osm_returned: osmReturned,
+      osm_validated: osmValidated,
+      upsert_ok: upsertOk,
+      pubs_matched: (pubs || []).length,
+    },
   });
 });
