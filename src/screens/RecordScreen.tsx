@@ -76,6 +76,7 @@ type FollowInRow = {
 const PUB_SEARCH_MIN_LENGTH = 3;
 const PUB_LOCATION_TIMEOUT_MS = 9000;
 const NEARBY_CACHE_MIN_RESULTS = 8;
+const COMMENT_AUTOSAVE_DELAY_MS = 750;
 
 const getStartedLabel = (dateString?: string | null) => {
   if (!dateString) return 'Started recently';
@@ -178,6 +179,7 @@ export const RecordScreen = ({ navigation }: any) => {
   const [pubSearchError, setPubSearchError] = useState<string | null>(null);
   const [locatingPubs, setLocatingPubs] = useState(false);
   const [addingPub, setAddingPub] = useState(false);
+  const [savingPhoto, setSavingPhoto] = useState(false);
 
   const pubSearchCache = useRef<Map<string, PubRecord[]>>(new Map());
   const pubSearchAbort = useRef<AbortController | null>(null);
@@ -185,6 +187,10 @@ export const RecordScreen = ({ navigation }: any) => {
   const nearbySeedKeys = useRef<Set<string>>(new Set());
   const passiveLocationAttempted = useRef(false);
   const passiveSeedAttempted = useRef(false);
+  const lastSavedComment = useRef<{ sessionId: string | null; comment: string }>({
+    sessionId: null,
+    comment: '',
+  });
 
   useEffect(() => {
     if (passiveSeedAttempted.current) return;
@@ -322,7 +328,9 @@ export const RecordScreen = ({ navigation }: any) => {
     setComment('');
     setSelectedImage(null);
     setExistingImageUrl(null);
+    setSavingPhoto(false);
     setSelectedPub(null);
+    lastSavedComment.current = { sessionId: null, comment: '' };
   }, []);
 
   const fetchSessionBeers = useCallback(async (sessionId: string) => {
@@ -365,8 +373,13 @@ export const RecordScreen = ({ navigation }: any) => {
       setPub('');
       setSelectedPub(null);
       setComment(session.comment || '');
+      lastSavedComment.current = {
+        sessionId: session.id,
+        comment: (session.comment || '').trim(),
+      };
       setExistingImageUrl(session.image_url || null);
       setSelectedImage(null);
+      setSavingPhoto(false);
       await fetchSessionBeers(session.id);
     } catch (error: any) {
       console.error('Active session fetch error:', error);
@@ -381,6 +394,52 @@ export const RecordScreen = ({ navigation }: any) => {
       fetchActiveSession();
     }, [fetchActiveSession])
   );
+
+  const saveActiveSessionComment = useCallback(async (nextComment: string) => {
+    if (!activeSession) return;
+
+    const sessionId = activeSession.id;
+    const draftComment = nextComment.trim();
+    if (
+      lastSavedComment.current.sessionId === sessionId
+      && lastSavedComment.current.comment === draftComment
+    ) {
+      return;
+    }
+
+    const { error } = await supabase
+      .from('sessions')
+      .update({ comment: draftComment || null })
+      .eq('id', sessionId)
+      .eq('user_id', activeSession.user_id)
+      .eq('status', 'active');
+
+    if (error) {
+      console.warn('Could not autosave session comment:', error.message);
+      return;
+    }
+
+    lastSavedComment.current = { sessionId, comment: draftComment };
+  }, [activeSession]);
+
+  useEffect(() => {
+    if (!activeSession || loadingActive) return;
+
+    const sessionId = activeSession.id;
+    const draftComment = comment.trim();
+    if (
+      lastSavedComment.current.sessionId === sessionId
+      && lastSavedComment.current.comment === draftComment
+    ) {
+      return;
+    }
+
+    const timeout = setTimeout(async () => {
+      await saveActiveSessionComment(draftComment);
+    }, COMMENT_AUTOSAVE_DELAY_MS);
+
+    return () => clearTimeout(timeout);
+  }, [activeSession, comment, loadingActive, saveActiveSessionComment]);
 
   const ensureProfile = async (user: any) => {
     const { data: existingProfile } = await supabase
@@ -591,8 +650,10 @@ export const RecordScreen = ({ navigation }: any) => {
       setActiveSession(session);
       setSessionBeers([]);
       setComment('');
+      lastSavedComment.current = { sessionId: session.id, comment: '' };
       setSelectedImage(null);
       setExistingImageUrl(null);
+      setSavingPhoto(false);
       setPub('');
       setSelectedPub(null);
       hapticSuccess();
@@ -684,21 +745,67 @@ export const RecordScreen = ({ navigation }: any) => {
   };
 
   const handleImageAsset = async (asset: ImagePicker.ImagePickerAsset) => {
+    let preparedImage: SelectedImage;
+
     if (Platform.OS === 'web') {
-      setSelectedImage(await prepareWebImageFromPickerAsset(asset));
-      return;
+      preparedImage = await prepareWebImageFromPickerAsset(asset);
+    } else {
+      const ImageManipulator = await import('expo-image-manipulator');
+      const manipResult = await ImageManipulator.manipulateAsync(
+        asset.uri,
+        [{ resize: { width: UPLOAD_IMAGE_MAX_WIDTH } }],
+        { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG }
+      );
+      preparedImage = {
+        uri: manipResult.uri,
+        mimeType: 'image/jpeg',
+      };
     }
 
-    const ImageManipulator = await import('expo-image-manipulator');
-    const manipResult = await ImageManipulator.manipulateAsync(
-      asset.uri,
-      [{ resize: { width: UPLOAD_IMAGE_MAX_WIDTH } }],
-      { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG }
-    );
-    setSelectedImage({
-      uri: manipResult.uri,
-      mimeType: 'image/jpeg',
-    });
+    setSelectedImage(preparedImage);
+
+    if (!activeSession) return;
+
+    setSavingPhoto(true);
+    let uploadedUrl: string | null = null;
+    const previousImageUrl = existingImageUrl;
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not logged in!');
+
+      uploadedUrl = await uploadImageToBucket('session_images', preparedImage, `users/${user.id}/sessions`);
+
+      const { error } = await supabase
+        .from('sessions')
+        .update({ image_url: uploadedUrl })
+        .eq('id', activeSession.id)
+        .eq('user_id', user.id)
+        .eq('status', 'active');
+
+      if (error) throw error;
+
+      setExistingImageUrl(uploadedUrl);
+      setSelectedImage(null);
+      setActiveSession((current) => (
+        current?.id === activeSession.id
+          ? { ...current, image_url: uploadedUrl }
+          : current
+      ));
+
+      if (previousImageUrl && previousImageUrl !== uploadedUrl) {
+        deletePublicImageUrl('session_images', previousImageUrl);
+      }
+    } catch (error: any) {
+      console.error('Draft photo save error:', error);
+      if (uploadedUrl) {
+        deletePublicImageUrl('session_images', uploadedUrl);
+      }
+      hapticError();
+      showAlert('Photo not saved yet', error?.message || 'The photo will stay here until you post, but it may be lost if you close the app.');
+    } finally {
+      setSavingPhoto(false);
+    }
   };
 
   const chooseFromLibrary = async () => {
@@ -1007,12 +1114,20 @@ export const RecordScreen = ({ navigation }: any) => {
                   maxLength={220}
                   textAlignVertical="top"
                   onFocus={commentFocus.onFocus}
-                  onBlur={commentFocus.onBlur}
+                  onBlur={() => {
+                    commentFocus.onBlur();
+                    saveActiveSessionComment(comment);
+                  }}
                 />
               </View>
               <Text style={styles.characterCount}>{comment.length}/220</Text>
 
-              <TouchableOpacity style={styles.photoButton} onPress={() => setPhotoChoiceVisible(true)} activeOpacity={0.76}>
+              <TouchableOpacity
+                style={[styles.photoButton, savingPhoto ? styles.photoButtonSaving : null]}
+                onPress={() => setPhotoChoiceVisible(true)}
+                disabled={savingPhoto}
+                activeOpacity={0.76}
+              >
                 {previewImageUri ? (
                   <Image source={{ uri: previewImageUri }} style={styles.imagePreview} />
                 ) : (
@@ -1021,6 +1136,12 @@ export const RecordScreen = ({ navigation }: any) => {
                     <Text style={styles.photoText}>Add Photo</Text>
                   </>
                 )}
+                {savingPhoto ? (
+                  <View style={styles.photoSavingOverlay}>
+                    <ActivityIndicator color={colors.background} size="small" />
+                    <Text style={styles.photoSavingText}>Saving photo...</Text>
+                  </View>
+                ) : null}
               </TouchableOpacity>
 
               <View style={styles.endActions}>
@@ -1391,10 +1512,29 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     overflow: 'hidden',
   },
+  photoButtonSaving: {
+    opacity: 0.88,
+  },
   imagePreview: {
     width: '100%',
     height: '100%',
     resizeMode: 'cover',
+  },
+  photoSavingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(18, 24, 38, 0.58)',
+  },
+  photoSavingText: {
+    ...typography.caption,
+    color: colors.background,
+    fontWeight: '800',
   },
   photoText: {
     ...typography.body,
