@@ -209,14 +209,10 @@ export const NotificationsScreen = ({ navigation }: any) => {
 
     setRespondingInviteIds((previous) => new Set(previous).add(inviteId));
     try {
-      const { data: updatedInvite, error } = await supabase
-        .from('drinking_invites')
-        .update({ status, responded_at: new Date().toISOString() })
-        .eq('id', inviteId)
-        .eq('recipient_id', currentUserId)
-        .eq('status', 'pending')
-        .select('id, sender_id, recipient_id, status, created_at, responded_at')
-        .maybeSingle();
+      const { data: updatedInvite, error } = await supabase.rpc('respond_to_drinking_invite', {
+        target_invite_id: inviteId,
+        response_status: status,
+      });
 
       if (error) throw error;
       if (!updatedInvite) throw new Error('This invite has already been answered.');
@@ -228,16 +224,6 @@ export const NotificationsScreen = ({ navigation }: any) => {
           : notification
       )));
 
-      const { error: notificationError } = await supabase.from('notifications').insert({
-        user_id: invite.sender_id,
-        actor_id: currentUserId,
-        type: 'invite_response',
-        reference_id: invite.id,
-      });
-
-      if (notificationError) {
-        console.error('Invite response notification error', notificationError);
-      }
     } catch (error: any) {
       Alert.alert('Could not answer invite', error?.message || 'Please try again.');
     } finally {

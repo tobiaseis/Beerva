@@ -30,6 +30,31 @@ const INVITE_FAILURE_MESSAGES = [
   'The taproom signal fizzled. Try again.',
 ];
 
+const getInviteFailureMessage = (error: any) => {
+  const code = String(error?.code || '');
+  const message = String(error?.message || '');
+  const lowerMessage = message.toLowerCase();
+
+  if (
+    code === '42P01'
+    || code === 'PGRST205'
+    || code === 'PGRST202'
+    || lowerMessage.includes('create_drinking_invite')
+    || (lowerMessage.includes('drinking_invites') && lowerMessage.includes('schema cache'))
+    || lowerMessage.includes('relation "public.drinking_invites" does not exist')
+  ) {
+    return 'Invite responses are not live in Supabase yet. Run supabase db push, then redeploy the app.';
+  }
+
+  if (code === '42501' || lowerMessage.includes('row-level security')) {
+    return 'Invites only work between mutual mates. Follow each other, refresh the profile, then try again.';
+  }
+
+  if (message) return message;
+
+  return INVITE_FAILURE_MESSAGES[Math.floor(Math.random() * INVITE_FAILURE_MESSAGES.length)];
+};
+
 type UserProfile = {
   id: string;
   username: string | null;
@@ -289,22 +314,8 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
 
     setInviteLoading(true);
     try {
-      const { data: invite, error: inviteError } = await supabase
-        .from('drinking_invites')
-        .insert({
-          sender_id: currentUserId,
-          recipient_id: profileId,
-        })
-        .select('id')
-        .single();
-
-      if (inviteError) throw inviteError;
-
-      const { error } = await supabase.from('notifications').insert({
-        user_id: profileId,
-        actor_id: currentUserId,
-        type: 'invite',
-        reference_id: invite.id,
+      const { error } = await supabase.rpc('create_drinking_invite', {
+        target_user_id: profileId,
       });
 
       if (error) throw error;
@@ -316,8 +327,7 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
     } catch (e: any) {
       console.error('Error sending invite', e);
       setInviteLoading(false);
-      const fallback = INVITE_FAILURE_MESSAGES[Math.floor(Math.random() * INVITE_FAILURE_MESSAGES.length)];
-      showAlert('🍺 Invite stuck in the keg', fallback);
+      showAlert('Invite stuck in the keg', getInviteFailureMessage(e));
     }
   };
 
