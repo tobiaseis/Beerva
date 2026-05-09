@@ -3,6 +3,14 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
+const jwtRole = (token: string): string | null => {
+  try {
+    return JSON.parse(atob(token.split('.')[1])).role ?? null;
+  } catch {
+    return null;
+  }
+};
+
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
 const OVERPASS_TIMEOUT_MS = 120000;
 const UPSERT_CHUNK = 500;
@@ -69,8 +77,8 @@ Deno.serve(async (req) => {
 
   const authHeader = req.headers.get('authorization') || '';
   const presentedToken = authHeader.replace(/^Bearer\s+/i, '').trim();
-  if (!presentedToken || presentedToken !== supabaseServiceKey) {
-    return jsonResponse({ error: 'Unauthorized — pass the service_role key as Bearer.' }, 401);
+  if (!presentedToken || jwtRole(presentedToken) !== 'service_role') {
+    return jsonResponse({ error: 'Unauthorized — service_role JWT required.' }, 401);
   }
 
   let body: any = {};
