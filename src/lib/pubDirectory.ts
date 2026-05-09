@@ -43,6 +43,7 @@ type OverpassElement = {
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
 const OVERPASS_RADIUS_METERS = 10000;
 const MAX_OSM_PUBS_TO_CACHE = 120;
+const NEARBY_PUB_LOOKUP_TIMEOUT_MS = 12000;
 
 const normalize = (value: string) => value.trim().toLowerCase();
 
@@ -94,12 +95,23 @@ export const fetchAndCacheNearbyPubs = async (
   location: UserLocation,
   query = ''
 ): Promise<PubRecord[]> => {
-  const { data, error } = await supabase.functions.invoke('nearby-pubs', {
+  let timeoutRef: ReturnType<typeof setTimeout> | null = null;
+  const lookup = supabase.functions.invoke('nearby-pubs', {
     body: {
       latitude: location.latitude,
       longitude: location.longitude,
       query,
     },
+  });
+
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutRef = setTimeout(() => {
+      reject(new Error('Pub lookup timed out. Try again in a moment.'));
+    }, NEARBY_PUB_LOOKUP_TIMEOUT_MS);
+  });
+
+  const { data, error } = await Promise.race([lookup, timeout]).finally(() => {
+    if (timeoutRef) clearTimeout(timeoutRef);
   });
 
   if (error) {
