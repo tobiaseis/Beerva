@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, Image, ActivityIndicator, RefreshControl, TouchableOpacity, TouchableWithoutFeedback, Alert, Platform, Animated, Modal, TextInput, KeyboardAvoidingView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Image, ActivityIndicator, RefreshControl, TouchableOpacity, Pressable, Alert, Platform, Animated, Modal, TextInput, KeyboardAvoidingView } from 'react-native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { Edit3, MapPin, Trash2, Bell, AlertTriangle, RefreshCw, MessageCircle, Send, X } from 'lucide-react-native';
@@ -15,6 +15,7 @@ import { hapticLight, hapticMedium, hapticWarning } from '../lib/haptics';
 import { useNotifications } from '../lib/notificationsContext';
 import { EmptyIllustration } from '../components/EmptyIllustration';
 import { getBeerLine, getSessionBeerSummary, SessionBeer } from '../lib/sessionBeers';
+import { getVolumeMl } from '../lib/profileStats';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
 
@@ -52,6 +53,7 @@ type FeedSession = {
   beer_name: string;
   volume: string | null;
   quantity: number | null;
+  abv: number | null;
   comment: string | null;
   image_url: string | null;
   status?: string | null;
@@ -128,6 +130,51 @@ const getDrinkLabel = (item: FeedSession) => {
   return `${drink} of ${item.beer_name}`;
 };
 
+const getSessionBeerCount = (item: FeedSession) => {
+  if (item.session_beers.length > 0) {
+    return item.session_beers.reduce((sum, beer) => sum + (beer.quantity || 1), 0);
+  }
+
+  return item.quantity || 1;
+};
+
+const getSessionTruePints = (item: FeedSession) => {
+  const beers = item.session_beers.length > 0
+    ? item.session_beers
+    : [{ volume: item.volume, quantity: item.quantity }];
+
+  const pints = beers.reduce((sum, beer) => {
+    const volumeMl = getVolumeMl(beer.volume);
+    const quantity = beer.quantity || 1;
+    return sum + (volumeMl * quantity / 568);
+  }, 0);
+
+  return Math.round(pints * 10) / 10;
+};
+
+const getSessionAverageAbv = (item: FeedSession) => {
+  const beers = item.session_beers.length > 0
+    ? item.session_beers
+    : [{ abv: item.abv ?? null, quantity: item.quantity }];
+
+  let weightedTotal = 0;
+  let quantityTotal = 0;
+
+  beers.forEach((beer) => {
+    if (typeof beer.abv !== 'number') return;
+    const quantity = beer.quantity || 1;
+    weightedTotal += beer.abv * quantity;
+    quantityTotal += quantity;
+  });
+
+  if (quantityTotal === 0) return null;
+  return Math.round((weightedTotal / quantityTotal) * 10) / 10;
+};
+
+const formatStatNumber = (value: number) => (
+  Number.isInteger(value) ? String(value) : value.toFixed(1)
+);
+
 const getCheersLabel = (count: number) => {
   return `${count} ${count === 1 ? 'Cheer' : 'Cheers'}`;
 };
@@ -186,6 +233,9 @@ const FeedSessionCard = React.memo(({
   const cheerSummary = cheerNames
     ? `Cheers from ${cheerNames}${item.cheers_count > 3 ? ` +${item.cheers_count - 3}` : ''}`
     : `Cheers from ${cheerPeople}`;
+  const beerCount = getSessionBeerCount(item);
+  const truePints = getSessionTruePints(item);
+  const averageAbv = getSessionAverageAbv(item);
   const cheersScale = React.useRef(new Animated.Value(1)).current;
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
   const overlayScale = React.useRef(new Animated.Value(0.6)).current;
@@ -246,7 +296,7 @@ const FeedSessionCard = React.memo(({
             accessibilityLabel={`${username}'s avatar`}
           />
           <View style={styles.userInfo}>
-            <Text style={styles.userName}>{username}</Text>
+            <Text style={styles.userName} numberOfLines={1}>{username}</Text>
             <Text style={styles.timeText}>{getTimeAgo(item.created_at)}</Text>
           </View>
         </TouchableOpacity>
@@ -274,14 +324,14 @@ const FeedSessionCard = React.memo(({
         ) : null}
       </View>
 
-      {item.comment ? (
-        <View style={styles.commentTop}>
-          <Text style={styles.commentText}>{item.comment}</Text>
-        </View>
-      ) : null}
-
       {item.image_url ? (
-        <TouchableWithoutFeedback onPress={handleImagePress} accessibilityLabel={`Double tap to cheer ${username}`}>
+        <Pressable
+          onPress={handleImagePress}
+          style={({ pressed }) => [styles.imagePressable, pressed ? styles.imagePressed : null]}
+          accessibilityRole="button"
+          accessibilityLabel={`Double tap to cheer ${username}'s session photo`}
+          accessibilityHint="Press twice quickly to give cheers"
+        >
           <View style={styles.imageWrap}>
             <CachedImage
               uri={item.image_url}
@@ -299,18 +349,46 @@ const FeedSessionCard = React.memo(({
               <Image source={beervaLogo} style={styles.cheerOverlayLogo} />
             </Animated.View>
           </View>
-        </TouchableWithoutFeedback>
+        </Pressable>
       ) : null}
 
       <View style={styles.cardContent}>
-        <View style={styles.row}>
-          <MapPin color={colors.primary} size={16} />
-          <Text style={styles.locationText}> Drinking at <Text style={styles.bold}>{item.pub_name}</Text></Text>
+        {item.comment ? (
+          <View style={styles.commentTop}>
+            <Text style={styles.commentText}>{item.comment}</Text>
+          </View>
+        ) : null}
+
+        <View style={styles.sessionSummary}>
+          <View style={styles.summaryRow}>
+            <View style={styles.summaryIcon}>
+              <MapPin color={colors.primary} size={15} />
+            </View>
+            <Text style={styles.summaryLocationText} numberOfLines={1}>{item.pub_name}</Text>
+          </View>
+          <View style={styles.summaryRow}>
+            <Image source={beervaLogo} style={styles.inlineLogoSmall} />
+            <Text style={styles.summaryDrinkText} numberOfLines={2}>{getDrinkLabel(item)}</Text>
+          </View>
         </View>
-        <View style={[styles.row, { marginTop: 8 }]}>
-          <Image source={beervaLogo} style={styles.inlineLogoSmall} />
-          <Text style={styles.beerText}> {getDrinkLabel(item)}</Text>
+
+        <View style={styles.detailGrid}>
+          <View style={styles.detailPill}>
+            <Text style={styles.detailLabel}>Beers</Text>
+            <Text style={styles.detailValue}>{beerCount}</Text>
+          </View>
+          <View style={styles.detailPill}>
+            <Text style={styles.detailLabel}>True Pints</Text>
+            <Text style={styles.detailValue}>{formatStatNumber(truePints)}</Text>
+          </View>
+          {averageAbv !== null ? (
+            <View style={styles.detailPill}>
+              <Text style={styles.detailLabel}>Avg ABV</Text>
+              <Text style={styles.detailValue}>{formatStatNumber(averageAbv)}%</Text>
+            </View>
+          ) : null}
         </View>
+
         {item.session_beers.length > 1 ? (
           <View style={styles.beerBreakdown}>
             {item.session_beers.map((beer) => (
@@ -370,28 +448,28 @@ const FeedSessionCard = React.memo(({
       ) : null}
 
       <View style={styles.cardFooter}>
-        <Animated.View style={{ transform: [{ scale: cheersScale }] }}>
-        <TouchableOpacity
-          style={[
-            styles.actionBtn,
-            item.has_cheered ? styles.actionBtnActive : null,
-            isOwnPost ? styles.actionBtnDisabled : null,
-          ]}
-          onPress={handleCheersPress}
-          disabled={isOwnPost || isCheering || !currentUserId}
-          activeOpacity={0.72}
-          accessibilityRole="button"
-          accessibilityLabel={`Give cheers to ${username}`}
-          accessibilityState={{ disabled: isOwnPost || isCheering || !currentUserId, selected: item.has_cheered }}
-        >
-          <Image
-            source={beervaLogo}
-            style={[styles.cheersLogo, { opacity: item.has_cheered ? 1 : 0.55 }]}
-          />
-          <Text style={[styles.actionText, item.has_cheered ? styles.actionTextActive : null]}>
-            {getCheersLabel(item.cheers_count)}
-          </Text>
-        </TouchableOpacity>
+        <Animated.View style={[styles.actionWrapper, { transform: [{ scale: cheersScale }] }]}>
+          <TouchableOpacity
+            style={[
+              styles.actionBtn,
+              item.has_cheered ? styles.actionBtnActive : null,
+              isOwnPost ? styles.actionBtnDisabled : null,
+            ]}
+            onPress={handleCheersPress}
+            disabled={isOwnPost || isCheering || !currentUserId}
+            activeOpacity={0.72}
+            accessibilityRole="button"
+            accessibilityLabel={`Give cheers to ${username}`}
+            accessibilityState={{ disabled: isOwnPost || isCheering || !currentUserId, selected: item.has_cheered }}
+          >
+            <Image
+              source={beervaLogo}
+              style={[styles.cheersLogo, { opacity: item.has_cheered ? 1 : 0.55 }]}
+            />
+            <Text style={[styles.actionText, item.has_cheered ? styles.actionTextActive : null]}>
+              {getCheersLabel(item.cheers_count)}
+            </Text>
+          </TouchableOpacity>
         </Animated.View>
         <TouchableOpacity
           style={styles.actionBtn}
@@ -509,6 +587,7 @@ export const FeedScreen = () => {
           beer_name,
           volume,
           quantity,
+          abv,
           comment,
           image_url,
           status,
@@ -637,7 +716,7 @@ export const FeedScreen = () => {
                 beer_name: session.beer_name,
                 volume: session.volume,
                 quantity: session.quantity,
-                abv: null,
+                abv: session.abv ?? null,
                 consumed_at: session.created_at,
               }]
             : []
@@ -1389,6 +1468,9 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: Platform.OS === 'web' ? 14 : 16,
     paddingBottom: Platform.OS === 'web' ? 24 : 16,
+    width: '100%',
+    maxWidth: Platform.OS === 'web' ? 680 : undefined,
+    alignSelf: 'center',
   },
   emptyContent: {
     flexGrow: 1,
@@ -1418,11 +1500,14 @@ const styles = StyleSheet.create({
     borderRadius: radius.xl,
     marginBottom: spacing.lg,
     overflow: 'hidden',
+    backgroundColor: colors.card,
     ...shadows.card,
   },
   cardHeader: {
     flexDirection: 'row',
-    padding: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
     alignItems: 'center',
   },
   profileLink: {
@@ -1474,13 +1559,27 @@ const styles = StyleSheet.create({
   },
   timeText: {
     ...typography.caption,
+    marginTop: 2,
+  },
+  imagePressable: {
+    marginHorizontal: spacing.md,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    backgroundColor: colors.cardMuted,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+  },
+  imagePressed: {
+    opacity: 0.94,
   },
   imageWrap: {
     position: 'relative',
+    aspectRatio: 4 / 5,
+    maxHeight: Platform.OS === 'web' ? 520 : undefined,
   },
   feedImage: {
     width: '100%',
-    height: Platform.OS === 'web' ? 236 : 250,
+    height: '100%',
     backgroundColor: colors.cardMuted,
   },
   cheerOverlay: {
@@ -1513,27 +1612,48 @@ const styles = StyleSheet.create({
     resizeMode: 'contain',
   },
   cardContent: {
-    padding: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderSoft,
+    gap: spacing.md,
   },
-  row: {
+  summaryRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    minWidth: 0,
+    gap: 8,
   },
-  locationText: {
-    ...typography.body,
-    color: colors.text,
+  summaryIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primarySoft,
   },
-  beerText: {
+  sessionSummary: {
+    gap: 8,
+  },
+  summaryLocationText: {
     ...typography.body,
     color: colors.text,
     flex: 1,
+    minWidth: 0,
+    fontWeight: '800',
+  },
+  summaryDrinkText: {
+    ...typography.body,
+    color: colors.text,
+    flex: 1,
+    minWidth: 0,
+    lineHeight: 22,
   },
   beerBreakdown: {
-    marginTop: 10,
-    paddingLeft: 26,
-    gap: 4,
+    paddingTop: 2,
+    paddingLeft: 32,
+    gap: 5,
   },
   beerBreakdownText: {
     ...typography.caption,
@@ -1542,46 +1662,51 @@ const styles = StyleSheet.create({
   editedText: {
     ...typography.caption,
     color: colors.textMuted,
-    marginTop: 10,
   },
   detailGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: spacing.sm,
+    gap: 8,
   },
   detailPill: {
-    flexGrow: 1,
-    flexBasis: '44%',
-    minHeight: 38,
+    flex: 1,
+    flexBasis: 94,
+    minHeight: 58,
     minWidth: 0,
-    borderRadius: radius.pill,
+    borderRadius: radius.md,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.borderSoft,
-    paddingHorizontal: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    justifyContent: 'center',
   },
-  detailText: {
-    ...typography.caption,
-    flex: 1,
-    color: colors.text,
-    fontWeight: '800',
-  },
-  drinkLine: {
+  detailLabel: {
     ...typography.caption,
     color: colors.textMuted,
-    marginTop: spacing.sm,
+    fontSize: 11,
+    textTransform: 'uppercase',
+    letterSpacing: 0,
+    fontWeight: '800',
+  },
+  detailValue: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: '900',
+    marginTop: 3,
+    fontVariant: ['tabular-nums'],
   },
   commentTop: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.md,
+    padding: 12,
+    borderRadius: radius.md,
+    backgroundColor: colors.cardMuted,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
   },
   commentText: {
     ...typography.body,
     color: colors.text,
-    lineHeight: 22,
+    lineHeight: 23,
   },
   engagementPanel: {
     paddingHorizontal: spacing.lg,
@@ -1624,25 +1749,27 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontWeight: '700',
   },
-  bold: {
-    fontWeight: '700',
-    color: colors.primary,
-  },
   cardFooter: {
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 8,
   },
+  actionWrapper: {
+    flex: 1,
+    minWidth: 0,
+  },
   actionBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     minHeight: 40,
     paddingHorizontal: 12,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: 'transparent',
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.surface,
   },
   actionBtnActive: {
     backgroundColor: colors.primarySoft,
