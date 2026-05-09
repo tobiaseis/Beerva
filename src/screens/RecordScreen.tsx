@@ -174,6 +174,7 @@ export const RecordScreen = ({ navigation }: any) => {
   const [ending, setEnding] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [pubSearching, setPubSearching] = useState(false);
+  const [pubSearchError, setPubSearchError] = useState<string | null>(null);
   const [locatingPubs, setLocatingPubs] = useState(false);
   const [addingPub, setAddingPub] = useState(false);
 
@@ -189,6 +190,7 @@ export const RecordScreen = ({ navigation }: any) => {
     if (activeSession || (cleanPub.length < 2 && !userLocation)) {
       setPubOptions([]);
       setPubSearching(false);
+      setPubSearchError(null);
       return;
     }
 
@@ -198,13 +200,16 @@ export const RecordScreen = ({ navigation }: any) => {
     if (cachedOptions) {
       setPubOptions(cachedOptions);
       setPubSearching(false);
+      setPubSearchError(null);
       return;
     }
 
     let cancelled = false;
     setPubSearching(true);
+    setPubSearchError(null);
 
     const delayDebounceFn = setTimeout(async () => {
+      let remoteError: string | null = null;
       try {
         const results = await searchCachedPubs(
           cleanPub,
@@ -226,13 +231,14 @@ export const RecordScreen = ({ navigation }: any) => {
         if (searchLocation && cleanPub.length >= PUB_SEARCH_MIN_LENGTH && results.length < 6) {
           const remoteKey = `${cleanPub.toLowerCase()}|${getLocationCacheKey(searchLocation)}`;
           if (!remotePubSearchCache.current.has(remoteKey)) {
-            remotePubSearchCache.current.add(remoteKey);
             try {
               const remoteResults = await fetchAndCacheNearbyPubs(searchLocation, cleanPub);
+              remotePubSearchCache.current.add(remoteKey);
               nextResults = mergePubRecords(remoteResults, results);
               pubSearchCache.current.clear();
-            } catch (remoteError) {
-              console.warn('Remote pub search unavailable:', remoteError);
+            } catch (err: any) {
+              remoteError = err?.message || 'Remote pub search unavailable.';
+              console.warn('Remote pub search unavailable:', err);
             }
           }
         }
@@ -240,8 +246,12 @@ export const RecordScreen = ({ navigation }: any) => {
         if (cancelled) return;
         pubSearchCache.current.set(cacheKey, nextResults);
         setPubOptions(nextResults);
+        setPubSearchError(nextResults.length === 0 && remoteError ? remoteError : null);
       } catch (e: any) {
-        if (!cancelled) console.error('Pub search error:', e);
+        if (!cancelled) {
+          console.error('Pub search error:', e);
+          setPubSearchError(e?.message || 'Pub search failed.');
+        }
       } finally {
         if (!cancelled) setPubSearching(false);
       }
@@ -826,6 +836,8 @@ export const RecordScreen = ({ navigation }: any) => {
               </View>
             ) : pubSearching ? (
               <Text style={styles.pubSearchHint}>Searching pubs...</Text>
+            ) : pubSearchError ? (
+              <Text style={styles.pubSearchError} numberOfLines={3}>{pubSearchError}</Text>
             ) : null}
             <AppButton label="Start Session" onPress={startSession} loading={starting} />
           </Surface>
@@ -1128,6 +1140,11 @@ const styles = StyleSheet.create({
   pubSearchHint: {
     ...typography.caption,
     color: colors.textMuted,
+    marginTop: -6,
+  },
+  pubSearchError: {
+    ...typography.caption,
+    color: colors.danger,
     marginTop: -6,
   },
   lockedPubSurface: {

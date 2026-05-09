@@ -6,13 +6,13 @@ const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const foursquareApiKey = Deno.env.get('FSQ_API_KEY') || Deno.env.get('FOURSQUARE_API_KEY') || '';
 const foursquareMonthlyCallLimit = Number(Deno.env.get('FSQ_MONTHLY_CALL_LIMIT') || '450');
 
-const FOURSQUARE_SEARCH_URL = 'https://api.foursquare.com/v3/places/search';
+const FOURSQUARE_SEARCH_URL = 'https://places-api.foursquare.com/places/search';
+const FOURSQUARE_API_VERSION = '2025-06-17';
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
 const DEFAULT_RADIUS_METERS = 10000;
 const MAX_RADIUS_METERS = 12000;
 const MAX_OSM_PUBS_TO_CACHE = 140;
 const EXTERNAL_FETCH_TIMEOUT_MS = 9000;
-const FOURSQUARE_BAR_CATEGORY_ID = '4bf58dd8d48988d116941735';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -52,8 +52,11 @@ type ProviderPubCandidate = OsmPubCandidate & {
 };
 
 type FoursquarePlace = {
+  fsq_place_id?: string;
   fsq_id?: string;
   name?: string;
+  latitude?: number;
+  longitude?: number;
   location?: {
     address?: string;
     locality?: string;
@@ -69,8 +72,10 @@ type FoursquarePlace = {
     };
   };
   categories?: Array<{
+    fsq_category_id?: string;
     id?: number | string;
     name?: string;
+    plural_name?: string;
   }>;
 };
 
@@ -170,48 +175,39 @@ const fetchFoursquarePubsNear = async (
     radius: String(radiusMeters),
     limit: '50',
     sort: 'DISTANCE',
-    fields: 'fsq_id,name,location,geocodes,categories',
+    fields: 'fsq_place_id,name,latitude,longitude,location,categories',
   });
 
   if (query.trim()) {
     params.set('query', query.trim());
   } else {
-    params.set('categories', FOURSQUARE_BAR_CATEGORY_ID);
+    params.set('query', 'bar');
   }
 
-  let response = await fetchWithTimeout(`${FOURSQUARE_SEARCH_URL}?${params.toString()}`, {
+  const response = await fetchWithTimeout(`${FOURSQUARE_SEARCH_URL}?${params.toString()}`, {
     headers: {
-      Authorization: foursquareApiKey,
-      'X-Places-Api-Version': '1970-01-01',
+      Authorization: `Bearer ${foursquareApiKey}`,
+      'X-Places-Api-Version': FOURSQUARE_API_VERSION,
       Accept: 'application/json',
     },
   });
 
-  if (!response.ok && !query.trim() && params.has('categories')) {
-    params.delete('categories');
-    params.set('query', 'bar');
-    response = await fetchWithTimeout(`${FOURSQUARE_SEARCH_URL}?${params.toString()}`, {
-      headers: {
-        Authorization: foursquareApiKey,
-        'X-Places-Api-Version': '1970-01-01',
-        Accept: 'application/json',
-      },
-    });
-  }
-
   if (!response.ok) {
     const body = await response.text().catch(() => '');
-    throw new Error(`Foursquare returned ${response.status}${body ? `: ${body.slice(0, 160)}` : ''}`);
+    throw new Error(`Foursquare returned ${response.status}${body ? `: ${body.slice(0, 200)}` : ''}`);
   }
 
   const payload = await response.json();
   const results = Array.isArray(payload?.results) ? payload.results as FoursquarePlace[] : [];
 
   return results
-    .filter((place) => place.fsq_id && place.name && isDrinkingPlace(place, query))
     .map((place) => {
-      const latitude = place.geocodes?.main?.latitude ?? null;
-      const longitude = place.geocodes?.main?.longitude ?? null;
+      const sourceId = place.fsq_place_id || place.fsq_id;
+      if (!sourceId || !place.name) return null;
+      if (!isDrinkingPlace(place, query)) return null;
+
+      const latitude = place.latitude ?? place.geocodes?.main?.latitude ?? null;
+      const longitude = place.longitude ?? place.geocodes?.main?.longitude ?? null;
       const city = place.location?.locality || null;
       const address = place.location?.formatted_address
         || [place.location?.address, place.location?.postcode].filter(Boolean).join(', ')
@@ -224,14 +220,15 @@ const fetchFoursquarePubsNear = async (
         latitude,
         longitude,
         source: 'foursquare' as const,
-        source_id: place.fsq_id!,
+        source_id: sourceId,
         source_tags: {
-          fsq_id: place.fsq_id!,
+          fsq_place_id: sourceId,
           categories: place.categories || [],
           location: place.location || {},
         },
-      };
-    });
+      } satisfies ProviderPubCandidate;
+    })
+    .filter((place): place is ProviderPubCandidate => place !== null);
 };
 
 const reserveFoursquareCall = async (admin: any) => {
