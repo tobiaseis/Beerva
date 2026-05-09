@@ -70,12 +70,57 @@ export const getPushPermissionStatus = (): 'unsupported' | NotificationPermissio
   return Notification.permission;
 };
 
+let serviceWorkerUpdateFlowAttached = false;
+
+const attachServiceWorkerUpdateFlow = (registration: ServiceWorkerRegistration) => {
+  if (Platform.OS !== 'web' || typeof navigator === 'undefined' || typeof window === 'undefined') {
+    return;
+  }
+
+  if (serviceWorkerUpdateFlowAttached) return;
+  serviceWorkerUpdateFlowAttached = true;
+
+  const hadControllerAtStartup = Boolean(navigator.serviceWorker.controller);
+  let reloadingForUpdate = false;
+
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadControllerAtStartup || reloadingForUpdate) return;
+    reloadingForUpdate = true;
+    window.location.reload();
+  });
+
+  registration.addEventListener('updatefound', () => {
+    const newWorker = registration.installing;
+    if (!newWorker) return;
+
+    newWorker.addEventListener('statechange', () => {
+      if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+        newWorker.postMessage({ type: 'SKIP_WAITING' });
+      }
+    });
+  });
+};
+
 export const registerServiceWorker = async (): Promise<ServiceWorkerRegistration | null> => {
   if (!isPushSupported()) return null;
   try {
     const existing = await navigator.serviceWorker.getRegistration('/');
-    if (existing) return existing;
-    const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    if (existing) {
+      attachServiceWorkerUpdateFlow(existing);
+      existing.update().catch((error) => {
+        console.warn('Service worker update check failed', error);
+      });
+      return await navigator.serviceWorker.ready.catch(() => existing);
+    }
+
+    const registration = await navigator.serviceWorker.register('/sw.js', {
+      scope: '/',
+      updateViaCache: 'none',
+    });
+    attachServiceWorkerUpdateFlow(registration);
+    registration.update().catch((error) => {
+      console.warn('Service worker update check failed', error);
+    });
     return await navigator.serviceWorker.ready.catch(() => registration);
   } catch (e) {
     console.error('Service worker registration failed', e);

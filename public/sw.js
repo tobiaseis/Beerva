@@ -1,6 +1,6 @@
 // Beerva Service Worker (Push + Offline Caching)
 
-const CACHE_NAME = 'beerva-cache-v3';
+const CACHE_NAME = 'beerva-cache-v4';
 const OFFLINE_URLS = [
   '/',
   '/index.html',
@@ -27,6 +27,12 @@ self.addEventListener('activate', (event) => {
       );
     }).then(() => self.clients.claim())
   );
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 // Helper: is this a static asset that should be cached?

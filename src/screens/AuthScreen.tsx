@@ -14,12 +14,11 @@ type AuthNotice = {
   message: string;
 };
 
-const getEmailRedirectTo = () => {
-  if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    return window.location.origin;
-  }
+const DEFAULT_SITE_URL = 'https://beerva.vercel.app';
 
-  return undefined;
+const getEmailRedirectTo = () => {
+  const siteUrl = process.env.EXPO_PUBLIC_SITE_URL?.trim().replace(/\/$/, '') || DEFAULT_SITE_URL;
+  return `${siteUrl}/auth-confirmed.html`;
 };
 
 export const AuthScreen = () => {
