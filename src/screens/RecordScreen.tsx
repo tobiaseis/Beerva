@@ -75,6 +75,7 @@ type FollowInRow = {
 
 const PUB_SEARCH_MIN_LENGTH = 3;
 const PUB_LOCATION_TIMEOUT_MS = 9000;
+const NEARBY_CACHE_MIN_RESULTS = 8;
 
 const getStartedLabel = (dateString?: string | null) => {
   if (!dateString) return 'Started recently';
@@ -437,18 +438,51 @@ export const RecordScreen = ({ navigation }: any) => {
   const seedNearbyPubs = useCallback(async (location: UserLocation, signal?: AbortSignal) => {
     const cacheKey = getLocationCacheKey(location);
     const query = pub.trim();
+    let cachedPubs: PubRecord[] = [];
 
-    if (nearbySeedKeys.current.has(cacheKey)) {
-      const cachedPubs = await searchCachedPubs(query, location, 24);
-      return { pubs: cachedPubs, lookupError: null, diagnostics: null };
+    try {
+      cachedPubs = await searchCachedPubs(query, location, 24);
+    } catch (error) {
+      console.warn('Cached nearby pub search failed:', error);
     }
 
     if (signal?.aborted) return { pubs: [] as PubRecord[], lookupError: null, diagnostics: null };
-    const remote = await fetchAndCacheNearbyPubs(location, query);
+
+    if (nearbySeedKeys.current.has(cacheKey)) {
+      return { pubs: cachedPubs, lookupError: null, diagnostics: null };
+    }
+
+    const hasUsefulCachedResults = query
+      ? cachedPubs.length >= NEARBY_CACHE_MIN_RESULTS
+      : cachedPubs.length > 0;
+
+    if (hasUsefulCachedResults) {
+      nearbySeedKeys.current.add(cacheKey);
+      return { pubs: cachedPubs, lookupError: null, diagnostics: null };
+    }
+
+    let remote;
+    try {
+      remote = await fetchAndCacheNearbyPubs(location, query);
+    } catch (error: any) {
+      if (cachedPubs.length > 0) {
+        console.warn('Live nearby pub refresh failed; using cached pubs:', error?.message || error);
+        return { pubs: cachedPubs, lookupError: null, diagnostics: null };
+      }
+
+      throw error;
+    }
+
     if (signal?.aborted) return { pubs: [] as PubRecord[], lookupError: null, diagnostics: null };
     nearbySeedKeys.current.add(cacheKey);
     pubSearchCache.current.clear();
-    return remote;
+    const mergedPubs = mergePubRecords(remote.pubs, cachedPubs);
+
+    return {
+      ...remote,
+      pubs: mergedPubs,
+      lookupError: mergedPubs.length > 0 ? null : remote.lookupError,
+    };
   }, [pub]);
 
   const useNearbyPubs = async () => {

@@ -276,7 +276,10 @@ Deno.serve(async (req) => {
     }
     console.log(`Nearby-pubs diagnostics: query="${query}" returned=${osmReturned} validated=${osmValidated} upsertOk=${upsertOk}`);
   } catch (error: any) {
-    lookupError = error?.message || 'OpenStreetMap lookup failed';
+    const errorMessage = error?.message || '';
+    lookupError = error?.name === 'AbortError' || /aborted/i.test(errorMessage)
+      ? 'OpenStreetMap refresh timed out. Showing saved pubs if available.'
+      : errorMessage || 'OpenStreetMap lookup failed';
     console.error('Nearby pubs lookup error:', lookupError);
   }
 
