@@ -54,7 +54,7 @@ const MainTabs = () => {
             paddingTop: 8,
             paddingBottom: 8,
             marginHorizontal: 12,
-            marginBottom: 12,
+            marginBottom: 8,
             borderRadius: radius.xl,
             borderWidth: 1,
             borderTopWidth: 1,
@@ -64,6 +64,9 @@ const MainTabs = () => {
           }
         : {
             backgroundColor: colors.surfaceRaised,
+            height: 64,
+            paddingTop: 6,
+            paddingBottom: 8,
             borderTopColor: colors.borderSoft,
             borderTopWidth: 1,
           },

@@ -1,12 +1,13 @@
 // Beerva Service Worker (Push + Offline Caching)
 
-const CACHE_NAME = 'beerva-cache-v4';
+const CACHE_NAME = 'beerva-cache-v5';
 const OFFLINE_URLS = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
   '/favicon-32.png',
   '/beerva-icon-192.png',
+  '/beerva-notification-badge.png',
 ];
 
 self.addEventListener('install', (event) => {
@@ -140,7 +141,7 @@ self.addEventListener('push', (event) => {
   const options = {
     body: payload.body || 'You have a new notification',
     icon: payload.icon || '/beerva-icon-192.png',
-    badge: payload.badge || '/beerva-icon-192.png',
+    badge: payload.badge || '/beerva-notification-badge.png',
     tag: payload.tag || 'beerva-notification',
     data: { url: payload.url || '/' },
     vibrate: [120, 60, 120],

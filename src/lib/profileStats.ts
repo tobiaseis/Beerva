@@ -37,6 +37,7 @@ export type TrophyDefinition = {
 
 export type ProfileSessionStatsRow = {
   session_id?: string | null;
+  pub_id?: string | null;
   pub_name?: string | null;
   beer_name?: string | null;
   volume?: string | null;
@@ -99,12 +100,16 @@ const isLateNightSession = (createdAt?: string | null) => {
   return hour >= 3 && hour < 6;
 };
 
+const getPubKey = (session: ProfileSessionStatsRow) => (
+  session.pub_id || session.pub_name?.trim().toLowerCase() || null
+);
+
 export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats => {
   if (sessions.length === 0) {
     return emptyStats;
   }
 
-  const uniquePubs = new Set(sessions.map((session) => session.pub_name).filter(Boolean)).size;
+  const uniquePubs = new Set(sessions.map(getPubKey).filter(Boolean)).size;
   const uniqueBeerSet = new Set<string>();
   const monthsLoggedSet = new Set<number>();
   const sessionsPerDay = new Map<string, Set<string>>();
@@ -125,6 +130,7 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
     const volumeMl = getVolumeMl(session.volume);
     const quantity = session.quantity || 1;
     const abv = session.abv || 0;
+    const pubKey = getPubKey(session);
     const sessionVolumeMl = volumeMl * quantity;
     const sessionPints = sessionVolumeMl / 568;
 
@@ -135,18 +141,18 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
     hasLateNightSession = hasLateNightSession || isLateNightSession(session.created_at);
 
     if (session.beer_name) uniqueBeerSet.add(session.beer_name);
-    if (session.pub_name) {
-      if (!sessionsPerPub.has(session.pub_name)) sessionsPerPub.set(session.pub_name, new Set());
-      sessionsPerPub.get(session.pub_name)!.add(sessionKey);
+    if (pubKey) {
+      if (!sessionsPerPub.has(pubKey)) sessionsPerPub.set(pubKey, new Set());
+      sessionsPerPub.get(pubKey)!.add(sessionKey);
     }
 
     const dayKey = localDateKey(session.created_at);
     if (dayKey) {
       if (!sessionsPerDay.has(dayKey)) sessionsPerDay.set(dayKey, new Set());
       sessionsPerDay.get(dayKey)!.add(sessionKey);
-      if (session.pub_name) {
+      if (pubKey) {
         if (!pubsPerDay.has(dayKey)) pubsPerDay.set(dayKey, new Set());
-        pubsPerDay.get(dayKey)!.add(session.pub_name);
+        pubsPerDay.get(dayKey)!.add(pubKey);
       }
       if (session.beer_name) {
         if (!beersPerDay.has(dayKey)) beersPerDay.set(dayKey, new Set());

@@ -77,11 +77,18 @@ export const ProfileStatsPanel = ({ stats }: ProfileStatsPanelProps) => {
       </Surface>
 
       <Surface style={styles.highScoreContainer}>
-        <View>
+        <View style={styles.highScoreCopy}>
           <Text style={styles.highScoreLabel}>Best Session</Text>
           <Text style={styles.highScoreHint}>Most true pints logged in one session</Text>
         </View>
-        <Text style={styles.highScoreValue}>{stats.maxSessionPints}</Text>
+        <Text
+          style={styles.highScoreValue}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.72}
+        >
+          {stats.maxSessionPints}
+        </Text>
       </Surface>
 
       <View style={styles.section}>
@@ -152,6 +159,11 @@ const styles = StyleSheet.create({
     marginTop: 12,
     padding: Platform.OS === 'web' ? 16 : 18,
   },
+  highScoreCopy: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 12,
+  },
   highScoreLabel: {
     ...typography.h3,
     color: colors.text,
@@ -163,9 +175,11 @@ const styles = StyleSheet.create({
   },
   highScoreValue: {
     fontFamily: 'Righteous_400Regular',
-    fontSize: 36,
+    fontSize: 30,
     color: colors.primary,
-    marginLeft: 16,
+    minWidth: 72,
+    maxWidth: 104,
+    textAlign: 'right',
   },
   section: {
     padding: Platform.OS === 'web' ? 16 : 20,

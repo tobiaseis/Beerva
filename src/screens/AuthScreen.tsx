@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, Platform, Image } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
@@ -15,6 +15,7 @@ type AuthNotice = {
 };
 
 const DEFAULT_SITE_URL = 'https://beerva.vercel.app';
+const beervaLogo = require('../../assets/beerva-header-logo.png');
 
 const getEmailRedirectTo = () => {
   const siteUrl = process.env.EXPO_PUBLIC_SITE_URL?.trim().replace(/\/$/, '') || DEFAULT_SITE_URL;
@@ -88,7 +89,7 @@ export const AuthScreen = () => {
   return (
     <View style={styles.container}>
       <View style={styles.logoContainer}>
-        <Beer color={colors.primary} size={64} />
+        <Image source={beervaLogo} style={styles.logoImage} />
         <Text style={styles.logoText}>Beerva</Text>
         <Text style={typography.bodyMuted}>The social network for beer lovers</Text>
       </View>
@@ -168,7 +169,12 @@ const styles = StyleSheet.create({
     fontFamily: 'Righteous_400Regular',
     fontSize: 48,
     color: colors.primary,
-    marginTop: 16,
+    marginTop: 10,
+  },
+  logoImage: {
+    width: 92,
+    height: 88,
+    resizeMode: 'contain',
   },
   formContainer: {
     padding: Platform.OS === 'web' ? spacing.lg : spacing.xl,

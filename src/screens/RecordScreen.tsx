@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Beer, Camera, Clock, Images, Lock, MapPin, MessageSquare, Trash2, X } from 'lucide-react-native';
+import { Beer, Camera, CheckCircle2, Clock, Images, LocateFixed, Lock, MapPin, MessageSquare, PlusCircle, Trash2, X } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 
 import { AppButton } from '../components/AppButton';
@@ -35,6 +35,18 @@ import {
   getLegacySessionBeerFields,
   SessionBeer,
 } from '../lib/sessionBeers';
+import {
+  cacheOsmPubs,
+  createUserPub,
+  fetchOsmPubsNear,
+  formatPubDetail,
+  formatPubLabel,
+  incrementPubUseCount,
+  labelsMatchPub,
+  PubRecord,
+  searchCachedPubs,
+  UserLocation,
+} from '../lib/pubDirectory';
 import { supabase } from '../lib/supabase';
 import { useFocused } from '../lib/useFocused';
 import { colors } from '../theme/colors';
@@ -46,6 +58,7 @@ const beervaLogo = require('../../assets/beerva-header-logo.png');
 type ActiveSession = {
   id: string;
   user_id: string;
+  pub_id: string | null;
   pub_name: string;
   status: 'active';
   comment: string | null;
@@ -62,6 +75,7 @@ type FollowInRow = {
 };
 
 const PUB_SEARCH_MIN_LENGTH = 3;
+const PUB_LOCATION_TIMEOUT_MS = 9000;
 
 const getStartedLabel = (dateString?: string | null) => {
   if (!dateString) return 'Started recently';
@@ -77,13 +91,44 @@ const createLegacyPlaceholder = () => ({
   abv: 0,
 });
 
+const getLocationCacheKey = (location: UserLocation) => (
+  `${location.latitude.toFixed(2)},${location.longitude.toFixed(2)}`
+);
+
+const getCurrentBrowserLocation = () => new Promise<UserLocation>((resolve, reject) => {
+  const geolocation = typeof navigator !== 'undefined' ? navigator.geolocation : null;
+  if (!geolocation) {
+    reject(new Error('Location is not available on this device.'));
+    return;
+  }
+
+  geolocation.getCurrentPosition(
+    (position) => {
+      resolve({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      });
+    },
+    (error) => {
+      reject(new Error(error.message || 'Could not get your location.'));
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: PUB_LOCATION_TIMEOUT_MS,
+      maximumAge: 1000 * 60 * 8,
+    }
+  );
+});
+
 export const RecordScreen = ({ navigation }: any) => {
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
   const [sessionBeers, setSessionBeers] = useState<SessionBeer[]>([]);
   const [beerDraft, setBeerDraft] = useState(createEmptyBeerDraft);
 
   const [pub, setPub] = useState('');
-  const [pubOptions, setPubOptions] = useState<string[]>([]);
+  const [pubOptions, setPubOptions] = useState<PubRecord[]>([]);
+  const [selectedPub, setSelectedPub] = useState<PubRecord | null>(null);
+  const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [comment, setComment] = useState('');
   const commentFocus = useFocused();
 
@@ -96,65 +141,58 @@ export const RecordScreen = ({ navigation }: any) => {
   const [addingBeer, setAddingBeer] = useState(false);
   const [ending, setEnding] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [pubSearching, setPubSearching] = useState(false);
+  const [locatingPubs, setLocatingPubs] = useState(false);
+  const [addingPub, setAddingPub] = useState(false);
 
-  const pubSearchCache = useRef<Map<string, string[]>>(new Map());
+  const pubSearchCache = useRef<Map<string, PubRecord[]>>(new Map());
   const pubSearchAbort = useRef<AbortController | null>(null);
+  const nearbySeedKeys = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const cleanPub = pub.trim();
 
-    if (activeSession || cleanPub.length < PUB_SEARCH_MIN_LENGTH) {
+    if (activeSession || (cleanPub.length < 2 && !userLocation)) {
       setPubOptions([]);
+      setPubSearching(false);
       return;
     }
 
-    const cacheKey = cleanPub.toLowerCase();
+    const locationKey = userLocation ? getLocationCacheKey(userLocation) : 'no-location';
+    const cacheKey = `${cleanPub.toLowerCase()}|${locationKey}`;
     const cachedOptions = pubSearchCache.current.get(cacheKey);
     if (cachedOptions) {
       setPubOptions(cachedOptions);
+      setPubSearching(false);
       return;
     }
 
-    pubSearchAbort.current?.abort();
-    const abortController = new AbortController();
-    pubSearchAbort.current = abortController;
+    let cancelled = false;
+    setPubSearching(true);
 
     const delayDebounceFn = setTimeout(async () => {
       try {
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(cleanPub + ' pub')}&format=json&addressdetails=1&countrycodes=dk&limit=8`, {
-          headers: { 'User-Agent': 'BeervaApp/1.0 (info@beerva.test)' },
-          signal: abortController.signal,
-        });
-        const data = await response.json();
+        const results = await searchCachedPubs(
+          cleanPub,
+          userLocation,
+          cleanPub.length >= PUB_SEARCH_MIN_LENGTH ? 20 : 12
+        );
 
-        if (abortController.signal.aborted) return;
-
-        if (!Array.isArray(data)) {
-          setPubOptions([]);
-          return;
-        }
-
-        const pubs: string[] = data.map((item: any) => {
-          const name = item.name || item.address?.pub || item.address?.bar || item.address?.restaurant;
-          const city = item.address?.city || item.address?.town || item.address?.village || '';
-          return name ? (city ? `${name}, ${city}` : name) : null;
-        }).filter(Boolean);
-
-        const uniquePubs = Array.from(new Set(pubs));
-        pubSearchCache.current.set(cacheKey, uniquePubs);
-        setPubOptions(uniquePubs);
+        if (cancelled) return;
+        pubSearchCache.current.set(cacheKey, results);
+        setPubOptions(results);
       } catch (e: any) {
-        if (e?.name !== 'AbortError') {
-          console.error('Nominatim error:', e);
-        }
+        if (!cancelled) console.error('Pub search error:', e);
+      } finally {
+        if (!cancelled) setPubSearching(false);
       }
-    }, 600);
+    }, 320);
 
     return () => {
+      cancelled = true;
       clearTimeout(delayDebounceFn);
-      abortController.abort();
     };
-  }, [activeSession, pub]);
+  }, [activeSession, pub, userLocation]);
 
   const resetActiveState = useCallback(() => {
     setActiveSession(null);
@@ -163,6 +201,7 @@ export const RecordScreen = ({ navigation }: any) => {
     setComment('');
     setSelectedImage(null);
     setExistingImageUrl(null);
+    setSelectedPub(null);
   }, []);
 
   const fetchSessionBeers = useCallback(async (sessionId: string) => {
@@ -187,7 +226,7 @@ export const RecordScreen = ({ navigation }: any) => {
 
       const { data, error } = await supabase
         .from('sessions')
-        .select('id, user_id, pub_name, status, comment, image_url, started_at')
+        .select('id, user_id, pub_id, pub_name, status, comment, image_url, started_at')
         .eq('user_id', user.id)
         .eq('status', 'active')
         .order('started_at', { ascending: false })
@@ -203,6 +242,7 @@ export const RecordScreen = ({ navigation }: any) => {
 
       setActiveSession(session);
       setPub('');
+      setSelectedPub(null);
       setComment(session.comment || '');
       setExistingImageUrl(session.image_url || null);
       setSelectedImage(null);
@@ -274,6 +314,85 @@ export const RecordScreen = ({ navigation }: any) => {
     }
   };
 
+  const seedNearbyPubs = useCallback(async (location: UserLocation, signal?: AbortSignal) => {
+    const cacheKey = getLocationCacheKey(location);
+    if (nearbySeedKeys.current.has(cacheKey)) return 0;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not logged in!');
+
+    const osmPubs = await fetchOsmPubsNear(location, '', signal);
+    await cacheOsmPubs(osmPubs, user.id);
+    nearbySeedKeys.current.add(cacheKey);
+    pubSearchCache.current.clear();
+    return osmPubs.length;
+  }, []);
+
+  const useNearbyPubs = async () => {
+    if (locatingPubs) return;
+
+    setLocatingPubs(true);
+    pubSearchAbort.current?.abort();
+    const abortController = new AbortController();
+    pubSearchAbort.current = abortController;
+
+    try {
+      const location = await getCurrentBrowserLocation();
+      setUserLocation(location);
+      await seedNearbyPubs(location, abortController.signal);
+
+      const nearbyPubs = await searchCachedPubs(pub.trim(), location, 20);
+      setPubOptions(nearbyPubs);
+      hapticSuccess();
+
+      if (nearbyPubs.length === 0) {
+        showAlert('No pubs nearby yet', 'Type the pub name and Beerva will add it.');
+      }
+    } catch (error: any) {
+      if (error?.name !== 'AbortError') {
+        hapticError();
+        showAlert('Nearby search unavailable', error?.message || 'Type the pub name and Beerva will add it.');
+      }
+    } finally {
+      setLocatingPubs(false);
+    }
+  };
+
+  const selectPubRecord = (pubRecord: PubRecord) => {
+    setSelectedPub(pubRecord);
+    setPub(formatPubLabel(pubRecord));
+  };
+
+  const selectPubLabel = (label: string) => {
+    const matchingPub = pubOptions.find((option) => labelsMatchPub(label, option));
+    if (matchingPub) {
+      selectPubRecord(matchingPub);
+    } else {
+      setSelectedPub(null);
+    }
+  };
+
+  const addTypedPub = async () => {
+    const cleanPub = pub.trim();
+    if (cleanPub.length < 2 || addingPub) return;
+
+    setAddingPub(true);
+    try {
+      const pubRecord = await createUserPub(cleanPub, userLocation);
+      setPubOptions((previous) => [
+        pubRecord,
+        ...previous.filter((item) => item.id !== pubRecord.id),
+      ]);
+      selectPubRecord(pubRecord);
+      hapticSuccess();
+    } catch (error: any) {
+      hapticError();
+      showAlert('Could not add pub', error?.message || 'Please try again.');
+    } finally {
+      setAddingPub(false);
+    }
+  };
+
   const startSession = async () => {
     const trimmedPub = pub.trim();
     if (!trimmedPub) {
@@ -288,19 +407,23 @@ export const RecordScreen = ({ navigation }: any) => {
 
       await ensureProfile(user);
 
+      const matchingPub = selectedPub || pubOptions.find((option) => labelsMatchPub(trimmedPub, option));
+      const pubRecord = matchingPub || await createUserPub(trimmedPub, userLocation);
+      const sessionPubName = pubRecord ? formatPubLabel(pubRecord) : trimmedPub;
       const now = new Date().toISOString();
       const { data, error } = await supabase
         .from('sessions')
         .insert({
           user_id: user.id,
-          pub_name: trimmedPub,
+          pub_id: pubRecord?.id || null,
+          pub_name: sessionPubName,
           status: 'active',
           started_at: now,
           comment: null,
           image_url: null,
           ...createLegacyPlaceholder(),
         })
-        .select('id, user_id, pub_name, status, comment, image_url, started_at')
+        .select('id, user_id, pub_id, pub_name, status, comment, image_url, started_at')
         .single();
 
       if (error) throw error;
@@ -312,6 +435,7 @@ export const RecordScreen = ({ navigation }: any) => {
       setSelectedImage(null);
       setExistingImageUrl(null);
       setPub('');
+      setSelectedPub(null);
       hapticSuccess();
       notifyMatesSessionStarted(session.id, user.id);
       showAlert('Session started', 'Your mates have been notified. Add beers as you drink them.');
@@ -494,6 +618,7 @@ export const RecordScreen = ({ navigation }: any) => {
         deletePublicImageUrl('session_images', existingImageUrl);
       }
 
+      incrementPubUseCount(activeSession.pub_id);
       resetActiveState();
       setPub('');
       hapticSuccess();
@@ -540,6 +665,29 @@ export const RecordScreen = ({ navigation }: any) => {
   };
 
   const previewImageUri = selectedImage?.uri || existingImageUrl;
+  const cleanPub = pub.trim();
+  const pubOptionLabels = pubOptions.map(formatPubLabel);
+  const hasExactPubOption = cleanPub.length >= 2 && pubOptions.some((option) => labelsMatchPub(cleanPub, option));
+  const nearbyQuickPubs = !cleanPub && userLocation ? pubOptions.slice(0, 4) : [];
+  const selectedPubDetail = selectedPub ? formatPubDetail(selectedPub) : '';
+  const addPubFooter = cleanPub.length >= 2 && !selectedPub && !hasExactPubOption ? (
+    <TouchableOpacity
+      style={styles.addPubFooter}
+      onPress={addTypedPub}
+      disabled={addingPub}
+      activeOpacity={0.76}
+    >
+      <View style={styles.addPubIcon}>
+        <PlusCircle color={colors.primary} size={19} />
+      </View>
+      <View style={styles.addPubText}>
+        <Text style={styles.addPubTitle} numberOfLines={1}>
+          {addingPub ? 'Adding pub...' : `Add "${cleanPub}"`}
+        </Text>
+        <Text style={styles.addPubHint}>New Beerva pub</Text>
+      </View>
+    </TouchableOpacity>
+  ) : null;
 
   if (loadingActive) {
     return (
@@ -564,14 +712,61 @@ export const RecordScreen = ({ navigation }: any) => {
       <View style={styles.content}>
         {!activeSession ? (
           <Surface style={styles.formSurface}>
-            <Text style={styles.introTitle}>Where are you drinking?</Text>
+            <View style={styles.introRow}>
+              <Text style={styles.introTitle}>Where are you drinking?</Text>
+              <TouchableOpacity
+                style={[styles.nearbyButton, locatingPubs ? styles.nearbyButtonActive : null]}
+                onPress={useNearbyPubs}
+                disabled={locatingPubs}
+                activeOpacity={0.76}
+              >
+                {locatingPubs ? (
+                  <ActivityIndicator color={colors.primary} size="small" />
+                ) : (
+                  <LocateFixed color={colors.primary} size={17} />
+                )}
+                <Text style={styles.nearbyButtonText}>{locatingPubs ? 'Looking' : 'Nearby'}</Text>
+              </TouchableOpacity>
+            </View>
             <AutocompleteInput
               value={pub}
-              onChangeText={setPub}
-              data={pubOptions.length > 0 ? pubOptions : [pub]}
+              onChangeText={(text) => {
+                setPub(text);
+                setSelectedPub(null);
+              }}
+              onSelectItem={selectPubLabel}
+              data={pubOptionLabels}
               placeholder="Search pub"
               icon={<MapPin color={colors.textMuted} size={20} />}
+              footer={addPubFooter}
             />
+            {nearbyQuickPubs.length > 0 ? (
+              <View style={styles.quickPubList}>
+                {nearbyQuickPubs.map((pubRecord) => (
+                  <TouchableOpacity
+                    key={pubRecord.id}
+                    style={styles.quickPubChip}
+                    onPress={() => selectPubRecord(pubRecord)}
+                    activeOpacity={0.76}
+                  >
+                    <Text style={styles.quickPubText} numberOfLines={1}>{formatPubLabel(pubRecord)}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : null}
+            {selectedPub ? (
+              <View style={styles.selectedPubBox}>
+                <CheckCircle2 color={colors.success} size={18} />
+                <View style={styles.selectedPubText}>
+                  <Text style={styles.selectedPubName} numberOfLines={1}>{formatPubLabel(selectedPub)}</Text>
+                  {selectedPubDetail ? (
+                    <Text style={styles.selectedPubDetail} numberOfLines={1}>{selectedPubDetail}</Text>
+                  ) : null}
+                </View>
+              </View>
+            ) : pubSearching ? (
+              <Text style={styles.pubSearchHint}>Searching pubs...</Text>
+            ) : null}
             <AppButton label="Start Session" onPress={startSession} loading={starting} />
           </Surface>
         ) : (
@@ -758,8 +953,122 @@ const styles = StyleSheet.create({
   formSurface: {
     gap: spacing.sm,
   },
+  introRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
   introTitle: {
     ...typography.h3,
+    flex: 1,
+    minWidth: 0,
+  },
+  nearbyButton: {
+    minHeight: 38,
+    borderRadius: radius.pill,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    backgroundColor: colors.primarySoft,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+  },
+  nearbyButtonActive: {
+    opacity: 0.78,
+  },
+  nearbyButtonText: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: '800',
+  },
+  addPubFooter: {
+    minHeight: 62,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSoft,
+    backgroundColor: colors.surface,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+  },
+  addPubIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primarySoft,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+  },
+  addPubText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  addPubTitle: {
+    ...typography.body,
+    fontWeight: '800',
+  },
+  addPubHint: {
+    ...typography.caption,
+    marginTop: 2,
+  },
+  quickPubList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: -8,
+    marginBottom: 4,
+  },
+  quickPubChip: {
+    maxWidth: '100%',
+    minHeight: 36,
+    borderRadius: radius.pill,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+  },
+  quickPubText: {
+    ...typography.caption,
+    color: colors.text,
+    fontWeight: '800',
+  },
+  selectedPubBox: {
+    minHeight: 52,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.30)',
+    backgroundColor: colors.successSoft,
+    paddingHorizontal: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: -6,
+    marginBottom: 4,
+  },
+  selectedPubText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  selectedPubName: {
+    ...typography.body,
+    fontWeight: '800',
+  },
+  selectedPubDetail: {
+    ...typography.caption,
+    marginTop: 2,
+  },
+  pubSearchHint: {
+    ...typography.caption,
+    color: colors.textMuted,
+    marginTop: -6,
   },
   lockedPubSurface: {
     gap: spacing.md,

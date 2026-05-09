@@ -7,12 +7,14 @@ import { radius, shadows } from '../theme/layout';
 interface Props {
   value: string;
   onChangeText: (text: string) => void;
+  onSelectItem?: (item: string) => void;
   data: string[];
   placeholder: string;
   icon?: React.ReactNode;
+  footer?: React.ReactNode;
 }
 
-export const AutocompleteInput = ({ value, onChangeText, data, placeholder, icon }: Props) => {
+export const AutocompleteInput = ({ value, onChangeText, onSelectItem, data, placeholder, icon, footer }: Props) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const [focused, setFocused] = useState(false);
   const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -54,9 +56,12 @@ export const AutocompleteInput = ({ value, onChangeText, data, placeholder, icon
     if (scrollingDropdownRef.current) return;
 
     onChangeText(item);
+    onSelectItem?.(item);
     setShowDropdown(false);
     Keyboard.dismiss();
   };
+
+  const hasDropdownContent = filteredData.length > 0 || Boolean(footer);
 
   return (
     <View style={[styles.container, { zIndex: showDropdown ? 100 : 1 }]}>
@@ -82,7 +87,7 @@ export const AutocompleteInput = ({ value, onChangeText, data, placeholder, icon
         />
       </View>
       
-      {showDropdown && filteredData.length > 0 && (
+      {showDropdown && hasDropdownContent && (
         <View style={styles.dropdown}>
           <ScrollView
             keyboardShouldPersistTaps="always"
@@ -112,6 +117,17 @@ export const AutocompleteInput = ({ value, onChangeText, data, placeholder, icon
                 <Text style={styles.dropdownText}>{item}</Text>
               </Pressable>
             ))}
+            {footer ? (
+              <View
+                onTouchStart={() => {
+                  touchingDropdownRef.current = true;
+                }}
+                onTouchEnd={releaseDropdownTouch}
+                onTouchCancel={releaseDropdownTouch}
+              >
+                {footer}
+              </View>
+            ) : null}
           </ScrollView>
         </View>
       )}

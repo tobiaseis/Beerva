@@ -133,7 +133,7 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
           .maybeSingle(),
         supabase
           .from('sessions')
-          .select('id, pub_name, beer_name, volume, quantity, abv, comment, image_url, status, published_at, created_at', { count: 'exact' })
+          .select('id, pub_id, pub_name, beer_name, volume, quantity, abv, comment, image_url, status, published_at, created_at', { count: 'exact' })
           .eq('user_id', profileId)
           .eq('status', 'published')
           .order('published_at', { ascending: false, nullsFirst: false })

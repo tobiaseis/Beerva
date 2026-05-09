@@ -30,6 +30,7 @@ type FollowRow = {
 type FeedSession = {
   id: string;
   user_id: string;
+  pub_id?: string | null;
   pub_name: string;
   beer_name: string;
   volume: string | null;
@@ -407,6 +408,7 @@ export const FeedScreen = () => {
         .select(`
           id,
           user_id,
+          pub_id,
           pub_name,
           beer_name,
           volume,

@@ -51,7 +51,7 @@ const fetchStatsFallback = async (userId: string): Promise<Stats> => {
       quantity,
       abv,
       consumed_at,
-      sessions!inner(user_id, pub_name, status, started_at, published_at, created_at)
+      sessions!inner(user_id, pub_id, pub_name, status, started_at, published_at, created_at)
     `)
     .eq('sessions.user_id', userId)
     .eq('sessions.status', 'published');
@@ -59,6 +59,7 @@ const fetchStatsFallback = async (userId: string): Promise<Stats> => {
   if (!error) {
     const rows = ((data || []) as any[]).map((beer) => ({
       session_id: beer.session_id,
+      pub_id: beer.sessions?.pub_id,
       pub_name: beer.sessions?.pub_name,
       beer_name: beer.beer_name,
       volume: beer.volume,
@@ -74,12 +75,13 @@ const fetchStatsFallback = async (userId: string): Promise<Stats> => {
 
   const legacy = await supabase
     .from('sessions')
-    .select('id, pub_name, beer_name, volume, quantity, abv, created_at')
+    .select('id, pub_id, pub_name, beer_name, volume, quantity, abv, created_at')
     .eq('user_id', userId);
 
   if (legacy.error) throw legacy.error;
   return calculateStats(((legacy.data || []) as any[]).map((session) => ({
     session_id: session.id,
+    pub_id: session.pub_id,
     pub_name: session.pub_name,
     beer_name: session.beer_name,
     volume: session.volume,
