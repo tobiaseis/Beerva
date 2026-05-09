@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, FlatList, Image, ActivityIndicator, RefreshControl, TouchableOpacity, Pressable, Alert, Platform, Animated, Modal, TextInput, KeyboardAvoidingView } from 'react-native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
-import { Edit3, MapPin, Trash2, Bell, AlertTriangle, RefreshCw, MessageCircle, Send, X } from 'lucide-react-native';
+import { ChevronDown, ChevronUp, Edit3, MapPin, Trash2, Bell, AlertTriangle, RefreshCw, MessageCircle, Send, X } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { confirmDestructive } from '../lib/dialogs';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -236,6 +236,7 @@ const FeedSessionCard = React.memo(({
   const beerCount = getSessionBeerCount(item);
   const truePints = getSessionTruePints(item);
   const averageAbv = getSessionAverageAbv(item);
+  const [statsExpanded, setStatsExpanded] = React.useState(false);
   const cheersScale = React.useRef(new Animated.Value(1)).current;
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
   const overlayScale = React.useRef(new Animated.Value(0.6)).current;
@@ -264,6 +265,11 @@ const FeedSessionCard = React.memo(({
   }, [cheersScale, item, onToggleCheers]);
 
   const handleCheersPress = triggerCheers;
+
+  const toggleStats = React.useCallback(() => {
+    hapticLight();
+    setStatsExpanded((previous) => !previous);
+  }, []);
 
   const handleImagePress = React.useCallback(() => {
     const now = Date.now();
@@ -373,32 +379,52 @@ const FeedSessionCard = React.memo(({
           </View>
         </View>
 
-        <View style={styles.detailGrid}>
-          <View style={styles.detailPill}>
-            <Text style={styles.detailLabel}>Beers</Text>
-            <Text style={styles.detailValue}>{beerCount}</Text>
-          </View>
-          <View style={styles.detailPill}>
-            <Text style={styles.detailLabel}>True Pints</Text>
-            <Text style={styles.detailValue}>{formatStatNumber(truePints)}</Text>
-          </View>
-          {averageAbv !== null ? (
-            <View style={styles.detailPill}>
-              <Text style={styles.detailLabel}>Avg ABV</Text>
-              <Text style={styles.detailValue}>{formatStatNumber(averageAbv)}%</Text>
-            </View>
-          ) : null}
-        </View>
+        <TouchableOpacity
+          style={styles.statsToggle}
+          onPress={toggleStats}
+          activeOpacity={0.74}
+          accessibilityRole="button"
+          accessibilityLabel={statsExpanded ? 'Hide session stats' : 'Show more session stats'}
+          accessibilityState={{ expanded: statsExpanded }}
+        >
+          <Text style={styles.statsToggleText}>{statsExpanded ? 'Hide stats' : 'More stats'}</Text>
+          {statsExpanded ? (
+            <ChevronUp color={colors.primary} size={16} />
+          ) : (
+            <ChevronDown color={colors.primary} size={16} />
+          )}
+        </TouchableOpacity>
 
-        {item.session_beers.length > 1 ? (
-          <View style={styles.beerBreakdown}>
-            {item.session_beers.map((beer) => (
-              <Text key={beer.id || `${beer.beer_name}-${beer.consumed_at}`} style={styles.beerBreakdownText}>
-                {getBeerLine(beer)}
-              </Text>
-            ))}
+        {statsExpanded ? (
+          <View style={styles.statsPanel}>
+            <View style={styles.detailGrid}>
+              <View style={styles.detailPill}>
+                <Text style={styles.detailLabel}>Beers</Text>
+                <Text style={styles.detailValue}>{beerCount}</Text>
+              </View>
+              <View style={styles.detailPill}>
+                <Text style={styles.detailLabel}>True Pints</Text>
+                <Text style={styles.detailValue}>{formatStatNumber(truePints)}</Text>
+              </View>
+              {averageAbv !== null ? (
+                <View style={styles.detailPill}>
+                  <Text style={styles.detailLabel}>Avg ABV</Text>
+                  <Text style={styles.detailValue}>{formatStatNumber(averageAbv)}%</Text>
+                </View>
+              ) : null}
+            </View>
+            {item.session_beers.length > 1 ? (
+              <View style={styles.beerBreakdown}>
+                {item.session_beers.map((beer) => (
+                  <Text key={beer.id || `${beer.beer_name}-${beer.consumed_at}`} style={styles.beerBreakdownText}>
+                    {getBeerLine(beer)}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
           </View>
         ) : null}
+
         {item.edited_at ? (
           <Text style={styles.editedText}>Edited</Text>
         ) : null}
@@ -1669,6 +1695,26 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
   },
+  statsToggle: {
+    minHeight: 34,
+    alignSelf: 'flex-start',
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  statsToggleText: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: '900',
+  },
+  statsPanel: {
+    gap: spacing.sm,
+  },
   detailPill: {
     flex: 1,
     flexBasis: 94,
@@ -1698,15 +1744,14 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   commentTop: {
-    padding: 12,
-    borderRadius: radius.md,
-    backgroundColor: colors.cardMuted,
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
+    paddingHorizontal: spacing.lg,
+    paddingTop: 2,
+    paddingBottom: spacing.md,
   },
   commentText: {
     ...typography.body,
     color: colors.text,
+    fontSize: 16,
     lineHeight: 23,
   },
   engagementPanel: {
