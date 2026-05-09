@@ -58,12 +58,52 @@ area["ISO3166-1"="${countryCode}"]->.country;
 out center tags;
 `.trim();
 
-const toAddress = (tags: Record<string, string>) => {
-  const street = tags['addr:street'];
-  const houseNumber = tags['addr:housenumber'];
-  const postcode = tags['addr:postcode'];
+const firstTag = (tags: Record<string, string>, keys: string[]) => {
+  for (const key of keys) {
+    const value = tags[key]?.trim();
+    if (value) return value;
+  }
+  return null;
+};
+
+const toCity = (tags: Record<string, string>) => {
+  const directCity = firstTag(tags, [
+    'addr:city',
+    'addr:town',
+    'addr:village',
+    'addr:hamlet',
+    'addr:municipality',
+    'is_in:city',
+    'is_in:town',
+    'is_in:village',
+  ]);
+  if (directCity) return directCity;
+
+  const isIn = tags.is_in || '';
+  const fallback = isIn
+    .split(/[,;]/)
+    .map((part) => part.trim())
+    .find((part) => (
+      part
+      && !['denmark', 'danmark'].includes(part.toLowerCase())
+      && !part.toLowerCase().endsWith(' region')
+      && !part.toLowerCase().endsWith(' kommune')
+      && !part.toLowerCase().endsWith(' municipality')
+    ));
+
+  return fallback || null;
+};
+
+const toAddress = (tags: Record<string, string>, city?: string | null) => {
+  const fullAddress = firstTag(tags, ['addr:full']);
+  if (fullAddress) return fullAddress;
+
+  const street = firstTag(tags, ['addr:street', 'addr:place']);
+  const houseNumber = firstTag(tags, ['addr:housenumber']);
+  const postcode = firstTag(tags, ['addr:postcode']);
   const streetLine = [street, houseNumber].filter(Boolean).join(' ');
-  return [streetLine, postcode].filter(Boolean).join(', ') || null;
+  const postalLine = postcode ? [postcode, city].filter(Boolean).join(' ') : null;
+  return [streetLine, postalLine].filter(Boolean).join(', ') || null;
 };
 
 Deno.serve(async (req) => {
@@ -78,7 +118,7 @@ Deno.serve(async (req) => {
   const authHeader = req.headers.get('authorization') || '';
   const presentedToken = authHeader.replace(/^Bearer\s+/i, '').trim();
   if (!presentedToken || jwtRole(presentedToken) !== 'service_role') {
-    return jsonResponse({ error: 'Unauthorized — service_role JWT required.' }, 401);
+    return jsonResponse({ error: 'Unauthorized - service_role JWT required.' }, 401);
   }
 
   let body: any = {};
@@ -138,10 +178,11 @@ Deno.serve(async (req) => {
     if (latitude === null || longitude === null) continue;
 
     const sourceId = `${element.type}/${element.id}`;
+    const city = toCity(tags);
     rowsByKey.set(sourceId, {
       name: rawName,
-      city: tags['addr:city'] || tags['addr:town'] || tags['is_in:city'] || tags['addr:municipality'] || null,
-      address: toAddress(tags),
+      city,
+      address: toAddress(tags, city),
       latitude,
       longitude,
       source: 'osm',
@@ -159,15 +200,14 @@ Deno.serve(async (req) => {
   const failedChunks: { index: number; error: string }[] = [];
   for (let i = 0; i < rows.length; i += UPSERT_CHUNK) {
     const chunk = rows.slice(i, i + UPSERT_CHUNK);
-    const { error: upsertError } = await admin
-      .from('pubs')
-      .upsert(chunk, { onConflict: 'source,source_id', ignoreDuplicates: true });
+    const { data: affectedRows, error: upsertError } = await admin
+      .rpc('upsert_osm_pubs', { pub_rows: chunk });
 
     if (upsertError) {
       failedChunks.push({ index: i / UPSERT_CHUNK, error: upsertError.message });
       console.error(`Seed chunk ${i / UPSERT_CHUNK} failed:`, upsertError.message);
     } else {
-      inserted += chunk.length;
+      inserted += Number(affectedRows || 0);
     }
   }
 
@@ -175,7 +215,7 @@ Deno.serve(async (req) => {
     countryCode,
     overpass_returned: elements.length,
     candidates: rows.length,
-    upserted_chunks: inserted,
+    upserted_rows: inserted,
     failed_chunks: failedChunks,
   });
 });

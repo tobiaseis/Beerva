@@ -51,8 +51,6 @@ const jsonResponse = (body: unknown, status = 200) => new Response(JSON.stringif
   },
 });
 
-const normalize = (value: string) => value.trim().toLowerCase();
-
 const fetchWithTimeout = async (url: string, init: RequestInit = {}) => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), EXTERNAL_FETCH_TIMEOUT_MS);
@@ -67,13 +65,52 @@ const fetchWithTimeout = async (url: string, init: RequestInit = {}) => {
   }
 };
 
-const toAddress = (tags: Record<string, string>) => {
-  const street = tags['addr:street'];
-  const houseNumber = tags['addr:housenumber'];
-  const postcode = tags['addr:postcode'];
+const firstTag = (tags: Record<string, string>, keys: string[]) => {
+  for (const key of keys) {
+    const value = tags[key]?.trim();
+    if (value) return value;
+  }
+  return null;
+};
+
+const toCity = (tags: Record<string, string>) => {
+  const directCity = firstTag(tags, [
+    'addr:city',
+    'addr:town',
+    'addr:village',
+    'addr:hamlet',
+    'addr:municipality',
+    'is_in:city',
+    'is_in:town',
+    'is_in:village',
+  ]);
+  if (directCity) return directCity;
+
+  const fallback = (tags.is_in || '')
+    .split(/[,;]/)
+    .map((part) => part.trim())
+    .find((part) => (
+      part
+      && !['denmark', 'danmark'].includes(part.toLowerCase())
+      && !part.toLowerCase().endsWith(' region')
+      && !part.toLowerCase().endsWith(' kommune')
+      && !part.toLowerCase().endsWith(' municipality')
+    ));
+
+  return fallback || null;
+};
+
+const toAddress = (tags: Record<string, string>, city?: string | null) => {
+  const fullAddress = firstTag(tags, ['addr:full']);
+  if (fullAddress) return fullAddress;
+
+  const street = firstTag(tags, ['addr:street', 'addr:place']);
+  const houseNumber = firstTag(tags, ['addr:housenumber']);
+  const postcode = firstTag(tags, ['addr:postcode']);
 
   const streetLine = [street, houseNumber].filter(Boolean).join(' ');
-  return [streetLine, postcode].filter(Boolean).join(', ') || null;
+  const postalLine = postcode ? [postcode, city].filter(Boolean).join(' ') : null;
+  return [streetLine, postalLine].filter(Boolean).join(', ') || null;
 };
 
 const buildOverpassQuery = (location: UserLocation, radiusMeters: number) => {
@@ -134,10 +171,11 @@ const fetchOsmPubsNear = async (
     }
 
     const sourceId = `${element.type}/${element.id}`;
+    const city = toCity(tags);
     const candidate: OsmPubCandidate = {
       name,
-      city: tags['addr:city'] || tags['addr:town'] || tags['is_in:city'] || tags['addr:municipality'] || null,
-      address: toAddress(tags),
+      city,
+      address: toAddress(tags, city),
       latitude,
       longitude,
       source_id: sourceId,
@@ -224,9 +262,8 @@ Deno.serve(async (req) => {
         created_by: user.id,
       }));
 
-      const { error: upsertError } = await admin
-        .from('pubs')
-        .upsert(rows, { onConflict: 'source,source_id', ignoreDuplicates: true });
+      const { data: affectedRows, error: upsertError } = await admin
+        .rpc('upsert_osm_pubs', { pub_rows: rows });
 
       if (upsertError) {
         console.error('OSM pub upsert failed:', upsertError);
@@ -234,6 +271,7 @@ Deno.serve(async (req) => {
         cached = 0;
       } else {
         upsertOk = true;
+        cached = Number(affectedRows || validPubs.length);
       }
     }
     console.log(`Nearby-pubs diagnostics: query="${query}" returned=${osmReturned} validated=${osmValidated} upsertOk=${upsertOk}`);
