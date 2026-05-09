@@ -893,6 +893,8 @@ export const RecordScreen = ({ navigation }: any) => {
               <Text style={styles.pubSearchHint}>Searching pubs...</Text>
             ) : pubSearchError ? (
               <Text style={styles.pubSearchError} numberOfLines={3}>{pubSearchError}</Text>
+            ) : (cleanPub.length >= 2 && pubOptions.length === 0 && !userLocation && !hasExactPubOption) ? (
+              <Text style={styles.pubSearchHint}>No match found. Tap "Nearby" for location-based discovery, or add the pub below.</Text>
             ) : null}
             <AppButton label="Start Session" onPress={startSession} loading={starting} />
           </Surface>
