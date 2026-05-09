@@ -41,7 +41,7 @@ type OverpassElement = {
 };
 
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
-const OVERPASS_RADIUS_METERS = 6500;
+const OVERPASS_RADIUS_METERS = 10000;
 const MAX_OSM_PUBS_TO_CACHE = 120;
 
 const normalize = (value: string) => value.trim().toLowerCase();
@@ -90,6 +90,29 @@ export const searchCachedPubs = async (
   return (data || []) as PubRecord[];
 };
 
+export const fetchAndCacheNearbyPubs = async (
+  location: UserLocation,
+  query = ''
+): Promise<PubRecord[]> => {
+  const { data, error } = await supabase.functions.invoke('nearby-pubs', {
+    body: {
+      latitude: location.latitude,
+      longitude: location.longitude,
+      query,
+    },
+  });
+
+  if (error) {
+    throw new Error(error.message || 'Nearby pub lookup failed.');
+  }
+
+  if (data?.error) {
+    throw new Error(data.error);
+  }
+
+  return ((data?.pubs || []) as PubRecord[]);
+};
+
 const toAddress = (tags: Record<string, string>) => {
   const street = tags['addr:street'];
   const houseNumber = tags['addr:housenumber'];
@@ -116,6 +139,9 @@ const buildOverpassQuery = (location: UserLocation) => {
   node(around:${radius},${lat},${lon})["microbrewery"="yes"]["name"];
   way(around:${radius},${lat},${lon})["microbrewery"="yes"]["name"];
   relation(around:${radius},${lat},${lon})["microbrewery"="yes"]["name"];
+  node(around:${radius},${lat},${lon})["bar"="yes"]["name"];
+  way(around:${radius},${lat},${lon})["bar"="yes"]["name"];
+  relation(around:${radius},${lat},${lon})["bar"="yes"]["name"];
 );
 out center tags ${MAX_OSM_PUBS_TO_CACHE};
 `.trim();

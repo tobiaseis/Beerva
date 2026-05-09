@@ -36,9 +36,8 @@ import {
   SessionBeer,
 } from '../lib/sessionBeers';
 import {
-  cacheOsmPubs,
   createUserPub,
-  fetchOsmPubsNear,
+  fetchAndCacheNearbyPubs,
   formatPubDetail,
   formatPubLabel,
   incrementPubUseCount,
@@ -95,6 +94,19 @@ const getLocationCacheKey = (location: UserLocation) => (
   `${location.latitude.toFixed(2)},${location.longitude.toFixed(2)}`
 );
 
+const getPubRecordKey = (pubRecord: PubRecord) => (
+  pubRecord.id
+  || `${pubRecord.source || 'pub'}:${pubRecord.source_id || `${pubRecord.name}-${pubRecord.city || ''}`}`.toLowerCase()
+);
+
+const mergePubRecords = (...groups: PubRecord[][]) => {
+  const merged = new Map<string, PubRecord>();
+  groups.flat().forEach((pubRecord) => {
+    merged.set(getPubRecordKey(pubRecord), pubRecord);
+  });
+  return Array.from(merged.values());
+};
+
 const getCurrentBrowserLocation = () => new Promise<UserLocation>((resolve, reject) => {
   const geolocation = typeof navigator !== 'undefined' ? navigator.geolocation : null;
   if (!geolocation) {
@@ -119,6 +131,26 @@ const getCurrentBrowserLocation = () => new Promise<UserLocation>((resolve, reje
     }
   );
 });
+
+const getPreviouslyGrantedBrowserLocation = async () => {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) return null;
+
+  const permissions = navigator.permissions;
+  if (!permissions?.query) return null;
+
+  try {
+    const status = await permissions.query({ name: 'geolocation' as PermissionName });
+    if (status.state !== 'granted') return null;
+  } catch {
+    return null;
+  }
+
+  try {
+    return await getCurrentBrowserLocation();
+  } catch {
+    return null;
+  }
+};
 
 export const RecordScreen = ({ navigation }: any) => {
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
@@ -147,7 +179,9 @@ export const RecordScreen = ({ navigation }: any) => {
 
   const pubSearchCache = useRef<Map<string, PubRecord[]>>(new Map());
   const pubSearchAbort = useRef<AbortController | null>(null);
+  const remotePubSearchCache = useRef<Set<string>>(new Set());
   const nearbySeedKeys = useRef<Set<string>>(new Set());
+  const passiveLocationAttempted = useRef(false);
 
   useEffect(() => {
     const cleanPub = pub.trim();
@@ -178,9 +212,34 @@ export const RecordScreen = ({ navigation }: any) => {
           cleanPub.length >= PUB_SEARCH_MIN_LENGTH ? 20 : 12
         );
 
+        let nextResults = results;
+        let searchLocation = userLocation;
+
+        if (!searchLocation && cleanPub.length >= PUB_SEARCH_MIN_LENGTH && !passiveLocationAttempted.current) {
+          passiveLocationAttempted.current = true;
+          searchLocation = await getPreviouslyGrantedBrowserLocation();
+          if (searchLocation && !cancelled) {
+            setUserLocation(searchLocation);
+          }
+        }
+
+        if (searchLocation && cleanPub.length >= PUB_SEARCH_MIN_LENGTH && results.length < 6) {
+          const remoteKey = `${cleanPub.toLowerCase()}|${getLocationCacheKey(searchLocation)}`;
+          if (!remotePubSearchCache.current.has(remoteKey)) {
+            remotePubSearchCache.current.add(remoteKey);
+            try {
+              const remoteResults = await fetchAndCacheNearbyPubs(searchLocation, cleanPub);
+              nextResults = mergePubRecords(remoteResults, results);
+              pubSearchCache.current.clear();
+            } catch (remoteError) {
+              console.warn('Remote pub search unavailable:', remoteError);
+            }
+          }
+        }
+
         if (cancelled) return;
-        pubSearchCache.current.set(cacheKey, results);
-        setPubOptions(results);
+        pubSearchCache.current.set(cacheKey, nextResults);
+        setPubOptions(nextResults);
       } catch (e: any) {
         if (!cancelled) console.error('Pub search error:', e);
       } finally {
@@ -316,17 +375,19 @@ export const RecordScreen = ({ navigation }: any) => {
 
   const seedNearbyPubs = useCallback(async (location: UserLocation, signal?: AbortSignal) => {
     const cacheKey = getLocationCacheKey(location);
-    if (nearbySeedKeys.current.has(cacheKey)) return 0;
+    const query = pub.trim();
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not logged in!');
+    if (nearbySeedKeys.current.has(cacheKey)) {
+      return searchCachedPubs(query, location, 24);
+    }
 
-    const osmPubs = await fetchOsmPubsNear(location, '', signal);
-    await cacheOsmPubs(osmPubs, user.id);
+    if (signal?.aborted) return [];
+    const nearbyPubs = await fetchAndCacheNearbyPubs(location, query);
+    if (signal?.aborted) return [];
     nearbySeedKeys.current.add(cacheKey);
     pubSearchCache.current.clear();
-    return osmPubs.length;
-  }, []);
+    return nearbyPubs;
+  }, [pub]);
 
   const useNearbyPubs = async () => {
     if (locatingPubs) return;
@@ -339,9 +400,8 @@ export const RecordScreen = ({ navigation }: any) => {
     try {
       const location = await getCurrentBrowserLocation();
       setUserLocation(location);
-      await seedNearbyPubs(location, abortController.signal);
-
-      const nearbyPubs = await searchCachedPubs(pub.trim(), location, 20);
+      const nearbyPubs = await seedNearbyPubs(location, abortController.signal);
+      if (abortController.signal.aborted) return;
       setPubOptions(nearbyPubs);
       hapticSuccess();
 
