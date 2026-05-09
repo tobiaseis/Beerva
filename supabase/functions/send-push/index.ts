@@ -23,7 +23,7 @@ type NotificationRow = {
   id: string;
   user_id: string;
   actor_id: string;
-  type: 'cheer' | 'invite' | 'session_started' | 'comment';
+  type: 'cheer' | 'invite' | 'session_started' | 'comment' | 'invite_response';
   reference_id: string | null;
 };
 
@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-  const [{ data: actor }, { data: subscriptions }, { data: referencedSession }] = await Promise.all([
+  const [{ data: actor }, { data: subscriptions }, { data: referencedSession }, { data: referencedInvite }] = await Promise.all([
     supabase.from('profiles').select('username').eq('id', record.actor_id).maybeSingle(),
     supabase
       .from('push_subscriptions')
@@ -57,6 +57,9 @@ Deno.serve(async (req) => {
       .eq('user_id', record.user_id),
     record.type === 'session_started' && record.reference_id
       ? supabase.from('sessions').select('pub_name').eq('id', record.reference_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    (record.type === 'invite' || record.type === 'invite_response') && record.reference_id
+      ? supabase.from('drinking_invites').select('status').eq('id', record.reference_id).maybeSingle()
       : Promise.resolve({ data: null }),
   ]);
 
@@ -77,6 +80,11 @@ Deno.serve(async (req) => {
   } else if (record.type === 'invite') {
     title = 'Invitation to drink';
     bodyText = `${actorName} wants to grab a beer with you`;
+  } else if (record.type === 'invite_response') {
+    title = 'Invite response';
+    bodyText = referencedInvite?.status === 'accepted'
+      ? `${actorName} will be there`
+      : `${actorName} cannot make it`;
   } else if (record.type === 'session_started') {
     title = 'Drinking session started';
     bodyText = referencedSession?.pub_name
@@ -87,7 +95,7 @@ Deno.serve(async (req) => {
   const payload = JSON.stringify({
     title,
     body: bodyText,
-    url: '/',
+    url: `/?notifications=1&notificationId=${encodeURIComponent(record.id)}`,
     tag: `beerva-${record.type}-${record.id}`,
   });
 

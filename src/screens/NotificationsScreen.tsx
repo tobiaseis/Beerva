@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, FlatList, Platform, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Platform, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { ArrowLeft, Beer, MapPin, MessageCircle, PartyPopper } from 'lucide-react-native';
+import { ArrowLeft, Beer, Check, MapPin, MessageCircle, PartyPopper, XCircle } from 'lucide-react-native';
 
 import { CachedImage } from '../components/CachedImage';
 import { EmptyIllustration } from '../components/EmptyIllustration';
@@ -11,18 +11,40 @@ import { colors } from '../theme/colors';
 import { radius, shadows, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
 
+type NotificationType = 'cheer' | 'invite' | 'session_started' | 'comment' | 'invite_response';
+type InviteStatus = 'pending' | 'accepted' | 'declined';
+
+type ProfilePreview = {
+  username: string | null;
+  avatar_url: string | null;
+};
+
+type SessionPreview = {
+  pub_name: string | null;
+};
+
+type DrinkingInvite = {
+  id: string;
+  sender_id: string;
+  recipient_id: string;
+  status: InviteStatus;
+  created_at: string;
+  responded_at: string | null;
+};
+
 type NotificationRow = {
   id: string;
   actor_id: string;
-  type: 'cheer' | 'invite' | 'session_started' | 'comment';
+  type: NotificationType;
   reference_id: string | null;
   read: boolean;
   created_at: string;
-  profiles: {
-    username: string | null;
-    avatar_url: string | null;
-  } | null;
+  profiles: ProfilePreview | null;
+  session: SessionPreview | null;
+  invite: DrinkingInvite | null;
 };
+
+type NotificationBaseRow = Omit<NotificationRow, 'profiles' | 'session' | 'invite'>;
 
 const getTimeAgo = (dateString: string) => {
   const date = new Date(dateString);
@@ -36,23 +58,46 @@ const getTimeAgo = (dateString: string) => {
   return `${Math.round(diffHours / 24)} days ago`;
 };
 
+const getInviteStatusText = (status: InviteStatus) => {
+  if (status === 'accepted') return "You're going";
+  if (status === 'declined') return "You can't make it";
+  return 'Waiting for your reply';
+};
+
 const getNotificationMessage = (item: NotificationRow) => {
   if (item.type === 'cheer') return ' cheered your session!';
   if (item.type === 'comment') return ' commented on your session.';
-  if (item.type === 'session_started') return ' started a drinking session.';
+  if (item.type === 'session_started') {
+    return item.session?.pub_name
+      ? ` started a drinking session at ${item.session.pub_name}.`
+      : ' started a drinking session.';
+  }
+  if (item.type === 'invite_response') {
+    if (item.invite?.status === 'accepted') return ' will be there.';
+    if (item.invite?.status === 'declined') return " can't make it.";
+    return ' answered your drinking invite.';
+  }
   return ' invited you to drink!';
 };
 
 export const NotificationsScreen = ({ navigation }: any) => {
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [respondingInviteIds, setRespondingInviteIds] = useState<Set<string>>(() => new Set());
   const { markAllRead } = useNotifications();
 
   const fetchNotifications = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        setCurrentUserId(null);
+        setNotifications([]);
+        return;
+      }
+
+      setCurrentUserId(user.id);
 
       const { data, error } = await supabase
         .from('notifications')
@@ -63,28 +108,63 @@ export const NotificationsScreen = ({ navigation }: any) => {
 
       if (error) throw error;
 
-      const baseRows = (data || []) as Array<Omit<NotificationRow, 'profiles'>>;
+      const baseRows = (data || []) as NotificationBaseRow[];
       const actorIds = Array.from(new Set(baseRows.map((n) => n.actor_id).filter(Boolean)));
+      const sessionIds = Array.from(new Set(
+        baseRows
+          .filter((n) => n.type === 'session_started' && n.reference_id)
+          .map((n) => n.reference_id as string)
+      ));
+      const inviteIds = Array.from(new Set(
+        baseRows
+          .filter((n) => (n.type === 'invite' || n.type === 'invite_response') && n.reference_id)
+          .map((n) => n.reference_id as string)
+      ));
 
-      const profilesById = new Map<string, { username: string | null; avatar_url: string | null }>();
-      if (actorIds.length > 0) {
-        const { data: profilesData, error: profilesError } = await supabase
-          .from('profiles')
-          .select('id, username, avatar_url')
-          .in('id', actorIds);
+      const [profilesResult, sessionsResult, invitesResult] = await Promise.all([
+        actorIds.length > 0
+          ? supabase.from('profiles').select('id, username, avatar_url').in('id', actorIds)
+          : Promise.resolve({ data: [], error: null }),
+        sessionIds.length > 0
+          ? supabase.from('sessions').select('id, pub_name').in('id', sessionIds)
+          : Promise.resolve({ data: [], error: null }),
+        inviteIds.length > 0
+          ? supabase.from('drinking_invites').select('id, sender_id, recipient_id, status, created_at, responded_at').in('id', inviteIds)
+          : Promise.resolve({ data: [], error: null }),
+      ]);
 
-        if (profilesError) {
-          console.error('Notification profiles fetch error', profilesError);
-        } else {
-          (profilesData || []).forEach((profile: any) => {
-            profilesById.set(profile.id, { username: profile.username, avatar_url: profile.avatar_url });
-          });
-        }
+      const profilesById = new Map<string, ProfilePreview>();
+      if (profilesResult.error) {
+        console.error('Notification profiles fetch error', profilesResult.error);
+      } else {
+        (profilesResult.data || []).forEach((profile: any) => {
+          profilesById.set(profile.id, { username: profile.username, avatar_url: profile.avatar_url });
+        });
+      }
+
+      const sessionsById = new Map<string, SessionPreview>();
+      if (sessionsResult.error) {
+        console.error('Notification sessions fetch error', sessionsResult.error);
+      } else {
+        (sessionsResult.data || []).forEach((session: any) => {
+          sessionsById.set(session.id, { pub_name: session.pub_name });
+        });
+      }
+
+      const invitesById = new Map<string, DrinkingInvite>();
+      if (invitesResult.error) {
+        console.error('Notification invites fetch error', invitesResult.error);
+      } else {
+        ((invitesResult.data || []) as DrinkingInvite[]).forEach((invite) => {
+          invitesById.set(invite.id, invite);
+        });
       }
 
       const rows: NotificationRow[] = baseRows.map((notification) => ({
         ...notification,
         profiles: profilesById.get(notification.actor_id) || null,
+        session: notification.reference_id ? sessionsById.get(notification.reference_id) || null : null,
+        invite: notification.reference_id ? invitesById.get(notification.reference_id) || null : null,
       }));
 
       setNotifications(rows);
@@ -123,36 +203,136 @@ export const NotificationsScreen = ({ navigation }: any) => {
     navigation.navigate('UserProfile', { userId });
   }, [navigation]);
 
-  const renderIcon = (type: NotificationRow['type']) => {
-    if (type === 'cheer') return <Beer color={colors.primary} size={24} />;
-    if (type === 'comment') return <MessageCircle color={colors.primary} size={24} />;
-    if (type === 'session_started') return <MapPin color={colors.primary} size={24} />;
+  const respondToInvite = useCallback(async (item: NotificationRow, status: Exclude<InviteStatus, 'pending'>) => {
+    const inviteId = item.invite?.id || item.reference_id;
+    if (!currentUserId || !inviteId || item.invite?.status !== 'pending') return;
+
+    setRespondingInviteIds((previous) => new Set(previous).add(inviteId));
+    try {
+      const { data: updatedInvite, error } = await supabase
+        .from('drinking_invites')
+        .update({ status, responded_at: new Date().toISOString() })
+        .eq('id', inviteId)
+        .eq('recipient_id', currentUserId)
+        .eq('status', 'pending')
+        .select('id, sender_id, recipient_id, status, created_at, responded_at')
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!updatedInvite) throw new Error('This invite has already been answered.');
+
+      const invite = updatedInvite as DrinkingInvite;
+      setNotifications((previous) => previous.map((notification) => (
+        notification.reference_id === invite.id
+          ? { ...notification, invite }
+          : notification
+      )));
+
+      const { error: notificationError } = await supabase.from('notifications').insert({
+        user_id: invite.sender_id,
+        actor_id: currentUserId,
+        type: 'invite_response',
+        reference_id: invite.id,
+      });
+
+      if (notificationError) {
+        console.error('Invite response notification error', notificationError);
+      }
+    } catch (error: any) {
+      Alert.alert('Could not answer invite', error?.message || 'Please try again.');
+    } finally {
+      setRespondingInviteIds((previous) => {
+        const next = new Set(previous);
+        next.delete(inviteId);
+        return next;
+      });
+    }
+  }, [currentUserId]);
+
+  const renderIcon = (item: NotificationRow) => {
+    if (item.type === 'cheer') return <Beer color={colors.primary} size={24} />;
+    if (item.type === 'comment') return <MessageCircle color={colors.primary} size={24} />;
+    if (item.type === 'session_started') return <MapPin color={colors.primary} size={24} />;
+    if (item.type === 'invite_response' && item.invite?.status === 'accepted') {
+      return <Check color={colors.success} size={24} />;
+    }
+    if (item.type === 'invite_response' && item.invite?.status === 'declined') {
+      return <XCircle color={colors.danger} size={24} />;
+    }
     return <PartyPopper color={colors.primary} size={24} />;
   };
 
-  const renderItem = useCallback(({ item }: { item: NotificationRow }) => (
-    <View style={[styles.card, !item.read && styles.unreadCard]}>
-      <TouchableOpacity onPress={() => openProfile(item.actor_id)} style={styles.avatarContainer}>
-        <CachedImage
-          uri={item.profiles?.avatar_url}
-          fallbackUri={`https://i.pravatar.cc/150?u=${item.actor_id}`}
-          style={styles.avatar}
-          recyclingKey={`notification-${item.actor_id}-${item.profiles?.avatar_url || 'fallback'}`}
-          accessibilityLabel={`${item.profiles?.username || 'Someone'}'s avatar`}
-        />
-      </TouchableOpacity>
-      <View style={styles.content}>
-        <Text style={styles.message}>
-          <Text style={styles.username}>{item.profiles?.username || 'Someone'}</Text>
-          {getNotificationMessage(item)}
-        </Text>
-        <Text style={styles.time}>{getTimeAgo(item.created_at)}</Text>
+  const renderItem = useCallback(({ item }: { item: NotificationRow }) => {
+    const canRespond = item.type === 'invite'
+      && item.invite?.status === 'pending'
+      && item.invite.recipient_id === currentUserId;
+    const responding = Boolean(item.invite?.id && respondingInviteIds.has(item.invite.id));
+    const answeredInvite = item.type === 'invite' && item.invite?.status !== 'pending' ? item.invite : null;
+
+    return (
+      <View style={[styles.card, !item.read && styles.unreadCard]}>
+        <TouchableOpacity onPress={() => openProfile(item.actor_id)} style={styles.avatarContainer}>
+          <CachedImage
+            uri={item.profiles?.avatar_url}
+            fallbackUri={`https://i.pravatar.cc/150?u=${item.actor_id}`}
+            style={styles.avatar}
+            recyclingKey={`notification-${item.actor_id}-${item.profiles?.avatar_url || 'fallback'}`}
+            accessibilityLabel={`${item.profiles?.username || 'Someone'}'s avatar`}
+          />
+        </TouchableOpacity>
+        <View style={styles.content}>
+          <Text style={styles.message}>
+            <Text style={styles.username}>{item.profiles?.username || 'Someone'}</Text>
+            {getNotificationMessage(item)}
+          </Text>
+          <Text style={styles.time}>{getTimeAgo(item.created_at)}</Text>
+
+          {canRespond ? (
+            <View style={styles.inviteActions}>
+              <TouchableOpacity
+                style={[styles.inviteActionButton, styles.acceptButton]}
+                onPress={() => respondToInvite(item, 'accepted')}
+                disabled={responding}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: responding }}
+              >
+                {responding ? <ActivityIndicator color={colors.background} size="small" /> : <Check color={colors.background} size={16} />}
+                <Text style={styles.inviteActionText}>I'll be there</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.inviteActionButton, styles.declineButton]}
+                onPress={() => respondToInvite(item, 'declined')}
+                disabled={responding}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: responding }}
+              >
+                <XCircle color={colors.text} size={16} />
+                <Text style={[styles.inviteActionText, styles.declineActionText]}>Yeah, nah, I can't</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
+          {answeredInvite ? (
+            <Text style={[
+              styles.inviteStatusText,
+              answeredInvite.status === 'accepted' ? styles.acceptedStatusText : styles.declinedStatusText,
+            ]}>
+              {getInviteStatusText(answeredInvite.status)}
+            </Text>
+          ) : null}
+
+          {item.type === 'invite' && item.reference_id && !item.invite ? (
+            <Text style={styles.unavailableText}>This invite is no longer available.</Text>
+          ) : null}
+        </View>
+        <View style={styles.iconContainer}>
+          {renderIcon(item)}
+        </View>
       </View>
-      <View style={styles.iconContainer}>
-        {renderIcon(item.type)}
-      </View>
-    </View>
-  ), [openProfile]);
+    );
+  }, [currentUserId, openProfile, respondToInvite, respondingInviteIds]);
 
   return (
     <View style={styles.container}>
@@ -173,6 +353,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
           data={notifications}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
+          extraData={respondingInviteIds}
           initialNumToRender={12}
           maxToRenderPerBatch={12}
           windowSize={7}
@@ -265,6 +446,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     justifyContent: 'center',
+    minWidth: 0,
   },
   username: {
     fontWeight: '800',
@@ -277,6 +459,54 @@ const styles = StyleSheet.create({
   time: {
     ...typography.caption,
     marginTop: 4,
+  },
+  inviteActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  inviteActionButton: {
+    minHeight: 40,
+    minWidth: 126,
+    borderRadius: radius.pill,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  acceptButton: {
+    backgroundColor: colors.success,
+  },
+  declineButton: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+  },
+  inviteActionText: {
+    color: colors.background,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  declineActionText: {
+    color: colors.text,
+  },
+  inviteStatusText: {
+    ...typography.caption,
+    marginTop: 8,
+    fontWeight: '800',
+  },
+  acceptedStatusText: {
+    color: colors.success,
+  },
+  declinedStatusText: {
+    color: colors.textMuted,
+  },
+  unavailableText: {
+    ...typography.caption,
+    marginTop: 8,
+    color: colors.textMuted,
   },
   iconContainer: {
     marginLeft: 12,

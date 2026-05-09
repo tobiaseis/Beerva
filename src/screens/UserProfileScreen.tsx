@@ -109,6 +109,7 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
   const [isFollowing, setIsFollowing] = useState(false);
   const [isMutual, setIsMutual] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
+  const [inviteLoading, setInviteLoading] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const fetchUserProfile = useCallback(async () => {
@@ -284,22 +285,37 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
   };
 
   const inviteToDrink = async () => {
-    if (!currentUserId || !profileId) return;
+    if (!currentUserId || !profileId || inviteLoading) return;
 
+    setInviteLoading(true);
     try {
+      const { data: invite, error: inviteError } = await supabase
+        .from('drinking_invites')
+        .insert({
+          sender_id: currentUserId,
+          recipient_id: profileId,
+        })
+        .select('id')
+        .single();
+
+      if (inviteError) throw inviteError;
+
       const { error } = await supabase.from('notifications').insert({
         user_id: profileId,
         actor_id: currentUserId,
         type: 'invite',
+        reference_id: invite.id,
       });
 
       if (error) throw error;
+      setInviteLoading(false);
 
       const name = profile?.username || 'They';
       const template = INVITE_MESSAGES[Math.floor(Math.random() * INVITE_MESSAGES.length)];
       showAlert('🍻 Cheers Incoming!', template.replace('{name}', name));
     } catch (e: any) {
       console.error('Error sending invite', e);
+      setInviteLoading(false);
       const fallback = INVITE_FAILURE_MESSAGES[Math.floor(Math.random() * INVITE_FAILURE_MESSAGES.length)];
       showAlert('🍺 Invite stuck in the keg', fallback);
     }
@@ -396,10 +412,15 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
               <TouchableOpacity
                 style={styles.inviteButton}
                 onPress={inviteToDrink}
+                disabled={inviteLoading}
                 activeOpacity={0.75}
               >
-                <Beer color={colors.background} size={18} />
-                <Text style={styles.inviteButtonText}>Invite to drink</Text>
+                {inviteLoading ? (
+                  <ActivityIndicator color={colors.background} size="small" />
+                ) : (
+                  <Beer color={colors.background} size={18} />
+                )}
+                <Text style={styles.inviteButtonText}>{inviteLoading ? 'Sending' : 'Invite to drink'}</Text>
               </TouchableOpacity>
             )}
           </View>

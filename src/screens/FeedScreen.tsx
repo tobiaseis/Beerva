@@ -182,9 +182,10 @@ const FeedSessionCard = React.memo(({
     .slice(0, 3)
     .map((profile) => profile.username || 'Someone')
     .join(', ');
+  const cheerPeople = `${item.cheers_count} ${item.cheers_count === 1 ? 'person' : 'people'}`;
   const cheerSummary = cheerNames
-    ? `${cheerNames}${item.cheers_count > 3 ? ` +${item.cheers_count - 3}` : ''}`
-    : getCheersLabel(item.cheers_count);
+    ? `Cheers from ${cheerNames}${item.cheers_count > 3 ? ` +${item.cheers_count - 3}` : ''}`
+    : `Cheers from ${cheerPeople}`;
   const cheersScale = React.useRef(new Animated.Value(1)).current;
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
   const overlayScale = React.useRef(new Animated.Value(0.6)).current;

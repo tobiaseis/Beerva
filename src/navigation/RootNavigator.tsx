@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { DefaultTheme, NavigationContainer, type Theme } from '@react-navigation/native';
+import { createNavigationContainerRef, DefaultTheme, NavigationContainer, type Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { PlusCircle, User, Users } from 'lucide-react-native';
 import { View, ActivityIndicator, Platform, Image } from 'react-native';
@@ -24,6 +24,7 @@ const beervaLogo = require('../../assets/beerva-header-logo.png');
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
+const navigationRef = createNavigationContainerRef();
 
 const navigationTheme: Theme = {
   ...DefaultTheme,
@@ -37,6 +38,20 @@ const navigationTheme: Theme = {
     border: colors.borderSoft,
     notification: colors.primary,
   },
+};
+
+const shouldOpenNotificationsFromUrl = () => {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
+  const params = new URLSearchParams(window.location.search);
+  return params.get('notifications') === '1';
+};
+
+const clearNotificationLaunchParams = () => {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+  const url = new URL(window.location.href);
+  url.searchParams.delete('notifications');
+  url.searchParams.delete('notificationId');
+  window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
 };
 
 const MainTabs = () => {
@@ -146,7 +161,9 @@ export const RootNavigator = () => {
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileCheckedUserId, setProfileCheckedUserId] = useState<string | null>(null);
   const [needsProfileSetup, setNeedsProfileSetup] = useState(false);
+  const [navigationReady, setNavigationReady] = useState(false);
   const profileCheckedUserIdRef = useRef<string | null>(null);
+  const pendingNotificationsOpenRef = useRef(shouldOpenNotificationsFromUrl());
 
   const checkProfileSetup = useCallback(async (activeSession: Session | null) => {
     if (!activeSession?.user) {
@@ -208,6 +225,25 @@ export const RootNavigator = () => {
 
   const waitingForProfileCheck = Boolean(session?.user && profileCheckedUserId !== session.user.id);
 
+  useEffect(() => {
+    if (
+      !pendingNotificationsOpenRef.current
+      || !navigationReady
+      || waitingForProfileCheck
+      || loading
+      || profileLoading
+      || needsProfileSetup
+      || !session?.user
+      || !navigationRef.isReady()
+    ) {
+      return;
+    }
+
+    pendingNotificationsOpenRef.current = false;
+    navigationRef.navigate('Notifications' as never);
+    clearNotificationLaunchParams();
+  }, [loading, navigationReady, needsProfileSetup, profileLoading, session?.user, waitingForProfileCheck]);
+
   if (loading || profileLoading || waitingForProfileCheck) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', backgroundColor: colors.background }}>
@@ -217,7 +253,7 @@ export const RootNavigator = () => {
   }
 
   return (
-    <NavigationContainer theme={navigationTheme}>
+    <NavigationContainer ref={navigationRef} onReady={() => setNavigationReady(true)} theme={navigationTheme}>
       {session && session.user ? (
         needsProfileSetup ? (
           <ProfileSetupScreen onComplete={() => checkProfileSetup(session)} />

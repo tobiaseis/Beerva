@@ -1,6 +1,6 @@
 // Beerva Service Worker (Push + Offline Caching)
 
-const CACHE_NAME = 'beerva-cache-v5';
+const CACHE_NAME = 'beerva-cache-v6';
 const OFFLINE_URLS = [
   '/',
   '/index.html',
@@ -152,13 +152,20 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = (event.notification.data && event.notification.data.url) || '/';
+  const targetUrl = new URL(
+    (event.notification.data && event.notification.data.url) || '/',
+    self.location.origin
+  ).href;
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
         if ('focus' in client) {
-          client.navigate?.(targetUrl);
+          if ('navigate' in client) {
+            return client.navigate(targetUrl).then((navigatedClient) => {
+              return (navigatedClient || client).focus();
+            });
+          }
           return client.focus();
         }
       }
