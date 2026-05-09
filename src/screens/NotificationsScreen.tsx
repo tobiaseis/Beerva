@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, FlatList, Platform, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { ArrowLeft, Beer, MapPin, PartyPopper } from 'lucide-react-native';
+import { ArrowLeft, Beer, MapPin, MessageCircle, PartyPopper } from 'lucide-react-native';
 
 import { CachedImage } from '../components/CachedImage';
 import { EmptyIllustration } from '../components/EmptyIllustration';
@@ -14,7 +14,7 @@ import { typography } from '../theme/typography';
 type NotificationRow = {
   id: string;
   actor_id: string;
-  type: 'cheer' | 'invite' | 'session_started';
+  type: 'cheer' | 'invite' | 'session_started' | 'comment';
   reference_id: string | null;
   read: boolean;
   created_at: string;
@@ -38,6 +38,7 @@ const getTimeAgo = (dateString: string) => {
 
 const getNotificationMessage = (item: NotificationRow) => {
   if (item.type === 'cheer') return ' cheered your session!';
+  if (item.type === 'comment') return ' commented on your session.';
   if (item.type === 'session_started') return ' started a drinking session.';
   return ' invited you to drink!';
 };
@@ -124,6 +125,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
 
   const renderIcon = (type: NotificationRow['type']) => {
     if (type === 'cheer') return <Beer color={colors.primary} size={24} />;
+    if (type === 'comment') return <MessageCircle color={colors.primary} size={24} />;
     if (type === 'session_started') return <MapPin color={colors.primary} size={24} />;
     return <PartyPopper color={colors.primary} size={24} />;
   };

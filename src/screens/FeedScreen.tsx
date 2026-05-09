@@ -1,8 +1,8 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, Image, ActivityIndicator, RefreshControl, TouchableOpacity, TouchableWithoutFeedback, Alert, Platform, Animated } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Image, ActivityIndicator, RefreshControl, TouchableOpacity, TouchableWithoutFeedback, Alert, Platform, Animated, Modal, TextInput, KeyboardAvoidingView } from 'react-native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
-import { Edit3, MapPin, Trash2, Bell, AlertTriangle, RefreshCw } from 'lucide-react-native';
+import { Edit3, MapPin, Trash2, Bell, AlertTriangle, RefreshCw, MessageCircle, Send, X } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { confirmDestructive } from '../lib/dialogs';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -21,10 +21,27 @@ const beervaLogo = require('../../assets/beerva-header-logo.png');
 type SessionCheer = {
   session_id: string;
   user_id: string;
+  created_at?: string | null;
 };
 
 type FollowRow = {
   following_id: string;
+};
+
+type ProfilePreview = {
+  id: string;
+  username?: string | null;
+  avatar_url?: string | null;
+};
+
+type FeedComment = {
+  id: string;
+  session_id: string;
+  user_id: string;
+  body: string;
+  created_at: string;
+  updated_at?: string | null;
+  profiles?: ProfilePreview | null;
 };
 
 type FeedSession = {
@@ -48,6 +65,9 @@ type FeedSession = {
     username?: string | null;
     avatar_url?: string | null;
   } | null;
+  cheer_profiles: ProfilePreview[];
+  comments: FeedComment[];
+  comments_count: number;
   cheers_count: number;
   has_cheered: boolean;
 };
@@ -112,6 +132,10 @@ const getCheersLabel = (count: number) => {
   return `${count} ${count === 1 ? 'Cheer' : 'Cheers'}`;
 };
 
+const getCommentsLabel = (count: number) => {
+  return `${count} ${count === 1 ? 'Comment' : 'Comments'}`;
+};
+
 const getTimeAgo = (dateString: string) => {
   const date = new Date(dateString);
   const now = new Date();
@@ -134,6 +158,8 @@ type FeedSessionCardProps = {
   isCheering: boolean;
   onDeleteSession: (session: FeedSession) => void;
   onEditSession: (session: FeedSession) => void;
+  onOpenCheers: (session: FeedSession) => void;
+  onOpenComments: (session: FeedSession) => void;
   onOpenProfile: (userId: string) => void;
   onToggleCheers: (session: FeedSession) => void;
 };
@@ -144,11 +170,21 @@ const FeedSessionCard = React.memo(({
   isCheering,
   onDeleteSession,
   onEditSession,
+  onOpenCheers,
+  onOpenComments,
   onOpenProfile,
   onToggleCheers,
 }: FeedSessionCardProps) => {
   const isOwnPost = item.user_id === currentUserId;
   const username = item.profiles?.username || 'Unknown';
+  const latestComments = item.comments.slice(-2);
+  const cheerNames = item.cheer_profiles
+    .slice(0, 3)
+    .map((profile) => profile.username || 'Someone')
+    .join(', ');
+  const cheerSummary = cheerNames
+    ? `${cheerNames}${item.cheers_count > 3 ? ` +${item.cheers_count - 3}` : ''}`
+    : getCheersLabel(item.cheers_count);
   const cheersScale = React.useRef(new Animated.Value(1)).current;
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
   const overlayScale = React.useRef(new Animated.Value(0.6)).current;
@@ -288,6 +324,50 @@ const FeedSessionCard = React.memo(({
         ) : null}
       </View>
 
+      {item.cheers_count > 0 || item.comments_count > 0 ? (
+        <View style={styles.engagementPanel}>
+          {item.cheers_count > 0 ? (
+            <TouchableOpacity
+              style={styles.cheerSummaryRow}
+              onPress={() => onOpenCheers(item)}
+              activeOpacity={0.72}
+              accessibilityRole="button"
+              accessibilityLabel={`View ${getCheersLabel(item.cheers_count).toLowerCase()}`}
+            >
+              <Image source={beervaLogo} style={styles.cheersLogoSmall} />
+              <Text style={styles.cheerSummaryText} numberOfLines={1}>
+                {cheerSummary}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+
+          {latestComments.length > 0 ? (
+            <View style={styles.commentPreviewList}>
+              {latestComments.map((comment) => (
+                <TouchableOpacity
+                  key={comment.id}
+                  style={styles.commentPreviewRow}
+                  onPress={() => onOpenComments(item)}
+                  activeOpacity={0.72}
+                >
+                  <Text style={styles.commentPreviewText} numberOfLines={2}>
+                    <Text style={styles.commentPreviewName}>{comment.profiles?.username || 'Someone'} </Text>
+                    {comment.body}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity onPress={() => onOpenComments(item)} activeOpacity={0.72}>
+                <Text style={styles.viewCommentsText}>
+                  {item.comments_count > latestComments.length
+                    ? `View all ${getCommentsLabel(item.comments_count).toLowerCase()}`
+                    : getCommentsLabel(item.comments_count)}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+
       <View style={styles.cardFooter}>
         <Animated.View style={{ transform: [{ scale: cheersScale }] }}>
         <TouchableOpacity
@@ -312,6 +392,17 @@ const FeedSessionCard = React.memo(({
           </Text>
         </TouchableOpacity>
         </Animated.View>
+        <TouchableOpacity
+          style={styles.actionBtn}
+          onPress={() => onOpenComments(item)}
+          disabled={!currentUserId}
+          activeOpacity={0.72}
+          accessibilityRole="button"
+          accessibilityLabel={`Open comments for ${username}'s session`}
+        >
+          <MessageCircle color={colors.textMuted} size={19} />
+          <Text style={styles.actionText}>{getCommentsLabel(item.comments_count)}</Text>
+        </TouchableOpacity>
       </View>
     </Surface>
   );
@@ -327,6 +418,10 @@ export const FeedScreen = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [cheeringSessionIds, setCheeringSessionIds] = useState<Set<string>>(() => new Set());
+  const [commentingSession, setCommentingSession] = useState<FeedSession | null>(null);
+  const [cheersSession, setCheersSession] = useState<FeedSession | null>(null);
+  const [commentDraft, setCommentDraft] = useState('');
+  const [submittingComment, setSubmittingComment] = useState(false);
   const { unreadCount } = useNotifications();
   const [pullDistance, setPullDistance] = useState(0);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -437,19 +532,12 @@ export const FeedScreen = () => {
       hasMoreRef.current = hasNextPage;
 
       const sessionIds = sessionRows.map((session) => session.id);
-      const profileIds = Array.from(new Set(sessionRows.map((session) => session.user_id)));
 
-      const [profilesResult, cheersResult, beersResult] = await Promise.all([
-        profileIds.length > 0
-          ? supabase
-              .from('profiles')
-              .select('id, username, avatar_url')
-              .in('id', profileIds)
-          : Promise.resolve({ data: [] as any[], error: null }),
+      const [cheersResult, beersResult, commentsResult] = await Promise.all([
         sessionIds.length > 0
           ? supabase
               .from('session_cheers')
-              .select('session_id, user_id')
+              .select('session_id, user_id, created_at')
               .in('session_id', sessionIds)
           : Promise.resolve({ data: [] as SessionCheer[], error: null }),
         sessionIds.length > 0
@@ -459,27 +547,58 @@ export const FeedScreen = () => {
               .in('session_id', sessionIds)
               .order('consumed_at', { ascending: true })
           : Promise.resolve({ data: [] as SessionBeer[], error: null }),
+        sessionIds.length > 0
+          ? supabase
+              .from('session_comments')
+              .select('id, session_id, user_id, body, created_at, updated_at')
+              .in('session_id', sessionIds)
+              .order('created_at', { ascending: true })
+          : Promise.resolve({ data: [] as FeedComment[], error: null }),
       ]);
 
       if (!isLatestRequest()) return;
 
-      if (profilesResult.error) {
-        console.error('Feed profiles fetch error:', profilesResult.error);
-      }
       if (cheersResult.error) {
         console.error('Cheers fetch error:', cheersResult.error);
       }
       if (beersResult.error) {
         console.error('Session beers fetch error:', beersResult.error);
       }
-
-      const profilesById = new Map<string, { username: string | null; avatar_url: string | null }>();
-      for (const profile of (profilesResult.data || []) as any[]) {
-        profilesById.set(profile.id, { username: profile.username, avatar_url: profile.avatar_url });
+      if (commentsResult.error) {
+        console.error('Session comments fetch error:', commentsResult.error);
       }
 
       const cheers: SessionCheer[] = (cheersResult.data || []) as SessionCheer[];
       const beerRows: SessionBeer[] = (beersResult.data || []) as SessionBeer[];
+      const commentRows: FeedComment[] = (commentsResult.data || []) as FeedComment[];
+
+      const profileIds = Array.from(new Set([
+        ...sessionRows.map((session) => session.user_id),
+        ...cheers.map((cheer) => cheer.user_id),
+        ...commentRows.map((comment) => comment.user_id),
+      ].filter(Boolean)));
+
+      const profilesResult = profileIds.length > 0
+        ? await supabase
+            .from('profiles')
+            .select('id, username, avatar_url')
+            .in('id', profileIds)
+        : { data: [] as any[], error: null };
+
+      if (!isLatestRequest()) return;
+
+      if (profilesResult.error) {
+        console.error('Feed profiles fetch error:', profilesResult.error);
+      }
+
+      const profilesById = new Map<string, ProfilePreview>();
+      for (const profile of (profilesResult.data || []) as any[]) {
+        profilesById.set(profile.id, {
+          id: profile.id,
+          username: profile.username,
+          avatar_url: profile.avatar_url,
+        });
+      }
 
       const cheersBySession = cheers.reduce((acc, cheer) => {
         const existing = acc.get(cheer.session_id) || [];
@@ -496,8 +615,20 @@ export const FeedScreen = () => {
         return acc;
       }, new Map<string, SessionBeer[]>());
 
+      const commentsBySession = commentRows.reduce((acc, comment) => {
+        if (!comment.session_id) return acc;
+        const existing = acc.get(comment.session_id) || [];
+        existing.push({
+          ...comment,
+          profiles: profilesById.get(comment.user_id) || null,
+        });
+        acc.set(comment.session_id, existing);
+        return acc;
+      }, new Map<string, FeedComment[]>());
+
       const pageSessions = sessionRows.map((session) => {
         const sessionCheers = cheersBySession.get(session.id) || [];
+        const sessionComments = commentsBySession.get(session.id) || [];
         const sessionBeers = beersBySession.get(session.id) || (
           session.beer_name
             ? [{
@@ -515,6 +646,9 @@ export const FeedScreen = () => {
           ...session,
           session_beers: sessionBeers,
           profiles: profilesById.get(session.user_id) || null,
+          cheer_profiles: sessionCheers.map((cheer) => profilesById.get(cheer.user_id)).filter(Boolean) as ProfilePreview[],
+          comments: sessionComments,
+          comments_count: sessionComments.length,
           cheers_count: sessionCheers.length,
           has_cheered: user ? sessionCheers.some((cheer) => cheer.user_id === user.id) : false,
         };
@@ -643,6 +777,108 @@ export const FeedScreen = () => {
     navigation.navigate('People');
   }, [navigation]);
 
+  const openComments = useCallback((session: FeedSession) => {
+    setCommentingSession(session);
+    setCommentDraft('');
+  }, []);
+
+  const closeComments = useCallback(() => {
+    setCommentingSession(null);
+    setCommentDraft('');
+    setSubmittingComment(false);
+  }, []);
+
+  const openCheers = useCallback((session: FeedSession) => {
+    setCheersSession(session);
+  }, []);
+
+  const closeCheers = useCallback(() => {
+    setCheersSession(null);
+  }, []);
+
+  const submitComment = useCallback(async () => {
+    const cleanComment = commentDraft.trim();
+    if (!currentUserId || !commentingSession || !cleanComment || submittingComment) return;
+
+    setSubmittingComment(true);
+    try {
+      const { data, error } = await supabase
+        .from('session_comments')
+        .insert({
+          session_id: commentingSession.id,
+          user_id: currentUserId,
+          body: cleanComment,
+        })
+        .select('id, session_id, user_id, body, created_at, updated_at')
+        .single();
+
+      if (error) throw error;
+
+      let currentProfile: ProfilePreview | null = null;
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url')
+        .eq('id', currentUserId)
+        .maybeSingle();
+
+      if (profileError) {
+        console.error('Comment profile fetch error:', profileError);
+      } else if (profileData) {
+        currentProfile = {
+          id: profileData.id,
+          username: profileData.username,
+          avatar_url: profileData.avatar_url,
+        };
+      }
+
+      const nextComment: FeedComment = {
+        ...(data as Omit<FeedComment, 'profiles'>),
+        profiles: currentProfile,
+      };
+
+      setSessions((previous) => {
+        const nextSessions = previous.map((session) => (
+          session.id === commentingSession.id
+            ? {
+                ...session,
+                comments: [...session.comments, nextComment],
+                comments_count: session.comments_count + 1,
+              }
+            : session
+        ));
+        sessionsRef.current = nextSessions;
+        return nextSessions;
+      });
+
+      setCommentingSession((current) => (
+        current?.id === commentingSession.id
+          ? {
+              ...current,
+              comments: [...current.comments, nextComment],
+              comments_count: current.comments_count + 1,
+            }
+          : current
+      ));
+      setCommentDraft('');
+      hapticLight();
+
+      if (commentingSession.user_id !== currentUserId) {
+        const { error: notifError } = await supabase.from('notifications').insert({
+          user_id: commentingSession.user_id,
+          actor_id: currentUserId,
+          type: 'comment',
+          reference_id: commentingSession.id,
+        });
+        if (notifError) console.error('Comment notification insert error:', notifError);
+      }
+    } catch (error: any) {
+      console.error('Submit comment error:', error);
+      Alert.alert('Could not post comment', error?.message || 'Please try again.');
+    } finally {
+      setSubmittingComment(false);
+    }
+  }, [commentDraft, commentingSession, currentUserId, submittingComment]);
+
   const toggleCheers = useCallback(async (item: FeedSession) => {
     if (!currentUserId || item.user_id === currentUserId || cheeringSessionIdsRef.current.has(item.id)) {
       return;
@@ -651,6 +887,7 @@ export const FeedScreen = () => {
     const nextHasCheered = !item.has_cheered;
     const previousHasCheered = item.has_cheered;
     const previousCheersCount = item.cheers_count;
+    const previousCheerProfiles = item.cheer_profiles;
 
     const pendingCheers = new Set(cheeringSessionIdsRef.current);
     pendingCheers.add(item.id);
@@ -665,6 +902,9 @@ export const FeedScreen = () => {
           ...session,
           has_cheered: nextHasCheered,
           cheers_count: Math.max(0, previousCheersCount + (nextHasCheered ? 1 : -1)),
+          cheer_profiles: nextHasCheered
+            ? session.cheer_profiles
+            : session.cheer_profiles.filter((profile) => profile.id !== currentUserId),
         };
       });
       sessionsRef.current = nextSessions;
@@ -681,6 +921,36 @@ export const FeedScreen = () => {
           });
 
         if (error && error.code !== '23505') throw error;
+
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('id, username, avatar_url')
+          .eq('id', currentUserId)
+          .maybeSingle();
+
+        if (profileError) {
+          console.error('Cheer profile fetch error:', profileError);
+        } else if (profileData) {
+          const cheerProfile: ProfilePreview = {
+            id: profileData.id,
+            username: profileData.username,
+            avatar_url: profileData.avatar_url,
+          };
+          setSessions((previous) => {
+            const nextSessions = previous.map((session) => (
+              session.id === item.id && !session.cheer_profiles.some((profile) => profile.id === cheerProfile.id)
+                ? { ...session, cheer_profiles: [...session.cheer_profiles, cheerProfile] }
+                : session
+            ));
+            sessionsRef.current = nextSessions;
+            return nextSessions;
+          });
+          setCheersSession((current) => (
+            current?.id === item.id && !current.cheer_profiles.some((profile) => profile.id === cheerProfile.id)
+              ? { ...current, cheer_profiles: [...current.cheer_profiles, cheerProfile] }
+              : current
+          ));
+        }
 
         const { error: notifError } = await supabase.from('notifications').insert({
           user_id: item.user_id,
@@ -704,6 +974,15 @@ export const FeedScreen = () => {
           .eq('actor_id', currentUserId)
           .eq('type', 'cheer')
           .eq('reference_id', item.id);
+
+        setCheersSession((current) => (
+          current?.id === item.id
+            ? {
+                ...current,
+                cheer_profiles: current.cheer_profiles.filter((profile) => profile.id !== currentUserId),
+              }
+            : current
+        ));
       }
     } catch (error: any) {
       setSessions((previous) => {
@@ -713,12 +992,18 @@ export const FeedScreen = () => {
                 ...session,
                 has_cheered: previousHasCheered,
                 cheers_count: previousCheersCount,
+                cheer_profiles: previousCheerProfiles,
               }
             : session
         ));
         sessionsRef.current = nextSessions;
         return nextSessions;
       });
+      setCheersSession((current) => (
+        current?.id === item.id
+          ? { ...current, cheer_profiles: previousCheerProfiles }
+          : current
+      ));
       Alert.alert('Could not update cheers', error?.message || 'Please try again.');
     } finally {
       const nextPendingCheers = new Set(cheeringSessionIdsRef.current);
@@ -801,11 +1086,13 @@ export const FeedScreen = () => {
         isCheering={cheeringSessionIds.has(item.id)}
         onDeleteSession={deleteSession}
         onEditSession={editSession}
+        onOpenCheers={openCheers}
+        onOpenComments={openComments}
         onOpenProfile={openProfile}
         onToggleCheers={toggleCheers}
       />
     );
-  }, [cheeringSessionIds, currentUserId, deleteSession, editSession, openProfile, toggleCheers]);
+  }, [cheeringSessionIds, currentUserId, deleteSession, editSession, openCheers, openComments, openProfile, toggleCheers]);
 
   return (
     <View style={styles.container}>
@@ -888,6 +1175,149 @@ export const FeedScreen = () => {
           ListFooterComponent={renderFeedFooter}
         />
       )}
+
+      <Modal
+        visible={Boolean(cheersSession)}
+        transparent
+        animationType="fade"
+        onRequestClose={closeCheers}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Cheers</Text>
+              <TouchableOpacity style={styles.modalCloseButton} onPress={closeCheers}>
+                <X color={colors.text} size={21} />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={cheersSession?.cheer_profiles || []}
+              keyExtractor={(item) => item.id}
+              style={styles.modalList}
+              contentContainerStyle={[
+                styles.modalListContent,
+                !cheersSession?.cheer_profiles.length ? styles.modalEmptyContent : null,
+              ]}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.personRow}
+                  onPress={() => {
+                    closeCheers();
+                    openProfile(item.id);
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <CachedImage
+                    uri={item.avatar_url}
+                    fallbackUri={`https://i.pravatar.cc/150?u=${item.id}`}
+                    style={styles.personAvatar}
+                    recyclingKey={`cheer-${item.id}-${item.avatar_url || 'fallback'}`}
+                    accessibilityLabel={`${item.username || 'Someone'}'s avatar`}
+                  />
+                  <View style={styles.personText}>
+                    <Text style={styles.personName}>{item.username || 'Someone'}</Text>
+                    <Text style={styles.personMeta}>Gave cheers</Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={
+                <View style={styles.modalEmptyState}>
+                  <Image source={beervaLogo} style={styles.modalEmptyLogo} />
+                  <Text style={styles.modalEmptyText}>No cheers yet.</Text>
+                </View>
+              }
+            />
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={Boolean(commentingSession)}
+        transparent
+        animationType="fade"
+        onRequestClose={closeComments}
+      >
+        <KeyboardAvoidingView
+          style={styles.modalBackdrop}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Comments</Text>
+              <TouchableOpacity style={styles.modalCloseButton} onPress={closeComments}>
+                <X color={colors.text} size={21} />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={commentingSession?.comments || []}
+              keyExtractor={(item) => item.id}
+              style={styles.modalList}
+              contentContainerStyle={[
+                styles.modalListContent,
+                !commentingSession?.comments.length ? styles.modalEmptyContent : null,
+              ]}
+              renderItem={({ item }) => (
+                <View style={styles.commentRow}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      closeComments();
+                      openProfile(item.user_id);
+                    }}
+                    activeOpacity={0.75}
+                  >
+                    <CachedImage
+                      uri={item.profiles?.avatar_url}
+                      fallbackUri={`https://i.pravatar.cc/150?u=${item.user_id}`}
+                      style={styles.commentAvatar}
+                      recyclingKey={`comment-${item.id}-${item.profiles?.avatar_url || 'fallback'}`}
+                      accessibilityLabel={`${item.profiles?.username || 'Someone'}'s avatar`}
+                    />
+                  </TouchableOpacity>
+                  <View style={styles.commentBubble}>
+                    <Text style={styles.commentBubbleName}>{item.profiles?.username || 'Someone'}</Text>
+                    <Text style={styles.commentBubbleText}>{item.body}</Text>
+                    <Text style={styles.commentTime}>{getTimeAgo(item.created_at)}</Text>
+                  </View>
+                </View>
+              )}
+              ListEmptyComponent={
+                <View style={styles.modalEmptyState}>
+                  <MessageCircle color={colors.textMuted} size={28} />
+                  <Text style={styles.modalEmptyText}>No comments yet.</Text>
+                </View>
+              }
+            />
+            <View style={styles.commentComposer}>
+              <TextInput
+                style={styles.commentComposerInput}
+                value={commentDraft}
+                onChangeText={setCommentDraft}
+                placeholder="Add a comment..."
+                placeholderTextColor={colors.textMuted}
+                maxLength={500}
+                multiline
+              />
+              <TouchableOpacity
+                style={[
+                  styles.commentSendButton,
+                  (!commentDraft.trim() || submittingComment) ? styles.commentSendButtonDisabled : null,
+                ]}
+                onPress={submitComment}
+                disabled={!commentDraft.trim() || submittingComment}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel="Post comment"
+              >
+                {submittingComment ? (
+                  <ActivityIndicator color={colors.background} size="small" />
+                ) : (
+                  <Send color={colors.background} size={18} />
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 };
@@ -1076,6 +1506,11 @@ const styles = StyleSheet.create({
     height: 22,
     resizeMode: 'contain',
   },
+  cheersLogoSmall: {
+    width: 18,
+    height: 18,
+    resizeMode: 'contain',
+  },
   cardContent: {
     padding: spacing.lg,
     borderBottomWidth: 1,
@@ -1147,6 +1582,47 @@ const styles = StyleSheet.create({
     color: colors.text,
     lineHeight: 22,
   },
+  engagementPanel: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSoft,
+    gap: 10,
+  },
+  cheerSummaryRow: {
+    minHeight: 30,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  cheerSummaryText: {
+    ...typography.caption,
+    color: colors.text,
+    flex: 1,
+    fontWeight: '800',
+  },
+  commentPreviewList: {
+    gap: 6,
+  },
+  commentPreviewRow: {
+    minHeight: 22,
+    justifyContent: 'center',
+  },
+  commentPreviewText: {
+    ...typography.caption,
+    color: colors.text,
+    lineHeight: 18,
+  },
+  commentPreviewName: {
+    color: colors.text,
+    fontWeight: '800',
+  },
+  viewCommentsText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontWeight: '700',
+  },
   bold: {
     fontWeight: '700',
     color: colors.primary,
@@ -1155,6 +1631,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
   },
   actionBtn: {
     flexDirection: 'row',
@@ -1243,5 +1721,166 @@ const styles = StyleSheet.create({
     color: colors.background,
     fontWeight: '800',
     fontSize: 15,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: colors.overlay,
+    justifyContent: 'flex-end',
+    padding: 16,
+  },
+  modalSheet: {
+    width: '100%',
+    maxHeight: '82%',
+    backgroundColor: colors.card,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    overflow: 'hidden',
+    ...shadows.raised,
+  },
+  modalHeader: {
+    minHeight: 58,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSoft,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  modalTitle: {
+    ...typography.h3,
+    fontSize: 18,
+  },
+  modalCloseButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+  },
+  modalList: {
+    maxHeight: Platform.OS === 'web' ? 420 : 460,
+  },
+  modalListContent: {
+    padding: 16,
+    gap: 12,
+  },
+  modalEmptyContent: {
+    minHeight: 170,
+    justifyContent: 'center',
+  },
+  modalEmptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  modalEmptyLogo: {
+    width: 34,
+    height: 32,
+    resizeMode: 'contain',
+    opacity: 0.72,
+  },
+  modalEmptyText: {
+    ...typography.bodyMuted,
+    textAlign: 'center',
+  },
+  personRow: {
+    minHeight: 58,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  personAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+  },
+  personText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  personName: {
+    ...typography.body,
+    color: colors.text,
+    fontWeight: '800',
+  },
+  personMeta: {
+    ...typography.caption,
+    marginTop: 2,
+  },
+  commentRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  commentAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+  },
+  commentBubble: {
+    flex: 1,
+    minWidth: 0,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  commentBubbleName: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: '800',
+  },
+  commentBubbleText: {
+    ...typography.body,
+    color: colors.text,
+    marginTop: 3,
+    lineHeight: 21,
+  },
+  commentTime: {
+    ...typography.caption,
+    marginTop: 6,
+  },
+  commentComposer: {
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSoft,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 10,
+    backgroundColor: colors.card,
+  },
+  commentComposerInput: {
+    ...typography.body,
+    flex: 1,
+    minHeight: 42,
+    maxHeight: 118,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: colors.text,
+  },
+  commentSendButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+  },
+  commentSendButtonDisabled: {
+    opacity: 0.55,
   },
 });

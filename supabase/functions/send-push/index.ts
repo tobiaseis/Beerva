@@ -23,7 +23,7 @@ type NotificationRow = {
   id: string;
   user_id: string;
   actor_id: string;
-  type: 'cheer' | 'invite' | 'session_started';
+  type: 'cheer' | 'invite' | 'session_started' | 'comment';
   reference_id: string | null;
 };
 
@@ -71,6 +71,9 @@ Deno.serve(async (req) => {
   if (record.type === 'cheer') {
     title = 'Cheers received!';
     bodyText = `${actorName} cheered your beer session`;
+  } else if (record.type === 'comment') {
+    title = 'New comment';
+    bodyText = `${actorName} commented on your beer session`;
   } else if (record.type === 'invite') {
     title = 'Invitation to drink';
     bodyText = `${actorName} wants to grab a beer with you`;
