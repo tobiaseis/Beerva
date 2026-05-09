@@ -183,6 +183,37 @@ export const RecordScreen = ({ navigation }: any) => {
   const remotePubSearchCache = useRef<Set<string>>(new Set());
   const nearbySeedKeys = useRef<Set<string>>(new Set());
   const passiveLocationAttempted = useRef(false);
+  const passiveSeedAttempted = useRef(false);
+
+  useEffect(() => {
+    if (passiveSeedAttempted.current) return;
+    passiveSeedAttempted.current = true;
+
+    let cancelled = false;
+    (async () => {
+      const cachedLocation = await getPreviouslyGrantedBrowserLocation();
+      if (cancelled || !cachedLocation) return;
+
+      passiveLocationAttempted.current = true;
+      setUserLocation((current) => current || cachedLocation);
+
+      const cacheKey = getLocationCacheKey(cachedLocation);
+      if (nearbySeedKeys.current.has(cacheKey)) return;
+
+      try {
+        await fetchAndCacheNearbyPubs(cachedLocation, '');
+        if (cancelled) return;
+        nearbySeedKeys.current.add(cacheKey);
+        pubSearchCache.current.clear();
+      } catch (err) {
+        console.warn('Pre-warm pub cache failed:', err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const cleanPub = pub.trim();

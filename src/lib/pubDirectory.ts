@@ -18,31 +18,6 @@ export type PubRecord = {
   distance_meters?: number | null;
 };
 
-export type OsmPubCandidate = {
-  name: string;
-  city?: string | null;
-  address?: string | null;
-  latitude?: number | null;
-  longitude?: number | null;
-  source_id: string;
-  source_tags: Record<string, string>;
-};
-
-type OverpassElement = {
-  type?: string;
-  id?: number;
-  lat?: number;
-  lon?: number;
-  center?: {
-    lat?: number;
-    lon?: number;
-  };
-  tags?: Record<string, string>;
-};
-
-const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
-const OVERPASS_RADIUS_METERS = 10000;
-const MAX_OSM_PUBS_TO_CACHE = 120;
 const NEARBY_PUB_LOOKUP_TIMEOUT_MS = 12000;
 
 const normalize = (value: string) => value.trim().toLowerCase();
@@ -115,7 +90,21 @@ export const fetchAndCacheNearbyPubs = async (
   });
 
   if (error) {
-    throw new Error(error.message || 'Nearby pub lookup failed.');
+    let detail: string | null = null;
+    const context = (error as any)?.context;
+    if (context && typeof context.clone === 'function') {
+      try {
+        const body = await context.clone().json();
+        detail = body?.error || body?.message || null;
+      } catch {
+        try {
+          detail = await context.clone().text();
+        } catch {
+          detail = null;
+        }
+      }
+    }
+    throw new Error(detail || error.message || 'Nearby pub lookup failed.');
   }
 
   if (data?.error) {
@@ -123,146 +112,6 @@ export const fetchAndCacheNearbyPubs = async (
   }
 
   return ((data?.pubs || []) as PubRecord[]);
-};
-
-const toAddress = (tags: Record<string, string>) => {
-  const street = tags['addr:street'];
-  const houseNumber = tags['addr:housenumber'];
-  const postcode = tags['addr:postcode'];
-
-  const streetLine = [street, houseNumber].filter(Boolean).join(' ');
-  return [streetLine, postcode].filter(Boolean).join(', ') || null;
-};
-
-const buildOverpassQuery = (location: UserLocation) => {
-  const lat = location.latitude.toFixed(6);
-  const lon = location.longitude.toFixed(6);
-  const radius = OVERPASS_RADIUS_METERS;
-
-  return `
-[out:json][timeout:18];
-(
-  node(around:${radius},${lat},${lon})["amenity"~"^(pub|bar|biergarten|nightclub)$"]["name"];
-  way(around:${radius},${lat},${lon})["amenity"~"^(pub|bar|biergarten|nightclub)$"]["name"];
-  relation(around:${radius},${lat},${lon})["amenity"~"^(pub|bar|biergarten|nightclub)$"]["name"];
-  node(around:${radius},${lat},${lon})["craft"="brewery"]["name"];
-  way(around:${radius},${lat},${lon})["craft"="brewery"]["name"];
-  relation(around:${radius},${lat},${lon})["craft"="brewery"]["name"];
-  node(around:${radius},${lat},${lon})["microbrewery"="yes"]["name"];
-  way(around:${radius},${lat},${lon})["microbrewery"="yes"]["name"];
-  relation(around:${radius},${lat},${lon})["microbrewery"="yes"]["name"];
-  node(around:${radius},${lat},${lon})["bar"="yes"]["name"];
-  way(around:${radius},${lat},${lon})["bar"="yes"]["name"];
-  relation(around:${radius},${lat},${lon})["bar"="yes"]["name"];
-);
-out center tags ${MAX_OSM_PUBS_TO_CACHE};
-`.trim();
-};
-
-const pubMatchesQuery = (pub: OsmPubCandidate, query: string) => {
-  const cleanQuery = normalize(query);
-  if (cleanQuery.length < 2) return true;
-
-  return [pub.name, pub.city || '', pub.address || '']
-    .some((value) => normalize(value).includes(cleanQuery));
-};
-
-const distanceBetween = (a: UserLocation, b: UserLocation) => {
-  const toRad = (value: number) => (value * Math.PI) / 180;
-  const earthRadius = 6371000;
-  const dLat = toRad(b.latitude - a.latitude);
-  const dLon = toRad(b.longitude - a.longitude);
-  const lat1 = toRad(a.latitude);
-  const lat2 = toRad(b.latitude);
-
-  const x = Math.sin(dLat / 2) ** 2
-    + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
-  return 2 * earthRadius * Math.asin(Math.sqrt(x));
-};
-
-export const fetchOsmPubsNear = async (
-  location: UserLocation,
-  query = '',
-  signal?: AbortSignal
-): Promise<OsmPubCandidate[]> => {
-  const response = await fetch(OVERPASS_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
-    },
-    body: `data=${encodeURIComponent(buildOverpassQuery(location))}`,
-    signal,
-  });
-
-  if (!response.ok) {
-    throw new Error(`OpenStreetMap pub lookup failed (${response.status})`);
-  }
-
-  const payload = await response.json();
-  const elements = Array.isArray(payload?.elements) ? payload.elements as OverpassElement[] : [];
-  const pubsBySource = new Map<string, OsmPubCandidate>();
-
-  elements.forEach((element) => {
-    const tags = element.tags || {};
-    const name = tags.name?.trim();
-    const latitude = element.lat ?? element.center?.lat ?? null;
-    const longitude = element.lon ?? element.center?.lon ?? null;
-
-    if (!name || typeof element.id !== 'number' || !element.type || latitude === null || longitude === null) {
-      return;
-    }
-
-    const sourceId = `${element.type}/${element.id}`;
-    const candidate: OsmPubCandidate = {
-      name,
-      city: tags['addr:city'] || tags['is_in:city'] || tags['addr:municipality'] || null,
-      address: toAddress(tags),
-      latitude,
-      longitude,
-      source_id: sourceId,
-      source_tags: tags,
-    };
-
-    if (pubMatchesQuery(candidate, query)) {
-      pubsBySource.set(sourceId, candidate);
-    }
-  });
-
-  return Array.from(pubsBySource.values())
-    .sort((a, b) => {
-      const aDistance = a.latitude && a.longitude
-        ? distanceBetween(location, { latitude: a.latitude, longitude: a.longitude })
-        : Number.POSITIVE_INFINITY;
-      const bDistance = b.latitude && b.longitude
-        ? distanceBetween(location, { latitude: b.latitude, longitude: b.longitude })
-        : Number.POSITIVE_INFINITY;
-      return aDistance - bDistance;
-    })
-    .slice(0, MAX_OSM_PUBS_TO_CACHE);
-};
-
-export const cacheOsmPubs = async (pubs: OsmPubCandidate[], userId: string) => {
-  if (pubs.length === 0) return;
-
-  const { error } = await supabase
-    .from('pubs')
-    .upsert(
-      pubs.map((pub) => ({
-        name: pub.name,
-        city: pub.city || null,
-        address: pub.address || null,
-        latitude: pub.latitude ?? null,
-        longitude: pub.longitude ?? null,
-        source: 'osm',
-        source_id: pub.source_id,
-        source_tags: pub.source_tags,
-        status: 'active',
-        created_by: userId,
-      })),
-      { onConflict: 'source,source_id', ignoreDuplicates: true }
-    );
-
-  if (error) throw error;
 };
 
 export const createUserPub = async (

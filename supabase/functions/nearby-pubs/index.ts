@@ -3,11 +3,7 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const foursquareApiKey = Deno.env.get('FSQ_API_KEY') || Deno.env.get('FOURSQUARE_API_KEY') || '';
-const foursquareMonthlyCallLimit = Number(Deno.env.get('FSQ_MONTHLY_CALL_LIMIT') || '450');
 
-const FOURSQUARE_SEARCH_URL = 'https://places-api.foursquare.com/places/search';
-const FOURSQUARE_API_VERSION = '2025-06-17';
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
 const DEFAULT_RADIUS_METERS = 10000;
 const MAX_RADIUS_METERS = 12000;
@@ -44,46 +40,7 @@ type OsmPubCandidate = {
   latitude?: number | null;
   longitude?: number | null;
   source_id: string;
-  source_tags: Record<string, unknown>;
-};
-
-type ProviderPubCandidate = OsmPubCandidate & {
-  source: 'osm' | 'foursquare';
-};
-
-type FoursquarePlace = {
-  fsq_place_id?: string;
-  fsq_id?: string;
-  name?: string;
-  latitude?: number;
-  longitude?: number;
-  location?: {
-    address?: string;
-    locality?: string;
-    postcode?: string;
-    region?: string;
-    country?: string;
-    formatted_address?: string;
-  };
-  geocodes?: {
-    main?: {
-      latitude?: number;
-      longitude?: number;
-    };
-  };
-  categories?: Array<{
-    fsq_category_id?: string;
-    id?: number | string;
-    name?: string;
-    plural_name?: string;
-  }>;
-};
-
-type PlacesUsageReservation = {
-  allowed?: boolean;
-  call_count?: number;
-  monthly_limit?: number;
-  month_start?: string;
+  source_tags: Record<string, string>;
 };
 
 const jsonResponse = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
@@ -149,105 +106,6 @@ const buildOverpassQuery = (location: UserLocation, radiusMeters: number) => {
 );
 out center tags ${MAX_OSM_PUBS_TO_CACHE};
 `.trim();
-};
-
-const isDrinkingPlace = (place: FoursquarePlace, query: string) => {
-  const cleanQuery = normalize(query);
-  const name = normalize(place.name || '');
-  const categoryNames = (place.categories || []).map((category) => normalize(category.name || ''));
-  const categoryText = categoryNames.join(' ');
-  const drinkWords = ['bar', 'pub', 'beer', 'brew', 'brewery', 'tap', 'tavern', 'nightclub', 'night club', 'cocktail', 'wine'];
-
-  if (drinkWords.some((word) => categoryText.includes(word) || name.includes(word))) return true;
-  if (cleanQuery.length >= 3 && name.includes(cleanQuery)) return true;
-  return false;
-};
-
-const fetchFoursquarePubsNear = async (
-  location: UserLocation,
-  query: string,
-  radiusMeters: number,
-): Promise<ProviderPubCandidate[]> => {
-  if (!foursquareApiKey) return [];
-
-  const params = new URLSearchParams({
-    ll: `${location.latitude},${location.longitude}`,
-    radius: String(radiusMeters),
-    limit: '50',
-    sort: 'DISTANCE',
-    fields: 'fsq_place_id,name,latitude,longitude,location,categories',
-  });
-
-  if (query.trim()) {
-    params.set('query', query.trim());
-  } else {
-    params.set('query', 'bar');
-  }
-
-  const response = await fetchWithTimeout(`${FOURSQUARE_SEARCH_URL}?${params.toString()}`, {
-    headers: {
-      Authorization: `Bearer ${foursquareApiKey}`,
-      'X-Places-Api-Version': FOURSQUARE_API_VERSION,
-      Accept: 'application/json',
-    },
-  });
-
-  if (!response.ok) {
-    const body = await response.text().catch(() => '');
-    throw new Error(`Foursquare returned ${response.status}${body ? `: ${body.slice(0, 200)}` : ''}`);
-  }
-
-  const payload = await response.json();
-  const results = Array.isArray(payload?.results) ? payload.results as FoursquarePlace[] : [];
-
-  return results
-    .map((place) => {
-      const sourceId = place.fsq_place_id || place.fsq_id;
-      if (!sourceId || !place.name) return null;
-      if (!isDrinkingPlace(place, query)) return null;
-
-      const latitude = place.latitude ?? place.geocodes?.main?.latitude ?? null;
-      const longitude = place.longitude ?? place.geocodes?.main?.longitude ?? null;
-      const city = place.location?.locality || null;
-      const address = place.location?.formatted_address
-        || [place.location?.address, place.location?.postcode].filter(Boolean).join(', ')
-        || null;
-
-      return {
-        name: place.name!.trim(),
-        city,
-        address,
-        latitude,
-        longitude,
-        source: 'foursquare' as const,
-        source_id: sourceId,
-        source_tags: {
-          fsq_place_id: sourceId,
-          categories: place.categories || [],
-          location: place.location || {},
-        },
-      } satisfies ProviderPubCandidate;
-    })
-    .filter((place): place is ProviderPubCandidate => place !== null);
-};
-
-const reserveFoursquareCall = async (admin: any) => {
-  const monthlyLimit = Number.isFinite(foursquareMonthlyCallLimit)
-    ? Math.max(0, Math.floor(foursquareMonthlyCallLimit))
-    : 450;
-
-  const { data, error } = await admin.rpc('reserve_places_api_call', {
-    provider_name: 'foursquare',
-    provider_monthly_limit: monthlyLimit,
-  });
-
-  if (error) throw error;
-  const row = Array.isArray(data) ? data[0] : data;
-  return (row || {
-    allowed: false,
-    call_count: 0,
-    monthly_limit: monthlyLimit,
-  }) as PlacesUsageReservation;
 };
 
 const fetchOsmPubsNear = async (
@@ -348,59 +206,22 @@ Deno.serve(async (req) => {
   const admin = createClient(supabaseUrl, supabaseServiceKey);
   let cached = 0;
   let lookupError: string | null = null;
-  let usage: PlacesUsageReservation | null = null;
-  let provider: 'cache' | 'foursquare' | 'osm' = 'cache';
 
   try {
-    let providerPubs: ProviderPubCandidate[] = [];
+    const osmPubs = await fetchOsmPubsNear({ latitude, longitude }, query, radiusMeters);
+    cached = osmPubs.length;
 
-    if (foursquareApiKey) {
-      try {
-        usage = await reserveFoursquareCall(admin);
-      } catch (error: any) {
-        lookupError = error?.message || 'Foursquare usage cap unavailable';
-        console.error('Foursquare usage cap error:', lookupError);
-      }
-
-      if (usage?.allowed) {
-        try {
-          providerPubs = await fetchFoursquarePubsNear({ latitude, longitude }, query, radiusMeters);
-          if (providerPubs.length > 0) {
-            provider = 'foursquare';
-          }
-        } catch (error: any) {
-          lookupError = error?.message || 'Foursquare lookup failed';
-          console.error('Foursquare lookup error:', lookupError);
-        }
-      } else if (usage) {
-        lookupError = `Foursquare monthly cap reached (${usage.call_count || 0}/${usage.monthly_limit || 0})`;
-      }
-    }
-
-    if (providerPubs.length === 0) {
-      const osmPubs = await fetchOsmPubsNear({ latitude, longitude }, query, radiusMeters);
-      providerPubs = osmPubs.map((pub) => ({
-        ...pub,
-        source: 'osm' as const,
-      }));
-      if (providerPubs.length > 0) {
-        provider = 'osm';
-      }
-    }
-
-    cached = providerPubs.length;
-
-    if (providerPubs.length > 0) {
+    if (osmPubs.length > 0) {
       const { error: upsertError } = await admin
         .from('pubs')
         .upsert(
-          providerPubs.map((pub) => ({
+          osmPubs.map((pub) => ({
             name: pub.name,
             city: pub.city || null,
             address: pub.address || null,
             latitude: pub.latitude ?? null,
             longitude: pub.longitude ?? null,
-            source: pub.source,
+            source: 'osm',
             source_id: pub.source_id,
             source_tags: pub.source_tags,
             status: 'active',
@@ -435,7 +256,5 @@ Deno.serve(async (req) => {
     pubs: pubs || [],
     cached,
     lookupError,
-    provider,
-    usage,
   });
 });
