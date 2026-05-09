@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { calculateStats, emptyStats, ProfileSessionStatsRow, Stats } from './profileStats';
+import { calculateStats, emptyStats, getVolumeMl, ProfileSessionStatsRow, Stats } from './profileStats';
 
 type ProfileStatsRpcRow = {
   total_pints?: number | null;
@@ -16,6 +16,12 @@ type ProfileStatsRpcRow = {
   max_beers_in_one_day?: number | null;
   has_early_bird_session?: boolean | null;
   months_logged?: number | null;
+};
+
+export type PintTimelinePoint = {
+  key: string;
+  label: string;
+  pints: number;
 };
 
 const numberOrZero = (value?: number | null) => Number(value || 0);
@@ -103,4 +109,74 @@ export const fetchProfileStats = async (userId: string): Promise<Stats> => {
 
   const row = Array.isArray(data) ? data[0] : data;
   return statsFromRpcRow(row as ProfileStatsRpcRow | null);
+};
+
+const getMonthKey = (value?: string | null) => {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return null;
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+};
+
+const getMonthLabel = (monthKey: string) => {
+  const [year, month] = monthKey.split('-').map(Number);
+  return new Date(year, month - 1, 1).toLocaleDateString('en-US', {
+    month: 'short',
+    year: '2-digit',
+  });
+};
+
+const rowToPints = (row: Pick<ProfileSessionStatsRow, 'volume' | 'quantity'>) => {
+  const quantity = row.quantity || 1;
+  return (getVolumeMl(row.volume) * quantity) / 568;
+};
+
+export const fetchPintTimeline = async (userId: string): Promise<PintTimelinePoint[]> => {
+  const { data, error } = await supabase
+    .from('session_beers')
+    .select(`
+      volume,
+      quantity,
+      consumed_at,
+      sessions!inner(user_id, status, started_at, created_at)
+    `)
+    .eq('sessions.user_id', userId)
+    .eq('sessions.status', 'published')
+    .order('consumed_at', { ascending: true });
+
+  let rows: ProfileSessionStatsRow[] = [];
+
+  if (!error) {
+    rows = ((data || []) as any[]).map((beer) => ({
+      volume: beer.volume,
+      quantity: beer.quantity,
+      created_at: beer.consumed_at || beer.sessions?.started_at || beer.sessions?.created_at,
+    }));
+  } else {
+    console.warn('Pint timeline unavailable, using legacy sessions fallback:', error.message);
+    const legacy = await supabase
+      .from('sessions')
+      .select('volume, quantity, created_at')
+      .eq('user_id', userId)
+      .eq('status', 'published')
+      .order('created_at', { ascending: true });
+
+    if (legacy.error) throw legacy.error;
+    rows = (legacy.data || []) as ProfileSessionStatsRow[];
+  }
+
+  const byMonth = rows.reduce((acc, row) => {
+    const key = getMonthKey(row.created_at);
+    if (!key) return acc;
+    acc.set(key, (acc.get(key) || 0) + rowToPints(row));
+    return acc;
+  }, new Map<string, number>());
+
+  return Array.from(byMonth.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-12)
+    .map(([key, pints]) => ({
+      key,
+      label: getMonthLabel(key),
+      pints: Math.round(pints * 10) / 10,
+    }));
 };

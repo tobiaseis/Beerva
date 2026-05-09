@@ -6,7 +6,7 @@ import { ArrowLeft, Beer, CalendarDays, MapPin, UserCheck, UserPlus } from 'luci
 import { CachedImage } from '../components/CachedImage';
 import { ProfileStatsPanel } from '../components/ProfileStatsPanel';
 import { emptyStats, getVolumeMl, ProfileSessionStatsRow, Stats } from '../lib/profileStats';
-import { fetchProfileStats } from '../lib/profileStatsApi';
+import { fetchPintTimeline, fetchProfileStats, PintTimelinePoint } from '../lib/profileStatsApi';
 import { getBeerLine, getSessionBeerSummary, SessionBeer } from '../lib/sessionBeers';
 import { supabase } from '../lib/supabase';
 import { showAlert } from '../lib/dialogs';
@@ -128,6 +128,7 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [stats, setStats] = useState<Stats>(emptyStats);
+  const [pintTimeline, setPintTimeline] = useState<PintTimelinePoint[]>([]);
   const [sessions, setSessions] = useState<PublicSession[]>([]);
   const [sessionCount, setSessionCount] = useState(0);
   const [followCounts, setFollowCounts] = useState<FollowCounts>({ followers: 0, following: 0 });
@@ -149,6 +150,7 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
         profileResult,
         sessionsResult,
         profileStats,
+        timeline,
         followersResult,
         followingResult,
       ] = await Promise.all([
@@ -165,6 +167,7 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
           .order('published_at', { ascending: false, nullsFirst: false })
           .limit(5),
         fetchProfileStats(profileId),
+        fetchPintTimeline(profileId),
         supabase
           .from('follows')
           .select('*', { count: 'exact', head: true })
@@ -221,6 +224,7 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
       setSessions(sessionsWithBeers);
       setSessionCount(sessionsResult.count || sessionsResult.data?.length || 0);
       setStats(profileStats);
+      setPintTimeline(timeline);
       setFollowCounts({
         followers: followersResult.count || 0,
         following: followingResult.count || 0,
@@ -437,7 +441,7 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
         )}
       </View>
 
-      <ProfileStatsPanel stats={stats} />
+      <ProfileStatsPanel stats={stats} pintTimeline={pintTimeline} />
 
       <View style={styles.recentSection}>
         <View style={styles.sectionHeader}>

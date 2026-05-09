@@ -23,15 +23,15 @@ export type BeerDraft = {
 };
 
 export const BEER_CATALOG: BeerCatalogItem[] = [
-  { name: 'Tuborg Gron', abv: 4.6 },
+  { name: 'Tuborg Grøn', abv: 4.6 },
   { name: 'Tuborg Classic', abv: 4.6 },
   { name: 'Carlsberg Pilsner', abv: 4.6 },
   { name: 'Carlsberg 1883', abv: 4.6 },
   { name: 'Carlsberg Elephant', abv: 7.2 },
   { name: 'Tuborg Guld', abv: 5.6 },
   { name: 'Tuborg Julebryg', abv: 5.6 },
-  { name: 'Tuborg Paskebryg', abv: 5.4 },
-  { name: 'Grimbergen Double Ambree', abv: 6.5 },
+  { name: 'Tuborg Påskebryg', abv: 5.4 },
+  { name: 'Grimbergen Double-Ambrée', abv: 6.5 },
   { name: 'Grimbergen Blonde', abv: 6.7 },
   { name: 'Kronenbourg 1664 Blanc', abv: 5.0 },
   { name: 'Jacobsen Brown Ale', abv: 6.0 },
@@ -43,9 +43,9 @@ export const BEER_CATALOG: BeerCatalogItem[] = [
   { name: 'Royal Pilsner', abv: 4.6 },
   { name: 'Royal Classic', abv: 4.6 },
   { name: 'Royal Export', abv: 5.4 },
-  { name: 'Royal Okologisk', abv: 4.8 },
-  { name: 'Schiotz Mork Mumme', abv: 6.5 },
-  { name: 'Schiotz Gylden IPA', abv: 5.9 },
+  { name: 'Royal Økologisk', abv: 4.8 },
+  { name: 'Schiøtz Mørk Mumme', abv: 6.5 },
+  { name: 'Schiøtz Gylden IPA', abv: 5.9 },
   { name: 'Ceres Top', abv: 4.6 },
   { name: 'Thor Pilsner', abv: 4.6 },
   { name: 'Faxe Premium', abv: 5.0 },
@@ -54,27 +54,27 @@ export const BEER_CATALOG: BeerCatalogItem[] = [
   { name: 'Harboe Bear Beer', abv: 7.7 },
   { name: 'Thisted Limfjordsporter', abv: 7.9 },
   { name: 'Thisted Thy Pilsner', abv: 4.6 },
-  { name: 'Thisted Okologisk Humle', abv: 5.8 },
+  { name: 'Thisted Økologisk Humle', abv: 5.8 },
   { name: 'Skagen Bryghus Drachmann', abv: 5.0 },
   { name: 'Skagen Bryghus Skawbo', abv: 5.5 },
   { name: 'Fur Vulcano Classic', abv: 4.6 },
   { name: 'Fur Bock', abv: 7.6 },
   { name: 'Fur IPA', abv: 6.2 },
-  { name: 'Norrebro Bryghus New York Lager', abv: 5.2 },
-  { name: 'Norrebro Bryghus Bombay IPA', abv: 6.1 },
-  { name: 'Norrebro Bryghus Ravnsborg Rod', abv: 5.5 },
+  { name: 'Nørrebro Bryghus New York Lager', abv: 5.2 },
+  { name: 'Nørrebro Bryghus Bombay IPA', abv: 6.1 },
+  { name: 'Nørrebro Bryghus Ravnsborg Rød', abv: 5.5 },
   { name: 'Amager Bryghus Hr. Frederiksen', abv: 10.5 },
   { name: 'Amager Bryghus Todd The Axe Man', abv: 6.5 },
   { name: 'Mikkeller Peter Pale and Mary', abv: 4.6 },
   { name: 'Mikkeller Burst IPA', abv: 5.5 },
   { name: 'Mikkeller Visions Lager', abv: 4.5 },
   { name: 'Mikkeller Beer Geek Breakfast', abv: 7.5 },
-  { name: 'To Ol City Session IPA', abv: 4.5 },
-  { name: 'To Ol Whirl Domination', abv: 6.2 },
-  { name: 'To Ol 45 Days Pilsner', abv: 4.7 },
-  { name: 'To Ol Gose to Hollywood', abv: 3.8 },
+  { name: 'To Øl City Session IPA', abv: 4.5 },
+  { name: 'To Øl Whirl Domination', abv: 6.2 },
+  { name: 'To Øl 45 Days Pilsner', abv: 4.7 },
+  { name: 'To Øl Gose to Hollywood', abv: 3.8 },
   { name: 'Svaneke Classic', abv: 4.6 },
-  { name: 'Svaneke Mork Guld', abv: 5.7 },
+  { name: 'Svaneke Mørk Guld', abv: 5.7 },
   { name: 'Svaneke Craft Pilsner', abv: 4.6 },
   { name: 'Svaneke Choco Stout', abv: 5.7 },
   { name: 'Hornbeer Black Magic Woman', abv: 10.0 },
@@ -82,7 +82,7 @@ export const BEER_CATALOG: BeerCatalogItem[] = [
   { name: 'Braw Ale', abv: 5.5 },
   { name: 'Ale No. 16 (Refsvindinge)', abv: 5.7 },
   { name: 'Mors Stout', abv: 5.7 },
-  { name: 'Hancock Hoker Bajer', abv: 5.0 },
+  { name: 'Hancock Høker Bajer', abv: 5.0 },
   { name: 'Hancock Black Lager', abv: 5.0 },
   { name: 'Hancock Gambrinus', abv: 9.6 },
   { name: 'Willemoes Ale', abv: 5.2 },
@@ -94,7 +94,7 @@ export const BEER_CATALOG: BeerCatalogItem[] = [
 
 export const BEER_OPTIONS = BEER_CATALOG.map((beer) => beer.name);
 
-export const VOLUMES = ['25cl', '33cl', 'Schooner', 'Pint', '50cl'];
+export const VOLUMES = ['25cl', '33cl', '40cl', 'Pint', '50cl', '1L'];
 
 export const createEmptyBeerDraft = (): BeerDraft => ({
   beerName: '',
@@ -104,8 +104,22 @@ export const createEmptyBeerDraft = (): BeerDraft => ({
 
 export const createClientBeerId = () => `beer-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+const normalizeBeerName = (value: string) => (
+  value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ø/g, 'o')
+    .replace(/æ/g, 'ae')
+    .replace(/å/g, 'a')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+);
+
 export const getBeerAbv = (beerName: string) => {
-  const match = BEER_CATALOG.find((beer) => beer.name.toLowerCase() === beerName.trim().toLowerCase());
+  const normalizedBeerName = normalizeBeerName(beerName);
+  const match = BEER_CATALOG.find((beer) => normalizeBeerName(beer.name) === normalizedBeerName);
   return match ? match.abv : 5.0;
 };
 

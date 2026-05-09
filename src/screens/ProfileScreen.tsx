@@ -1,15 +1,15 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator, Platform } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator, Platform, FlatList } from 'react-native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
-import { Bell, BellOff, Camera, Edit2, LogOut, X } from 'lucide-react-native';
+import { Bell, BellOff, Camera, Edit2, LogOut, Users, X } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { confirmDestructive, showAlert } from '../lib/dialogs';
 import { deletePublicImageUrl, prepareWebImageFromPickerAsset, SelectedImage, UPLOAD_IMAGE_MAX_WIDTH, uploadImageToBucket } from '../lib/imageUpload';
 import { ProfileStatsPanel } from '../components/ProfileStatsPanel';
 import { emptyStats, Stats } from '../lib/profileStats';
-import { fetchProfileStats } from '../lib/profileStatsApi';
+import { fetchPintTimeline, fetchProfileStats, PintTimelinePoint } from '../lib/profileStatsApi';
 import { CachedImage } from '../components/CachedImage';
 import { getUsernameSaveErrorMessage, normalizeUsername } from '../lib/usernames';
 import { AppButton } from '../components/AppButton';
@@ -25,9 +25,23 @@ import {
 } from '../lib/pushNotifications';
 import * as ImagePicker from 'expo-image-picker';
 
+type FollowListKind = 'followers' | 'following';
+
+type ProfilePreview = {
+  id: string;
+  username: string | null;
+  avatar_url: string | null;
+};
+
 export const ProfileScreen = () => {
+  const navigation = useNavigation<any>();
   const [profile, setProfile] = useState<any>(null);
   const [stats, setStats] = useState<Stats>(emptyStats);
+  const [pintTimeline, setPintTimeline] = useState<PintTimelinePoint[]>([]);
+  const [followCounts, setFollowCounts] = useState({ followers: 0, following: 0 });
+  const [followModalKind, setFollowModalKind] = useState<FollowListKind | null>(null);
+  const [followUsers, setFollowUsers] = useState<ProfilePreview[]>([]);
+  const [followUsersLoading, setFollowUsersLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   
   // Edit Modal State
@@ -96,13 +110,28 @@ export const ProfileScreen = () => {
         updated_at: user.created_at || new Date().toISOString(),
       };
 
-      const [profileResult, profileStats] = await Promise.all([
+      const [
+        profileResult,
+        profileStats,
+        timeline,
+        followersResult,
+        followingResult,
+      ] = await Promise.all([
         supabase
           .from('profiles')
           .select('*')
           .eq('id', user.id)
           .maybeSingle(),
         fetchProfileStats(user.id),
+        fetchPintTimeline(user.id),
+        supabase
+          .from('follows')
+          .select('*', { count: 'exact', head: true })
+          .eq('following_id', user.id),
+        supabase
+          .from('follows')
+          .select('*', { count: 'exact', head: true })
+          .eq('follower_id', user.id),
       ]);
 
       const { data: profileData, error: profileError } = profileResult;
@@ -117,6 +146,11 @@ export const ProfileScreen = () => {
       setEditAvatarUri(currentProfile.avatar_url);
       setEditAvatar(null);
       setStats(profileStats);
+      setPintTimeline(timeline);
+      setFollowCounts({
+        followers: followersResult.count || 0,
+        following: followingResult.count || 0,
+      });
     } catch (e) {
       console.error(e);
     } finally {
@@ -135,6 +169,59 @@ export const ProfileScreen = () => {
     confirmDestructive('Log Out', 'Are you sure you want to log out?', 'Log Out', () => {
       supabase.auth.signOut();
     });
+  };
+
+  const openFollowModal = async (kind: FollowListKind) => {
+    if (!profile?.id) return;
+
+    setFollowModalKind(kind);
+    setFollowUsers([]);
+    setFollowUsersLoading(true);
+
+    try {
+      const idColumn = kind === 'followers' ? 'follower_id' : 'following_id';
+      const filterColumn = kind === 'followers' ? 'following_id' : 'follower_id';
+
+      const { data, error } = await supabase
+        .from('follows')
+        .select(idColumn)
+        .eq(filterColumn, profile.id)
+        .limit(100);
+
+      if (error) throw error;
+
+      const ids = Array.from(new Set((data || []).map((row: any) => row[idColumn]).filter(Boolean)));
+      if (ids.length === 0) {
+        setFollowUsers([]);
+        return;
+      }
+
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url')
+        .in('id', ids);
+
+      if (profilesError) throw profilesError;
+
+      const profilesById = new Map((profiles || []).map((item: any) => [item.id, item as ProfilePreview]));
+      setFollowUsers(ids.map((id) => profilesById.get(id)).filter(Boolean) as ProfilePreview[]);
+    } catch (error) {
+      console.error('Follow list fetch error:', error);
+      showAlert('Could not load people', 'Please try again.');
+    } finally {
+      setFollowUsersLoading(false);
+    }
+  };
+
+  const closeFollowModal = () => {
+    setFollowModalKind(null);
+    setFollowUsers([]);
+  };
+
+  const openUserProfile = (userId: string) => {
+    closeFollowModal();
+    if (userId === profile?.id) return;
+    navigation.navigate('UserProfile', { userId });
   };
 
   const pickAvatar = async () => {
@@ -249,9 +336,32 @@ export const ProfileScreen = () => {
         </View>
         <Text style={typography.h1}>{profile?.username || 'Beer Lover'}</Text>
         <Text style={typography.bodyMuted}>Joined {joinDate}</Text>
+        <View style={styles.followStats}>
+          <TouchableOpacity
+            style={styles.followStat}
+            onPress={() => openFollowModal('followers')}
+            activeOpacity={0.76}
+            accessibilityRole="button"
+            accessibilityLabel="Show followers"
+          >
+            <Text style={styles.followStatValue}>{followCounts.followers}</Text>
+            <Text style={styles.followStatLabel}>Followers</Text>
+          </TouchableOpacity>
+          <View style={styles.followDivider} />
+          <TouchableOpacity
+            style={styles.followStat}
+            onPress={() => openFollowModal('following')}
+            activeOpacity={0.76}
+            accessibilityRole="button"
+            accessibilityLabel="Show following"
+          >
+            <Text style={styles.followStatValue}>{followCounts.following}</Text>
+            <Text style={styles.followStatLabel}>Following</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
-      <ProfileStatsPanel stats={stats} />
+      <ProfileStatsPanel stats={stats} pintTimeline={pintTimeline} />
 
       {pushSupported ? (
         <TouchableOpacity
@@ -321,6 +431,72 @@ export const ProfileScreen = () => {
           </View>
         </View>
       </Modal>
+
+      <Modal
+        visible={Boolean(followModalKind)}
+        transparent
+        animationType="fade"
+        onRequestClose={closeFollowModal}
+      >
+        <View style={styles.followModalBackdrop}>
+          <View style={styles.followModalSheet}>
+            <View style={styles.followModalHeader}>
+              <View>
+                <Text style={styles.followModalTitle}>
+                  {followModalKind === 'followers' ? 'Followers' : 'Following'}
+                </Text>
+                <Text style={styles.followModalMeta}>
+                  {followModalKind === 'followers' ? followCounts.followers : followCounts.following}
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.followModalClose} onPress={closeFollowModal}>
+                <X color={colors.text} size={20} />
+              </TouchableOpacity>
+            </View>
+
+            {followUsersLoading ? (
+              <View style={styles.followModalLoader}>
+                <ActivityIndicator color={colors.primary} size="large" />
+              </View>
+            ) : (
+              <FlatList
+                data={followUsers}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={[
+                  styles.followListContent,
+                  followUsers.length === 0 ? styles.followListEmptyContent : null,
+                ]}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={styles.followUserRow}
+                    onPress={() => openUserProfile(item.id)}
+                    activeOpacity={0.75}
+                  >
+                    <CachedImage
+                      uri={item.avatar_url}
+                      fallbackUri={`https://i.pravatar.cc/150?u=${item.id}`}
+                      style={styles.followUserAvatar}
+                      recyclingKey={`follow-${item.id}-${item.avatar_url || 'fallback'}`}
+                      accessibilityLabel={`${item.username || 'Beer Lover'}'s avatar`}
+                    />
+                    <Text style={styles.followUserName}>{item.username || 'Beer Lover'}</Text>
+                  </TouchableOpacity>
+                )}
+                ListEmptyComponent={
+                  <View style={styles.followEmptyState}>
+                    <Users color={colors.textMuted} size={28} />
+                    <Text style={styles.followEmptyText}>
+                      {followModalKind === 'followers'
+                        ? 'No followers yet.'
+                        : 'Not following anyone yet.'}
+                    </Text>
+                  </View>
+                }
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 };
@@ -358,6 +534,35 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 3,
     borderColor: colors.background,
+  },
+  followStats: {
+    flexDirection: 'row',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    borderRadius: radius.lg,
+    marginTop: 18,
+    minWidth: 230,
+    overflow: 'hidden',
+  },
+  followStat: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  followStatValue: {
+    ...typography.h3,
+    color: colors.primary,
+    fontVariant: ['tabular-nums'],
+  },
+  followStatLabel: {
+    ...typography.caption,
+    marginTop: 2,
+  },
+  followDivider: {
+    width: 1,
+    backgroundColor: colors.borderSoft,
   },
   statsContainer: {
     flexDirection: 'row',
@@ -610,5 +815,90 @@ const styles = StyleSheet.create({
   },
   inputFocused: {
     borderColor: colors.primary,
+  },
+  followModalBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: colors.overlay,
+    padding: 16,
+  },
+  followModalSheet: {
+    width: '100%',
+    maxHeight: '78%',
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.card,
+    overflow: 'hidden',
+  },
+  followModalHeader: {
+    minHeight: 64,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSoft,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  followModalTitle: {
+    ...typography.h3,
+    fontSize: 18,
+  },
+  followModalMeta: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  followModalClose: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+  },
+  followModalLoader: {
+    minHeight: 180,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  followListContent: {
+    padding: 16,
+    gap: 12,
+  },
+  followListEmptyContent: {
+    minHeight: 190,
+    justifyContent: 'center',
+  },
+  followUserRow: {
+    minHeight: 58,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  followUserAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+  },
+  followUserName: {
+    ...typography.body,
+    color: colors.text,
+    fontWeight: '800',
+    flex: 1,
+  },
+  followEmptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  followEmptyText: {
+    ...typography.bodyMuted,
+    textAlign: 'center',
   },
 });

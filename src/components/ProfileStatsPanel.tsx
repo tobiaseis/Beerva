@@ -1,21 +1,28 @@
-import React, { useMemo } from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
-import { Award, Beer, CalendarDays, Flame, MapPin, Moon, PartyPopper, Repeat, Sparkles, Sunrise, Trophy } from 'lucide-react-native';
+import React, { useMemo, useState } from 'react';
+import { Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Award, Beer, CalendarDays, Flame, MapPin, Moon, PartyPopper, Repeat, Sparkles, Sunrise, Trophy, X } from 'lucide-react-native';
 
 import { getTrophies, Stats, TrophyKind } from '../lib/profileStats';
+import { PintTimelinePoint } from '../lib/profileStatsApi';
 import { colors } from '../theme/colors';
-import { radius, spacing } from '../theme/layout';
+import { radius, shadows, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
 import { SectionHeader } from './SectionHeader';
 import { Surface } from './Surface';
 
 type ProfileStatsPanelProps = {
   stats: Stats;
+  pintTimeline?: PintTimelinePoint[];
 };
 
-export const ProfileStatsPanel = ({ stats }: ProfileStatsPanelProps) => {
+export const ProfileStatsPanel = ({ stats, pintTimeline = [] }: ProfileStatsPanelProps) => {
+  const [pintsModalVisible, setPintsModalVisible] = useState(false);
   const trophies = useMemo(() => getTrophies(stats), [stats]);
   const earnedTrophies = useMemo(() => trophies.filter((trophy) => trophy.earned), [trophies]);
+  const maxTimelinePints = useMemo(
+    () => Math.max(...pintTimeline.map((point) => point.pints), 0),
+    [pintTimeline]
+  );
   const orderedTrophies = useMemo(() => trophies
     .map((trophy, index) => ({ trophy, index }))
     .sort((a, b) => {
@@ -60,10 +67,16 @@ export const ProfileStatsPanel = ({ stats }: ProfileStatsPanelProps) => {
   return (
     <>
       <Surface style={styles.statsContainer}>
-        <View style={styles.statBox}>
+        <TouchableOpacity
+          style={styles.statBox}
+          onPress={() => setPintsModalVisible(true)}
+          activeOpacity={0.76}
+          accessibilityRole="button"
+          accessibilityLabel="Show true pint details"
+        >
           <Text style={styles.statValue}>{stats.totalPints}</Text>
           <Text style={styles.statLabel}>True Pints</Text>
-        </View>
+        </TouchableOpacity>
         <View style={styles.divider} />
         <View style={styles.statBox}>
           <Text style={styles.statValue}>{stats.uniquePubs}</Text>
@@ -124,6 +137,67 @@ export const ProfileStatsPanel = ({ stats }: ProfileStatsPanelProps) => {
           ))}
         </View>
       </View>
+
+      <Modal
+        visible={pintsModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPintsModalVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>True Pints</Text>
+                <Text style={styles.modalSubtitle}>{stats.totalPints} logged all time</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => setPintsModalVisible(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Close true pints details"
+              >
+                <X color={colors.text} size={20} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.explainerText}>
+              A true pint is Beerva's normalized serving size: 568 ml. A 33cl beer counts as 0.6 true pints, a 50cl beer counts as 0.9, and a 1L beer counts as 1.8.
+            </Text>
+
+            <View style={styles.graphCard}>
+              <View style={styles.graphHeader}>
+                <Text style={styles.graphTitle}>Pints by month</Text>
+                <Text style={styles.graphMeta}>Last 12 active months</Text>
+              </View>
+              {pintTimeline.length > 0 ? (
+                <View style={styles.graphBars}>
+                  {pintTimeline.map((point) => {
+                    const height = maxTimelinePints > 0
+                      ? Math.max(8, Math.round((point.pints / maxTimelinePints) * 96))
+                      : 8;
+
+                    return (
+                      <View key={point.key} style={styles.graphBarColumn}>
+                        <Text style={styles.graphValue} numberOfLines={1}>{point.pints}</Text>
+                        <View style={styles.graphBarTrack}>
+                          <View style={[styles.graphBarFill, { height }]} />
+                        </View>
+                        <Text style={styles.graphLabel} numberOfLines={1}>{point.label}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              ) : (
+                <View style={styles.graphEmpty}>
+                  <Beer color={colors.textMuted} size={24} />
+                  <Text style={styles.graphEmptyText}>No pint timeline yet.</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 };
@@ -137,6 +211,9 @@ const styles = StyleSheet.create({
   statBox: {
     flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 58,
+    borderRadius: radius.md,
   },
   divider: {
     width: 1,
@@ -254,5 +331,121 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 6,
     lineHeight: 16,
+  },
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: colors.overlay,
+    padding: 16,
+  },
+  modalSheet: {
+    width: '100%',
+    maxHeight: '86%',
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.card,
+    padding: 16,
+    gap: spacing.md,
+    ...shadows.raised,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+  },
+  modalTitle: {
+    ...typography.h3,
+    fontSize: 20,
+  },
+  modalSubtitle: {
+    ...typography.caption,
+    marginTop: 3,
+  },
+  modalCloseButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+  },
+  explainerText: {
+    ...typography.body,
+    color: colors.text,
+    lineHeight: 22,
+  },
+  graphCard: {
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    padding: 14,
+    gap: spacing.md,
+  },
+  graphHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+  },
+  graphTitle: {
+    ...typography.body,
+    color: colors.text,
+    fontWeight: '900',
+  },
+  graphMeta: {
+    ...typography.caption,
+    textAlign: 'right',
+  },
+  graphBars: {
+    height: 154,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 7,
+  },
+  graphBarColumn: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 5,
+  },
+  graphValue: {
+    color: colors.text,
+    fontSize: 10,
+    fontWeight: '800',
+    fontVariant: ['tabular-nums'],
+  },
+  graphBarTrack: {
+    width: '100%',
+    height: 96,
+    borderRadius: radius.pill,
+    backgroundColor: colors.cardMuted,
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
+  },
+  graphBarFill: {
+    width: '100%',
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary,
+  },
+  graphLabel: {
+    color: colors.textMuted,
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  graphEmpty: {
+    minHeight: 130,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  graphEmptyText: {
+    ...typography.bodyMuted,
+    textAlign: 'center',
   },
 });

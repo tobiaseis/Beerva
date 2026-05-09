@@ -83,8 +83,14 @@ export const getVolumeMl = (volume?: string | null) => {
       return 330;
     case 'schooner':
       return 379;
+    case '40cl':
+      return 400;
     case '50cl':
       return 500;
+    case '1l':
+    case '1 l':
+    case '100cl':
+      return 1000;
     case 'pint':
     default:
       return 568;
