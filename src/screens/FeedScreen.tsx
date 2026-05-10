@@ -18,6 +18,7 @@ import { getBeerLine, getSessionBeerSummary, SessionBeer } from '../lib/sessionB
 import { getVolumeMl, TrophyDefinition } from '../lib/profileStats';
 import { TrophyUnlockModal } from '../components/TrophyUnlockModal';
 import { openMaps } from '../lib/maps';
+import { getErrorMessage, withTimeout } from '../lib/timeouts';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
 const cheersLogoSource = Platform.OS === 'web' ? { uri: '/beerva-icon-192.png' } : beervaLogo;
@@ -80,6 +81,7 @@ type FeedSession = {
 const PULL_REFRESH_THRESHOLD = 65;
 const PULL_MAX_DISTANCE = 110;
 const FEED_PAGE_SIZE = 20;
+const FEED_REQUEST_TIMEOUT_MS = 15000;
 
 type PullIndicatorProps = {
   pullDistance: number;
@@ -622,7 +624,11 @@ export const FeedScreen = ({ route }: any) => {
     }
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await withTimeout(
+        supabase.auth.getUser(),
+        FEED_REQUEST_TIMEOUT_MS,
+        'Feed sign-in check is taking too long.'
+      );
       if (!isLatestRequest()) return;
 
       setCurrentUserId(user?.id || null);
@@ -637,10 +643,14 @@ export const FeedScreen = ({ route }: any) => {
         return;
       }
 
-      const { data: followsData, error: followsError } = await supabase
-        .from('follows')
-        .select('following_id')
-        .eq('follower_id', user.id);
+      const { data: followsData, error: followsError } = await withTimeout(
+        supabase
+          .from('follows')
+          .select('following_id')
+          .eq('follower_id', user.id),
+        FEED_REQUEST_TIMEOUT_MS,
+        'Feed follows are taking too long.'
+      );
       if (!isLatestRequest()) return;
 
       if (followsError) {
@@ -651,30 +661,34 @@ export const FeedScreen = ({ route }: any) => {
       const feedUserIds = Array.from(new Set([user.id, ...followingIds]));
       setFollowedUserCount(followingIds.length);
 
-      const { data, error } = await supabase
-        .from('sessions')
-        .select(`
-          id,
-          user_id,
-          pub_id,
-          pub_name,
-          beer_name,
-          volume,
-          quantity,
-          abv,
-          comment,
-          image_url,
-          status,
-          started_at,
-          ended_at,
-          published_at,
-          edited_at,
-          created_at
-        `)
-        .in('user_id', feedUserIds)
-        .eq('status', 'published')
-        .order('published_at', { ascending: false, nullsFirst: false })
-        .range(offset, offset + FEED_PAGE_SIZE);
+      const { data, error } = await withTimeout(
+        supabase
+          .from('sessions')
+          .select(`
+            id,
+            user_id,
+            pub_id,
+            pub_name,
+            beer_name,
+            volume,
+            quantity,
+            abv,
+            comment,
+            image_url,
+            status,
+            started_at,
+            ended_at,
+            published_at,
+            edited_at,
+            created_at
+          `)
+          .in('user_id', feedUserIds)
+          .eq('status', 'published')
+          .order('published_at', { ascending: false, nullsFirst: false })
+          .range(offset, offset + FEED_PAGE_SIZE),
+        FEED_REQUEST_TIMEOUT_MS,
+        'Feed sessions are taking too long.'
+      );
 
       if (error) throw error;
       if (!isLatestRequest()) return;
@@ -687,28 +701,32 @@ export const FeedScreen = ({ route }: any) => {
 
       const sessionIds = sessionRows.map((session) => session.id);
 
-      const [cheersResult, beersResult, commentsResult] = await Promise.all([
-        sessionIds.length > 0
-          ? supabase
-              .from('session_cheers')
-              .select('session_id, user_id, created_at')
-              .in('session_id', sessionIds)
-          : Promise.resolve({ data: [] as SessionCheer[], error: null }),
-        sessionIds.length > 0
-          ? supabase
-              .from('session_beers')
-              .select('id, session_id, beer_name, volume, quantity, abv, note, consumed_at, created_at')
-              .in('session_id', sessionIds)
-              .order('consumed_at', { ascending: true })
-          : Promise.resolve({ data: [] as SessionBeer[], error: null }),
-        sessionIds.length > 0
-          ? supabase
-              .from('session_comments')
-              .select('id, session_id, user_id, body, created_at, updated_at')
-              .in('session_id', sessionIds)
-              .order('created_at', { ascending: true })
-          : Promise.resolve({ data: [] as FeedComment[], error: null }),
-      ]);
+      const [cheersResult, beersResult, commentsResult] = await withTimeout(
+        Promise.all([
+          sessionIds.length > 0
+            ? supabase
+                .from('session_cheers')
+                .select('session_id, user_id, created_at')
+                .in('session_id', sessionIds)
+            : Promise.resolve({ data: [] as SessionCheer[], error: null }),
+          sessionIds.length > 0
+            ? supabase
+                .from('session_beers')
+                .select('id, session_id, beer_name, volume, quantity, abv, note, consumed_at, created_at')
+                .in('session_id', sessionIds)
+                .order('consumed_at', { ascending: true })
+            : Promise.resolve({ data: [] as SessionBeer[], error: null }),
+          sessionIds.length > 0
+            ? supabase
+                .from('session_comments')
+                .select('id, session_id, user_id, body, created_at, updated_at')
+                .in('session_id', sessionIds)
+                .order('created_at', { ascending: true })
+            : Promise.resolve({ data: [] as FeedComment[], error: null }),
+        ]),
+        FEED_REQUEST_TIMEOUT_MS,
+        'Feed details are taking too long.'
+      );
 
       if (!isLatestRequest()) return;
 
@@ -733,10 +751,14 @@ export const FeedScreen = ({ route }: any) => {
       ].filter(Boolean)));
 
       const profilesResult = profileIds.length > 0
-        ? await supabase
-            .from('profiles')
-            .select('id, username, avatar_url')
-            .in('id', profileIds)
+        ? await withTimeout(
+            supabase
+              .from('profiles')
+              .select('id, username, avatar_url')
+              .in('id', profileIds),
+            FEED_REQUEST_TIMEOUT_MS,
+            'Feed profiles are taking too long.'
+          )
         : { data: [] as any[], error: null };
 
       if (!isLatestRequest()) return;
@@ -814,9 +836,10 @@ export const FeedScreen = ({ route }: any) => {
         return nextSessions;
       });
     } catch (error: any) {
-      console.error('Feed fetch error:', error);
+      const message = getErrorMessage(error, 'Could not load feed.');
+      console.error('Feed fetch error:', message);
       if (isLatestRequest()) {
-        setFetchError(error?.message || 'Could not load feed.');
+        setFetchError(message);
       }
     } finally {
       if (reset) {

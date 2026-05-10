@@ -598,6 +598,13 @@ export const getTrophies = (stats: Stats): TrophyDefinition[] => {
       earned: stats.rtdCount >= 10,
     },
     {
+      id: 'rtd-king-benzin',
+      title: 'King of Luderbenzin',
+      description: '50+ RTDs logged',
+      kind: 'rtd',
+      earned: stats.rtdCount >= 50,
+    },
+    {
       id: 'rtd-variety',
       title: 'Cooler Rainbow',
       description: '5+ different RTDs tried',

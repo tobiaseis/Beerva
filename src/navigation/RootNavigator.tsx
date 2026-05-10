@@ -29,6 +29,10 @@ const navigationRef = createNavigationContainerRef();
 const AUTH_BOOTSTRAP_TIMEOUT_MS = 12000;
 const PROFILE_CHECK_TIMEOUT_MS = 12000;
 
+const hasCachedUsername = (activeSession: Session | null) => (
+  Boolean(activeSession?.user?.user_metadata?.username)
+);
+
 const navigationTheme: Theme = {
   ...DefaultTheme,
   dark: true,
@@ -169,12 +173,13 @@ export const RootNavigator = () => {
   const profileCheckRequestIdRef = useRef(0);
   const pendingNotificationsOpenRef = useRef(shouldOpenNotificationsFromUrl());
   const sessionUserId = session?.user?.id ?? null;
+  const sessionHasCachedUsername = hasCachedUsername(session);
 
-  const checkProfileSetup = useCallback(async (userId: string | null, showLoading = false) => {
+  const checkProfileSetup = useCallback(async (activeSession: Session | null, showLoading = false) => {
     const requestId = profileCheckRequestIdRef.current + 1;
     profileCheckRequestIdRef.current = requestId;
 
-    if (!userId) {
+    if (!activeSession?.user) {
       setNeedsProfileSetup(false);
       setProfileCheckedUserId(null);
       profileCheckedUserIdRef.current = null;
@@ -182,9 +187,15 @@ export const RootNavigator = () => {
       return;
     }
 
+    const userId = activeSession.user.id;
+    const fallbackNeedsProfileSetup = !hasCachedUsername(activeSession);
     const isFirstCheckForUser = profileCheckedUserIdRef.current !== userId;
 
-    if (isFirstCheckForUser || showLoading) {
+    if (isFirstCheckForUser && !fallbackNeedsProfileSetup) {
+      setNeedsProfileSetup(false);
+      profileCheckedUserIdRef.current = userId;
+      setProfileCheckedUserId(userId);
+    } else if (isFirstCheckForUser || showLoading) {
       setProfileLoading(true);
     }
 
@@ -212,7 +223,7 @@ export const RootNavigator = () => {
       if (profileCheckRequestIdRef.current !== requestId) return;
 
       console.error('Profile setup check error:', getErrorMessage(error, 'Unknown profile check error'));
-      setNeedsProfileSetup(true);
+      setNeedsProfileSetup(fallbackNeedsProfileSetup);
       profileCheckedUserIdRef.current = userId;
       setProfileCheckedUserId(userId);
     } finally {
@@ -257,10 +268,14 @@ export const RootNavigator = () => {
   }, []);
 
   useEffect(() => {
-    checkProfileSetup(sessionUserId);
-  }, [checkProfileSetup, sessionUserId]);
+    checkProfileSetup(session);
+  }, [checkProfileSetup, sessionUserId, sessionHasCachedUsername]);
 
-  const waitingForProfileCheck = Boolean(sessionUserId && profileCheckedUserId !== sessionUserId);
+  const waitingForProfileCheck = Boolean(
+    sessionUserId
+    && profileCheckedUserId !== sessionUserId
+    && !sessionHasCachedUsername
+  );
 
   useEffect(() => {
     if (
@@ -293,7 +308,7 @@ export const RootNavigator = () => {
     <NavigationContainer ref={navigationRef} onReady={() => setNavigationReady(true)} theme={navigationTheme}>
       {session && session.user ? (
         needsProfileSetup ? (
-          <ProfileSetupScreen onComplete={() => checkProfileSetup(sessionUserId, true)} />
+          <ProfileSetupScreen onComplete={() => checkProfileSetup(session, true)} />
         ) : (
           <NotificationsProvider>
             <Stack.Navigator
