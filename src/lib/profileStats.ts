@@ -44,6 +44,7 @@ export type ProfileSessionStatsRow = {
   quantity?: number | null;
   abv?: number | null;
   created_at?: string | null;
+  session_started_at?: string | null;
 };
 
 export const emptyStats: Stats = {
@@ -66,17 +67,79 @@ export const emptyStats: Stats = {
 // A "drinking day" runs 6am-to-6am local time, so sessions from a long night out
 // (e.g. 11pm to 2am) all bucket into the same day instead of splitting at midnight.
 const DAY_ROLLOVER_HOURS = 6;
+const COPENHAGEN_TIME_ZONE = 'Europe/Copenhagen';
+
+type LocalDateParts = {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+};
+
+const getCopenhagenParts = (createdAt?: string | null, shiftHours = 0): LocalDateParts | null => {
+  if (!createdAt) return null;
+
+  const date = new Date(createdAt);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const shiftedDate = shiftHours === 0
+    ? date
+    : new Date(date.getTime() - shiftHours * 60 * 60 * 1000);
+
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: COPENHAGEN_TIME_ZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(shiftedDate);
+
+    const values = parts.reduce<Record<string, number>>((acc, part) => {
+      if (part.type !== 'literal') {
+        acc[part.type] = Number(part.value);
+      }
+      return acc;
+    }, {});
+
+    if (
+      !Number.isFinite(values.year)
+      || !Number.isFinite(values.month)
+      || !Number.isFinite(values.day)
+      || !Number.isFinite(values.hour)
+    ) {
+      return null;
+    }
+
+    return {
+      year: values.year,
+      month: values.month,
+      day: values.day,
+      hour: values.hour,
+    };
+  } catch {
+    const fallbackDate = shiftedDate;
+    return {
+      year: fallbackDate.getFullYear(),
+      month: fallbackDate.getMonth() + 1,
+      day: fallbackDate.getDate(),
+      hour: fallbackDate.getHours(),
+    };
+  }
+};
+
+const dateKeyFromParts = (parts: Pick<LocalDateParts, 'year' | 'month' | 'day'>) => (
+  `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`
+);
 
 const localDateKey = (createdAt?: string | null): string | null => {
-  if (!createdAt) return null;
-  const d = new Date(createdAt);
-  if (Number.isNaN(d.getTime())) return null;
-  const shifted = new Date(d.getTime() - DAY_ROLLOVER_HOURS * 60 * 60 * 1000);
-  return `${shifted.getFullYear()}-${String(shifted.getMonth() + 1).padStart(2, '0')}-${String(shifted.getDate()).padStart(2, '0')}`;
+  const parts = getCopenhagenParts(createdAt, DAY_ROLLOVER_HOURS);
+  return parts ? dateKeyFromParts(parts) : null;
 };
 
 export const getVolumeMl = (volume?: string | null) => {
-  switch (volume?.toLowerCase()) {
+  switch (volume?.trim().toLowerCase()) {
     case '25cl':
       return 250;
     case '33cl':
@@ -100,14 +163,21 @@ export const getVolumeMl = (volume?: string | null) => {
 const roundStat = (value: number) => Math.round(value * 10) / 10;
 
 const isLateNightSession = (createdAt?: string | null) => {
-  if (!createdAt) return false;
-
-  const hour = new Date(createdAt).getHours();
-  return hour >= 3 && hour < 6;
+  const parts = getCopenhagenParts(createdAt);
+  return parts ? parts.hour >= 3 && parts.hour < 6 : false;
 };
 
 const getPubKey = (session: ProfileSessionStatsRow) => (
   session.pub_id || session.pub_name?.trim().toLowerCase() || null
+);
+
+const getBeerKey = (beerName?: string | null) => {
+  const normalized = beerName?.trim().toLowerCase().replace(/\s+/g, ' ');
+  return normalized || null;
+};
+
+const getSessionCreatedAt = (session: ProfileSessionStatsRow) => (
+  session.session_started_at || session.created_at
 );
 
 export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats => {
@@ -117,7 +187,7 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
 
   const uniquePubs = new Set(sessions.map(getPubKey).filter(Boolean)).size;
   const uniqueBeerSet = new Set<string>();
-  const monthsLoggedSet = new Set<number>();
+  const monthsPerYear = new Map<number, Set<number>>();
   const sessionsPerDay = new Map<string, Set<string>>();
   const sessionsPerPub = new Map<string, Set<string>>();
   const pubsPerDay = new Map<string, Set<string>>();
@@ -137,6 +207,8 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
     const quantity = session.quantity || 1;
     const abv = session.abv || 0;
     const pubKey = getPubKey(session);
+    const beerKey = getBeerKey(session.beer_name);
+    const sessionCreatedAt = getSessionCreatedAt(session);
     const sessionVolumeMl = volumeMl * quantity;
     const sessionPints = sessionVolumeMl / 568;
 
@@ -144,15 +216,15 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
     weightedAbvSum += sessionVolumeMl * abv;
     pintsPerSession.set(sessionKey, (pintsPerSession.get(sessionKey) || 0) + sessionPints);
     strongestAbv = Math.max(strongestAbv, abv);
-    hasLateNightSession = hasLateNightSession || isLateNightSession(session.created_at);
+    hasLateNightSession = hasLateNightSession || isLateNightSession(sessionCreatedAt);
 
-    if (session.beer_name) uniqueBeerSet.add(session.beer_name);
+    if (beerKey) uniqueBeerSet.add(beerKey);
     if (pubKey) {
       if (!sessionsPerPub.has(pubKey)) sessionsPerPub.set(pubKey, new Set());
       sessionsPerPub.get(pubKey)!.add(sessionKey);
     }
 
-    const dayKey = localDateKey(session.created_at);
+    const dayKey = localDateKey(sessionCreatedAt);
     if (dayKey) {
       if (!sessionsPerDay.has(dayKey)) sessionsPerDay.set(dayKey, new Set());
       sessionsPerDay.get(dayKey)!.add(sessionKey);
@@ -160,19 +232,22 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
         if (!pubsPerDay.has(dayKey)) pubsPerDay.set(dayKey, new Set());
         pubsPerDay.get(dayKey)!.add(pubKey);
       }
-      if (session.beer_name) {
+      if (beerKey) {
         if (!beersPerDay.has(dayKey)) beersPerDay.set(dayKey, new Set());
-        beersPerDay.get(dayKey)!.add(session.beer_name);
+        beersPerDay.get(dayKey)!.add(beerKey);
       }
     }
 
-    if (session.created_at) {
-      const d = new Date(session.created_at);
-      if (!Number.isNaN(d.getTime())) {
-        const hour = d.getHours();
-        if (hour >= 6 && hour < 10) hasEarlyBirdSession = true;
-        monthsLoggedSet.add(d.getMonth());
+    const localSessionParts = getCopenhagenParts(sessionCreatedAt);
+    if (localSessionParts) {
+      if (localSessionParts.hour >= 6 && localSessionParts.hour < 10) {
+        hasEarlyBirdSession = true;
       }
+
+      if (!monthsPerYear.has(localSessionParts.year)) {
+        monthsPerYear.set(localSessionParts.year, new Set());
+      }
+      monthsPerYear.get(localSessionParts.year)!.add(localSessionParts.month);
     }
   });
 
@@ -198,6 +273,11 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
 
   pintsPerSession.forEach((pints) => {
     if (pints > maxSessionPints) maxSessionPints = pints;
+  });
+
+  let monthsLogged = 0;
+  monthsPerYear.forEach((months) => {
+    if (months.size > monthsLogged) monthsLogged = months.size;
   });
 
   // Longest consecutive-day streak
@@ -234,7 +314,7 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
     uniqueBeers: uniqueBeerSet.size,
     maxBeersInOneDay,
     hasEarlyBirdSession,
-    monthsLogged: monthsLoggedSet.size,
+    monthsLogged,
   };
 };
 
@@ -348,7 +428,7 @@ export const getTrophies = (stats: Stats): TrophyDefinition[] => {
     {
       id: 'all-year-round',
       title: 'All Year Round',
-      description: 'At least one session in all 12 months',
+      description: 'At least one session in every month of one year',
       kind: 'calendar',
       earned: stats.monthsLogged >= 12,
     },
