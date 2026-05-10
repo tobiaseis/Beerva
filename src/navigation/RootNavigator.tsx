@@ -140,17 +140,17 @@ const MainTabs = () => {
       }}
     />
     <Tab.Screen
-      name="Record"
-      component={RecordScreen}
-      options={{
-        tabBarIcon: ({ color, size }) => <PlusCircle color={color} size={size} />
-      }}
-    />
-    <Tab.Screen
       name="People"
       component={PeopleScreen}
       options={{
         tabBarIcon: ({ color, size }) => <Users color={color} size={size} />
+      }}
+    />
+    <Tab.Screen
+      name="Record"
+      component={RecordScreen}
+      options={{
+        tabBarIcon: ({ color, size }) => <PlusCircle color={color} size={size} />
       }}
     />
     <Tab.Screen
