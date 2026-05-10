@@ -218,6 +218,7 @@ const RTD_BEVERAGE_KEYS = new Set([
   'Shaker Orange',
   'Shaker Passion',
   'Shaker Sport',
+  'Shaker Sport Plus',
   'Shaker Sport Pink',
   'Cult Mokai',
   'Mokaï Hyldeblomst',
