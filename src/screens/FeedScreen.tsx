@@ -5,7 +5,7 @@ import { typography } from '../theme/typography';
 import { ChevronDown, ChevronUp, Edit3, MapPin, Trash2, Bell, AlertTriangle, RefreshCw, MessageCircle, Send, X } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { confirmDestructive } from '../lib/dialogs';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation, useScrollToTop } from '@react-navigation/native';
 import { CachedImage } from '../components/CachedImage';
 import { deletePublicImageUrl } from '../lib/imageUpload';
 import { Surface } from '../components/Surface';
@@ -559,6 +559,9 @@ export const FeedScreen = ({ route }: any) => {
   const scrollOffsetY = useRef(0);
   const touchStartY = useRef(0);
   const isPulling = useRef(false);
+  const flatListRef = useRef<FlatList>(null);
+
+  useScrollToTop(flatListRef);
 
   useEffect(() => {
     sessionsRef.current = sessions;
@@ -1269,6 +1272,7 @@ export const FeedScreen = ({ route }: any) => {
         </View>
       ) : (
         <FlatList
+          ref={flatListRef}
           data={sessions}
           keyExtractor={(item) => item.id}
           renderItem={renderSession}

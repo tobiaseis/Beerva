@@ -8,12 +8,14 @@ import { supabase } from '../lib/supabase';
 import { confirmDestructive, showAlert } from '../lib/dialogs';
 import { deletePublicImageUrl, prepareWebImageFromPickerAsset, SelectedImage, UPLOAD_IMAGE_MAX_WIDTH, uploadImageToBucket } from '../lib/imageUpload';
 import { ProfileStatsPanel } from '../components/ProfileStatsPanel';
-import { emptyStats, Stats } from '../lib/profileStats';
+import { emptyStats, getVolumeMl, ProfileSessionStatsRow, Stats } from '../lib/profileStats';
 import { fetchPintTimeline, fetchProfileStats, PintTimelinePoint } from '../lib/profileStatsApi';
+import { getBeerLine, getSessionBeerSummary, SessionBeer } from '../lib/sessionBeers';
+import { openMaps } from '../lib/maps';
 import { CachedImage } from '../components/CachedImage';
 import { getUsernameSaveErrorMessage, normalizeUsername } from '../lib/usernames';
 import { AppButton } from '../components/AppButton';
-import { radius, spacing } from '../theme/layout';
+import { radius, shadows, spacing } from '../theme/layout';
 import { SkeletonProfile } from '../components/Skeleton';
 import { useFocused } from '../lib/useFocused';
 import {
@@ -24,6 +26,7 @@ import {
   isCurrentlySubscribed,
 } from '../lib/pushNotifications';
 import * as ImagePicker from 'expo-image-picker';
+import { Beer, CalendarDays, MapPin } from 'lucide-react-native';
 
 type FollowListKind = 'followers' | 'following';
 
@@ -31,6 +34,62 @@ type ProfilePreview = {
   id: string;
   username: string | null;
   avatar_url: string | null;
+};
+
+type PublicSession = ProfileSessionStatsRow & {
+  id: string;
+  pub_name: string | null;
+  beer_name: string | null;
+  volume: string | null;
+  quantity: number | null;
+  comment: string | null;
+  image_url: string | null;
+  status?: string | null;
+  published_at?: string | null;
+  session_beers: SessionBeer[];
+  created_at: string | null;
+};
+
+const getDrinkLabel = (session: PublicSession) => {
+  if (session.session_beers?.length > 0) {
+    return getSessionBeerSummary(session.session_beers);
+  }
+
+  const volume = session.volume || 'Pint';
+  const quantity = session.quantity || 1;
+
+  const drink = quantity > 1 ? `${quantity} x ${volume}` : volume;
+  return `${drink} of ${session.beer_name || 'Beer'}`;
+};
+
+const getTimeAgo = (dateString?: string | null) => {
+  if (!dateString) return 'Recently';
+
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.max(0, Math.round(diffMs / 60000));
+  if (diffMins < 60) return `${diffMins} mins ago`;
+  const diffHours = Math.round(diffMins / 60);
+  if (diffHours < 24) return `${diffHours} hours ago`;
+  return `${Math.round(diffHours / 24)} days ago`;
+};
+
+const formatPints = (session: PublicSession) => {
+  const beers = session.session_beers?.length > 0
+    ? session.session_beers
+    : [{
+        volume: session.volume,
+        quantity: session.quantity,
+      }];
+
+  const pints = beers.reduce((sum, beer) => {
+    const volumeMl = getVolumeMl(beer.volume);
+    const quantity = beer.quantity || 1;
+    return sum + (volumeMl * quantity / 568);
+  }, 0);
+
+  return Math.round(pints * 10) / 10;
 };
 
 export const ProfileScreen = () => {

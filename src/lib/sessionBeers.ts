@@ -240,6 +240,14 @@ export const BEER_CATALOG: BeerCatalogItem[] = [
   { name: 'Bacardi Mojito RTD', abv: 5.0, kind: 'rtd', defaultVolume: '25cl' },
   { name: 'Absolut Vodka Soda Raspberry', abv: 5.0, kind: 'rtd', defaultVolume: '25cl' },
   {
+    name: 'Vodka Red Bull',
+    abv: 37.0,
+    kind: 'mixed',
+    defaultVolume: '2cl',
+    countedVolume: '2cl',
+    aliases: ['Vodka Redbull', 'Vodka RedBull'],
+  },
+  {
     name: 'Jägerbomb',
     abv: 35.0,
     kind: 'mixed',
