@@ -175,6 +175,7 @@ export const ProfileScreen = () => {
         profileResult,
         profileStats,
         timeline,
+        sessionsResult,
         followersResult,
         followingResult,
       ] = await Promise.all([
@@ -201,10 +202,6 @@ export const ProfileScreen = () => {
           .select('*', { count: 'exact', head: true })
           .eq('follower_id', user.id),
       ]);
-
-      const [
-        _ignored1, _ignored2, _ignored3, sessionsResult
-      ] = [profileResult, profileStats, timeline, arguments[3]];
 
       const baseSessions = (sessionsResult?.data || []) as PublicSession[];
       const sessionIds = baseSessions.map((session) => session.id);
