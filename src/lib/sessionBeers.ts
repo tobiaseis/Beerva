@@ -12,7 +12,7 @@ export type BeerCatalogItem = {
 export type SessionBeer = {
   id?: string;
   clientId?: string;
-  session_id?: string;
+  session_id?: string;  
   beer_name: string;
   volume: string | null;
   quantity: number | null;
@@ -246,6 +246,14 @@ export const BEER_CATALOG: BeerCatalogItem[] = [
     countedVolume: '2cl',
     aliases: ['Jagerbomb', 'Jäger Bomb', 'Jager Bomb', 'Jaegerbomb', 'Jaeger Bomb'],
   },
+  {
+    name: 'Sambuca Shot',
+    abv: 40.0,
+    kind: 'mixed',
+    defaultVolume: '2cl',
+    countedVolume: '2cl',
+    aliases: ['Sambuca', 'Sambuca Shots', 'Black Sambuca', 'Sambucca', 'Sambucca Shot'],
+  },
 ];
 
 export const BEER_OPTIONS = BEER_CATALOG.map((beer) => beer.name);
@@ -322,7 +330,8 @@ export const getBeerDrinkLabel = (beer: Pick<SessionBeer, 'volume' | 'quantity'>
 export const getBeerLine = (beer: Pick<SessionBeer, 'beer_name' | 'volume' | 'quantity'>) => {
   const beverage = getBeverageCatalogItem(beer.beer_name || '');
   if (beverage?.kind === 'mixed' && beverage.countedVolume) {
-    return `${beer.quantity || 1}x ${beverage.name}`;
+    const qty = beer.quantity || 1;
+    return qty > 1 ? `${qty} x ${beverage.name}` : beverage.name;
   }
 
   return `${getBeerDrinkLabel(beer)} of ${beer.beer_name || 'Beer'}`;
@@ -346,7 +355,7 @@ export const getSessionBeerSummary = (beers: SessionBeer[]) => {
 
   const beverage = getBeverageCatalogItem(beers[0].beer_name || '');
   if (beverage?.kind === 'mixed' && beverage.countedVolume) {
-    return `${total}x ${beverage.name}`;
+    return total > 1 ? `${total} x ${beverage.name}` : beverage.name;
   }
 
   return `${total} ${drinkLabel} of ${beers[0].beer_name || 'Beer'}`;

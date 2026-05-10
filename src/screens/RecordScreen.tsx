@@ -49,6 +49,8 @@ import {
 } from '../lib/pubDirectory';
 import { prepareRoulettePubs } from '../lib/pubRoulette';
 import { supabase } from '../lib/supabase';
+import { fetchProfileStats } from '../lib/profileStatsApi';
+import { getTrophies } from '../lib/profileStats';
 import { useFocused } from '../lib/useFocused';
 import { colors } from '../theme/colors';
 import { radius, shadows, spacing } from '../theme/layout';
@@ -976,6 +978,9 @@ export const RecordScreen = ({ navigation }: any) => {
         uploadedUrl = await uploadImageToBucket('session_images', selectedImage, `users/${user.id}/sessions`);
       }
 
+      const oldStats = await fetchProfileStats(user.id);
+      const oldTrophies = getTrophies(oldStats);
+
       const now = new Date().toISOString();
       const imageUrl = uploadedUrl || existingImageUrl;
       const { error } = await supabase
@@ -998,11 +1003,18 @@ export const RecordScreen = ({ navigation }: any) => {
       }
 
       incrementPubUseCount(activeSession.pub_id);
+
+      const newStats = await fetchProfileStats(user.id);
+      const newTrophies = getTrophies(newStats);
+      const newlyUnlockedTrophies = newTrophies.filter((nt) =>
+        nt.earned && !oldTrophies.find((ot) => ot.id === nt.id && ot.earned)
+      );
+
       resetActiveState();
       setPub('');
       hapticSuccess();
       showAlert('Posted', 'Your drinking session is now on the feed.');
-      navigation.navigate('Feed');
+      navigation.navigate('Feed', { newlyUnlockedTrophies });
     } catch (error: any) {
       console.error('End session error:', error);
       if (uploadedUrl) {

@@ -15,7 +15,8 @@ import { hapticLight, hapticMedium, hapticWarning } from '../lib/haptics';
 import { useNotifications } from '../lib/notificationsContext';
 import { EmptyIllustration } from '../components/EmptyIllustration';
 import { getBeerLine, getSessionBeerSummary, SessionBeer } from '../lib/sessionBeers';
-import { getVolumeMl } from '../lib/profileStats';
+import { getVolumeMl, TrophyDefinition } from '../lib/profileStats';
+import { TrophyUnlockModal } from '../components/TrophyUnlockModal';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
 
@@ -516,9 +517,18 @@ const FeedSessionCard = React.memo(({
   );
 });
 
-export const FeedScreen = () => {
+export const FeedScreen = ({ route }: any) => {
   const navigation = useNavigation<any>();
   const [sessions, setSessions] = useState<FeedSession[]>([]);
+  const [unlockedTrophies, setUnlockedTrophies] = useState<TrophyDefinition[]>([]);
+  const newlyUnlockedTrophies = route?.params?.newlyUnlockedTrophies;
+
+  useEffect(() => {
+    if (newlyUnlockedTrophies?.length > 0) {
+      setUnlockedTrophies(newlyUnlockedTrophies);
+      navigation.setParams({ newlyUnlockedTrophies: undefined });
+    }
+  }, [newlyUnlockedTrophies, navigation]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [followedUserCount, setFollowedUserCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -1282,6 +1292,13 @@ export const FeedScreen = () => {
           ListHeaderComponent={renderFeedHeader}
           ListEmptyComponent={renderEmptyFeed}
           ListFooterComponent={renderFeedFooter}
+        />
+      )}
+
+      {unlockedTrophies.length > 0 && (
+        <TrophyUnlockModal
+          trophy={unlockedTrophies[0]}
+          onClose={() => setUnlockedTrophies((prev) => prev.slice(1))}
         />
       )}
 

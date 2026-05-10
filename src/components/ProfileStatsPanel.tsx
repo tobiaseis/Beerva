@@ -4,6 +4,41 @@ import { Award, Beer, CalendarDays, Flame, MapPin, Moon, PartyPopper, Repeat, Sp
 
 import { getTrophies, Stats, TrophyKind } from '../lib/profileStats';
 import { PintTimelinePoint } from '../lib/profileStatsApi';
+
+export const renderTrophyIcon = (kind: TrophyKind, earned: boolean, iconSize = 28) => {
+  const iconColor = earned ? colors.primary : colors.textMuted;
+
+  switch (kind) {
+    case 'pints':
+      return <Beer color={iconColor} size={iconSize} />;
+    case 'pubs':
+      return <MapPin color={iconColor} size={iconSize} />;
+    case 'session':
+      return <Trophy color={iconColor} size={iconSize} />;
+    case 'abv':
+      return <Flame color={iconColor} size={iconSize} />;
+    case 'late':
+      return <Moon color={iconColor} size={iconSize} />;
+    case 'spree':
+      return <PartyPopper color={iconColor} size={iconSize} />;
+    case 'streak':
+      return <Repeat color={iconColor} size={iconSize} />;
+    case 'variety':
+      return <Sparkles color={iconColor} size={iconSize} />;
+    case 'rtd':
+      return <Sparkles color={iconColor} size={iconSize} />;
+    case 'jager':
+      return <Flame color={iconColor} size={iconSize} />;
+    case 'sambuca':
+      return <Flame color={iconColor} size={iconSize} />;
+    case 'morning':
+      return <Sunrise color={iconColor} size={iconSize} />;
+    case 'calendar':
+      return <CalendarDays color={iconColor} size={iconSize} />;
+    default:
+      return <Award color={iconColor} size={iconSize} />;
+  }
+};
 import { colors } from '../theme/colors';
 import { radius, shadows, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
@@ -33,40 +68,6 @@ export const ProfileStatsPanel = ({ stats, pintTimeline = [] }: ProfileStatsPane
       return a.index - b.index;
     })
     .map(({ trophy }) => trophy), [trophies]);
-
-  const renderTrophyIcon = (kind: TrophyKind, earned: boolean) => {
-    const iconColor = earned ? colors.primary : colors.textMuted;
-    const iconSize = 28;
-
-    switch (kind) {
-      case 'pints':
-        return <Beer color={iconColor} size={iconSize} />;
-      case 'pubs':
-        return <MapPin color={iconColor} size={iconSize} />;
-      case 'session':
-        return <Trophy color={iconColor} size={iconSize} />;
-      case 'abv':
-        return <Flame color={iconColor} size={iconSize} />;
-      case 'late':
-        return <Moon color={iconColor} size={iconSize} />;
-      case 'spree':
-        return <PartyPopper color={iconColor} size={iconSize} />;
-      case 'streak':
-        return <Repeat color={iconColor} size={iconSize} />;
-      case 'variety':
-        return <Sparkles color={iconColor} size={iconSize} />;
-      case 'rtd':
-        return <Sparkles color={iconColor} size={iconSize} />;
-      case 'jager':
-        return <Flame color={iconColor} size={iconSize} />;
-      case 'morning':
-        return <Sunrise color={iconColor} size={iconSize} />;
-      case 'calendar':
-        return <CalendarDays color={iconColor} size={iconSize} />;
-      default:
-        return <Award color={iconColor} size={iconSize} />;
-    }
-  };
 
   return (
     <>

@@ -18,6 +18,8 @@ export type Stats = {
   maxRtdsInOneDay: number;
   jagerbombCount: number;
   maxJagerbombsInOneDay: number;
+  sambucaCount: number;
+  maxSambucasInOneDay: number;
 };
 
 export type TrophyKind =
@@ -32,7 +34,8 @@ export type TrophyKind =
   | 'morning'
   | 'calendar'
   | 'rtd'
-  | 'jager';
+  | 'jager'
+  | 'sambuca';
 
 export type TrophyDefinition = {
   id: string;
@@ -74,6 +77,8 @@ export const emptyStats: Stats = {
   maxRtdsInOneDay: 0,
   jagerbombCount: 0,
   maxJagerbombsInOneDay: 0,
+  sambucaCount: 0,
+  maxSambucasInOneDay: 0,
 };
 
 // A "drinking day" runs 6am-to-6am local time, so sessions from a long night out
@@ -240,6 +245,7 @@ const RTD_BEVERAGE_KEYS = new Set([
 ].map((name) => getBeverageStatKey(name)!));
 
 const JAGERBOMB_KEYS = new Set(['jagerbomb', 'jager bomb', 'jaegerbomb', 'jaeger bomb']);
+const SAMBUCA_KEYS = new Set(['sambuca shot', 'sambuca', 'sambuca shots', 'black sambuca', 'sambucca', 'sambucca shot']);
 
 const isRtdBeverage = (beerName?: string | null) => {
   const key = getBeverageStatKey(beerName);
@@ -249,6 +255,11 @@ const isRtdBeverage = (beerName?: string | null) => {
 const isJagerbomb = (beerName?: string | null) => {
   const key = getBeverageStatKey(beerName);
   return key ? JAGERBOMB_KEYS.has(key) : false;
+};
+
+const isSambuca = (beerName?: string | null) => {
+  const key = getBeverageStatKey(beerName);
+  return key ? SAMBUCA_KEYS.has(key) : false;
 };
 
 const getSessionCreatedAt = (session: ProfileSessionStatsRow) => (
@@ -269,6 +280,7 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
   const beersPerDay = new Map<string, Set<string>>();
   const rtdsPerDay = new Map<string, number>();
   const jagerbombsPerDay = new Map<string, number>();
+  const sambucasPerDay = new Map<string, number>();
   const pintsPerSession = new Map<string, number>();
 
   let totalMl = 0;
@@ -279,6 +291,7 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
   let hasEarlyBirdSession = false;
   let rtdCount = 0;
   let jagerbombCount = 0;
+  let sambucaCount = 0;
   const uniqueRtdSet = new Set<string>();
 
   sessions.forEach((session, index) => {
@@ -294,11 +307,14 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
     const beverageStatKey = getBeverageStatKey(session.beer_name);
     const isRtd = isRtdBeverage(session.beer_name);
     const isJager = isJagerbomb(session.beer_name);
+    const isSambu = isSambuca(session.beer_name);
 
     totalMl += sessionVolumeMl;
     weightedAbvSum += sessionVolumeMl * abv;
     pintsPerSession.set(sessionKey, (pintsPerSession.get(sessionKey) || 0) + sessionPints);
-    strongestAbv = Math.max(strongestAbv, abv);
+    if (!isRtd && !isJager && !isSambu) {
+      strongestAbv = Math.max(strongestAbv, abv);
+    }
     hasLateNightSession = hasLateNightSession || isLateNightSession(sessionCreatedAt);
     if (isRtd) {
       rtdCount += quantity;
@@ -306,6 +322,9 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
     }
     if (isJager) {
       jagerbombCount += quantity;
+    }
+    if (isSambu) {
+      sambucaCount += quantity;
     }
 
     if (beerKey) uniqueBeerSet.add(beerKey);
@@ -331,6 +350,9 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
       }
       if (isJager) {
         jagerbombsPerDay.set(dayKey, (jagerbombsPerDay.get(dayKey) || 0) + quantity);
+      }
+      if (isSambu) {
+        sambucasPerDay.set(dayKey, (sambucasPerDay.get(dayKey) || 0) + quantity);
       }
     }
 
@@ -370,6 +392,11 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
   let maxJagerbombsInOneDay = 0;
   jagerbombsPerDay.forEach((count) => {
     if (count > maxJagerbombsInOneDay) maxJagerbombsInOneDay = count;
+  });
+
+  let maxSambucasInOneDay = 0;
+  sambucasPerDay.forEach((count) => {
+    if (count > maxSambucasInOneDay) maxSambucasInOneDay = count;
   });
 
   let maxSessionsAtSamePub = 0;
@@ -426,6 +453,8 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
     maxRtdsInOneDay,
     jagerbombCount,
     maxJagerbombsInOneDay,
+    sambucaCount,
+    maxSambucasInOneDay,
   };
 };
 
@@ -457,7 +486,7 @@ export const getTrophies = (stats: Stats): TrophyDefinition[] => {
   const abvTrophies = [6, 7, 8, 9, 10, 11].map((threshold) => ({
     id: `abv-${threshold}`,
     title: `Over ${threshold}% ABV`,
-    description: `Logged a drink above ${threshold}%`,
+    description: `Logged a beer above ${threshold}%`,
     kind: 'abv' as const,
     earned: stats.strongestAbv > threshold,
   }));
@@ -594,6 +623,27 @@ export const getTrophies = (stats: Stats): TrophyDefinition[] => {
       description: '3+ Jägerbombs in one drinking day',
       kind: 'jager',
       earned: stats.maxJagerbombsInOneDay >= 3,
+    },
+    {
+      id: 'sambuca-first',
+      title: 'Liquid Fire',
+      description: 'Logged your first Sambuca shot. Feel the burn.',
+      kind: 'sambuca',
+      earned: stats.sambucaCount >= 1,
+    },
+    {
+      id: 'sambuca-5',
+      title: 'Sambuca Veteran',
+      description: '5+ Sambuca shots logged',
+      kind: 'sambuca',
+      earned: stats.sambucaCount >= 5,
+    },
+    {
+      id: 'sambuca-day-3',
+      title: 'Flaming Trio',
+      description: '3+ Sambuca shots in one drinking day',
+      kind: 'sambuca',
+      earned: stats.maxSambucasInOneDay >= 3,
     },
   ];
 

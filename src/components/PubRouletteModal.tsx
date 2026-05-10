@@ -126,9 +126,9 @@ const RouletteWheel = ({ pubs, size }: { pubs: PubRecord[]; size: number }) => {
         const labelAngle = index * segment + segment / 2;
         const labelOrigin = polarPoint(center, labelStartRadius, labelAngle);
         const label = shortenWheelLabel(formatPubLabel(pub));
-        const isFlipped = labelAngle > 90 && labelAngle < 270;
-        const textRotation = isFlipped ? labelAngle + 180 : labelAngle;
-        const flipOffset = isFlipped ? polarPoint(center, center - 32, labelAngle) : labelOrigin;
+        const isFlipped = labelAngle > 180;
+        const textRotation = isFlipped ? labelAngle + 90 : labelAngle - 90;
+        const flipOffset = isFlipped ? polarPoint(center, center - 30, labelAngle) : labelOrigin;
         const isDarkBg = index % WHEEL_COLORS.length === 7 || index % WHEEL_COLORS.length === 3;
 
         return (
@@ -150,7 +150,6 @@ const RouletteWheel = ({ pubs, size }: { pubs: PubRecord[]; size: number }) => {
               alignmentBaseline="central"
               stroke={isDarkBg ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.5)'}
               strokeWidth={isDarkBg ? 0.3 : 2}
-              paintOrder="stroke"
               transform={`rotate(${textRotation} ${flipOffset.x} ${flipOffset.y})`}
             >
               {label}
