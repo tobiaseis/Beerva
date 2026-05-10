@@ -11,7 +11,7 @@ import { colors } from '../theme/colors';
 import { radius, shadows, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
 
-type NotificationType = 'cheer' | 'invite' | 'session_started' | 'comment' | 'invite_response';
+type NotificationType = 'cheer' | 'invite' | 'session_started' | 'comment' | 'invite_response' | 'pub_crawl_started';
 type InviteStatus = 'pending' | 'accepted' | 'declined';
 
 type ProfilePreview = {
@@ -72,6 +72,11 @@ const getNotificationMessage = (item: NotificationRow) => {
       ? ` started a drinking session at ${item.session.pub_name}.`
       : ' started a drinking session.';
   }
+  if (item.type === 'pub_crawl_started') {
+    return item.session?.pub_name
+      ? ` started a pub crawl at ${item.session.pub_name}.`
+      : ' started a pub crawl.';
+  }
   if (item.type === 'invite_response') {
     if (item.invite?.status === 'accepted') return ' will be there.';
     if (item.invite?.status === 'declined') return " can't make it.";
@@ -115,18 +120,26 @@ export const NotificationsScreen = ({ navigation }: any) => {
           .filter((n) => n.type === 'session_started' && n.reference_id)
           .map((n) => n.reference_id as string)
       ));
+      const crawlIds = Array.from(new Set(
+        baseRows
+          .filter((n) => n.type === 'pub_crawl_started' && n.reference_id)
+          .map((n) => n.reference_id as string)
+      ));
       const inviteIds = Array.from(new Set(
         baseRows
           .filter((n) => (n.type === 'invite' || n.type === 'invite_response') && n.reference_id)
           .map((n) => n.reference_id as string)
       ));
 
-      const [profilesResult, sessionsResult, invitesResult] = await Promise.all([
+      const [profilesResult, sessionsResult, crawlsResult, invitesResult] = await Promise.all([
         actorIds.length > 0
           ? supabase.from('profiles').select('id, username, avatar_url').in('id', actorIds)
           : Promise.resolve({ data: [], error: null }),
         sessionIds.length > 0
           ? supabase.from('sessions').select('id, pub_name').in('id', sessionIds)
+          : Promise.resolve({ data: [], error: null }),
+        crawlIds.length > 0
+          ? supabase.from('sessions').select('pub_crawl_id, pub_name').in('pub_crawl_id', crawlIds).eq('crawl_stop_order', 1)
           : Promise.resolve({ data: [], error: null }),
         inviteIds.length > 0
           ? supabase.from('drinking_invites').select('id, sender_id, recipient_id, status, created_at, responded_at').in('id', inviteIds)
@@ -148,6 +161,14 @@ export const NotificationsScreen = ({ navigation }: any) => {
       } else {
         (sessionsResult.data || []).forEach((session: any) => {
           sessionsById.set(session.id, { pub_name: session.pub_name });
+        });
+      }
+
+      if (crawlsResult.error) {
+        console.error('Notification crawls fetch error', crawlsResult.error);
+      } else {
+        (crawlsResult.data || []).forEach((session: any) => {
+          sessionsById.set(session.pub_crawl_id, { pub_name: session.pub_name });
         });
       }
 
