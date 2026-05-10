@@ -186,13 +186,13 @@ assert.equal(newBeverageTrophies.find((trophy) => trophy.id === 'rtd-variety')?.
 assert.equal(newBeverageTrophies.find((trophy) => trophy.id === 'jagermeister')?.earned, true);
 assert.equal(
   getTrophies({ ...emptyStats, rtdCount: 50 }).find((trophy) => trophy.id === 'rtd-king-benzin')?.earned,
-  false,
-  'King of Benzin should require more than 50 RTDs'
+  true,
+  'King of Luderbenzin should unlock at 50+ RTDs'
 );
 assert.equal(
   getTrophies({ ...emptyStats, rtdCount: 51 }).find((trophy) => trophy.id === 'rtd-king-benzin')?.earned,
   true,
-  'King of Benzin should unlock after more than 50 RTDs'
+  'King of Luderbenzin should stay unlocked above 50 RTDs'
 );
 assert.match(
   newBeverageTrophies.find((trophy) => trophy.id === 'jager-first')?.description || '',
@@ -209,8 +209,8 @@ const rtdOnlyTrophyStats = calculateStats([
 assert.equal(rtdOnlyTrophyStats.rtdCount, 50, 'Only RTDs should count toward King of Benzin');
 assert.equal(
   getTrophies(rtdOnlyTrophyStats).find((trophy) => trophy.id === 'rtd-king-benzin')?.earned,
-  false,
-  'Non-RTDs should not help unlock King of Benzin'
+  true,
+  'Exactly 50 RTDs should unlock King of Luderbenzin without help from non-RTDs'
 );
 
 assert.equal(getVolumeMl('2cl'), 20, '2cl servings should count as 20ml');

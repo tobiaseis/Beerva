@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNavigationContainerRef, DefaultTheme, NavigationContainer, type Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { PlusCircle, User, Users } from 'lucide-react-native';
+import { PlusCircle, Trophy, User, Users } from 'lucide-react-native';
 import { View, ActivityIndicator, Platform, Image } from 'react-native';
 import { Session } from '@supabase/supabase-js';
 
@@ -13,6 +13,8 @@ import { RecordScreen } from '../screens/RecordScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { PeopleScreen } from '../screens/PeopleScreen';
 import { UserProfileScreen } from '../screens/UserProfileScreen';
+import { PubLegendsScreen } from '../screens/PubLegendsScreen';
+import { PubLegendDetailScreen } from '../screens/PubLegendDetailScreen';
 import { AuthScreen } from '../screens/AuthScreen';
 import { ProfileSetupScreen } from '../screens/ProfileSetupScreen';
 import { NotificationsScreen } from '../screens/NotificationsScreen';
@@ -149,6 +151,13 @@ const MainTabs = () => {
       component={PeopleScreen}
       options={{
         tabBarIcon: ({ color, size }) => <Users color={color} size={size} />
+      }}
+    />
+    <Tab.Screen
+      name="Legends"
+      component={PubLegendsScreen}
+      options={{
+        tabBarIcon: ({ color, size }) => <Trophy color={color} size={size} />
       }}
     />
     <Tab.Screen
@@ -320,6 +329,7 @@ export const RootNavigator = () => {
             >
               <Stack.Screen name="MainTabs" component={MainTabs} />
               <Stack.Screen name="UserProfile" component={UserProfileScreen} />
+              <Stack.Screen name="PubLegendDetail" component={PubLegendDetailScreen} />
               <Stack.Screen name="Notifications" component={NotificationsScreen} />
               <Stack.Screen name="EditSession" component={EditSessionScreen} />
             </Stack.Navigator>
