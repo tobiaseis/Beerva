@@ -10,6 +10,7 @@ import { fetchPintTimeline, fetchProfileStats, PintTimelinePoint } from '../lib/
 import { getBeerLine, getSessionBeerSummary, SessionBeer } from '../lib/sessionBeers';
 import { supabase } from '../lib/supabase';
 import { showAlert } from '../lib/dialogs';
+import { openMaps } from '../lib/maps';
 import { colors } from '../theme/colors';
 import { radius, shadows, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
@@ -476,10 +477,16 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
                     {session.session_beers.map((beer) => getBeerLine(beer)).join(' / ')}
                   </Text>
                 ) : null}
-                <View style={styles.sessionMetaRow}>
+                <TouchableOpacity
+                  style={styles.sessionMetaRow}
+                  onPress={() => session.pub_name && openMaps(session.pub_name)}
+                  activeOpacity={0.7}
+                  accessibilityRole="link"
+                  accessibilityLabel={`Open ${session.pub_name || 'pub'} in Maps`}
+                >
                   <MapPin color={colors.textMuted} size={13} />
                   <Text style={styles.sessionMetaText}>{session.pub_name || 'Unknown pub'}</Text>
-                </View>
+                </TouchableOpacity>
                 <View style={styles.sessionMetaRow}>
                   <CalendarDays color={colors.textMuted} size={13} />
                   <Text style={styles.sessionMetaText}>{getTimeAgo(session.created_at)} · {formatPints(session)} true pints</Text>

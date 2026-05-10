@@ -17,6 +17,7 @@ import { EmptyIllustration } from '../components/EmptyIllustration';
 import { getBeerLine, getSessionBeerSummary, SessionBeer } from '../lib/sessionBeers';
 import { getVolumeMl, TrophyDefinition } from '../lib/profileStats';
 import { TrophyUnlockModal } from '../components/TrophyUnlockModal';
+import { openMaps } from '../lib/maps';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
 
@@ -370,12 +371,18 @@ const FeedSessionCard = React.memo(({
       <View style={styles.cardContent}>
 
         <View style={styles.sessionSummary}>
-          <View style={styles.summaryRow}>
+          <TouchableOpacity 
+            style={styles.summaryRow}
+            onPress={() => openMaps(item.pub_name)}
+            activeOpacity={0.7}
+            accessibilityRole="link"
+            accessibilityLabel={`Open ${item.pub_name} in Maps`}
+          >
             <View style={styles.summaryIcon}>
               <MapPin color={colors.primary} size={15} />
             </View>
             <Text style={styles.summaryLocationText} numberOfLines={1}>{item.pub_name}</Text>
-          </View>
+          </TouchableOpacity>
           <View style={styles.summaryRow}>
             <Image source={beervaLogo} style={styles.inlineLogoSmall} />
             <Text style={styles.summaryDrinkText} numberOfLines={2}>{getDrinkLabel(item)}</Text>
