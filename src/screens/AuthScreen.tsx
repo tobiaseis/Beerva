@@ -8,6 +8,7 @@ import { Surface } from '../components/Surface';
 import { AppButton } from '../components/AppButton';
 import { radius, spacing } from '../theme/layout';
 import { useFocused } from '../lib/useFocused';
+import { getErrorMessage, withTimeout } from '../lib/timeouts';
 
 type AuthNotice = {
   type: 'success' | 'error';
@@ -15,6 +16,7 @@ type AuthNotice = {
 };
 
 const DEFAULT_SITE_URL = 'https://beerva.vercel.app';
+const AUTH_REQUEST_TIMEOUT_MS = 20000;
 const beervaLogo = require('../../assets/beerva-header-logo.png');
 
 const getEmailRedirectTo = () => {
@@ -41,16 +43,27 @@ export const AuthScreen = () => {
 
     setLoading(true);
     setNotice(null);
-    const { error } = await supabase.auth.signInWithPassword({
-      email: cleanEmail,
-      password,
-    });
 
-    if (error) {
-      setNotice({ type: 'error', message: error.message });
-      Alert.alert('Error', error.message);
+    try {
+      const { error } = await withTimeout(
+        supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password,
+        }),
+        AUTH_REQUEST_TIMEOUT_MS,
+        'Log in is taking too long. Check your connection and try again.'
+      );
+
+      if (error) {
+        throw error;
+      }
+    } catch (error) {
+      const message = getErrorMessage(error, 'Could not log in. Please try again.');
+      setNotice({ type: 'error', message });
+      Alert.alert('Error', message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   async function signUpWithEmail() {
@@ -63,27 +76,37 @@ export const AuthScreen = () => {
 
     setLoading(true);
     setNotice(null);
-    const emailRedirectTo = getEmailRedirectTo();
-    const { data, error } = await supabase.auth.signUp({
-      email: cleanEmail,
-      password,
-      options: emailRedirectTo ? { emailRedirectTo } : undefined,
-    });
+    try {
+      const emailRedirectTo = getEmailRedirectTo();
+      const { data, error } = await withTimeout(
+        supabase.auth.signUp({
+          email: cleanEmail,
+          password,
+          options: emailRedirectTo ? { emailRedirectTo } : undefined,
+        }),
+        AUTH_REQUEST_TIMEOUT_MS,
+        'Sign up is taking too long. Check your connection and try again.'
+      );
 
-    if (error) {
-      setNotice({ type: 'error', message: error.message });
-      Alert.alert('Error', error.message);
-    } else if (data.session) {
-      setNotice({ type: 'success', message: 'Account created. Let’s finish your profile.' });
-    } else {
-      setPassword('');
-      setIsLogin(true);
-      setNotice({
-        type: 'success',
-        message: `Confirmation email sent to ${cleanEmail}. Open the link in your inbox, then log in here to finish your profile.`,
-      });
+      if (error) {
+        throw error;
+      } else if (data.session) {
+        setNotice({ type: 'success', message: 'Account created. Let’s finish your profile.' });
+      } else {
+        setPassword('');
+        setIsLogin(true);
+        setNotice({
+          type: 'success',
+          message: `Confirmation email sent to ${cleanEmail}. Open the link in your inbox, then log in here to finish your profile.`,
+        });
+      }
+    } catch (error) {
+      const message = getErrorMessage(error, 'Could not sign up. Please try again.');
+      setNotice({ type: 'error', message });
+      Alert.alert('Error', message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   return (

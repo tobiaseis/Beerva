@@ -178,7 +178,7 @@ const newBeverageTrophies = getTrophies({
   rtdCount: 10,
   uniqueRtds: 5,
   maxRtdsInOneDay: 3,
-  jagerbombCount: 5,
+  jagerbombCount: 20,
   maxJagerbombsInOneDay: 3,
 });
 

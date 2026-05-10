@@ -7,6 +7,7 @@ import { View, ActivityIndicator, Platform, Image } from 'react-native';
 import { Session } from '@supabase/supabase-js';
 
 import { supabase } from '../lib/supabase';
+import { getErrorMessage, withTimeout } from '../lib/timeouts';
 import { FeedScreen } from '../screens/FeedScreen';
 import { RecordScreen } from '../screens/RecordScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
@@ -25,6 +26,8 @@ const beervaLogo = require('../../assets/beerva-header-logo.png');
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 const navigationRef = createNavigationContainerRef();
+const AUTH_BOOTSTRAP_TIMEOUT_MS = 12000;
+const PROFILE_CHECK_TIMEOUT_MS = 12000;
 
 const navigationTheme: Theme = {
   ...DefaultTheme,
@@ -163,10 +166,15 @@ export const RootNavigator = () => {
   const [needsProfileSetup, setNeedsProfileSetup] = useState(false);
   const [navigationReady, setNavigationReady] = useState(false);
   const profileCheckedUserIdRef = useRef<string | null>(null);
+  const profileCheckRequestIdRef = useRef(0);
   const pendingNotificationsOpenRef = useRef(shouldOpenNotificationsFromUrl());
+  const sessionUserId = session?.user?.id ?? null;
 
-  const checkProfileSetup = useCallback(async (activeSession: Session | null) => {
-    if (!activeSession?.user) {
+  const checkProfileSetup = useCallback(async (userId: string | null, showLoading = false) => {
+    const requestId = profileCheckRequestIdRef.current + 1;
+    profileCheckRequestIdRef.current = requestId;
+
+    if (!userId) {
       setNeedsProfileSetup(false);
       setProfileCheckedUserId(null);
       profileCheckedUserIdRef.current = null;
@@ -174,19 +182,24 @@ export const RootNavigator = () => {
       return;
     }
 
-    const userId = activeSession.user.id;
     const isFirstCheckForUser = profileCheckedUserIdRef.current !== userId;
 
-    if (isFirstCheckForUser) {
+    if (isFirstCheckForUser || showLoading) {
       setProfileLoading(true);
     }
 
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('username')
-        .eq('id', userId)
-        .maybeSingle();
+      const { data, error } = await withTimeout(
+        supabase
+          .from('profiles')
+          .select('username')
+          .eq('id', userId)
+          .maybeSingle(),
+        PROFILE_CHECK_TIMEOUT_MS,
+        'Profile check is taking too long. Please try again.'
+      );
+
+      if (profileCheckRequestIdRef.current !== requestId) return;
 
       if (error) {
         console.error('Profile setup check error:', error);
@@ -196,34 +209,58 @@ export const RootNavigator = () => {
       profileCheckedUserIdRef.current = userId;
       setProfileCheckedUserId(userId);
     } catch (error) {
-      console.error('Profile setup check error:', error);
+      if (profileCheckRequestIdRef.current !== requestId) return;
+
+      console.error('Profile setup check error:', getErrorMessage(error, 'Unknown profile check error'));
       setNeedsProfileSetup(true);
       profileCheckedUserIdRef.current = userId;
       setProfileCheckedUserId(userId);
     } finally {
-      setProfileLoading(false);
+      if (profileCheckRequestIdRef.current === requestId) {
+        setProfileLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      checkProfileSetup(session);
-      setLoading(false);
-    }).catch((error) => {
-      console.error('Supabase session error:', error);
-      setLoading(false);
-    });
+    let active = true;
+
+    withTimeout(
+      supabase.auth.getSession(),
+      AUTH_BOOTSTRAP_TIMEOUT_MS,
+      'Session check is taking too long.'
+    )
+      .then(({ data: { session } }) => {
+        if (!active) return;
+        setSession(session);
+      })
+      .catch((error) => {
+        if (!active) return;
+        console.error('Supabase session error:', getErrorMessage(error, 'Unknown session error'));
+      })
+      .finally(() => {
+        if (active) {
+          setLoading(false);
+        }
+      });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      checkProfileSetup(session);
+      setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
-  }, [checkProfileSetup]);
+    return () => {
+      active = false;
+      profileCheckRequestIdRef.current += 1;
+      subscription.unsubscribe();
+    };
+  }, []);
 
-  const waitingForProfileCheck = Boolean(session?.user && profileCheckedUserId !== session.user.id);
+  useEffect(() => {
+    checkProfileSetup(sessionUserId);
+  }, [checkProfileSetup, sessionUserId]);
+
+  const waitingForProfileCheck = Boolean(sessionUserId && profileCheckedUserId !== sessionUserId);
 
   useEffect(() => {
     if (
@@ -233,7 +270,7 @@ export const RootNavigator = () => {
       || loading
       || profileLoading
       || needsProfileSetup
-      || !session?.user
+      || !sessionUserId
       || !navigationRef.isReady()
     ) {
       return;
@@ -242,7 +279,7 @@ export const RootNavigator = () => {
     pendingNotificationsOpenRef.current = false;
     navigationRef.navigate('Notifications' as never);
     clearNotificationLaunchParams();
-  }, [loading, navigationReady, needsProfileSetup, profileLoading, session?.user, waitingForProfileCheck]);
+  }, [loading, navigationReady, needsProfileSetup, profileLoading, sessionUserId, waitingForProfileCheck]);
 
   if (loading || profileLoading || waitingForProfileCheck) {
     return (
@@ -256,7 +293,7 @@ export const RootNavigator = () => {
     <NavigationContainer ref={navigationRef} onReady={() => setNavigationReady(true)} theme={navigationTheme}>
       {session && session.user ? (
         needsProfileSetup ? (
-          <ProfileSetupScreen onComplete={() => checkProfileSetup(session)} />
+          <ProfileSetupScreen onComplete={() => checkProfileSetup(sessionUserId, true)} />
         ) : (
           <NotificationsProvider>
             <Stack.Navigator

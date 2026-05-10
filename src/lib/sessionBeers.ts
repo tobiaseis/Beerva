@@ -231,8 +231,7 @@ export const BEER_CATALOG: BeerCatalogItem[] = [
   { name: 'Tempt Cider No. 9', abv: 4.5, kind: 'rtd', defaultVolume: '33cl' },
   { name: 'Rekorderlig Strawberry-Lime', abv: 4.5, kind: 'rtd', defaultVolume: '33cl' },
   { name: 'Rekorderlig Wild Berries', abv: 4.5, kind: 'rtd', defaultVolume: '33cl' },
-  { name: 'Garage Hard Lemon', abv: 4.6, kind: 'rtd', defaultVolume: '27.5cl' },
-  { name: 'Garage Hard Lemonade', abv: 4.6, kind: 'rtd', defaultVolume: '27.5cl' },
+  { name: 'Garage Hard Lemonade', abv: 4.6, kind: 'rtd', defaultVolume: '27.5cl', aliases: ['Garage Hard Lemon'] },
   { name: "Gordon's Gin & Tonic", abv: 5.0, kind: 'rtd', defaultVolume: '25cl' },
   { name: "Gordon's Pink Gin & Tonic", abv: 5.0, kind: 'rtd', defaultVolume: '25cl' },
   { name: 'Captain Morgan & Cola', abv: 5.0, kind: 'rtd', defaultVolume: '25cl' },
@@ -340,7 +339,7 @@ export const getBeerLine = (beer: Pick<SessionBeer, 'beer_name' | 'volume' | 'qu
   const beverage = getBeverageCatalogItem(beer.beer_name || '');
   if (beverage?.kind === 'mixed' && beverage.countedVolume) {
     const qty = beer.quantity || 1;
-    return qty > 1 ? `${qty} x ${beverage.name}` : beverage.name;
+    return `${qty}x ${beverage.name}`;
   }
 
   return `${getBeerDrinkLabel(beer)} of ${beer.beer_name || 'Beer'}`;
@@ -364,7 +363,7 @@ export const getSessionBeerSummary = (beers: SessionBeer[]) => {
 
   const beverage = getBeverageCatalogItem(beers[0].beer_name || '');
   if (beverage?.kind === 'mixed' && beverage.countedVolume) {
-    return total > 1 ? `${total} x ${beverage.name}` : beverage.name;
+    return `${total}x ${beverage.name}`;
   }
 
   return `${total} ${drinkLabel} of ${beers[0].beer_name || 'Beer'}`;
