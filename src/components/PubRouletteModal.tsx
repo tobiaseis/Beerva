@@ -36,7 +36,8 @@ type PubRouletteModalProps = {
   onStartHere: (pub: PubRecord) => void;
 };
 
-const WHEEL_COLORS = ['#B91C1C', '#0F6B4F', '#111827', '#D58A08'];
+const WHEEL_COLORS = ['#E11D48', '#0EA5E9', '#16A34A', '#F59E0B', '#7C3AED', '#DC2626', '#0891B2', '#FACC15'];
+const CASINO_ACCENTS = ['#E11D48', '#FACC15', '#0EA5E9', '#16A34A', '#7C3AED'];
 
 const polarPoint = (center: number, radiusValue: number, angleFromTop: number) => {
   const angle = (angleFromTop - 90) * Math.PI / 180;
@@ -88,7 +89,9 @@ const RouletteWheel = ({ pubs, size }: { pubs: PubRecord[]; size: number }) => {
   if (pubs.length === 1) {
     return (
       <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        <Circle cx={center} cy={center} r={center - 7} fill="#0F6B4F" stroke={colors.primary} strokeWidth={5} />
+        <Circle cx={center} cy={center} r={center - 5} fill="#2A063D" stroke="#FACC15" strokeWidth={6} />
+        <Circle cx={center} cy={center} r={center - 18} fill="#0F6B4F" stroke="#22D3EE" strokeWidth={3} strokeDasharray="12 7" />
+        <Circle cx={center} cy={center} r={center - 42} fill="#E11D48" stroke="#FDE68A" strokeWidth={2} />
         <SvgText
           x={center}
           y={center - 16}
@@ -117,6 +120,7 @@ const RouletteWheel = ({ pubs, size }: { pubs: PubRecord[]; size: number }) => {
 
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <Circle cx={center} cy={center} r={center - 4} fill="#250F38" stroke="#FACC15" strokeWidth={7} />
       {pubs.map((pub, index) => {
         const labelAngle = index * segment + segment / 2;
         const point = polarPoint(center, labelRadius, labelAngle);
@@ -128,13 +132,13 @@ const RouletteWheel = ({ pubs, size }: { pubs: PubRecord[]; size: number }) => {
             <Path
               d={createSegmentPath(index, pubs.length, size)}
               fill={WHEEL_COLORS[index % WHEEL_COLORS.length]}
-              stroke="rgba(248,250,252,0.42)"
-              strokeWidth={1.4}
+              stroke="rgba(255,255,255,0.58)"
+              strokeWidth={1.8}
             />
             <SvgText
               x={point.x}
               y={point.y}
-              fill={index % WHEEL_COLORS.length === 3 ? '#111827' : colors.text}
+              fill={index % WHEEL_COLORS.length === 7 || index % WHEEL_COLORS.length === 3 ? '#111827' : colors.text}
               fontSize={pubs.length > 9 ? 10 : 11}
               fontWeight="800"
               fontFamily={fontFamily.bodyBold}
@@ -146,17 +150,31 @@ const RouletteWheel = ({ pubs, size }: { pubs: PubRecord[]; size: number }) => {
           </G>
         );
       })}
-      <Circle cx={center} cy={center} r={38} fill={colors.surfaceRaised} stroke={colors.primary} strokeWidth={4} />
+      <Circle cx={center} cy={center} r={center - 10} fill="none" stroke="#FDE68A" strokeWidth={3} />
+      <Circle cx={center} cy={center} r={center - 24} fill="none" stroke="#22D3EE" strokeWidth={2} strokeDasharray="10 8" />
+      <Circle cx={center} cy={center} r={46} fill="#111827" stroke="#FACC15" strokeWidth={5} />
+      <Circle cx={center} cy={center} r={32} fill="#7C3AED" stroke="#FDE68A" strokeWidth={2} />
       <SvgText
         x={center}
-        y={center + 5}
-        fill={colors.primary}
-        fontSize={18}
+        y={center - 2}
+        fill="#FDE68A"
+        fontSize={14}
         fontWeight="800"
         fontFamily={fontFamily.bodyBold}
         textAnchor="middle"
       >
-        SPIN
+        BEER
+      </SvgText>
+      <SvgText
+        x={center}
+        y={center + 17}
+        fill={colors.text}
+        fontSize={9}
+        fontWeight="800"
+        fontFamily={fontFamily.bodyBold}
+        textAnchor="middle"
+      >
+        ROULETTE
       </SvgText>
     </Svg>
   );
@@ -303,6 +321,11 @@ export const PubRouletteModal = ({
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
           <View style={styles.header}>
+            <View style={styles.headerAccentRail}>
+              {CASINO_ACCENTS.map((accent) => (
+                <View key={accent} style={[styles.headerAccentSegment, { backgroundColor: accent }]} />
+              ))}
+            </View>
             <View style={styles.headerCopy}>
               <Text style={styles.eyebrow}>Beer Roulette</Text>
               <Text style={styles.title}>Let the wheel decide</Text>
@@ -316,6 +339,11 @@ export const PubRouletteModal = ({
             contentContainerStyle={styles.body}
             showsVerticalScrollIndicator={false}
           >
+            <View style={styles.casinoStrip}>
+              {CASINO_ACCENTS.map((accent, index) => (
+                <View key={`${accent}-${index}`} style={[styles.casinoStripTile, { backgroundColor: accent }]} />
+              ))}
+            </View>
             <Text style={[styles.status, error ? styles.errorText : null]}>{statusText}</Text>
 
             <View style={styles.wheelStage}>
@@ -399,9 +427,9 @@ const styles = StyleSheet.create({
   sheet: {
     maxHeight: '92%',
     borderRadius: 24,
-    backgroundColor: colors.surfaceRaised,
+    backgroundColor: '#190B2B',
     borderWidth: 1,
-    borderColor: colors.primaryBorder,
+    borderColor: '#FACC15',
     overflow: 'hidden',
     ...shadows.raised,
   },
@@ -412,9 +440,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    backgroundColor: '#171717',
+    backgroundColor: '#2A063D',
     borderBottomWidth: 1,
-    borderBottomColor: colors.primaryBorder,
+    borderBottomColor: '#FACC15',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  headerAccentRail: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    height: 7,
+    flexDirection: 'row',
+  },
+  headerAccentSegment: {
+    flex: 1,
   },
   headerCopy: {
     flex: 1,
@@ -444,10 +485,23 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     gap: spacing.md,
     alignItems: 'center',
+    backgroundColor: '#130516',
+  },
+  casinoStrip: {
+    alignSelf: 'stretch',
+    height: 10,
+    borderRadius: radius.pill,
+    overflow: 'hidden',
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderColor: 'rgba(253, 230, 138, 0.28)',
+  },
+  casinoStripTile: {
+    flex: 1,
   },
   status: {
     ...typography.caption,
-    color: colors.textMuted,
+    color: '#D8B4FE',
     textAlign: 'center',
   },
   errorText: {
@@ -457,7 +511,13 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 16,
+    paddingTop: 20,
+    paddingBottom: 18,
+    borderRadius: 24,
+    backgroundColor: '#250F38',
+    borderWidth: 1,
+    borderColor: 'rgba(250, 204, 21, 0.42)',
+    overflow: 'hidden',
   },
   pointer: {
     width: 0,
@@ -467,7 +527,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 26,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
-    borderTopColor: colors.primary,
+    borderTopColor: '#FDE68A',
     marginBottom: -10,
     zIndex: 3,
   },
@@ -476,6 +536,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FACC15',
     ...shadows.card,
   },
   loadingCover: {
@@ -498,9 +560,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: spacing.sm,
-    backgroundColor: colors.primary,
+    backgroundColor: '#FACC15',
     borderWidth: 1,
     borderColor: '#FDE68A',
+    ...shadows.card,
   },
   spinButtonDisabled: {
     opacity: 0.58,
@@ -517,9 +580,9 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     flexDirection: 'row',
     gap: spacing.md,
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    backgroundColor: 'rgba(14, 165, 233, 0.16)',
     borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.32)',
+    borderColor: 'rgba(250, 204, 21, 0.42)',
   },
   resultIcon: {
     width: 38,
@@ -542,6 +605,7 @@ const styles = StyleSheet.create({
   resultName: {
     ...typography.h3,
     marginTop: 2,
+    color: '#FDE68A',
   },
   resultMetaRow: {
     flexDirection: 'row',

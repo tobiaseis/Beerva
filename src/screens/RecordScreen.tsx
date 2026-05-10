@@ -1157,6 +1157,13 @@ export const RecordScreen = ({ navigation }: any) => {
               disabled={rouletteLoading || starting}
               activeOpacity={0.78}
             >
+              <View style={styles.rouletteCtaColorRail}>
+                <View style={[styles.rouletteCtaRailSegment, styles.rouletteCtaRailRed]} />
+                <View style={[styles.rouletteCtaRailSegment, styles.rouletteCtaRailGold]} />
+                <View style={[styles.rouletteCtaRailSegment, styles.rouletteCtaRailBlue]} />
+                <View style={[styles.rouletteCtaRailSegment, styles.rouletteCtaRailGreen]} />
+                <View style={[styles.rouletteCtaRailSegment, styles.rouletteCtaRailPurple]} />
+              </View>
               <View style={styles.rouletteCtaIcon}>
                 {rouletteLoading ? (
                   <ActivityIndicator color={colors.primary} size="small" />
@@ -1165,8 +1172,12 @@ export const RecordScreen = ({ navigation }: any) => {
                 )}
               </View>
               <View style={styles.rouletteCtaText}>
+                <Text style={styles.rouletteCtaKicker}>Beer Roulette</Text>
                 <Text style={styles.rouletteCtaTitle}>Don't know where to beer?</Text>
                 <Text style={styles.rouletteCtaSubtitle}>Let the wheel decide</Text>
+              </View>
+              <View style={styles.rouletteCtaJackpot}>
+                <Text style={styles.rouletteCtaJackpotText}>777</Text>
               </View>
             </TouchableOpacity>
           </Surface>
@@ -1504,43 +1515,96 @@ const styles = StyleSheet.create({
     marginTop: -6,
   },
   rouletteCta: {
-    minHeight: 88,
+    minHeight: 108,
     borderRadius: radius.xl,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingTop: 20,
+    paddingBottom: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    backgroundColor: '#171717',
-    borderWidth: 1,
-    borderColor: colors.primaryBorder,
+    backgroundColor: '#2A063D',
+    borderWidth: 2,
+    borderColor: '#FACC15',
+    overflow: 'hidden',
     ...shadows.card,
+  },
+  rouletteCtaColorRail: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 9,
+    flexDirection: 'row',
+  },
+  rouletteCtaRailSegment: {
+    flex: 1,
+  },
+  rouletteCtaRailRed: {
+    backgroundColor: '#E11D48',
+  },
+  rouletteCtaRailGold: {
+    backgroundColor: '#FACC15',
+  },
+  rouletteCtaRailBlue: {
+    backgroundColor: '#0EA5E9',
+  },
+  rouletteCtaRailGreen: {
+    backgroundColor: '#16A34A',
+  },
+  rouletteCtaRailPurple: {
+    backgroundColor: '#7C3AED',
   },
   rouletteCtaDisabled: {
     opacity: 0.68,
   },
   rouletteCtaIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 58,
+    height: 58,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.primarySoft,
-    borderWidth: 1,
-    borderColor: colors.primaryBorder,
+    backgroundColor: '#111827',
+    borderWidth: 2,
+    borderColor: '#FDE68A',
+    transform: [{ rotate: '-6deg' }],
   },
   rouletteCtaText: {
     flex: 1,
     minWidth: 0,
   },
+  rouletteCtaKicker: {
+    ...typography.tiny,
+    color: '#38BDF8',
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
   rouletteCtaTitle: {
     ...typography.body,
-    color: colors.primary,
+    color: '#FDE68A',
     fontWeight: '900',
+    marginTop: 2,
   },
   rouletteCtaSubtitle: {
     ...typography.h3,
     marginTop: 2,
+    color: colors.text,
+  },
+  rouletteCtaJackpot: {
+    minWidth: 50,
+    minHeight: 44,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E11D48',
+    borderWidth: 2,
+    borderColor: '#FDE68A',
+    transform: [{ rotate: '5deg' }],
+  },
+  rouletteCtaJackpotText: {
+    ...typography.body,
+    color: '#FDE68A',
+    fontWeight: '900',
   },
   lockedPubSurface: {
     gap: spacing.md,
