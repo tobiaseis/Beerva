@@ -616,6 +616,14 @@ export const RecordScreen = ({ navigation }: any) => {
         console.warn('Roulette cached pub search failed:', error);
       }
 
+      if (rouletteRequestId.current !== requestId) return;
+      const cachedNearbyPubs = prepareRoulettePubs(cachedPubs);
+      if (cachedNearbyPubs.length > 0) {
+        setRoulettePubs(cachedNearbyPubs);
+        setPubOptions((previous) => mergePubRecords(cachedNearbyPubs, previous));
+        setRouletteError(null);
+      }
+
       let remotePubs: PubRecord[] = [];
       let lookupError: string | null = null;
       let remoteError: string | null = null;
@@ -1288,7 +1296,8 @@ export const RecordScreen = ({ navigation }: any) => {
       <PubRouletteModal
         visible={rouletteVisible}
         pubs={roulettePubs}
-        loading={rouletteLoading}
+        loading={rouletteLoading && roulettePubs.length === 0}
+        refreshing={rouletteLoading && roulettePubs.length > 0}
         error={rouletteError}
         starting={starting}
         onClose={closePubRoulette}

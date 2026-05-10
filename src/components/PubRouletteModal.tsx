@@ -27,6 +27,7 @@ type PubRouletteModalProps = {
   visible: boolean;
   pubs: PubRecord[];
   loading: boolean;
+  refreshing?: boolean;
   error?: string | null;
   starting?: boolean;
   onClose: () => void;
@@ -67,6 +68,15 @@ const shortenWheelLabel = (label: string) => {
   const cleanLabel = label.replace(/,\s*.*/, '').trim();
   if (cleanLabel.length <= 16) return cleanLabel;
   return `${cleanLabel.slice(0, 14).trim()}..`;
+};
+
+const getPubIdentity = (pub: PubRecord) => (
+  pub.id || `${pub.source || 'pub'}:${pub.source_id || `${pub.name}:${pub.city || ''}`}`.toLowerCase()
+);
+
+const includesPub = (pubs: PubRecord[], pub: PubRecord) => {
+  const identity = getPubIdentity(pub);
+  return pubs.some((item) => getPubIdentity(item) === identity);
 };
 
 const RouletteWheel = ({ pubs, size }: { pubs: PubRecord[]; size: number }) => {
@@ -156,6 +166,7 @@ export const PubRouletteModal = ({
   visible,
   pubs,
   loading,
+  refreshing = false,
   error,
   starting = false,
   onClose,
@@ -167,6 +178,8 @@ export const PubRouletteModal = ({
   const wheelSize = Math.min(Math.max(width - 56, 246), 330);
   const rotation = useRef(new Animated.Value(0)).current;
   const rotationValue = useRef(0);
+  const animationRef = useRef<Animated.CompositeAnimation | null>(null);
+  const [displayPubs, setDisplayPubs] = useState<PubRecord[]>([]);
   const [winner, setWinner] = useState<PubRecord | null>(null);
   const [spinning, setSpinning] = useState(false);
 
@@ -177,37 +190,71 @@ export const PubRouletteModal = ({
   });
 
   useEffect(() => {
-    if (!visible) return;
+    if (!visible) {
+      animationRef.current?.stop();
+      animationRef.current = null;
+      setSpinning(false);
+      return;
+    }
+
     rotation.stopAnimation();
     rotation.setValue(0);
     rotationValue.current = 0;
-    setWinner(null);
+    setDisplayPubs(pubs);
+    setWinner(pubs.length === 1 ? pubs[0] : null);
     setSpinning(false);
-  }, [pubs, rotation, visible]);
+  }, [rotation, visible]);
+
+  useEffect(() => {
+    return () => {
+      animationRef.current?.stop();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!visible || spinning) return;
+
+    if (winner) {
+      if (!includesPub(pubs, winner)) {
+        setDisplayPubs(pubs);
+        setWinner(pubs.length === 1 ? pubs[0] : null);
+      }
+      return;
+    }
+
+    setDisplayPubs(pubs);
+    if (pubs.length === 1) {
+      setWinner(pubs[0]);
+    }
+  }, [pubs, spinning, visible, winner]);
 
   const statusText = useMemo(() => {
     if (loading) return `Finding bars within ${ROULETTE_MAX_DISTANCE_METERS / 1000} km...`;
     if (error) return error;
-    if (pubs.length === 0) return 'No bars within 1 km yet. Try Nearby or search manually.';
-    if (pubs.length === 1) return 'Only one nearby bar found. The wheel can still bless it.';
-    return `${pubs.length} nearby bars loaded`;
-  }, [error, loading, pubs.length]);
+    if (displayPubs.length === 0) return 'No bars within 1 km yet. Try Nearby or search manually.';
+    if (refreshing) return `${displayPubs.length} nearby bars loaded. Refreshing the table...`;
+    if (displayPubs.length === 1) return 'Only one nearby bar found. The wheel has spoken.';
+    return `${displayPubs.length} nearby bars loaded`;
+  }, [displayPubs.length, error, loading, refreshing]);
 
   const spin = () => {
-    if (loading || spinning || pubs.length === 0) return;
+    const spinPubs = pubs.length > 0 ? pubs : displayPubs;
+    if (loading || spinning || spinPubs.length === 0) return;
 
-    if (pubs.length === 1) {
-      setWinner(pubs[0]);
+    setDisplayPubs(spinPubs);
+
+    if (spinPubs.length === 1) {
+      setWinner(spinPubs[0]);
       hapticSuccess();
       return;
     }
 
-    const result = pickRouletteWinner(pubs);
+    const result = pickRouletteWinner(spinPubs);
     if (!result) return;
 
     const nextRotation = getRouletteTargetRotation(
       result.winnerIndex,
-      pubs.length,
+      spinPubs.length,
       rotationValue.current,
       7
     );
@@ -216,12 +263,17 @@ export const PubRouletteModal = ({
     setSpinning(true);
     hapticMedium();
 
-    Animated.timing(rotation, {
+    animationRef.current?.stop();
+    const animation = Animated.timing(rotation, {
       toValue: nextRotation,
       duration: 3600,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
-    }).start(({ finished }) => {
+    });
+
+    animationRef.current = animation;
+    animation.start(({ finished }) => {
+      animationRef.current = null;
       setSpinning(false);
       if (!finished) return;
       rotationValue.current = nextRotation;
@@ -231,7 +283,14 @@ export const PubRouletteModal = ({
   };
 
   const winnerDetail = winner ? formatPubDetail(winner) : '';
-  const canSpin = pubs.length > 0 && !loading && !spinning;
+  const canSpin = displayPubs.length > 0 && !loading && !spinning;
+
+  const closeModal = () => {
+    animationRef.current?.stop();
+    animationRef.current = null;
+    setSpinning(false);
+    onClose();
+  };
 
   return (
     <Modal
@@ -239,7 +298,7 @@ export const PubRouletteModal = ({
       transparent
       animationType="fade"
       statusBarTranslucent
-      onRequestClose={onClose}
+      onRequestClose={closeModal}
     >
       <View style={styles.backdrop}>
         <View style={styles.sheet}>
@@ -248,7 +307,7 @@ export const PubRouletteModal = ({
               <Text style={styles.eyebrow}>Beer Roulette</Text>
               <Text style={styles.title}>Let the wheel decide</Text>
             </View>
-            <TouchableOpacity style={styles.closeButton} onPress={onClose} activeOpacity={0.76}>
+            <TouchableOpacity style={styles.closeButton} onPress={closeModal} activeOpacity={0.76}>
               <X color={colors.textMuted} size={22} />
             </TouchableOpacity>
           </View>
@@ -262,7 +321,7 @@ export const PubRouletteModal = ({
             <View style={styles.wheelStage}>
               <View style={styles.pointer} />
               <Animated.View style={[styles.wheel, { width: wheelSize, height: wheelSize, transform: [{ rotate: wheelRotation }] }]}>
-                <RouletteWheel pubs={pubs} size={wheelSize} />
+                <RouletteWheel pubs={displayPubs} size={wheelSize} />
               </Animated.View>
               {loading ? (
                 <View style={styles.loadingCover}>
@@ -278,7 +337,7 @@ export const PubRouletteModal = ({
               activeOpacity={0.78}
             >
               <Sparkles color={colors.background} size={20} />
-              <Text style={styles.spinButtonText}>{spinning ? 'Spinning...' : pubs.length === 1 ? 'Crown The Bar' : 'Spin The Wheel'}</Text>
+              <Text style={styles.spinButtonText}>{spinning ? 'Spinning...' : displayPubs.length === 1 ? 'Crown The Bar' : 'Spin The Wheel'}</Text>
             </TouchableOpacity>
 
             {winner ? (
@@ -317,11 +376,11 @@ export const PubRouletteModal = ({
             <TouchableOpacity
               style={styles.refreshButton}
               onPress={onRefresh}
-              disabled={loading || spinning}
+              disabled={loading || refreshing || spinning}
               activeOpacity={0.76}
             >
               <RefreshCw color={colors.primary} size={16} />
-              <Text style={styles.refreshText}>Refresh nearby bars</Text>
+              <Text style={styles.refreshText}>{refreshing ? 'Refreshing nearby bars...' : 'Refresh nearby bars'}</Text>
             </TouchableOpacity>
           </ScrollView>
         </View>
