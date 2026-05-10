@@ -1,6 +1,6 @@
 // Beerva Service Worker (Push + Offline Caching)
 
-const CACHE_NAME = 'beerva-cache-v6';
+const CACHE_NAME = 'beerva-cache-v7';
 const OFFLINE_URLS = [
   '/',
   '/index.html',
@@ -64,22 +64,27 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Network-first for HTML navigation requests to ensure latest version
+  // App Shell / Stale-while-revalidate for HTML navigation requests
+  // Immediately returns cached index.html to prevent "stuck loading" on slow connections,
+  // while updating the cache in the background for next launch.
   if (event.request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseClone);
-          });
+      caches.match('/').then((cachedResponse) => {
+        const networkFetch = fetch(event.request).then((response) => {
+          if (response.ok) {
+            const responseClone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put('/', responseClone);
+            });
+          }
           return response;
-        })
-        .catch(() => {
-          return caches.match(event.request).then((response) => {
-            return response || caches.match('/');
-          });
-        })
+        }).catch(() => {
+          // Fallback to cache on network failure handled by returning cachedResponse
+        });
+
+        // Return the instant cached shell if available, otherwise fallback to network
+        return cachedResponse || networkFetch;
+      })
     );
     return;
   }
