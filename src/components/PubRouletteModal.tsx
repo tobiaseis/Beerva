@@ -138,6 +138,24 @@ const RouletteWheel = ({ pubs, size }: { pubs: PubRecord[]; size: number }) => {
               stroke="rgba(255,255,255,0.58)"
               strokeWidth={1.8}
             />
+            {/* Outline Text */}
+            <SvgText
+              x={labelOrigin.x}
+              y={labelOrigin.y}
+              fill="none"
+              fontSize={pubs.length > 9 ? 9 : 11}
+              fontWeight="900"
+              fontFamily={fontFamily.bodyBold}
+              textAnchor={isFlipped ? 'end' : 'start'}
+              alignmentBaseline="central"
+              stroke={isDarkBg ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.55)'}
+              strokeWidth={isDarkBg ? 0 : 2.5}
+              strokeLinejoin="round"
+              transform={`rotate(${textRotation} ${labelOrigin.x} ${labelOrigin.y})`}
+            >
+              {label}
+            </SvgText>
+            {/* Foreground Fill Text */}
             <SvgText
               x={labelOrigin.x}
               y={labelOrigin.y}
@@ -147,8 +165,6 @@ const RouletteWheel = ({ pubs, size }: { pubs: PubRecord[]; size: number }) => {
               fontFamily={fontFamily.bodyBold}
               textAnchor={isFlipped ? 'end' : 'start'}
               alignmentBaseline="central"
-              stroke={isDarkBg ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.5)'}
-              strokeWidth={isDarkBg ? 0.3 : 2}
               transform={`rotate(${textRotation} ${labelOrigin.x} ${labelOrigin.y})`}
             >
               {label}
@@ -362,6 +378,16 @@ export const PubRouletteModal = ({
                   <ActivityIndicator color={colors.primary} />
                 </View>
               ) : null}
+              
+              {!loading && canSpin ? (
+                <TouchableOpacity
+                  style={styles.centerSpinButton}
+                  onPress={spin}
+                  activeOpacity={0.6}
+                  accessibilityRole="button"
+                  accessibilityLabel="Spin the wheel"
+                />
+              ) : null}
             </View>
 
             <TouchableOpacity
@@ -556,6 +582,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceRaised,
     borderWidth: 1,
     borderColor: colors.primaryBorder,
+  },
+  centerSpinButton: {
+    position: 'absolute',
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    zIndex: 10,
   },
   spinButton: {
     minHeight: 54,
