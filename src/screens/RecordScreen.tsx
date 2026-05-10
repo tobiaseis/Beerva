@@ -658,7 +658,7 @@ export const RecordScreen = ({ navigation }: any) => {
       setSelectedPub(null);
       hapticSuccess();
       notifyMatesSessionStarted(session.id, user.id);
-      showAlert('Session started', 'Your mates have been notified. Add beers as you drink them.');
+      showAlert('Session started', 'Your mates have been notified. Add drinks as you go.');
     } catch (error: any) {
       console.error('Start session error:', error);
       if (error?.code === '23505') {
@@ -688,7 +688,7 @@ export const RecordScreen = ({ navigation }: any) => {
   const addBeerToSession = async () => {
     if (!activeSession) return;
     if (!beerDraft.beerName.trim()) {
-      showAlert('Missing beer', 'Add the beer you are drinking.');
+      showAlert('Missing drink', 'Add what you are drinking.');
       return;
     }
 
@@ -716,7 +716,7 @@ export const RecordScreen = ({ navigation }: any) => {
     } catch (error: any) {
       console.error('Add beer error:', error);
       hapticError();
-      showAlert('Could not add beer', error?.message || 'Please try again.');
+      showAlert('Could not add drink', error?.message || 'Please try again.');
     } finally {
       setAddingBeer(false);
     }
@@ -848,7 +848,7 @@ export const RecordScreen = ({ navigation }: any) => {
   const endSession = async () => {
     if (!activeSession) return;
     if (sessionBeers.length === 0) {
-      showAlert('Add a beer first', 'A session needs at least one beer before it can be posted.');
+      showAlert('Add a drink first', 'A session needs at least one drink before it can be posted.');
       return;
     }
 
@@ -1059,14 +1059,14 @@ export const RecordScreen = ({ navigation }: any) => {
 
             <Surface style={styles.formSurface}>
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Beers</Text>
+                <Text style={styles.sectionTitle}>Drinks</Text>
                 <Text style={styles.sectionMeta}>{sessionBeers.length}</Text>
               </View>
 
               {sessionBeers.length === 0 ? (
                 <View style={styles.emptyBeerList}>
                   <Beer color={colors.textMuted} size={24} />
-                  <Text style={styles.emptyBeerText}>No beers added yet.</Text>
+                  <Text style={styles.emptyBeerText}>No drinks added yet.</Text>
                 </View>
               ) : (
                 <View style={styles.beerList}>
@@ -1093,7 +1093,7 @@ export const RecordScreen = ({ navigation }: any) => {
                 draft={beerDraft}
                 onChange={setBeerDraft}
                 onSubmit={addBeerToSession}
-                submitLabel="Add Beer"
+                submitLabel="Add Drink"
                 loading={addingBeer}
               />
             </Surface>

@@ -7,7 +7,13 @@ import { AppButton } from './AppButton';
 import { colors } from '../theme/colors';
 import { radius, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
-import { BeerDraft, BEER_OPTIONS, VOLUMES } from '../lib/sessionBeers';
+import {
+  BeerDraft,
+  BEER_OPTIONS,
+  getBeverageDefaultVolume,
+  isBeverageVolumeLocked,
+  VOLUMES,
+} from '../lib/sessionBeers';
 
 type BeerDraftFormProps = {
   draft: BeerDraft;
@@ -28,11 +34,20 @@ export const BeerDraftForm = ({
     onChange({ ...draft, ...patch });
   };
 
+  const updateBeverageName = (beerName: string) => {
+    const defaultVolume = getBeverageDefaultVolume(beerName);
+    updateDraft(defaultVolume ? { beerName, volume: defaultVolume } : { beerName });
+  };
+
+  const volumeLocked = isBeverageVolumeLocked(draft.beerName);
+  const lockedVolume = getBeverageDefaultVolume(draft.beerName);
+  const selectedVolume = volumeLocked ? lockedVolume || draft.volume : draft.volume;
+
   return (
     <View style={styles.container}>
       <AutocompleteInput
         value={draft.beerName}
-        onChangeText={(beerName) => updateDraft({ beerName })}
+        onChangeText={updateBeverageName}
         data={BEER_OPTIONS}
         placeholder="What are you drinking?"
         icon={<Beer color={colors.textMuted} size={20} />}
@@ -43,11 +58,24 @@ export const BeerDraftForm = ({
         {VOLUMES.map((volume) => (
           <TouchableOpacity
             key={volume}
-            style={[styles.volumeButton, draft.volume === volume && styles.volumeButtonActive]}
-            onPress={() => updateDraft({ volume })}
-            activeOpacity={0.76}
+            style={[
+              styles.volumeButton,
+              selectedVolume === volume && styles.volumeButtonActive,
+              volumeLocked && selectedVolume !== volume && styles.volumeButtonLocked,
+            ]}
+            onPress={() => updateDraft({ volume: volumeLocked ? lockedVolume || draft.volume : volume })}
+            activeOpacity={volumeLocked ? 1 : 0.76}
+            disabled={volumeLocked && selectedVolume !== volume}
+            accessibilityState={{
+              selected: selectedVolume === volume,
+              disabled: volumeLocked && selectedVolume !== volume,
+            }}
           >
-            <Text style={[styles.volumeText, draft.volume === volume && styles.volumeTextActive]}>{volume}</Text>
+            <Text style={[
+              styles.volumeText,
+              selectedVolume === volume && styles.volumeTextActive,
+              volumeLocked && selectedVolume !== volume && styles.volumeTextLocked,
+            ]}>{volume}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -110,6 +138,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
+  volumeButtonLocked: {
+    opacity: 0.38,
+  },
   volumeText: {
     ...typography.caption,
     color: colors.text,
@@ -118,6 +149,9 @@ const styles = StyleSheet.create({
   },
   volumeTextActive: {
     color: colors.background,
+  },
+  volumeTextLocked: {
+    color: colors.textMuted,
   },
   quantityContainer: {
     flexDirection: 'row',

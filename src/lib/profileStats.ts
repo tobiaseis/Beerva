@@ -139,25 +139,19 @@ const localDateKey = (createdAt?: string | null): string | null => {
 };
 
 export const getVolumeMl = (volume?: string | null) => {
-  switch (volume?.trim().toLowerCase()) {
-    case '25cl':
-      return 250;
-    case '33cl':
-      return 330;
-    case 'schooner':
-      return 379;
-    case '40cl':
-      return 400;
-    case '50cl':
-      return 500;
-    case '1l':
-    case '1 l':
-    case '100cl':
-      return 1000;
-    case 'pint':
-    default:
-      return 568;
+  const normalizedVolume = volume?.trim().toLowerCase().replace(',', '.') || 'pint';
+  const compactVolume = normalizedVolume.replace(/\s+/g, '');
+  const numericValue = Number(compactVolume.replace(/(ml|cl|l)$/, ''));
+
+  if (compactVolume === 'schooner') return 379;
+
+  if (Number.isFinite(numericValue)) {
+    if (compactVolume.endsWith('ml')) return numericValue;
+    if (compactVolume.endsWith('cl')) return numericValue * 10;
+    if (compactVolume.endsWith('l')) return numericValue * 1000;
   }
+
+  return 568;
 };
 
 const roundStat = (value: number) => Math.round(value * 10) / 10;

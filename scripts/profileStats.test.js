@@ -23,7 +23,14 @@ const loadTypeScriptModule = (relativePath) => {
   return compiledModule.exports;
 };
 
-const { calculateStats, emptyStats, getTrophies } = loadTypeScriptModule('src/lib/profileStats.ts');
+const { calculateStats, emptyStats, getTrophies, getVolumeMl } = loadTypeScriptModule('src/lib/profileStats.ts');
+const {
+  BEER_CATALOG,
+  beerDraftToPayload,
+  getBeverageDefaultVolume,
+  getBeerLine,
+  getSessionBeerSummary,
+} = loadTypeScriptModule('src/lib/sessionBeers.ts');
 
 const baseRow = (overrides = {}) => ({
   session_id: 'session-1',
@@ -131,6 +138,46 @@ assert.equal(
   getTrophies({ ...emptyStats, strongestAbv: 11.1 }).find((trophy) => trophy.id === 'abv-11')?.earned,
   true,
   'the over 11% ABV trophy should remain available when stats qualify'
+);
+
+assert.equal(getVolumeMl('2cl'), 20, '2cl servings should count as 20ml');
+assert.equal(getVolumeMl('4cl'), 40, '4cl servings should count as 40ml');
+assert.equal(getVolumeMl('27.5cl'), 275, '27.5cl RTD servings should count as 275ml');
+assert.equal(getVolumeMl('44cl'), 440, '44cl cans should count as 440ml');
+
+assert.equal(
+  getBeverageDefaultVolume('Breezer Mango'),
+  '27.5cl',
+  'RTD catalog items should provide a sensible default serving volume'
+);
+
+assert.deepEqual(
+  beerDraftToPayload({ beerName: 'Jagerbomb', volume: 'Pint', quantity: 1 }),
+  {
+    beer_name: 'Jägerbomb',
+    volume: '2cl',
+    quantity: 1,
+    abv: 35,
+  },
+  'Jägerbomb should only count the 2cl Jägermeister shot at 35% ABV'
+);
+
+assert.equal(
+  getBeerLine({ beer_name: 'Jägerbomb', volume: '2cl', quantity: 1 }),
+  '1x Jägerbomb',
+  'Jägerbomb post text should describe the unit drink, not the counted shot volume'
+);
+
+assert.equal(
+  getSessionBeerSummary([{ beer_name: 'Jägerbomb', volume: '2cl', quantity: 3, abv: 35 }]),
+  '3x Jägerbomb',
+  'Jägerbomb summaries should describe quantity as unit drinks'
+);
+
+assert.equal(
+  BEER_CATALOG.filter((beverage) => beverage.kind === 'rtd').length,
+  40,
+  'the catalog should include 40 RTDs'
 );
 
 console.log('profileStats trophy tests passed');

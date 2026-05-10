@@ -121,7 +121,7 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
 
   const addDraftBeer = () => {
     if (!beerDraft.beerName.trim()) {
-      showAlert('Missing beer', 'Add the beer you are drinking.');
+      showAlert('Missing drink', 'Add what you are drinking.');
       return;
     }
 
@@ -219,7 +219,7 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
   const saveChanges = async () => {
     if (!session || !sessionId || saving) return;
     if (beers.length === 0) {
-      showAlert('Add a beer first', 'A post needs at least one beer.');
+      showAlert('Add a drink first', 'A post needs at least one drink.');
       return;
     }
 
@@ -356,7 +356,7 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
 
       <Surface style={styles.formSurface}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Beers</Text>
+          <Text style={styles.sectionTitle}>Drinks</Text>
           <Text style={styles.sectionMeta}>{beers.length}</Text>
         </View>
 
@@ -387,7 +387,7 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
           draft={beerDraft}
           onChange={setBeerDraft}
           onSubmit={addDraftBeer}
-          submitLabel="Add Beer"
+          submitLabel="Add Drink"
         />
       </Surface>
 

@@ -162,7 +162,7 @@ export const ProfileStatsPanel = ({ stats, pintTimeline = [] }: ProfileStatsPane
             </View>
 
             <Text style={styles.explainerText}>
-              A true pint is Beerva's normalized serving size: 568 ml. A 33cl beer counts as 0.6 true pints, a 50cl beer counts as 0.9, and a 1L beer counts as 1.8.
+              A true pint is Beerva's normalized serving size: 568 ml. A 27.5cl RTD counts as 0.5 true pints, a 50cl drink counts as 0.9, and a Jägerbomb counts only its 2cl shot.
             </Text>
 
             <View style={styles.graphCard}>

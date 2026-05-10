@@ -1,6 +1,12 @@
+export type BeverageKind = 'beer' | 'rtd' | 'mixed';
+
 export type BeerCatalogItem = {
   name: string;
   abv: number;
+  kind?: BeverageKind;
+  defaultVolume?: string;
+  countedVolume?: string;
+  aliases?: string[];
 };
 
 export type SessionBeer = {
@@ -90,11 +96,161 @@ export const BEER_CATALOG: BeerCatalogItem[] = [
   { name: 'Aarhus Bryghus IPA', abv: 6.0 },
   { name: 'Guinness', abv: 4.2 },
   { name: 'Heineken', abv: 5.0 },
+
+  { name: 'Carlsberg Hof', abv: 4.2 },
+  { name: 'Carlsberg Nordic Pilsner', abv: 0.5 },
+  { name: 'Carlsberg Nordic Gylden Bryg', abv: 0.5 },
+  { name: 'Carlsberg Nordic Ale', abv: 0.5 },
+  { name: 'Carlsberg 47', abv: 7.0 },
+  { name: 'Carlsberg Master Brew', abv: 10.5 },
+  { name: 'Tuborg Rød', abv: 4.3 },
+  { name: 'Tuborg Fine Festival', abv: 7.5 },
+  { name: 'Tuborg Classic Økologisk', abv: 4.6 },
+  { name: 'Tuborg Sunsæt', abv: 4.6 },
+  { name: 'Tuborg NUL', abv: 0.0 },
+  { name: 'Tuborg Classic 0,0', abv: 0.0 },
+  { name: 'Tuborg NUL Citrus', abv: 0.0 },
+  { name: 'Jacobsen Viva Classic', abv: 5.5 },
+  { name: 'Jacobsen Juicy IPA', abv: 4.8 },
+  { name: 'Jacobsen Juletid IPA', abv: 5.1 },
+  { name: 'Jacobsen Naked Christmas Ale', abv: 7.5 },
+  { name: 'Jacobsen Påske Pale Ale', abv: 5.5 },
+  { name: 'Grimbergen Blanche', abv: 6.0 },
+  { name: 'Grimbergen Belgian Pale Ale', abv: 5.5 },
+  { name: 'Grimbergen Noël', abv: 6.5 },
+  { name: 'Kronenbourg 1664 Blonde', abv: 5.5 },
+  { name: 'Kronenbourg 1664 Gold', abv: 6.1 },
+  { name: 'Kronenbourg Original', abv: 4.2 },
+  { name: 'Kronenbourg 1664 Rosé', abv: 4.5 },
+  { name: 'Royal IPA', abv: 4.6 },
+  { name: 'Royal Blanche', abv: 4.6 },
+  { name: 'Royal Økologisk Pilsner', abv: 4.8 },
+  { name: 'Royal 0,0 Pilsner', abv: 0.0 },
+  { name: 'Royal 0,0 Classic', abv: 0.0 },
+  { name: 'Royal Stout', abv: 7.7 },
+  { name: 'Royal Julebryg', abv: 5.6 },
+  { name: 'Albani Mosaic IPA', abv: 5.7 },
+  { name: 'Albani Blålys', abv: 7.0 },
+  { name: 'Albani Rød Pilsner', abv: 4.6 },
+  { name: 'Odense 1859', abv: 4.6 },
+  { name: 'Ceres Classic', abv: 4.6 },
+  { name: 'Ceres Stout', abv: 7.7 },
+  { name: 'Ceres Dortmunder', abv: 5.6 },
+  { name: 'Faxe Amber', abv: 5.0 },
+  { name: 'Faxe Extra Strong', abv: 10.0 },
+  { name: 'Faxe Red Erik', abv: 6.5 },
+  { name: 'Faxe 10%', abv: 10.0 },
+  { name: 'Harboe Gold', abv: 5.9 },
+  { name: 'Harboe IPA', abv: 5.0 },
+  { name: 'Harboe Dunkel', abv: 5.0 },
+  { name: 'Harboe 1883', abv: 5.0 },
+  { name: 'Vestfyen Pilsner', abv: 4.6 },
+  { name: 'Vestfyen Classic', abv: 4.6 },
+  { name: 'Willemoes Pilsner', abv: 4.6 },
+  { name: 'Willemoes Classic', abv: 4.8 },
+  { name: 'Willemoes IPA', abv: 5.9 },
+  { name: 'Willemoes Brown Ale', abv: 5.7 },
+  { name: 'Willemoes Jule Ale', abv: 6.5 },
+  { name: 'Hancock Pilsner', abv: 5.0 },
+  { name: 'Hancock Beer', abv: 5.0 },
+  { name: 'Hancock Old Gambrinus Dark', abv: 9.8 },
+  { name: 'Refsvindinge HP Bock', abv: 7.0 },
+  { name: 'Refsvindinge Røde Mor', abv: 5.6 },
+  { name: "Mikkeller Drink'in The Sun", abv: 0.3 },
+  { name: "Mikkeller Drink'in The Snow", abv: 0.3 },
+  { name: 'Mikkeller Limbo Raspberry', abv: 0.3 },
+  { name: 'Mikkeller Limbo Yuzu', abv: 0.3 },
+  { name: 'Mikkeller Green Gold', abv: 7.0 },
+  { name: 'Mikkeller American Dream', abv: 4.6 },
+  { name: 'Mikkeller Hop Shop IPA', abv: 4.9 },
+  { name: 'Mikkeller Side Eyes Pale Ale', abv: 4.6 },
+  { name: 'To Øl Reparationsbajer', abv: 5.8 },
+  { name: 'To Øl Snublejuice', abv: 4.5 },
+  { name: 'To Øl Implosion', abv: 0.3 },
+  { name: 'To Øl House of Pale', abv: 5.5 },
+  { name: 'To Øl Tropical Rumble', abv: 4.3 },
+  { name: 'To Øl Sur Citra', abv: 5.5 },
+  { name: 'ÅBEN Modern Lager', abv: 4.8 },
+  { name: 'ÅBEN Hazy IPA', abv: 6.0 },
+  { name: 'ÅBEN Pilsner', abv: 4.8 },
+  { name: 'ÅBEN IPA', abv: 6.0 },
+  { name: 'People Like Us Organic Pilsner', abv: 4.6 },
+  { name: 'People Like Us Chameleon IPA', abv: 5.5 },
+  { name: 'Anarkist New England IPA', abv: 5.4 },
+  { name: 'Anarkist Hazy DIPA', abv: 7.5 },
+  { name: 'Anarkist Bloody Weizen', abv: 5.2 },
+  { name: 'Anarkist American Easy', abv: 0.5 },
+  { name: 'Anarkist Motueka Hazy IPA', abv: 5.4 },
+  { name: 'Corona Extra', abv: 4.5 },
+  { name: 'Corona Cero', abv: 0.0 },
+  { name: 'Budweiser Budvar Original', abv: 5.0 },
+  { name: 'Budweiser', abv: 5.0 },
+  { name: 'Stella Artois', abv: 5.0 },
+  { name: 'Hoegaarden Wit', abv: 4.9 },
+  { name: 'Leffe Blonde', abv: 6.6 },
+  { name: 'Leffe Brune', abv: 6.5 },
+  { name: 'Erdinger Weissbier', abv: 5.3 },
+  { name: 'Erdinger Dunkel', abv: 5.3 },
+  { name: 'Erdinger Alkoholfrei', abv: 0.5 },
+  { name: 'Paulaner Hefe-Weissbier', abv: 5.5 },
+  { name: 'Paulaner Münchner Hell', abv: 4.9 },
+  { name: 'Weihenstephaner Hefeweissbier', abv: 5.4 },
+  { name: 'Pilsner Urquell', abv: 4.4 },
+  { name: 'Staropramen Premium', abv: 5.0 },
+
+  { name: 'Breezer Lime', abv: 4.0, kind: 'rtd', defaultVolume: '27.5cl' },
+  { name: 'Breezer Mango', abv: 4.0, kind: 'rtd', defaultVolume: '27.5cl' },
+  { name: 'Breezer Orange', abv: 4.0, kind: 'rtd', defaultVolume: '27.5cl' },
+  { name: 'Breezer Pineapple', abv: 4.0, kind: 'rtd', defaultVolume: '27.5cl' },
+  { name: 'Breezer Watermelon', abv: 4.0, kind: 'rtd', defaultVolume: '27.5cl' },
+  { name: 'Breezer Passion Fruit', abv: 4.0, kind: 'rtd', defaultVolume: '27.5cl' },
+  { name: 'Breezer Strawberry', abv: 4.0, kind: 'rtd', defaultVolume: '27.5cl' },
+  { name: 'Breezer Blueberry', abv: 4.0, kind: 'rtd', defaultVolume: '27.5cl' },
+  { name: 'Smirnoff Ice Original', abv: 4.0, kind: 'rtd', defaultVolume: '27.5cl' },
+  { name: 'Smirnoff Ice Raspberry', abv: 4.0, kind: 'rtd', defaultVolume: '27.5cl' },
+  { name: 'Smirnoff Ice Tropical', abv: 4.0, kind: 'rtd', defaultVolume: '27.5cl' },
+  { name: 'Smirnoff Ice Green Apple', abv: 4.0, kind: 'rtd', defaultVolume: '27.5cl' },
+  { name: 'Shaker Original', abv: 4.0, kind: 'rtd', defaultVolume: '27.5cl' },
+  { name: 'Shaker Orange', abv: 4.0, kind: 'rtd', defaultVolume: '27.5cl' },
+  { name: 'Shaker Passion', abv: 4.0, kind: 'rtd', defaultVolume: '27.5cl' },
+  { name: 'Shaker Sport', abv: 4.0, kind: 'rtd', defaultVolume: '33cl' },
+  { name: 'Shaker Sport Pink', abv: 4.0, kind: 'rtd', defaultVolume: '27.5cl' },
+  { name: 'Cult Mokai', abv: 4.5, kind: 'rtd', defaultVolume: '27.5cl' },
+  { name: 'Mokaï Hyldeblomst', abv: 4.0, kind: 'rtd', defaultVolume: '27.5cl' },
+  { name: 'Mokaï Pop Pink', abv: 4.0, kind: 'rtd', defaultVolume: '27.5cl' },
+  { name: 'Mokaï Pink Apple', abv: 4.0, kind: 'rtd', defaultVolume: '27.5cl' },
+  { name: 'Mokaï Peach', abv: 4.0, kind: 'rtd', defaultVolume: '27.5cl' },
+  { name: 'Mokaï Blueberry', abv: 4.0, kind: 'rtd', defaultVolume: '27.5cl' },
+  { name: 'Somersby Apple Cider', abv: 4.5, kind: 'rtd', defaultVolume: '33cl' },
+  { name: 'Somersby Blackberry', abv: 4.5, kind: 'rtd', defaultVolume: '33cl' },
+  { name: 'Somersby Elderflower Lime', abv: 4.5, kind: 'rtd', defaultVolume: '33cl' },
+  { name: 'Somersby Sparkling Rosé', abv: 4.5, kind: 'rtd', defaultVolume: '33cl' },
+  { name: 'Somersby Mango Lime', abv: 4.5, kind: 'rtd', defaultVolume: '33cl' },
+  { name: 'Tempt Cider No. 7', abv: 4.5, kind: 'rtd', defaultVolume: '33cl' },
+  { name: 'Tempt Cider No. 9', abv: 4.5, kind: 'rtd', defaultVolume: '33cl' },
+  { name: 'Rekorderlig Strawberry-Lime', abv: 4.5, kind: 'rtd', defaultVolume: '33cl' },
+  { name: 'Rekorderlig Wild Berries', abv: 4.5, kind: 'rtd', defaultVolume: '33cl' },
+  { name: 'Garage Hard Lemon', abv: 4.6, kind: 'rtd', defaultVolume: '27.5cl' },
+  { name: 'Garage Hard Lemonade', abv: 4.6, kind: 'rtd', defaultVolume: '27.5cl' },
+  { name: "Gordon's Gin & Tonic", abv: 5.0, kind: 'rtd', defaultVolume: '25cl' },
+  { name: "Gordon's Pink Gin & Tonic", abv: 5.0, kind: 'rtd', defaultVolume: '25cl' },
+  { name: 'Captain Morgan & Cola', abv: 5.0, kind: 'rtd', defaultVolume: '25cl' },
+  { name: "Jack Daniel's & Cola", abv: 5.0, kind: 'rtd', defaultVolume: '33cl' },
+  { name: 'Bacardi Mojito RTD', abv: 5.0, kind: 'rtd', defaultVolume: '25cl' },
+  { name: 'Absolut Vodka Soda Raspberry', abv: 5.0, kind: 'rtd', defaultVolume: '25cl' },
+  {
+    name: 'Jägerbomb',
+    abv: 35.0,
+    kind: 'mixed',
+    defaultVolume: '2cl',
+    countedVolume: '2cl',
+    aliases: ['Jagerbomb', 'Jäger Bomb', 'Jager Bomb'],
+  },
 ];
 
 export const BEER_OPTIONS = BEER_CATALOG.map((beer) => beer.name);
 
-export const VOLUMES = ['25cl', '33cl', '40cl', 'Pint', '50cl', '1L'];
+export const VOLUMES = ['2cl', '4cl', '25cl', '27.5cl', '33cl', '40cl', '44cl', 'Pint', '50cl', '1L'];
 
 export const createEmptyBeerDraft = (): BeerDraft => ({
   beerName: '',
@@ -110,25 +266,47 @@ const normalizeBeerName = (value: string) => (
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/ø/g, 'o')
-    .replace(/æ/g, 'ae')
+    .replace(/[øö]/g, 'o')
+    .replace(/[æä]/g, 'ae')
     .replace(/å/g, 'a')
+    .replace(/Ã¸/g, 'o')
+    .replace(/Ã¦/g, 'ae')
+    .replace(/Ã¥/g, 'a')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim()
 );
 
-export const getBeerAbv = (beerName: string) => {
-  const normalizedBeerName = normalizeBeerName(beerName);
-  const match = BEER_CATALOG.find((beer) => normalizeBeerName(beer.name) === normalizedBeerName);
-  return match ? match.abv : 5.0;
+export const getBeverageCatalogItem = (beverageName: string) => {
+  const normalizedBeverageName = normalizeBeerName(beverageName);
+  return BEER_CATALOG.find((beverage) => (
+    normalizeBeerName(beverage.name) === normalizedBeverageName
+    || beverage.aliases?.some((alias) => normalizeBeerName(alias) === normalizedBeverageName)
+  ));
 };
 
-export const beerDraftToPayload = (draft: BeerDraft) => ({
-  beer_name: draft.beerName.trim(),
-  volume: draft.volume,
-  quantity: draft.quantity,
-  abv: getBeerAbv(draft.beerName),
-});
+export const getBeverageDefaultVolume = (beverageName: string) => {
+  const match = getBeverageCatalogItem(beverageName);
+  return match?.countedVolume || match?.defaultVolume || null;
+};
+
+export const isBeverageVolumeLocked = (beverageName: string) => {
+  return Boolean(getBeverageCatalogItem(beverageName)?.countedVolume);
+};
+
+export const getBeerAbv = (beerName: string) => {
+  return getBeverageCatalogItem(beerName)?.abv ?? 5.0;
+};
+
+export const beerDraftToPayload = (draft: BeerDraft) => {
+  const beverage = getBeverageCatalogItem(draft.beerName);
+
+  return {
+    beer_name: beverage?.kind === 'mixed' ? beverage.name : draft.beerName.trim(),
+    volume: beverage?.countedVolume || draft.volume,
+    quantity: draft.quantity,
+    abv: beverage?.abv ?? getBeerAbv(draft.beerName),
+  };
+};
 
 export const getBeerDrinkLabel = (beer: Pick<SessionBeer, 'volume' | 'quantity'>) => {
   const volume = beer.volume || 'Pint';
@@ -137,6 +315,11 @@ export const getBeerDrinkLabel = (beer: Pick<SessionBeer, 'volume' | 'quantity'>
 };
 
 export const getBeerLine = (beer: Pick<SessionBeer, 'beer_name' | 'volume' | 'quantity'>) => {
+  const beverage = getBeverageCatalogItem(beer.beer_name || '');
+  if (beverage?.kind === 'mixed' && beverage.countedVolume) {
+    return `${beer.quantity || 1}x ${beverage.name}`;
+  }
+
   return `${getBeerDrinkLabel(beer)} of ${beer.beer_name || 'Beer'}`;
 };
 
@@ -145,18 +328,23 @@ export const getTotalBeerQuantity = (beers: Array<Pick<SessionBeer, 'quantity'>>
 };
 
 export const getSessionBeerSummary = (beers: SessionBeer[]) => {
-  if (beers.length === 0) return 'No beers added';
+  if (beers.length === 0) return 'No drinks added';
   if (beers.length === 1) return getBeerLine(beers[0]);
 
   const total = getTotalBeerQuantity(beers);
   const uniqueBeerCount = new Set(beers.map((beer) => beer.beer_name).filter(Boolean)).size;
-  const beerLabel = total === 1 ? 'beer' : 'beers';
+  const drinkLabel = total === 1 ? 'drink' : 'drinks';
 
   if (uniqueBeerCount > 1) {
-    return `${total} ${beerLabel} across ${uniqueBeerCount} kinds`;
+    return `${total} ${drinkLabel} across ${uniqueBeerCount} kinds`;
   }
 
-  return `${total} ${beerLabel} of ${beers[0].beer_name || 'Beer'}`;
+  const beverage = getBeverageCatalogItem(beers[0].beer_name || '');
+  if (beverage?.kind === 'mixed' && beverage.countedVolume) {
+    return `${total}x ${beverage.name}`;
+  }
+
+  return `${total} ${drinkLabel} of ${beers[0].beer_name || 'Beer'}`;
 };
 
 export const getLegacySessionBeerFields = (beers: SessionBeer[]) => {
