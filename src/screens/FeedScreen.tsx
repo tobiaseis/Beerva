@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, FlatList, Image, ActivityIndicator, RefreshControl, TouchableOpacity, Pressable, Alert, Platform, Animated, Modal, TextInput, KeyboardAvoidingView } from 'react-native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
-import { ChevronDown, ChevronUp, Edit3, MapPin, Trash2, Bell, AlertTriangle, RefreshCw, MessageCircle, Send, X } from 'lucide-react-native';
+import { Beer, ChevronDown, ChevronUp, Edit3, MapPin, Trash2, Bell, AlertTriangle, RefreshCw, MessageCircle, Send, X } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { confirmDestructive } from '../lib/dialogs';
 import { useFocusEffect, useNavigation, useScrollToTop } from '@react-navigation/native';
@@ -20,6 +20,7 @@ import { TrophyUnlockModal } from '../components/TrophyUnlockModal';
 import { openMaps } from '../lib/maps';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
+const cheersLogoSource = Platform.OS === 'web' ? { uri: '/beerva-icon-192.png' } : beervaLogo;
 
 type SessionCheer = {
   session_id: string;
@@ -186,6 +187,33 @@ const getCheersLabel = (count: number) => {
 const getCommentsLabel = (count: number) => {
   return `${count} ${count === 1 ? 'Comment' : 'Comments'}`;
 };
+
+type CheersLogoProps = {
+  size: 'small' | 'action';
+  muted?: boolean;
+};
+
+const CheersLogo = React.memo(({ size, muted = false }: CheersLogoProps) => {
+  const [imageFailed, setImageFailed] = React.useState(false);
+  const logoStyle = size === 'action' ? styles.cheersLogo : styles.cheersLogoSmall;
+  const fallbackIconSize = size === 'action' ? 16 : 13;
+
+  if (imageFailed) {
+    return (
+      <View style={[styles.cheersLogoFallback, logoStyle, muted ? styles.cheersLogoMuted : null]}>
+        <Beer color={colors.primary} size={fallbackIconSize} />
+      </View>
+    );
+  }
+
+  return (
+    <Image
+      source={cheersLogoSource}
+      style={[logoStyle, muted ? styles.cheersLogoMuted : null]}
+      onError={() => setImageFailed(true)}
+    />
+  );
+});
 
 const getTimeAgo = (dateString: string) => {
   const date = new Date(dateString);
@@ -450,7 +478,7 @@ const FeedSessionCard = React.memo(({
               accessibilityRole="button"
               accessibilityLabel={`View ${getCheersLabel(item.cheers_count).toLowerCase()}`}
             >
-              <Image source={beervaLogo} style={styles.cheersLogoSmall} />
+              <CheersLogo size="small" />
               <Text style={styles.cheerSummaryText} numberOfLines={1}>
                 {cheerSummary}
               </Text>
@@ -499,10 +527,7 @@ const FeedSessionCard = React.memo(({
             accessibilityLabel={`Give cheers to ${username}`}
             accessibilityState={{ disabled: isOwnPost || isCheering || !currentUserId, selected: item.has_cheered }}
           >
-            <Image
-              source={beervaLogo}
-              style={[styles.cheersLogo, { opacity: item.has_cheered ? 1 : 0.55 }]}
-            />
+            <CheersLogo size="action" muted={!item.has_cheered} />
             <Text style={[styles.actionText, item.has_cheered ? styles.actionTextActive : null]}>
               {getCheersLabel(item.cheers_count)}
             </Text>
@@ -1662,6 +1687,13 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     resizeMode: 'contain',
+  },
+  cheersLogoMuted: {
+    opacity: 0.55,
+  },
+  cheersLogoFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cheersLogoSmall: {
     width: 18,

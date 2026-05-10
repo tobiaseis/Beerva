@@ -266,7 +266,7 @@ export const BEER_CATALOG: BeerCatalogItem[] = [
 
 export const BEER_OPTIONS = BEER_CATALOG.map((beer) => beer.name);
 
-export const VOLUMES = ['2cl', '25cl', '27.5cl', '33cl', '40cl', '44cl', 'Pint', '50cl', '1L'];
+export const VOLUMES = ['2cl', '25cl', '27.5cl', '33cl', '40cl', '44cl', '50cl', 'Pint', '1L'];
 
 export const createEmptyBeerDraft = (): BeerDraft => ({
   beerName: '',
