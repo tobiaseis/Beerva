@@ -613,16 +613,23 @@ export const getTrophies = (stats: Stats): TrophyDefinition[] => {
     {
       id: 'jagermeister',
       title: 'JägerMeister',
-      description: '5+ Jägerbombs logged',
+      description: '20+ Jägerbombs logged',
       kind: 'jager',
-      earned: stats.jagerbombCount >= 5,
+      earned: stats.jagerbombCount >= 20,
     },
     {
-      id: 'jager-day-3',
-      title: 'Bombs Away',
-      description: '3+ Jägerbombs in one drinking day',
+      id: 'jager-100',
+      title: 'More bombs than WW2',
+      description: '100+ Jägerbombs logged',
       kind: 'jager',
-      earned: stats.maxJagerbombsInOneDay >= 3,
+      earned: stats.jagerbombCount >= 100,
+    },
+    {
+      id: 'jager-day-10',
+      title: 'Bombs Away',
+      description: '10+ Jägerbombs in one drinking day',
+      kind: 'jager',
+      earned: stats.maxJagerbombsInOneDay >= 10,
     },
     {
       id: 'sambuca-first',
@@ -632,11 +639,11 @@ export const getTrophies = (stats: Stats): TrophyDefinition[] => {
       earned: stats.sambucaCount >= 1,
     },
     {
-      id: 'sambuca-5',
+      id: 'sambuca-50',
       title: 'Sambuca Veteran',
-      description: '5+ Sambuca shots logged',
+      description: '50+ Sambuca shots logged',
       kind: 'sambuca',
-      earned: stats.sambucaCount >= 5,
+      earned: stats.sambucaCount >= 50,
     },
     {
       id: 'sambuca-day-3',
@@ -644,6 +651,13 @@ export const getTrophies = (stats: Stats): TrophyDefinition[] => {
       description: '3+ Sambuca shots in one drinking day',
       kind: 'sambuca',
       earned: stats.maxSambucasInOneDay >= 3,
+    },
+    {
+      id: 'sambuca-day-10',
+      title: 'Flaming Inferno',
+      description: '10+ Sambuca shots in one drinking day',
+      kind: 'sambuca',
+      earned: stats.maxSambucasInOneDay >= 10,
     },
   ];
 
