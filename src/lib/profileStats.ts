@@ -247,6 +247,7 @@ const RTD_BEVERAGE_KEYS = new Set([
 
 const JAGERBOMB_KEYS = new Set(['jagerbomb', 'jager bomb', 'jaegerbomb', 'jaeger bomb']);
 const SAMBUCA_KEYS = new Set(['sambuca shot', 'sambuca', 'sambuca shots', 'black sambuca', 'sambucca', 'sambucca shot']);
+const VODKA_REDBULL_KEYS = new Set(['vodkaredbull', 'vodka red bull', 'vodka redbull']);
 
 const isRtdBeverage = (beerName?: string | null) => {
   const key = getBeverageStatKey(beerName);
@@ -261,6 +262,11 @@ const isJagerbomb = (beerName?: string | null) => {
 const isSambuca = (beerName?: string | null) => {
   const key = getBeverageStatKey(beerName);
   return key ? SAMBUCA_KEYS.has(key) : false;
+};
+
+const isVodkaRedBull = (beerName?: string | null) => {
+  const key = getBeverageStatKey(beerName);
+  return key ? VODKA_REDBULL_KEYS.has(key) : false;
 };
 
 const getSessionCreatedAt = (session: ProfileSessionStatsRow) => (
@@ -309,11 +315,12 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
     const isRtd = isRtdBeverage(session.beer_name);
     const isJager = isJagerbomb(session.beer_name);
     const isSambu = isSambuca(session.beer_name);
+    const isVrb = isVodkaRedBull(session.beer_name);
 
     totalMl += sessionVolumeMl;
     weightedAbvSum += sessionVolumeMl * abv;
     pintsPerSession.set(sessionKey, (pintsPerSession.get(sessionKey) || 0) + sessionPints);
-    if (!isRtd && !isJager && !isSambu) {
+    if (!isRtd && !isJager && !isSambu && !isVrb) {
       strongestAbv = Math.max(strongestAbv, abv);
     }
     hasLateNightSession = hasLateNightSession || isLateNightSession(sessionCreatedAt);
