@@ -97,6 +97,8 @@ export const ProfileScreen = () => {
   const [profile, setProfile] = useState<any>(null);
   const [stats, setStats] = useState<Stats>(emptyStats);
   const [pintTimeline, setPintTimeline] = useState<PintTimelinePoint[]>([]);
+  const [sessions, setSessions] = useState<PublicSession[]>([]);
+  const [sessionCount, setSessionCount] = useState(0);
   const [followCounts, setFollowCounts] = useState({ followers: 0, following: 0 });
   const [followModalKind, setFollowModalKind] = useState<FollowListKind | null>(null);
   const [followUsers, setFollowUsers] = useState<ProfilePreview[]>([]);
@@ -184,6 +186,13 @@ export const ProfileScreen = () => {
         fetchProfileStats(user.id),
         fetchPintTimeline(user.id),
         supabase
+          .from('sessions')
+          .select('id, pub_id, pub_name, beer_name, volume, quantity, abv, comment, image_url, status, published_at, created_at', { count: 'exact' })
+          .eq('user_id', user.id)
+          .eq('status', 'published')
+          .order('published_at', { ascending: false, nullsFirst: false })
+          .limit(5),
+        supabase
           .from('follows')
           .select('*', { count: 'exact', head: true })
           .eq('following_id', user.id),
@@ -192,6 +201,49 @@ export const ProfileScreen = () => {
           .select('*', { count: 'exact', head: true })
           .eq('follower_id', user.id),
       ]);
+
+      const [
+        _ignored1, _ignored2, _ignored3, sessionsResult
+      ] = [profileResult, profileStats, timeline, arguments[3]];
+
+      const baseSessions = (sessionsResult?.data || []) as PublicSession[];
+      const sessionIds = baseSessions.map((session) => session.id);
+      const beersBySession = new Map<string, SessionBeer[]>();
+
+      if (sessionIds.length > 0) {
+        const { data: beerRows, error: beersError } = await supabase
+          .from('session_beers')
+          .select('id, session_id, beer_name, volume, quantity, abv, note, consumed_at, created_at')
+          .in('session_id', sessionIds)
+          .order('consumed_at', { ascending: true });
+
+        if (beersError) {
+          console.error('Profile session beers fetch error:', beersError);
+        } else {
+          ((beerRows || []) as SessionBeer[]).forEach((beer) => {
+            if (!beer.session_id) return;
+            const existing = beersBySession.get(beer.session_id) || [];
+            existing.push(beer);
+            beersBySession.set(beer.session_id, existing);
+          });
+        }
+      }
+
+      const sessionsWithBeers = baseSessions.map((session) => ({
+        ...session,
+        session_beers: beersBySession.get(session.id) || (
+          session.beer_name
+            ? [{
+                session_id: session.id,
+                beer_name: session.beer_name,
+                volume: session.volume,
+                quantity: session.quantity,
+                abv: session.abv ?? null,
+                consumed_at: session.created_at,
+              }]
+            : []
+        ),
+      }));
 
       const { data: profileData, error: profileError } = profileResult;
       
@@ -206,6 +258,8 @@ export const ProfileScreen = () => {
       setEditAvatar(null);
       setStats(profileStats);
       setPintTimeline(timeline);
+      setSessions(sessionsWithBeers);
+      setSessionCount(sessionsResult?.count || sessionsResult?.data?.length || 0);
       setFollowCounts({
         followers: followersResult.count || 0,
         following: followingResult.count || 0,
@@ -421,6 +475,59 @@ export const ProfileScreen = () => {
       </View>
 
       <ProfileStatsPanel stats={stats} pintTimeline={pintTimeline} />
+
+      <View style={styles.recentSection}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Recent Beers</Text>
+          <Text style={styles.sectionMeta}>{sessionCount}</Text>
+        </View>
+
+        {sessions.length === 0 ? (
+          <View style={styles.recentEmpty}>
+            <Beer color={colors.textMuted} size={28} />
+            <Text style={styles.emptyText}>No sessions yet.</Text>
+          </View>
+        ) : (
+          sessions.map((session) => (
+            <View key={session.id} style={styles.sessionRow}>
+              {session.image_url ? (
+                <CachedImage
+                  uri={session.image_url}
+                  style={styles.sessionImage}
+                  recyclingKey={`profile-session-${session.id}-${session.image_url}`}
+                  accessibilityLabel={`${profile.username || 'Beer Lover'}'s beer session photo`}
+                />
+              ) : (
+                <View style={styles.sessionIcon}>
+                  <Beer color={colors.primary} size={20} />
+                </View>
+              )}
+              <View style={styles.sessionText}>
+                <Text style={styles.sessionTitle}>{getDrinkLabel(session)}</Text>
+                {session.session_beers.length > 1 ? (
+                  <Text style={styles.sessionBreakdown} numberOfLines={2}>
+                    {session.session_beers.map((beer) => getBeerLine(beer)).join(' / ')}
+                  </Text>
+                ) : null}
+                <TouchableOpacity
+                  style={styles.sessionMetaRow}
+                  onPress={() => session.pub_name && openMaps(session.pub_name)}
+                  activeOpacity={0.7}
+                  accessibilityRole="link"
+                  accessibilityLabel={`Open ${session.pub_name || 'pub'} in Maps`}
+                >
+                  <MapPin color={colors.textMuted} size={13} />
+                  <Text style={styles.sessionMetaText}>{session.pub_name || 'Unknown pub'}</Text>
+                </TouchableOpacity>
+                <View style={styles.sessionMetaRow}>
+                  <CalendarDays color={colors.textMuted} size={13} />
+                  <Text style={styles.sessionMetaText}>{getTimeAgo(session.created_at)} · {formatPints(session)} true pints</Text>
+                </View>
+              </View>
+            </View>
+          ))
+        )}
+      </View>
 
       {pushSupported ? (
         <TouchableOpacity
@@ -957,6 +1064,73 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   followEmptyText: {
+    ...typography.bodyMuted,
+    textAlign: 'center',
+  },
+  recentSection: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 4,
+    gap: spacing.md,
+  },
+  sessionRow: {
+    flexDirection: 'row',
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    padding: 12,
+    gap: 12,
+    ...shadows.card,
+  },
+  sessionImage: {
+    width: 58,
+    height: 58,
+    borderRadius: radius.md,
+    backgroundColor: colors.background,
+  },
+  sessionIcon: {
+    width: 58,
+    height: 58,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primarySoft,
+  },
+  sessionText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  sessionTitle: {
+    ...typography.body,
+    fontWeight: '700',
+  },
+  sessionBreakdown: {
+    ...typography.caption,
+    marginTop: 3,
+    color: colors.textMuted,
+  },
+  sessionMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 5,
+  },
+  sessionMetaText: {
+    ...typography.caption,
+    flex: 1,
+  },
+  recentEmpty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    padding: 24,
+    gap: 10,
+  },
+  emptyText: {
     ...typography.bodyMuted,
     textAlign: 'center',
   },

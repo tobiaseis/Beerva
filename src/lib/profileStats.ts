@@ -627,7 +627,7 @@ export const getTrophies = (stats: Stats): TrophyDefinition[] => {
     },
     {
       id: 'jager-100',
-      title: 'More bombs than WW2',
+      title: 'More Bombs Than WW2',
       description: '100+ Jägerbombs logged',
       kind: 'jager',
       earned: stats.jagerbombCount >= 100,
