@@ -31,14 +31,16 @@ set
   beer_name = 'Jägerbomb',
   volume = '2cl',
   abv = 35
-where lower(btrim(beer_name)) in ('jägerbomb', 'jagerbomb', 'jäger bomb', 'jager bomb');
+where lower(btrim(beer_name)) in ('jägerbomb', 'jagerbomb', 'jäger bomb', 'jager bomb', 'jaegerbomb', 'jaeger bomb');
 
 update public.sessions
 set
   beer_name = 'Jägerbomb',
   volume = '2cl',
   abv = 35
-where lower(btrim(beer_name)) in ('jägerbomb', 'jagerbomb', 'jäger bomb', 'jager bomb');
+where lower(btrim(beer_name)) in ('jägerbomb', 'jagerbomb', 'jäger bomb', 'jager bomb', 'jaegerbomb', 'jaeger bomb');
+
+drop function if exists public.get_profile_stats(uuid);
 
 create or replace function public.get_profile_stats(target_user_id uuid)
 returns table (
@@ -55,7 +57,12 @@ returns table (
   unique_beers integer,
   max_beers_in_one_day integer,
   has_early_bird_session boolean,
-  months_logged integer
+  months_logged integer,
+  rtd_count integer,
+  unique_rtds integer,
+  max_rtds_in_one_day integer,
+  jagerbomb_count integer,
+  max_jagerbombs_in_one_day integer
 )
 language sql
 stable
@@ -66,6 +73,41 @@ as $$
       sessions.id as session_id,
       coalesce(sessions.pub_id::text, nullif(lower(btrim(sessions.pub_name)), '')) as pub_key,
       nullif(regexp_replace(lower(btrim(session_beers.beer_name)), '[[:space:]]+', ' ', 'g'), '') as beer_key,
+      nullif(
+        btrim(
+          regexp_replace(
+            replace(
+              replace(
+                replace(
+                  replace(
+                    replace(
+                      replace(
+                        replace(lower(btrim(session_beers.beer_name)), 'æ', 'ae'),
+                        'ø',
+                        'o'
+                      ),
+                      'å',
+                      'a'
+                    ),
+                    'ä',
+                    'a'
+                  ),
+                  'ö',
+                  'o'
+                ),
+                'ï',
+                'i'
+              ),
+              'é',
+              'e'
+            ),
+            '[^a-z0-9]+',
+            ' ',
+            'g'
+          )
+        ),
+        ''
+      ) as beverage_stat_key,
       coalesce(session_beers.quantity, 1)::double precision as quantity_value,
       coalesce(session_beers.abv, 0)::double precision as abv_value,
       public.beerva_serving_volume_ml(session_beers.volume) as volume_ml,
@@ -79,6 +121,54 @@ as $$
   beer_rows as (
     select
       *,
+      beverage_stat_key in (
+        'breezer lime',
+        'breezer mango',
+        'breezer orange',
+        'breezer pineapple',
+        'breezer watermelon',
+        'breezer passion fruit',
+        'breezer strawberry',
+        'breezer blueberry',
+        'smirnoff ice original',
+        'smirnoff ice raspberry',
+        'smirnoff ice tropical',
+        'smirnoff ice green apple',
+        'shaker original',
+        'shaker orange',
+        'shaker passion',
+        'shaker sport',
+        'shaker sport pink',
+        'cult mokai',
+        'mokai hyldeblomst',
+        'mokai pop pink',
+        'mokai pink apple',
+        'mokai peach',
+        'mokai blueberry',
+        'somersby apple cider',
+        'somersby blackberry',
+        'somersby elderflower lime',
+        'somersby sparkling rose',
+        'somersby mango lime',
+        'tempt cider no 7',
+        'tempt cider no 9',
+        'rekorderlig strawberry lime',
+        'rekorderlig wild berries',
+        'garage hard lemon',
+        'garage hard lemonade',
+        'gordon s gin tonic',
+        'gordon s pink gin tonic',
+        'captain morgan cola',
+        'jack daniel s cola',
+        'bacardi mojito rtd',
+        'absolut vodka soda raspberry'
+      ) as is_rtd,
+      beverage_stat_key in (
+        'jagerbomb',
+        'jager bomb',
+        'jaegerbomb',
+        'jaeger bomb'
+      ) as is_jagerbomb,
       volume_ml * quantity_value as beer_ml,
       (volume_ml * quantity_value) / 568.0 as beer_pints
     from base
@@ -107,6 +197,18 @@ as $$
     select session_drinking_day, count(distinct beer_key)::integer as beer_count
     from beer_rows
     where session_drinking_day is not null and beer_key is not null
+    group by session_drinking_day
+  ),
+  rtds_per_day as (
+    select session_drinking_day, sum(quantity_value)::integer as rtd_count
+    from beer_rows
+    where session_drinking_day is not null and is_rtd
+    group by session_drinking_day
+  ),
+  jagerbombs_per_day as (
+    select session_drinking_day, sum(quantity_value)::integer as jagerbomb_count
+    from beer_rows
+    where session_drinking_day is not null and is_jagerbomb
     group by session_drinking_day
   ),
   sessions_per_pub as (
@@ -157,10 +259,15 @@ as $$
     (count(distinct beer_key) filter (where beer_key is not null))::integer as unique_beers,
     coalesce((select max(beer_count) from beers_per_day), 0) as max_beers_in_one_day,
     coalesce(bool_or(extract(hour from session_local_at) >= 6 and extract(hour from session_local_at) < 10), false) as has_early_bird_session,
-    coalesce((select max(month_count) from months_per_year), 0) as months_logged
+    coalesce((select max(month_count) from months_per_year), 0) as months_logged,
+    coalesce(sum(quantity_value) filter (where is_rtd), 0)::integer as rtd_count,
+    (count(distinct beverage_stat_key) filter (where is_rtd and beverage_stat_key is not null))::integer as unique_rtds,
+    coalesce((select max(rtd_count) from rtds_per_day), 0) as max_rtds_in_one_day,
+    coalesce(sum(quantity_value) filter (where is_jagerbomb), 0)::integer as jagerbomb_count,
+    coalesce((select max(jagerbomb_count) from jagerbombs_per_day), 0) as max_jagerbombs_in_one_day
   from beer_rows;
 $$;
 
 grant execute on function public.get_profile_stats(uuid) to authenticated;
 
-comment on function public.get_profile_stats(uuid) is 'Profile aggregate stats with session-based trophy day buckets, normalized beer uniqueness, and parsed beverage serving volumes.';
+comment on function public.get_profile_stats(uuid) is 'Profile aggregate stats with session-based trophy day buckets, normalized drink uniqueness, parsed beverage serving volumes, and RTD/Jägerbomb trophy counters.';

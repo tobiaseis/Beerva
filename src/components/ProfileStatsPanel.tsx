@@ -55,6 +55,10 @@ export const ProfileStatsPanel = ({ stats, pintTimeline = [] }: ProfileStatsPane
         return <Repeat color={iconColor} size={iconSize} />;
       case 'variety':
         return <Sparkles color={iconColor} size={iconSize} />;
+      case 'rtd':
+        return <Sparkles color={iconColor} size={iconSize} />;
+      case 'jager':
+        return <Flame color={iconColor} size={iconSize} />;
       case 'morning':
         return <Sunrise color={iconColor} size={iconSize} />;
       case 'calendar':

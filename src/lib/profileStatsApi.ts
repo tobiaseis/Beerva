@@ -16,6 +16,11 @@ type ProfileStatsRpcRow = {
   max_beers_in_one_day?: number | null;
   has_early_bird_session?: boolean | null;
   months_logged?: number | null;
+  rtd_count?: number | null;
+  unique_rtds?: number | null;
+  max_rtds_in_one_day?: number | null;
+  jagerbomb_count?: number | null;
+  max_jagerbombs_in_one_day?: number | null;
 };
 
 export type PintTimelinePoint = {
@@ -44,6 +49,11 @@ const statsFromRpcRow = (row?: ProfileStatsRpcRow | null): Stats => {
     maxBeersInOneDay: numberOrZero(row.max_beers_in_one_day),
     hasEarlyBirdSession: Boolean(row.has_early_bird_session),
     monthsLogged: numberOrZero(row.months_logged),
+    rtdCount: numberOrZero(row.rtd_count),
+    uniqueRtds: numberOrZero(row.unique_rtds),
+    maxRtdsInOneDay: numberOrZero(row.max_rtds_in_one_day),
+    jagerbombCount: numberOrZero(row.jagerbomb_count),
+    maxJagerbombsInOneDay: numberOrZero(row.max_jagerbombs_in_one_day),
   };
 };
 

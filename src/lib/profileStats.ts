@@ -13,6 +13,11 @@ export type Stats = {
   maxBeersInOneDay: number;
   hasEarlyBirdSession: boolean;
   monthsLogged: number;
+  rtdCount: number;
+  uniqueRtds: number;
+  maxRtdsInOneDay: number;
+  jagerbombCount: number;
+  maxJagerbombsInOneDay: number;
 };
 
 export type TrophyKind =
@@ -25,7 +30,9 @@ export type TrophyKind =
   | 'streak'
   | 'variety'
   | 'morning'
-  | 'calendar';
+  | 'calendar'
+  | 'rtd'
+  | 'jager';
 
 export type TrophyDefinition = {
   id: string;
@@ -62,6 +69,11 @@ export const emptyStats: Stats = {
   maxBeersInOneDay: 0,
   hasEarlyBirdSession: false,
   monthsLogged: 0,
+  rtdCount: 0,
+  uniqueRtds: 0,
+  maxRtdsInOneDay: 0,
+  jagerbombCount: 0,
+  maxJagerbombsInOneDay: 0,
 };
 
 // A "drinking day" runs 6am-to-6am local time, so sessions from a long night out
@@ -170,6 +182,75 @@ const getBeerKey = (beerName?: string | null) => {
   return normalized || null;
 };
 
+const getBeverageStatKey = (beerName?: string | null) => {
+  const normalized = beerName
+    ?.trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[øö]/g, 'o')
+    .replace(/[æä]/g, 'ae')
+    .replace(/å/g, 'a')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+  return normalized || null;
+};
+
+const RTD_BEVERAGE_KEYS = new Set([
+  'Breezer Lime',
+  'Breezer Mango',
+  'Breezer Orange',
+  'Breezer Pineapple',
+  'Breezer Watermelon',
+  'Breezer Passion Fruit',
+  'Breezer Strawberry',
+  'Breezer Blueberry',
+  'Smirnoff Ice Original',
+  'Smirnoff Ice Raspberry',
+  'Smirnoff Ice Tropical',
+  'Smirnoff Ice Green Apple',
+  'Shaker Original',
+  'Shaker Orange',
+  'Shaker Passion',
+  'Shaker Sport',
+  'Shaker Sport Pink',
+  'Cult Mokai',
+  'Mokaï Hyldeblomst',
+  'Mokaï Pop Pink',
+  'Mokaï Pink Apple',
+  'Mokaï Peach',
+  'Mokaï Blueberry',
+  'Somersby Apple Cider',
+  'Somersby Blackberry',
+  'Somersby Elderflower Lime',
+  'Somersby Sparkling Rosé',
+  'Somersby Mango Lime',
+  'Tempt Cider No. 7',
+  'Tempt Cider No. 9',
+  'Rekorderlig Strawberry-Lime',
+  'Rekorderlig Wild Berries',
+  'Garage Hard Lemon',
+  'Garage Hard Lemonade',
+  "Gordon's Gin & Tonic",
+  "Gordon's Pink Gin & Tonic",
+  'Captain Morgan & Cola',
+  "Jack Daniel's & Cola",
+  'Bacardi Mojito RTD',
+  'Absolut Vodka Soda Raspberry',
+].map((name) => getBeverageStatKey(name)!));
+
+const JAGERBOMB_KEYS = new Set(['jagerbomb', 'jager bomb', 'jaegerbomb', 'jaeger bomb']);
+
+const isRtdBeverage = (beerName?: string | null) => {
+  const key = getBeverageStatKey(beerName);
+  return key ? RTD_BEVERAGE_KEYS.has(key) : false;
+};
+
+const isJagerbomb = (beerName?: string | null) => {
+  const key = getBeverageStatKey(beerName);
+  return key ? JAGERBOMB_KEYS.has(key) : false;
+};
+
 const getSessionCreatedAt = (session: ProfileSessionStatsRow) => (
   session.session_started_at || session.created_at
 );
@@ -186,6 +267,8 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
   const sessionsPerPub = new Map<string, Set<string>>();
   const pubsPerDay = new Map<string, Set<string>>();
   const beersPerDay = new Map<string, Set<string>>();
+  const rtdsPerDay = new Map<string, number>();
+  const jagerbombsPerDay = new Map<string, number>();
   const pintsPerSession = new Map<string, number>();
 
   let totalMl = 0;
@@ -194,6 +277,9 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
   let strongestAbv = 0;
   let hasLateNightSession = false;
   let hasEarlyBirdSession = false;
+  let rtdCount = 0;
+  let jagerbombCount = 0;
+  const uniqueRtdSet = new Set<string>();
 
   sessions.forEach((session, index) => {
     const sessionKey = session.session_id || `row-${index}`;
@@ -205,12 +291,22 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
     const sessionCreatedAt = getSessionCreatedAt(session);
     const sessionVolumeMl = volumeMl * quantity;
     const sessionPints = sessionVolumeMl / 568;
+    const beverageStatKey = getBeverageStatKey(session.beer_name);
+    const isRtd = isRtdBeverage(session.beer_name);
+    const isJager = isJagerbomb(session.beer_name);
 
     totalMl += sessionVolumeMl;
     weightedAbvSum += sessionVolumeMl * abv;
     pintsPerSession.set(sessionKey, (pintsPerSession.get(sessionKey) || 0) + sessionPints);
     strongestAbv = Math.max(strongestAbv, abv);
     hasLateNightSession = hasLateNightSession || isLateNightSession(sessionCreatedAt);
+    if (isRtd) {
+      rtdCount += quantity;
+      if (beverageStatKey) uniqueRtdSet.add(beverageStatKey);
+    }
+    if (isJager) {
+      jagerbombCount += quantity;
+    }
 
     if (beerKey) uniqueBeerSet.add(beerKey);
     if (pubKey) {
@@ -229,6 +325,12 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
       if (beerKey) {
         if (!beersPerDay.has(dayKey)) beersPerDay.set(dayKey, new Set());
         beersPerDay.get(dayKey)!.add(beerKey);
+      }
+      if (isRtd) {
+        rtdsPerDay.set(dayKey, (rtdsPerDay.get(dayKey) || 0) + quantity);
+      }
+      if (isJager) {
+        jagerbombsPerDay.set(dayKey, (jagerbombsPerDay.get(dayKey) || 0) + quantity);
       }
     }
 
@@ -258,6 +360,16 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
   let maxBeersInOneDay = 0;
   beersPerDay.forEach((set) => {
     if (set.size > maxBeersInOneDay) maxBeersInOneDay = set.size;
+  });
+
+  let maxRtdsInOneDay = 0;
+  rtdsPerDay.forEach((count) => {
+    if (count > maxRtdsInOneDay) maxRtdsInOneDay = count;
+  });
+
+  let maxJagerbombsInOneDay = 0;
+  jagerbombsPerDay.forEach((count) => {
+    if (count > maxJagerbombsInOneDay) maxJagerbombsInOneDay = count;
   });
 
   let maxSessionsAtSamePub = 0;
@@ -309,6 +421,11 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
     maxBeersInOneDay,
     hasEarlyBirdSession,
     monthsLogged,
+    rtdCount,
+    uniqueRtds: uniqueRtdSet.size,
+    maxRtdsInOneDay,
+    jagerbombCount,
+    maxJagerbombsInOneDay,
   };
 };
 
@@ -340,7 +457,7 @@ export const getTrophies = (stats: Stats): TrophyDefinition[] => {
   const abvTrophies = [6, 7, 8, 9, 10, 11].map((threshold) => ({
     id: `abv-${threshold}`,
     title: `Over ${threshold}% ABV`,
-    description: `Logged a beer above ${threshold}%`,
+    description: `Logged a drink above ${threshold}%`,
     kind: 'abv' as const,
     earned: stats.strongestAbv > threshold,
   }));
@@ -400,15 +517,15 @@ export const getTrophies = (stats: Stats): TrophyDefinition[] => {
     },
     {
       id: 'sommelier',
-      title: 'Beer Sommelier',
-      description: '25+ unique beers tried',
+      title: 'Beverage Sommelier',
+      description: '25+ unique drinks tried',
       kind: 'variety',
       earned: stats.uniqueBeers >= 25,
     },
     {
       id: 'variety-pack',
       title: 'Variety Pack',
-      description: '3+ different beers in one day',
+      description: '3+ different drinks in one day',
       kind: 'variety',
       earned: stats.maxBeersInOneDay >= 3,
     },
@@ -428,11 +545,63 @@ export const getTrophies = (stats: Stats): TrophyDefinition[] => {
     },
   ];
 
+  const beverageTrophies: TrophyDefinition[] = [
+    {
+      id: 'rtd-first',
+      title: 'Ready To Drink',
+      description: 'Logged your first RTD',
+      kind: 'rtd',
+      earned: stats.rtdCount >= 1,
+    },
+    {
+      id: 'rtd-10',
+      title: 'Premix Regular',
+      description: '10+ RTDs logged',
+      kind: 'rtd',
+      earned: stats.rtdCount >= 10,
+    },
+    {
+      id: 'rtd-variety',
+      title: 'Cooler Rainbow',
+      description: '5+ different RTDs tried',
+      kind: 'rtd',
+      earned: stats.uniqueRtds >= 5,
+    },
+    {
+      id: 'rtd-day-3',
+      title: 'Shaker Round',
+      description: '3+ RTDs in one drinking day',
+      kind: 'rtd',
+      earned: stats.maxRtdsInOneDay >= 3,
+    },
+    {
+      id: 'jager-first',
+      title: 'No Longer a Yogameister',
+      description: 'Congratulations with your first Jägerbomb. You are no longer a Yogameister.',
+      kind: 'jager',
+      earned: stats.jagerbombCount >= 1,
+    },
+    {
+      id: 'jagermeister',
+      title: 'JägerMeister',
+      description: '5+ Jägerbombs logged',
+      kind: 'jager',
+      earned: stats.jagerbombCount >= 5,
+    },
+    {
+      id: 'jager-day-3',
+      title: 'Bombs Away',
+      description: '3+ Jägerbombs in one drinking day',
+      kind: 'jager',
+      earned: stats.maxJagerbombsInOneDay >= 3,
+    },
+  ];
+
   return [
     {
       id: 'first-pint',
       title: 'First Pint',
-      description: 'Record your first beer session',
+      description: 'Record your first drink session',
       kind: 'pints',
       earned: stats.totalPints > 0,
     },
@@ -442,6 +611,7 @@ export const getTrophies = (stats: Stats): TrophyDefinition[] => {
     ...abvTrophies,
     ...spreeTrophies,
     ...extraTrophies,
+    ...beverageTrophies,
     {
       id: 'late-night',
       title: 'Late Night Beer',

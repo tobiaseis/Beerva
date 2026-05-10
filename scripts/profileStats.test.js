@@ -27,7 +27,9 @@ const { calculateStats, emptyStats, getTrophies, getVolumeMl } = loadTypeScriptM
 const {
   BEER_CATALOG,
   beerDraftToPayload,
+  getBeverageCatalogItem,
   getBeverageDefaultVolume,
+  getBeverageOptionSearchText,
   getBeerLine,
   getSessionBeerSummary,
 } = loadTypeScriptModule('src/lib/sessionBeers.ts');
@@ -140,6 +142,54 @@ assert.equal(
   'the over 11% ABV trophy should remain available when stats qualify'
 );
 
+const mixedDrinkAbvStats = calculateStats([
+  baseRow({ session_id: 'pint', beer_name: 'Pint Beer', volume: 'Pint', abv: 5 }),
+  baseRow({ session_id: 'bomb', beer_name: 'Jägerbomb', volume: '2cl', abv: 35 }),
+]);
+
+assert.equal(
+  mixedDrinkAbvStats.avgAbv,
+  6,
+  'average ABV should be volume-weighted so small strong shots do not dominate full pints'
+);
+
+const newBeverageStats = calculateStats([
+  baseRow({ session_id: 'rtd-1', beer_name: 'Breezer Mango', volume: '27.5cl', quantity: 2, abv: 4 }),
+  baseRow({ session_id: 'rtd-2', beer_name: 'Shaker Sport', volume: '33cl', quantity: 1, abv: 4 }),
+  baseRow({ session_id: 'jager-1', beer_name: 'Jagerbomb', volume: '2cl', quantity: 3, abv: 35 }),
+]);
+
+assert.equal(newBeverageStats.rtdCount, 3, 'RTD stats should count RTD quantities');
+assert.equal(newBeverageStats.uniqueRtds, 2, 'RTD stats should count unique RTD names');
+assert.equal(newBeverageStats.maxRtdsInOneDay, 3, 'RTD stats should track the biggest RTD drinking day');
+assert.equal(newBeverageStats.jagerbombCount, 3, 'Jägerbomb stats should count Jägerbomb quantities');
+assert.equal(newBeverageStats.maxJagerbombsInOneDay, 3, 'Jägerbomb stats should track the biggest Jägerbomb drinking day');
+
+const accentVariantRtdStats = calculateStats([
+  baseRow({ session_id: 'rtd-accent-1', beer_name: 'Mokaï Peach', volume: '27.5cl', quantity: 1, abv: 4 }),
+  baseRow({ session_id: 'rtd-accent-2', beer_name: 'Mokai Peach', volume: '27.5cl', quantity: 1, abv: 4 }),
+]);
+
+assert.equal(accentVariantRtdStats.rtdCount, 2, 'accent variants should still count as RTDs');
+assert.equal(accentVariantRtdStats.uniqueRtds, 1, 'accent variants should count as one unique RTD');
+
+const newBeverageTrophies = getTrophies({
+  ...emptyStats,
+  rtdCount: 10,
+  uniqueRtds: 5,
+  maxRtdsInOneDay: 3,
+  jagerbombCount: 5,
+  maxJagerbombsInOneDay: 3,
+});
+
+assert.equal(newBeverageTrophies.find((trophy) => trophy.id === 'rtd-variety')?.earned, true);
+assert.equal(newBeverageTrophies.find((trophy) => trophy.id === 'jagermeister')?.earned, true);
+assert.match(
+  newBeverageTrophies.find((trophy) => trophy.id === 'jager-first')?.description || '',
+  /Yogameister/,
+  'first Jägerbomb trophy should include the Yogameister copy'
+);
+
 assert.equal(getVolumeMl('2cl'), 20, '2cl servings should count as 20ml');
 assert.equal(getVolumeMl('4cl'), 40, '4cl servings should count as 40ml');
 assert.equal(getVolumeMl('27.5cl'), 275, '27.5cl RTD servings should count as 275ml');
@@ -160,6 +210,18 @@ assert.deepEqual(
     abv: 35,
   },
   'Jägerbomb should only count the 2cl Jägermeister shot at 35% ABV'
+);
+
+assert.equal(
+  getBeverageCatalogItem('Jaegerbomb')?.name,
+  'Jägerbomb',
+  'Jaegerbomb should resolve to the Jägerbomb catalog item'
+);
+
+assert.match(
+  getBeverageOptionSearchText('Jägerbomb'),
+  /Jagerbomb/,
+  'Jägerbomb search text should include the unaccented alias'
 );
 
 assert.equal(

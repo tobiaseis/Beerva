@@ -12,15 +12,16 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Beer, Camera, CheckCircle2, Clock, Images, LocateFixed, Lock, MapPin, MessageSquare, PlusCircle, Trash2, X } from 'lucide-react-native';
+import { Beer, Camera, CheckCircle2, Clock, Images, LocateFixed, Lock, MapPin, MessageSquare, PlusCircle, Sparkles, Trash2, X } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 
 import { AppButton } from '../components/AppButton';
 import { AutocompleteInput } from '../components/AutocompleteInput';
 import { BeerDraftForm } from '../components/BeerDraftForm';
+import { PubRouletteModal } from '../components/PubRouletteModal';
 import { Surface } from '../components/Surface';
 import { confirmDestructive, showAlert } from '../lib/dialogs';
-import { hapticError, hapticSuccess, hapticWarning } from '../lib/haptics';
+import { hapticError, hapticMedium, hapticSuccess, hapticWarning } from '../lib/haptics';
 import {
   deletePublicImageUrl,
   prepareWebImageFromPickerAsset,
@@ -46,6 +47,7 @@ import {
   searchCachedPubs,
   UserLocation,
 } from '../lib/pubDirectory';
+import { prepareRoulettePubs } from '../lib/pubRoulette';
 import { supabase } from '../lib/supabase';
 import { useFocused } from '../lib/useFocused';
 import { colors } from '../theme/colors';
@@ -180,11 +182,16 @@ export const RecordScreen = ({ navigation }: any) => {
   const [locatingPubs, setLocatingPubs] = useState(false);
   const [addingPub, setAddingPub] = useState(false);
   const [savingPhoto, setSavingPhoto] = useState(false);
+  const [rouletteVisible, setRouletteVisible] = useState(false);
+  const [rouletteLoading, setRouletteLoading] = useState(false);
+  const [rouletteError, setRouletteError] = useState<string | null>(null);
+  const [roulettePubs, setRoulettePubs] = useState<PubRecord[]>([]);
 
   const pubSearchCache = useRef<Map<string, PubRecord[]>>(new Map());
   const pubSearchAbort = useRef<AbortController | null>(null);
   const remotePubSearchCache = useRef<Set<string>>(new Set());
   const nearbySeedKeys = useRef<Set<string>>(new Set());
+  const rouletteRequestId = useRef(0);
   const passiveLocationAttempted = useRef(false);
   const passiveSeedAttempted = useRef(false);
   const lastSavedComment = useRef<{ sessionId: string | null; comment: string }>({
@@ -590,6 +597,86 @@ export const RecordScreen = ({ navigation }: any) => {
     }
   };
 
+  const loadRoulettePubs = useCallback(async () => {
+    const requestId = rouletteRequestId.current + 1;
+    rouletteRequestId.current = requestId;
+
+    setRouletteLoading(true);
+    setRouletteError(null);
+
+    try {
+      const location = userLocation || await getCurrentBrowserLocation();
+      if (rouletteRequestId.current !== requestId) return;
+      setUserLocation(location);
+
+      let cachedPubs: PubRecord[] = [];
+      try {
+        cachedPubs = await searchCachedPubs('', location, 36);
+      } catch (error) {
+        console.warn('Roulette cached pub search failed:', error);
+      }
+
+      let remotePubs: PubRecord[] = [];
+      let lookupError: string | null = null;
+      let remoteError: string | null = null;
+
+      try {
+        const remote = await fetchAndCacheNearbyPubs(location, '');
+        remotePubs = remote.pubs;
+        lookupError = remote.lookupError;
+        nearbySeedKeys.current.add(getLocationCacheKey(location));
+        pubSearchCache.current.clear();
+      } catch (error: any) {
+        remoteError = error?.message || 'Nearby pub lookup failed.';
+        console.warn('Roulette live pub lookup failed:', error);
+      }
+
+      if (rouletteRequestId.current !== requestId) return;
+
+      const nearbyPubs = prepareRoulettePubs(mergePubRecords(remotePubs, cachedPubs));
+      setRoulettePubs(nearbyPubs);
+      setPubOptions((previous) => mergePubRecords(nearbyPubs, previous));
+
+      if (nearbyPubs.length === 0) {
+        setRouletteError(
+          lookupError
+          || remoteError
+          || 'No bars within 1 km found. Try searching a pub manually.'
+        );
+        hapticWarning();
+      } else {
+        hapticSuccess();
+      }
+    } catch (error: any) {
+      if (rouletteRequestId.current !== requestId) return;
+      hapticError();
+      setRoulettePubs([]);
+      setRouletteError(error?.message || 'Could not open Beer Roulette.');
+    } finally {
+      if (rouletteRequestId.current === requestId) {
+        setRouletteLoading(false);
+      }
+    }
+  }, [userLocation]);
+
+  const openPubRoulette = () => {
+    setRouletteVisible(true);
+    hapticMedium();
+    loadRoulettePubs();
+  };
+
+  const closePubRoulette = () => {
+    rouletteRequestId.current += 1;
+    setRouletteVisible(false);
+    setRouletteLoading(false);
+  };
+
+  const useRoulettePub = (pubRecord: PubRecord) => {
+    selectPubRecord(pubRecord);
+    setRouletteVisible(false);
+    hapticSuccess();
+  };
+
   const addTypedPub = async () => {
     const cleanPub = pub.trim();
     if (cleanPub.length < 2 || addingPub) return;
@@ -611,9 +698,11 @@ export const RecordScreen = ({ navigation }: any) => {
     }
   };
 
-  const startSession = async () => {
-    const trimmedPub = pub.trim();
-    if (!trimmedPub) {
+  const startSessionForPub = async (pubRecord: PubRecord | null, fallbackPubName: string) => {
+    if (starting) return;
+
+    const trimmedPub = fallbackPubName.trim();
+    if (!pubRecord && !trimmedPub) {
       showAlert('Missing pub', 'Choose where you are drinking before starting the session.');
       return;
     }
@@ -625,15 +714,14 @@ export const RecordScreen = ({ navigation }: any) => {
 
       await ensureProfile(user);
 
-      const matchingPub = selectedPub || pubOptions.find((option) => labelsMatchPub(trimmedPub, option));
-      const pubRecord = matchingPub || await createUserPub(trimmedPub, userLocation);
-      const sessionPubName = pubRecord ? formatPubLabel(pubRecord) : trimmedPub;
+      const resolvedPubRecord = pubRecord || await createUserPub(trimmedPub, userLocation);
+      const sessionPubName = resolvedPubRecord ? formatPubLabel(resolvedPubRecord) : trimmedPub;
       const now = new Date().toISOString();
       const { data, error } = await supabase
         .from('sessions')
         .insert({
           user_id: user.id,
-          pub_id: pubRecord?.id || null,
+          pub_id: resolvedPubRecord?.id || null,
           pub_name: sessionPubName,
           status: 'active',
           started_at: now,
@@ -671,6 +759,23 @@ export const RecordScreen = ({ navigation }: any) => {
     } finally {
       setStarting(false);
     }
+  };
+
+  const startSession = async () => {
+    const trimmedPub = pub.trim();
+    if (!trimmedPub) {
+      showAlert('Missing pub', 'Choose where you are drinking before starting the session.');
+      return;
+    }
+
+    const matchingPub = selectedPub || pubOptions.find((option) => labelsMatchPub(trimmedPub, option)) || null;
+    await startSessionForPub(matchingPub, trimmedPub);
+  };
+
+  const startRouletteSession = async (pubRecord: PubRecord) => {
+    selectPubRecord(pubRecord);
+    setRouletteVisible(false);
+    await startSessionForPub(pubRecord, formatPubLabel(pubRecord));
   };
 
   const syncLegacyFields = async (sessionId: string, beers: SessionBeer[]) => {
@@ -1038,6 +1143,24 @@ export const RecordScreen = ({ navigation }: any) => {
               <Text style={styles.pubSearchHint}>No match found. Tap "Nearby" for location-based discovery, or add the pub below.</Text>
             ) : null}
             <AppButton label="Start Session" onPress={startSession} loading={starting} />
+            <TouchableOpacity
+              style={[styles.rouletteCta, rouletteLoading || starting ? styles.rouletteCtaDisabled : null]}
+              onPress={openPubRoulette}
+              disabled={rouletteLoading || starting}
+              activeOpacity={0.78}
+            >
+              <View style={styles.rouletteCtaIcon}>
+                {rouletteLoading ? (
+                  <ActivityIndicator color={colors.primary} size="small" />
+                ) : (
+                  <Sparkles color={colors.primary} size={22} />
+                )}
+              </View>
+              <View style={styles.rouletteCtaText}>
+                <Text style={styles.rouletteCtaTitle}>Don't know where to beer?</Text>
+                <Text style={styles.rouletteCtaSubtitle}>Let the wheel decide</Text>
+              </View>
+            </TouchableOpacity>
           </Surface>
         ) : (
           <>
@@ -1093,7 +1216,7 @@ export const RecordScreen = ({ navigation }: any) => {
                 draft={beerDraft}
                 onChange={setBeerDraft}
                 onSubmit={addBeerToSession}
-                submitLabel="Add Drink"
+                submitLabel="Add Booze"
                 loading={addingBeer}
               />
             </Surface>
@@ -1161,6 +1284,18 @@ export const RecordScreen = ({ navigation }: any) => {
           </>
         )}
       </View>
+
+      <PubRouletteModal
+        visible={rouletteVisible}
+        pubs={roulettePubs}
+        loading={rouletteLoading}
+        error={rouletteError}
+        starting={starting}
+        onClose={closePubRoulette}
+        onRefresh={loadRoulettePubs}
+        onUsePub={useRoulettePub}
+        onStartHere={startRouletteSession}
+      />
 
       <Modal
         visible={photoChoiceVisible}
@@ -1358,6 +1493,45 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.danger,
     marginTop: -6,
+  },
+  rouletteCta: {
+    minHeight: 88,
+    borderRadius: radius.xl,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: '#171717',
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    ...shadows.card,
+  },
+  rouletteCtaDisabled: {
+    opacity: 0.68,
+  },
+  rouletteCtaIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primarySoft,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+  },
+  rouletteCtaText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  rouletteCtaTitle: {
+    ...typography.body,
+    color: colors.primary,
+    fontWeight: '900',
+  },
+  rouletteCtaSubtitle: {
+    ...typography.h3,
+    marginTop: 2,
   },
   lockedPubSurface: {
     gap: spacing.md,

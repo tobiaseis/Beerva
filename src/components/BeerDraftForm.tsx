@@ -11,6 +11,7 @@ import {
   BeerDraft,
   BEER_OPTIONS,
   getBeverageDefaultVolume,
+  getBeverageOptionSearchText,
   isBeverageVolumeLocked,
   VOLUMES,
 } from '../lib/sessionBeers';
@@ -51,6 +52,7 @@ export const BeerDraftForm = ({
         data={BEER_OPTIONS}
         placeholder="What are you drinking?"
         icon={<Beer color={colors.textMuted} size={20} />}
+        getSearchText={getBeverageOptionSearchText}
       />
 
       <Text style={styles.sectionLabel}>Size</Text>

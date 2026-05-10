@@ -244,13 +244,13 @@ export const BEER_CATALOG: BeerCatalogItem[] = [
     kind: 'mixed',
     defaultVolume: '2cl',
     countedVolume: '2cl',
-    aliases: ['Jagerbomb', 'Jäger Bomb', 'Jager Bomb'],
+    aliases: ['Jagerbomb', 'Jäger Bomb', 'Jager Bomb', 'Jaegerbomb', 'Jaeger Bomb'],
   },
 ];
 
 export const BEER_OPTIONS = BEER_CATALOG.map((beer) => beer.name);
 
-export const VOLUMES = ['2cl', '4cl', '25cl', '27.5cl', '33cl', '40cl', '44cl', 'Pint', '50cl', '1L'];
+export const VOLUMES = ['2cl', '25cl', '27.5cl', '33cl', '40cl', '44cl', 'Pint', '50cl', '1L'];
 
 export const createEmptyBeerDraft = (): BeerDraft => ({
   beerName: '',
@@ -284,6 +284,11 @@ export const getBeverageCatalogItem = (beverageName: string) => {
   ));
 };
 
+export const getBeverageOptionSearchText = (beverageName: string) => {
+  const beverage = BEER_CATALOG.find((item) => item.name === beverageName) ?? getBeverageCatalogItem(beverageName);
+  return [beverageName, ...(beverage?.aliases ?? [])].join(' ');
+};
+
 export const getBeverageDefaultVolume = (beverageName: string) => {
   const match = getBeverageCatalogItem(beverageName);
   return match?.countedVolume || match?.defaultVolume || null;
@@ -301,7 +306,7 @@ export const beerDraftToPayload = (draft: BeerDraft) => {
   const beverage = getBeverageCatalogItem(draft.beerName);
 
   return {
-    beer_name: beverage?.kind === 'mixed' ? beverage.name : draft.beerName.trim(),
+    beer_name: beverage?.name ?? draft.beerName.trim(),
     volume: beverage?.countedVolume || draft.volume,
     quantity: draft.quantity,
     abv: beverage?.abv ?? getBeerAbv(draft.beerName),

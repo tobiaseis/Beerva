@@ -12,18 +12,41 @@ interface Props {
   placeholder: string;
   icon?: React.ReactNode;
   footer?: React.ReactNode;
+  getSearchText?: (item: string) => string;
 }
 
-export const AutocompleteInput = ({ value, onChangeText, onSelectItem, data, placeholder, icon, footer }: Props) => {
+const normalizeSearchText = (text: string) => (
+  text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[øö]/g, 'o')
+    .replace(/[æä]/g, 'ae')
+    .replace(/å/g, 'a')
+);
+
+export const AutocompleteInput = ({
+  value,
+  onChangeText,
+  onSelectItem,
+  data,
+  placeholder,
+  icon,
+  footer,
+  getSearchText,
+}: Props) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const [focused, setFocused] = useState(false);
   const blurTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touchingDropdownRef = useRef(false);
   const scrollingDropdownRef = useRef(false);
 
-  const filteredData = data.filter(item => 
-    item.toLowerCase().includes(value.toLowerCase()) && item.toLowerCase() !== value.toLowerCase()
-  );
+  const normalizedValue = normalizeSearchText(value);
+  const exactValue = value.trim().toLowerCase();
+  const filteredData = data.filter((item) => {
+    const normalizedSearchText = normalizeSearchText(getSearchText?.(item) ?? item);
+    return normalizedSearchText.includes(normalizedValue) && item.trim().toLowerCase() !== exactValue;
+  });
 
   useEffect(() => {
     return () => {

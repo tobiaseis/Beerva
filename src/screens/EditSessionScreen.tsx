@@ -387,7 +387,7 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
           draft={beerDraft}
           onChange={setBeerDraft}
           onSubmit={addDraftBeer}
-          submitLabel="Add Drink"
+          submitLabel="Add Booze"
         />
       </Surface>
 

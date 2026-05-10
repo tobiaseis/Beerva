@@ -155,20 +155,22 @@ const getSessionTruePints = (item: FeedSession) => {
 const getSessionAverageAbv = (item: FeedSession) => {
   const beers = item.session_beers.length > 0
     ? item.session_beers
-    : [{ abv: item.abv ?? null, quantity: item.quantity }];
+    : [{ abv: item.abv ?? null, quantity: item.quantity, volume: item.volume }];
 
   let weightedTotal = 0;
-  let quantityTotal = 0;
+  let volumeTotal = 0;
 
   beers.forEach((beer) => {
     if (typeof beer.abv !== 'number') return;
+    const volumeMl = getVolumeMl(beer.volume);
     const quantity = beer.quantity || 1;
-    weightedTotal += beer.abv * quantity;
-    quantityTotal += quantity;
+    const countedVolume = volumeMl * quantity;
+    weightedTotal += beer.abv * countedVolume;
+    volumeTotal += countedVolume;
   });
 
-  if (quantityTotal === 0) return null;
-  return Math.round((weightedTotal / quantityTotal) * 10) / 10;
+  if (volumeTotal === 0) return null;
+  return Math.round((weightedTotal / volumeTotal) * 10) / 10;
 };
 
 const formatStatNumber = (value: number) => (
@@ -399,7 +401,7 @@ const FeedSessionCard = React.memo(({
           <View style={styles.statsPanel}>
             <View style={styles.detailGrid}>
               <View style={styles.detailPill}>
-                <Text style={styles.detailLabel}>Beers</Text>
+                <Text style={styles.detailLabel}>Drinks</Text>
                 <Text style={styles.detailValue}>{beerCount}</Text>
               </View>
               <View style={styles.detailPill}>
