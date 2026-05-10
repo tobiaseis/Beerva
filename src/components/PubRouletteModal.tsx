@@ -91,27 +91,28 @@ const RouletteWheel = ({ pubs, size }: { pubs: PubRecord[]; size: number }) => {
     return (
       <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         <Circle cx={center} cy={center} r={center - 5} fill="#2A063D" stroke="#FACC15" strokeWidth={6} />
-        <Circle cx={center} cy={center} r={center - 18} fill="#0F6B4F" stroke="#22D3EE" strokeWidth={3} strokeDasharray="12 7" />
         <Circle cx={center} cy={center} r={center - 42} fill="#E11D48" stroke="#FDE68A" strokeWidth={2} />
         <SvgText
           x={center}
-          y={center - 16}
+          y={center - 10}
           fill={colors.text}
           fontSize={16}
           fontWeight="800"
           fontFamily={fontFamily.bodyBold}
           textAnchor="middle"
+          alignmentBaseline="middle"
         >
           The Wheel
         </SvgText>
         <SvgText
           x={center}
-          y={center + 10}
+          y={center + 14}
           fill={colors.primary}
           fontSize={18}
           fontWeight="800"
           fontFamily={fontFamily.bodyBold}
           textAnchor="middle"
+          alignmentBaseline="middle"
         >
           Has Spoken
         </SvgText>
@@ -173,28 +174,29 @@ const RouletteWheel = ({ pubs, size }: { pubs: PubRecord[]; size: number }) => {
         );
       })}
       <Circle cx={center} cy={center} r={center - 10} fill="none" stroke="#FDE68A" strokeWidth={3} />
-      <Circle cx={center} cy={center} r={center - 24} fill="none" stroke="#22D3EE" strokeWidth={2} strokeDasharray="10 8" />
       <Circle cx={center} cy={center} r={46} fill="#111827" stroke="#FACC15" strokeWidth={5} />
-      <Circle cx={center} cy={center} r={32} fill="#7C3AED" stroke="#FDE68A" strokeWidth={2} />
+      <Circle cx={center} cy={center} r={36} fill="#7C3AED" stroke="#FDE68A" strokeWidth={2} />
       <SvgText
         x={center}
-        y={center - 2}
+        y={center - 6}
         fill="#FDE68A"
         fontSize={14}
         fontWeight="800"
         fontFamily={fontFamily.bodyBold}
         textAnchor="middle"
+        alignmentBaseline="middle"
       >
         BEER
       </SvgText>
       <SvgText
         x={center}
-        y={center + 17}
+        y={center + 8}
         fill={colors.text}
-        fontSize={9}
+        fontSize={10}
         fontWeight="800"
         fontFamily={fontFamily.bodyBold}
         textAnchor="middle"
+        alignmentBaseline="middle"
       >
         ROULETTE
       </SvgText>
