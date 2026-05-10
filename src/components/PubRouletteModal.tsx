@@ -82,7 +82,8 @@ const includesPub = (pubs: PubRecord[], pub: PubRecord) => {
 
 const RouletteWheel = ({ pubs, size }: { pubs: PubRecord[]; size: number }) => {
   const center = size / 2;
-  const labelRadius = size * 0.31;
+  const hubRadius = 50;
+  const labelStartRadius = hubRadius + 8;
   const itemCount = Math.max(pubs.length, 1);
   const segment = 360 / itemCount;
 
@@ -123,9 +124,12 @@ const RouletteWheel = ({ pubs, size }: { pubs: PubRecord[]; size: number }) => {
       <Circle cx={center} cy={center} r={center - 4} fill="#250F38" stroke="#FACC15" strokeWidth={7} />
       {pubs.map((pub, index) => {
         const labelAngle = index * segment + segment / 2;
-        const point = polarPoint(center, labelRadius, labelAngle);
+        const labelOrigin = polarPoint(center, labelStartRadius, labelAngle);
         const label = shortenWheelLabel(formatPubLabel(pub));
-        const textRotation = labelAngle > 90 && labelAngle < 270 ? labelAngle + 180 : labelAngle;
+        const isFlipped = labelAngle > 90 && labelAngle < 270;
+        const textRotation = isFlipped ? labelAngle + 180 : labelAngle;
+        const flipOffset = isFlipped ? polarPoint(center, center - 32, labelAngle) : labelOrigin;
+        const isDarkBg = index % WHEEL_COLORS.length === 7 || index % WHEEL_COLORS.length === 3;
 
         return (
           <G key={pub.id || `${pub.name}-${index}`}>
@@ -136,14 +140,18 @@ const RouletteWheel = ({ pubs, size }: { pubs: PubRecord[]; size: number }) => {
               strokeWidth={1.8}
             />
             <SvgText
-              x={point.x}
-              y={point.y}
-              fill={index % WHEEL_COLORS.length === 7 || index % WHEEL_COLORS.length === 3 ? '#111827' : colors.text}
-              fontSize={pubs.length > 9 ? 10 : 11}
-              fontWeight="800"
+              x={flipOffset.x}
+              y={flipOffset.y}
+              fill={isDarkBg ? '#111827' : '#FFFFFF'}
+              fontSize={pubs.length > 9 ? 9 : 11}
+              fontWeight="900"
               fontFamily={fontFamily.bodyBold}
-              textAnchor="middle"
-              transform={`rotate(${textRotation} ${point.x} ${point.y})`}
+              textAnchor={isFlipped ? 'end' : 'start'}
+              alignmentBaseline="central"
+              stroke={isDarkBg ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.5)'}
+              strokeWidth={isDarkBg ? 0.3 : 2}
+              paintOrder="stroke"
+              transform={`rotate(${textRotation} ${flipOffset.x} ${flipOffset.y})`}
             >
               {label}
             </SvgText>
