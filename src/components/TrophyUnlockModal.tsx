@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Modal, Animated, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Modal, Animated, TouchableOpacity, Easing } from 'react-native';
 import { TrophyDefinition } from '../lib/profileStats';
 import { renderTrophyIcon } from './ProfileStatsPanel';
 import { colors } from '../theme/colors';
@@ -12,49 +12,119 @@ type Props = {
 };
 
 export const TrophyUnlockModal = ({ trophy, onClose }: Props) => {
-  const scale = useRef(new Animated.Value(0)).current;
-  const opacity = useRef(new Animated.Value(0)).current;
+  const backdropOpacity = useRef(new Animated.Value(0)).current;
+  const contentScale = useRef(new Animated.Value(0.5)).current;
+  const contentTranslateY = useRef(new Animated.Value(40)).current;
+  const iconScale = useRef(new Animated.Value(0)).current;
+  const raysRotate = useRef(new Animated.Value(0)).current;
+  const textOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (trophy) {
-      Animated.parallel([
-        Animated.timing(opacity, {
+      Animated.sequence([
+        Animated.timing(backdropOpacity, {
           toValue: 1,
           duration: 300,
+          easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
-        Animated.spring(scale, {
-          toValue: 1,
-          friction: 6,
-          tension: 40,
-          useNativeDriver: true,
-        }),
+        Animated.parallel([
+          Animated.spring(contentScale, {
+            toValue: 1,
+            friction: 6,
+            tension: 40,
+            useNativeDriver: true,
+          }),
+          Animated.spring(contentTranslateY, {
+            toValue: 0,
+            friction: 6,
+            tension: 40,
+            useNativeDriver: true,
+          }),
+          Animated.spring(iconScale, {
+            toValue: 1,
+            friction: 4,
+            tension: 60,
+            useNativeDriver: true,
+            delay: 150,
+          }),
+          Animated.timing(textOpacity, {
+            toValue: 1,
+            duration: 400,
+            delay: 250,
+            easing: Easing.out(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ]),
       ]).start();
+
+      Animated.loop(
+        Animated.timing(raysRotate, {
+          toValue: 1,
+          duration: 10000,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        })
+      ).start();
     } else {
-      scale.setValue(0);
-      opacity.setValue(0);
+      backdropOpacity.setValue(0);
+      contentScale.setValue(0.5);
+      contentTranslateY.setValue(40);
+      iconScale.setValue(0);
+      raysRotate.setValue(0);
+      textOpacity.setValue(0);
     }
-  }, [trophy, opacity, scale]);
+  }, [trophy, backdropOpacity, contentScale, contentTranslateY, iconScale, raysRotate, textOpacity]);
 
   if (!trophy) return null;
+
+  const spin = raysRotate.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
+  const rays = Array.from({ length: 12 }).map((_, i) => (
+    <View
+      key={i}
+      style={[
+        styles.ray,
+        { transform: [{ rotate: `${i * 30}deg` }, { translateY: -45 }] }
+      ]}
+    />
+  ));
 
   return (
     <Modal transparent visible={!!trophy} animationType="none" onRequestClose={onClose}>
       <View style={StyleSheet.absoluteFill}>
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.overlay }]}>
+        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: colors.overlay, opacity: backdropOpacity }]}>
           <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
-        </View>
+        </Animated.View>
         <View style={styles.center}>
-          <Animated.View style={[styles.card, { opacity, transform: [{ scale }] }]}>
+          <Animated.View style={[
+            styles.card,
+            { 
+              opacity: backdropOpacity,
+              transform: [{ scale: contentScale }, { translateY: contentTranslateY }] 
+            }
+          ]}>
             <Text style={styles.header}>New Trophy Unlocked!</Text>
-            <View style={styles.iconContainer}>
-              {renderTrophyIcon(trophy.kind, true, 48)}
+            
+            <View style={styles.iconStage}>
+              <Animated.View style={[styles.raysContainer, { transform: [{ rotate: spin }] }]}>
+                {rays}
+              </Animated.View>
+              <Animated.View style={[styles.iconContainer, { transform: [{ scale: iconScale }] }]}>
+                {renderTrophyIcon(trophy.kind, true, 56)}
+              </Animated.View>
             </View>
-            <Text style={styles.title}>{trophy.title}</Text>
-            <Text style={styles.description}>{trophy.description}</Text>
-            <TouchableOpacity style={styles.button} onPress={onClose} activeOpacity={0.8}>
-              <Text style={styles.buttonText}>Awesome</Text>
-            </TouchableOpacity>
+
+            <Animated.View style={{ opacity: textOpacity, alignItems: 'center', width: '100%' }}>
+              <Text style={styles.title}>{trophy.title}</Text>
+              <Text style={styles.description}>{trophy.description}</Text>
+              <TouchableOpacity style={styles.button} onPress={onClose} activeOpacity={0.8}>
+                <Text style={styles.buttonText}>Awesome</Text>
+              </TouchableOpacity>
+            </Animated.View>
           </Animated.View>
         </View>
       </View>
@@ -79,22 +149,47 @@ const styles = StyleSheet.create({
     ...shadows.card,
     borderWidth: 1,
     borderColor: colors.borderSoft,
+    overflow: 'hidden',
   },
   header: {
     ...typography.caption,
-    fontWeight: '700',
-    color: colors.primary,
+    fontWeight: '900',
+    color: '#FACC15',
     marginBottom: 24,
     textTransform: 'uppercase',
+    letterSpacing: 1,
   },
-  iconContainer: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: colors.primarySoft,
+  iconStage: {
+    width: 140,
+    height: 140,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 32,
+  },
+  raysContainer: {
+    position: 'absolute',
+    width: 180,
+    height: 180,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  ray: {
+    position: 'absolute',
+    width: 4,
+    height: 90,
+    backgroundColor: 'rgba(250, 204, 21, 0.15)',
+    borderRadius: 2,
+  },
+  iconContainer: {
+    width: 104,
+    height: 104,
+    borderRadius: 52,
+    backgroundColor: '#2A063D',
+    borderWidth: 2,
+    borderColor: '#FACC15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...shadows.raised,
   },
   title: {
     ...typography.h2,

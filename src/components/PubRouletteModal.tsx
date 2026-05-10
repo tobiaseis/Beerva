@@ -129,7 +129,6 @@ const RouletteWheel = ({ pubs, size }: { pubs: PubRecord[]; size: number }) => {
         const label = shortenWheelLabel(formatPubLabel(pub));
         const isFlipped = labelAngle > 180;
         const textRotation = isFlipped ? labelAngle + 90 : labelAngle - 90;
-        const isDarkBg = index % WHEEL_COLORS.length === 7 || index % WHEEL_COLORS.length === 3;
 
         return (
           <G key={pub.id || `${pub.name}-${index}`}>
@@ -149,8 +148,8 @@ const RouletteWheel = ({ pubs, size }: { pubs: PubRecord[]; size: number }) => {
               fontFamily={fontFamily.bodyBold}
               textAnchor={isFlipped ? 'end' : 'start'}
               alignmentBaseline="central"
-              stroke={isDarkBg ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.55)'}
-              strokeWidth={isDarkBg ? 0 : 2.5}
+              stroke="rgba(0,0,0,0.55)"
+              strokeWidth={2.5}
               strokeLinejoin="round"
               transform={`rotate(${textRotation} ${labelOrigin.x} ${labelOrigin.y})`}
             >
@@ -160,7 +159,7 @@ const RouletteWheel = ({ pubs, size }: { pubs: PubRecord[]; size: number }) => {
             <SvgText
               x={labelOrigin.x}
               y={labelOrigin.y}
-              fill={isDarkBg ? '#111827' : '#FFFFFF'}
+              fill="#FFFFFF"
               fontSize={pubs.length > 9 ? 9 : 11}
               fontWeight="900"
               fontFamily={fontFamily.bodyBold}
