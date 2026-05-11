@@ -1588,6 +1588,12 @@ export const RecordScreen = ({ navigation }: any) => {
                 ) : null}
               </TouchableOpacity>
 
+              {activeCrawl && crawlPubAction !== 'next' ? (
+                <View style={{ marginBottom: 12 }}>
+                  <AppButton label="Move to next bar" onPress={handleNextCrawlStop} loading={crawlBusy} />
+                </View>
+              ) : null}
+
               <View style={styles.endActions}>
                 <TouchableOpacity
                   style={styles.cancelButton}
@@ -1599,7 +1605,7 @@ export const RecordScreen = ({ navigation }: any) => {
                 </TouchableOpacity>
                 <View style={styles.endButtonWrap}>
                   {activeCrawl ? (
-                    <AppButton label="End Pub Crawl" onPress={handleEndPubCrawl} loading={crawlBusy} />
+                    <AppButton label="End Pub Crawl" onPress={handleEndPubCrawl} loading={crawlBusy && photoWarningAction !== 'end'} />
                   ) : (
                     <AppButton label="End Session" onPress={endSession} loading={ending} />
                   )}
