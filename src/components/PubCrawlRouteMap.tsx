@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { View, StyleSheet, Image, Text, ActivityIndicator } from 'react-native';
 import Svg, { Polyline, Circle, Text as SvgText, G } from 'react-native-svg';
+import { useEffect } from 'react';
 import { PubCrawlStop } from '../lib/pubCrawls';
-import { getStaticMapViewport } from '../lib/staticRouteMap';
+import { getStaticMapViewport, projectCoordinatesToViewport } from '../lib/staticRouteMap';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { radius } from '../theme/layout';
@@ -17,6 +18,38 @@ export const PubCrawlRouteMap = ({ stops, width = 640, height = 420 }: Props) =>
   const viewport = useMemo(() => getStaticMapViewport(stops, { width, height }), [stops, width, height]);
 
   const [failedTiles, setFailedTiles] = useState<Set<string>>(new Set());
+  const [routeCoordinates, setRouteCoordinates] = useState<{x: number, y: number}[] | null>(null);
+
+  useEffect(() => {
+    const fetchRoute = async () => {
+      const mappedStops = stops.filter(s => typeof s.latitude === 'number' && typeof s.longitude === 'number');
+      if (mappedStops.length < 2) return;
+      
+      const coords = mappedStops.map(s => `${s.longitude},${s.latitude}`).join(';');
+      try {
+        const res = await fetch(`https://router.project-osrm.org/route/v1/walking/${coords}?geometries=geojson&overview=full`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.routes && data.routes[0]) {
+          const geojsonCoords = data.routes[0].geometry.coordinates as [number, number][]; // [lon, lat][]
+          
+          if (viewport) {
+             const projected = projectCoordinatesToViewport(
+               geojsonCoords, 
+               viewport.centerLatitude, 
+               viewport.centerLongitude, 
+               viewport.zoom, 
+               { width, height }
+             );
+             setRouteCoordinates(projected);
+          }
+        }
+      } catch (err) {
+        // Fallback
+      }
+    };
+    fetchRoute();
+  }, [stops, viewport, width, height]);
 
   const handleTileError = (key: string) => {
     setFailedTiles(prev => new Set(prev).add(key));
@@ -58,13 +91,24 @@ export const PubCrawlRouteMap = ({ stops, width = 640, height = 420 }: Props) =>
         ))}
         
         <Svg height="100%" width="100%" style={StyleSheet.absoluteFill}>
-          <Polyline
-            points={polylinePoints}
-            fill="none"
-            stroke={colors.primary}
-            strokeWidth="4"
-            strokeDasharray="8,4"
-          />
+          {routeCoordinates ? (
+            <Polyline
+              points={routeCoordinates.map(p => `${p.x},${p.y}`).join(' ')}
+              fill="none"
+              stroke={colors.primary}
+              strokeWidth="4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          ) : (
+            <Polyline
+              points={polylinePoints}
+              fill="none"
+              stroke={colors.primary}
+              strokeWidth="4"
+              strokeDasharray="8,4"
+            />
+          )}
           {viewport.routePoints.map((point) => (
             <G key={point.stopOrder} x={point.x} y={point.y}>
               <Circle r="12" fill={colors.primary} />

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Dimensions, Platform } from 'react-native';
+import { View, StyleSheet, ScrollView, Dimensions, Platform, TouchableOpacity } from 'react-native';
 import { PubCrawlRouteMap } from './PubCrawlRouteMap';
 import { CachedImage } from './CachedImage';
 import { PubCrawl } from '../lib/pubCrawls';
@@ -13,7 +13,7 @@ type Props = {
   crawl: PubCrawl;
 };
 
-export const PubCrawlMediaCarousel = ({ crawl }: Props) => {
+export const PubCrawlMediaCarousel = ({ crawl, onImagePress }: Props & { onImagePress?: (url: string) => void }) => {
   const [activeIndex, setActiveIndex] = useState(0);
 
   const slides = [
@@ -51,10 +51,12 @@ export const PubCrawlMediaCarousel = ({ crawl }: Props) => {
             {slide.type === 'map' ? (
               <PubCrawlRouteMap stops={crawl.stops} width={SLIDE_WIDTH} height={SLIDE_WIDTH * 0.75} />
             ) : (
-              <CachedImage
-                uri={(slide as any).imageUrl}
-                style={styles.image}
-              />
+              <TouchableOpacity activeOpacity={0.9} onPress={() => onImagePress?.((slide as any).imageUrl)}>
+                <CachedImage
+                  uri={(slide as any).imageUrl}
+                  style={styles.image}
+                />
+              </TouchableOpacity>
             )}
           </View>
         ))}

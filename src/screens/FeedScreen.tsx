@@ -17,6 +17,7 @@ import { EmptyIllustration } from '../components/EmptyIllustration';
 import { getBeerLine, getSessionBeerSummary, SessionBeer } from '../lib/sessionBeers';
 import { getVolumeMl, TrophyDefinition } from '../lib/profileStats';
 import { TrophyUnlockModal } from '../components/TrophyUnlockModal';
+import { ImageViewerModal } from '../components/ImageViewerModal';
 import { openMaps } from '../lib/maps';
 import { getErrorMessage, withTimeout } from '../lib/timeouts';
 import { PubCrawlFeedCard } from '../components/PubCrawlFeedCard';
@@ -580,6 +581,7 @@ export const FeedScreen = ({ route }: any) => {
   const [commentingSession, setCommentingSession] = useState<FeedSession | PubCrawl | null>(null);
   const [cheersSession, setCheersSession] = useState<FeedSession | PubCrawl | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
+  const [viewingImageUrl, setViewingImageUrl] = useState<string | null>(null);
   const [submittingComment, setSubmittingComment] = useState(false);
   const { unreadCount } = useNotifications();
   const [pullDistance, setPullDistance] = useState(0);

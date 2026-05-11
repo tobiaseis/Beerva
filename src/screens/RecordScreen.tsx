@@ -1426,6 +1426,15 @@ export const RecordScreen = ({ navigation }: any) => {
           </Surface>
         ) : (
           <>
+            {!activeCrawl && (
+              <AppButton
+                label="Turn into Pub Crawl"
+                variant="secondary"
+                onPress={turnIntoPubCrawl}
+                loading={convertingCrawl}
+              />
+            )}
+
             <Surface style={styles.lockedPubSurface}>
               <View style={styles.lockedPubHeader}>
                 <View style={styles.lockedPubIcon}>
@@ -1615,15 +1624,6 @@ export const RecordScreen = ({ navigation }: any) => {
               </View>
             </Surface>
 
-            {!activeCrawl && (
-              <Surface style={styles.formSurface}>
-                <AppButton
-                  label="Turn into Pub Crawl"
-                  onPress={turnIntoPubCrawl}
-                  loading={convertingCrawl}
-                />
-              </Surface>
-            )}
           </>
         )}
       </View>

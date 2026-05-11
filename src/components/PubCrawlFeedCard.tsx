@@ -17,7 +17,7 @@ type Props = {
   onOpenComments: (crawl: PubCrawl) => void;
 };
 
-export const PubCrawlFeedCard = ({ crawl, currentUserId, onToggleCheer, onOpenComments }: Props) => {
+export const PubCrawlFeedCard = ({ crawl, currentUserId, onToggleCheer, onOpenComments, onImagePress }: Props & { onImagePress?: (url: string) => void }) => {
   const [statsExpanded, setStatsExpanded] = useState(false);
   const summary = calculatePubCrawlSummary(crawl.stops);
   const hasCheered = crawl.cheerProfiles.some(p => p.id === currentUserId);
@@ -30,18 +30,18 @@ export const PubCrawlFeedCard = ({ crawl, currentUserId, onToggleCheer, onOpenCo
   return (
     <View style={styles.card}>
       <View style={styles.header}>
-        <View style={styles.avatar}>
+        <View style={styles.profileLink}>
           {crawl.avatarUrl ? (
-            <Image source={{ uri: crawl.avatarUrl }} style={styles.avatarImage} />
+            <Image source={{ uri: crawl.avatarUrl }} style={styles.avatar} />
           ) : (
             <View style={styles.avatarPlaceholder} />
           )}
-        </View>
-        <View style={styles.headerText}>
-          <Text style={styles.username}>{username}</Text>
-          <Text style={styles.timeText}>
-            {crawl.publishedAt ? new Date(crawl.publishedAt).toLocaleDateString() : 'Just now'}
-          </Text>
+          <View style={styles.userInfo}>
+            <Text style={styles.username} numberOfLines={1}>{username}</Text>
+            <Text style={styles.timeText}>
+              {crawl.publishedAt ? new Date(crawl.publishedAt).toLocaleDateString() : 'Just now'}
+            </Text>
+          </View>
         </View>
         <View style={styles.badge}>
           <Text style={styles.badgeText}>PUB CRAWL</Text>
@@ -73,7 +73,7 @@ export const PubCrawlFeedCard = ({ crawl, currentUserId, onToggleCheer, onOpenCo
       </View>
 
       <View style={styles.mediaContainer}>
-        <PubCrawlMediaCarousel crawl={crawl} />
+        <PubCrawlMediaCarousel crawl={crawl} onImagePress={onImagePress} />
       </View>
 
       <View style={styles.actionsContainer}>
@@ -167,31 +167,38 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: spacing.md,
   },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 12,
-    backgroundColor: colors.borderSoft,
-    overflow: 'hidden',
+  profileLink: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
   },
-  avatarImage: {
-    width: '100%',
-    height: '100%',
+  avatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
   },
   avatarPlaceholder: {
-    width: '100%',
-    height: '100%',
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    marginRight: 12,
     backgroundColor: colors.primarySoft,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
   },
-  headerText: {
+  userInfo: {
     flex: 1,
   },
   username: {
     ...typography.h3,
-    fontSize: 15,
+    fontSize: 16,
   },
   timeText: {
     ...typography.caption,
