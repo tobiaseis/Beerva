@@ -12,6 +12,7 @@ type ProfileStatsRpcRow = {
   max_pubs_in_one_day?: number | null;
   max_sessions_at_same_pub?: number | null;
   longest_day_streak?: number | null;
+  max_two_pint_week_streak?: number | null;
   unique_beers?: number | null;
   max_beers_in_one_day?: number | null;
   has_early_bird_session?: boolean | null;
@@ -47,6 +48,7 @@ const statsFromRpcRow = (row?: ProfileStatsRpcRow | null): Stats => {
     maxPubsInOneDay: numberOrZero(row.max_pubs_in_one_day),
     maxSessionsAtSamePub: numberOrZero(row.max_sessions_at_same_pub),
     longestDayStreak: numberOrZero(row.longest_day_streak),
+    maxTwoPintWeekStreak: numberOrZero(row.max_two_pint_week_streak),
     uniqueBeers: numberOrZero(row.unique_beers),
     maxBeersInOneDay: numberOrZero(row.max_beers_in_one_day),
     hasEarlyBirdSession: Boolean(row.has_early_bird_session),

@@ -9,6 +9,7 @@ export type Stats = {
   maxPubsInOneDay: number;
   maxSessionsAtSamePub: number;
   longestDayStreak: number;
+  maxTwoPintWeekStreak: number;
   uniqueBeers: number;
   maxBeersInOneDay: number;
   hasEarlyBirdSession: boolean;
@@ -68,6 +69,7 @@ export const emptyStats: Stats = {
   maxPubsInOneDay: 0,
   maxSessionsAtSamePub: 0,
   longestDayStreak: 0,
+  maxTwoPintWeekStreak: 0,
   uniqueBeers: 0,
   maxBeersInOneDay: 0,
   hasEarlyBirdSession: false,
@@ -153,6 +155,21 @@ const dateKeyFromParts = (parts: Pick<LocalDateParts, 'year' | 'month' | 'day'>)
 const localDateKey = (createdAt?: string | null): string | null => {
   const parts = getCopenhagenParts(createdAt, DAY_ROLLOVER_HOURS);
   return parts ? dateKeyFromParts(parts) : null;
+};
+
+const localWeekStartKey = (createdAt?: string | null): string | null => {
+  const parts = getCopenhagenParts(createdAt);
+  if (!parts) return null;
+
+  const weekStart = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+  const daysSinceMonday = (weekStart.getUTCDay() + 6) % 7;
+  weekStart.setUTCDate(weekStart.getUTCDate() - daysSinceMonday);
+
+  return dateKeyFromParts({
+    year: weekStart.getUTCFullYear(),
+    month: weekStart.getUTCMonth() + 1,
+    day: weekStart.getUTCDate(),
+  });
 };
 
 export const getVolumeMl = (volume?: string | null) => {
@@ -289,6 +306,7 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
   const jagerbombsPerDay = new Map<string, number>();
   const sambucasPerDay = new Map<string, number>();
   const pintsPerSession = new Map<string, number>();
+  const pintsPerWeek = new Map<string, number>();
 
   let totalMl = 0;
   let weightedAbvSum = 0;
@@ -320,6 +338,10 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
     totalMl += sessionVolumeMl;
     weightedAbvSum += sessionVolumeMl * abv;
     pintsPerSession.set(sessionKey, (pintsPerSession.get(sessionKey) || 0) + sessionPints);
+    const weekKey = localWeekStartKey(session.created_at || sessionCreatedAt);
+    if (weekKey) {
+      pintsPerWeek.set(weekKey, (pintsPerWeek.get(weekKey) || 0) + sessionPints);
+    }
     if (!isRtd && !isJager && !isSambu && !isVrb) {
       strongestAbv = Math.max(strongestAbv, abv);
     }
@@ -441,6 +463,28 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
     prevTime = t;
   }
 
+  const qualifyingWeeks = Array.from(pintsPerWeek.entries())
+    .filter(([, pints]) => pints >= 2)
+    .map(([key]) => key)
+    .sort();
+  let maxTwoPintWeekStreak = 0;
+  let currentWeekStreak = 0;
+  let prevWeekTime = -Infinity;
+  const ONE_WEEK_MS = ONE_DAY_MS * 7;
+  for (const key of qualifyingWeeks) {
+    const [y, m, d] = key.split('-').map(Number);
+    const t = Date.UTC(y, m - 1, d);
+    if (currentWeekStreak === 0) {
+      currentWeekStreak = 1;
+    } else if (Math.round((t - prevWeekTime) / ONE_WEEK_MS) === 1) {
+      currentWeekStreak += 1;
+    } else {
+      currentWeekStreak = 1;
+    }
+    if (currentWeekStreak > maxTwoPintWeekStreak) maxTwoPintWeekStreak = currentWeekStreak;
+    prevWeekTime = t;
+  }
+
   return {
     totalPints: roundStat(totalMl / 568),
     uniquePubs,
@@ -452,6 +496,7 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
     maxPubsInOneDay,
     maxSessionsAtSamePub,
     longestDayStreak,
+    maxTwoPintWeekStreak,
     uniqueBeers: uniqueBeerSet.size,
     maxBeersInOneDay,
     hasEarlyBirdSession,
@@ -551,6 +596,13 @@ export const getTrophies = (stats: Stats): TrophyDefinition[] => {
       description: 'Sessions on 7 days in a row',
       kind: 'streak',
       earned: stats.longestDayStreak >= 7,
+    },
+    {
+      id: 'officially-an-alcoholic',
+      title: 'Officially an Alcoholic',
+      description: '2+ true pints per week for 6 weeks straight',
+      kind: 'streak',
+      earned: stats.maxTwoPintWeekStreak >= 6,
     },
     {
       id: 'sommelier',
