@@ -455,8 +455,10 @@ export const ProfileScreen = () => {
             accessibilityRole="button"
             accessibilityLabel="Show followers"
           >
-            <Text style={styles.followStatValue}>{followCounts.followers}</Text>
-            <Text style={styles.followStatLabel}>Followers</Text>
+            <Text style={styles.followStatValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
+              {followCounts.followers}
+            </Text>
+            <Text style={styles.followStatLabel} numberOfLines={1}>Followers</Text>
           </TouchableOpacity>
           <View style={styles.followDivider} />
           <TouchableOpacity
@@ -466,8 +468,10 @@ export const ProfileScreen = () => {
             accessibilityRole="button"
             accessibilityLabel="Show following"
           >
-            <Text style={styles.followStatValue}>{followCounts.following}</Text>
-            <Text style={styles.followStatLabel}>Following</Text>
+            <Text style={styles.followStatValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
+              {followCounts.following}
+            </Text>
+            <Text style={styles.followStatLabel} numberOfLines={1}>Following</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -705,24 +709,29 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderSoft,
     borderRadius: radius.lg,
-    marginTop: 18,
-    minWidth: 230,
+    marginTop: 14,
+    minWidth: 216,
     overflow: 'hidden',
   },
   followStat: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
+    justifyContent: 'center',
+    minHeight: 50,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
   },
   followStatValue: {
     ...typography.h3,
     color: colors.primary,
+    fontFamily: 'Righteous_400Regular',
+    lineHeight: 26,
     fontVariant: ['tabular-nums'],
   },
   followStatLabel: {
     ...typography.caption,
-    marginTop: 2,
+    marginTop: 0,
+    textAlign: 'center',
   },
   followDivider: {
     width: 1,

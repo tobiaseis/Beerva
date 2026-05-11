@@ -318,4 +318,12 @@ const weeklyStreakMigration = fs.readFileSync(
 assert.match(weeklyStreakMigration, /max_two_pint_week_streak/, 'weekly pint streak migration should add the RPC stat column');
 assert.match(weeklyStreakMigration, /two_pint_week_streaks/, 'weekly pint streak migration should calculate consecutive qualifying weeks');
 
+const profileStatsPanelSource = fs.readFileSync(
+  path.resolve(__dirname, '..', 'src/components/ProfileStatsPanel.tsx'),
+  'utf8'
+);
+assert.match(profileStatsPanelSource, /Longest Streak/, 'profile stats panel should show a longest streak box under best session');
+assert.match(profileStatsPanelSource, /stats\.longestDayStreak/, 'longest streak box should use the existing longest day streak stat');
+assert.match(profileStatsPanelSource, /highScoreCompact/, 'best session and streak boxes should use a compact card style');
+
 console.log('profileStats trophy tests passed');
