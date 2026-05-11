@@ -47,6 +47,14 @@ const baseRow = (overrides = {}) => ({
   ...overrides,
 });
 
+const twoPintWeekRow = (sessionId, isoDate) => baseRow({
+  session_id: sessionId,
+  volume: 'Pint',
+  quantity: 2,
+  created_at: isoDate,
+  session_started_at: isoDate,
+});
+
 const monthRow = (sessionId, isoDate) => baseRow({
   session_id: sessionId,
   created_at: isoDate,
@@ -140,6 +148,44 @@ assert.equal(
   getTrophies({ ...emptyStats, strongestAbv: 11.1 }).find((trophy) => trophy.id === 'abv-11')?.earned,
   true,
   'the over 11% ABV trophy should remain available when stats qualify'
+);
+
+const sixWeekPintStreakStats = calculateStats([
+  twoPintWeekRow('week-1', '2026-01-05T18:00:00.000Z'),
+  twoPintWeekRow('week-2', '2026-01-12T18:00:00.000Z'),
+  twoPintWeekRow('week-3', '2026-01-19T18:00:00.000Z'),
+  twoPintWeekRow('week-4', '2026-01-26T18:00:00.000Z'),
+  twoPintWeekRow('week-5', '2026-02-02T18:00:00.000Z'),
+  twoPintWeekRow('week-6', '2026-02-09T18:00:00.000Z'),
+]);
+assert.equal(
+  sixWeekPintStreakStats.maxTwoPintWeekStreak,
+  6,
+  'weekly pint streak should count six consecutive Monday-to-Sunday weeks with 2+ true pints'
+);
+assert.equal(
+  getTrophies(sixWeekPintStreakStats).find((trophy) => trophy.id === 'officially-an-alcoholic')?.earned,
+  true,
+  'Officially an Alcoholic should unlock after 2+ true pints per week for six weeks straight'
+);
+
+const brokenWeekPintStreakStats = calculateStats([
+  twoPintWeekRow('broken-week-1', '2026-01-05T18:00:00.000Z'),
+  twoPintWeekRow('broken-week-2', '2026-01-12T18:00:00.000Z'),
+  twoPintWeekRow('broken-week-4', '2026-01-26T18:00:00.000Z'),
+  twoPintWeekRow('broken-week-5', '2026-02-02T18:00:00.000Z'),
+  twoPintWeekRow('broken-week-6', '2026-02-09T18:00:00.000Z'),
+  twoPintWeekRow('broken-week-7', '2026-02-16T18:00:00.000Z'),
+]);
+assert.equal(
+  brokenWeekPintStreakStats.maxTwoPintWeekStreak,
+  4,
+  'weekly pint streak should reset when a calendar week has fewer than 2 true pints'
+);
+assert.equal(
+  getTrophies(brokenWeekPintStreakStats).find((trophy) => trophy.id === 'officially-an-alcoholic')?.earned,
+  false,
+  'Officially an Alcoholic should stay locked if the 2-pint weeks are not six straight weeks'
 );
 
 const mixedDrinkAbvStats = calculateStats([
@@ -264,5 +310,12 @@ assert.equal(
   40,
   'the catalog should include 40 RTDs'
 );
+
+const weeklyStreakMigration = fs.readFileSync(
+  path.resolve(__dirname, '..', 'supabase/migrations/20260511120000_add_two_pint_week_streak_trophy.sql'),
+  'utf8'
+);
+assert.match(weeklyStreakMigration, /max_two_pint_week_streak/, 'weekly pint streak migration should add the RPC stat column');
+assert.match(weeklyStreakMigration, /two_pint_week_streaks/, 'weekly pint streak migration should calculate consecutive qualifying weeks');
 
 console.log('profileStats trophy tests passed');
