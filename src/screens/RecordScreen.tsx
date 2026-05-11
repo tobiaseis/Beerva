@@ -254,9 +254,11 @@ export const RecordScreen = ({ navigation }: any) => {
   }, []);
 
   useEffect(() => {
-    const cleanPub = pub.trim();
+    const isCrawlAction = activeCrawl && crawlPubAction;
+    const currentSearchText = isCrawlAction ? crawlPubDraft : pub;
+    const cleanPub = currentSearchText.trim();
 
-    if (activeSession || (cleanPub.length < 2 && !userLocation)) {
+    if ((activeSession && !isCrawlAction) || (cleanPub.length < 2 && !userLocation)) {
       setPubOptions([]);
       setPubSearching(false);
       setPubSearchError(null);
@@ -347,7 +349,7 @@ export const RecordScreen = ({ navigation }: any) => {
       cancelled = true;
       clearTimeout(delayDebounceFn);
     };
-  }, [activeSession, pub, userLocation]);
+  }, [activeSession, pub, userLocation, activeCrawl, crawlPubAction, crawlPubDraft]);
 
   const resetActiveState = useCallback(() => {
     setActiveSession(null);
