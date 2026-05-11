@@ -48,6 +48,15 @@ import {
   UserLocation,
 } from '../lib/pubDirectory';
 import { prepareRoulettePubs } from '../lib/pubRoulette';
+import {
+  ActivePubCrawlState,
+  cancelPubCrawl,
+  convertActiveSessionToPubCrawl,
+  fetchActivePubCrawl,
+  finishCrawlStopAndStartNext,
+  publishPubCrawl,
+  updateCurrentCrawlStopPub,
+} from '../lib/pubCrawlsApi';
 import { supabase } from '../lib/supabase';
 import { fetchProfileStats } from '../lib/profileStatsApi';
 import { getTrophies } from '../lib/profileStats';
@@ -67,6 +76,10 @@ type ActiveSession = {
   comment: string | null;
   image_url: string | null;
   started_at: string;
+  pub_crawl_id?: string | null;
+  crawl_stop_order?: number | null;
+  is_crawl_stop?: boolean | null;
+  hide_from_feed?: boolean | null;
 };
 
 type FollowOutRow = {
@@ -160,6 +173,7 @@ const getPreviouslyGrantedBrowserLocation = async () => {
 
 export const RecordScreen = ({ navigation }: any) => {
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
+  const [activeCrawl, setActiveCrawl] = useState<ActivePubCrawlState | null>(null);
   const [sessionBeers, setSessionBeers] = useState<SessionBeer[]>([]);
   const [beerDraft, setBeerDraft] = useState(createEmptyBeerDraft);
 
@@ -184,6 +198,11 @@ export const RecordScreen = ({ navigation }: any) => {
   const [locatingPubs, setLocatingPubs] = useState(false);
   const [addingPub, setAddingPub] = useState(false);
   const [savingPhoto, setSavingPhoto] = useState(false);
+  const [convertingCrawl, setConvertingCrawl] = useState(false);
+  const [crawlBusy, setCrawlBusy] = useState(false);
+  const [crawlPubAction, setCrawlPubAction] = useState<'change' | 'next' | null>(null);
+  const [crawlPubDraft, setCrawlPubDraft] = useState('');
+  const [photoWarningAction, setPhotoWarningAction] = useState<'next' | 'end' | null>(null);
   const [rouletteVisible, setRouletteVisible] = useState(false);
   const [rouletteLoading, setRouletteLoading] = useState(false);
   const [rouletteError, setRouletteError] = useState<string | null>(null);
@@ -196,6 +215,7 @@ export const RecordScreen = ({ navigation }: any) => {
   const rouletteRequestId = useRef(0);
   const passiveLocationAttempted = useRef(false);
   const passiveSeedAttempted = useRef(false);
+  const photoWarningBypassAction = useRef<'next' | 'end' | null>(null);
   const lastSavedComment = useRef<{ sessionId: string | null; comment: string }>({
     sessionId: null,
     comment: '',
@@ -235,9 +255,11 @@ export const RecordScreen = ({ navigation }: any) => {
   }, []);
 
   useEffect(() => {
-    const cleanPub = pub.trim();
+    const isCrawlAction = activeCrawl && crawlPubAction;
+    const currentSearchText = isCrawlAction ? crawlPubDraft : pub;
+    const cleanPub = currentSearchText.trim();
 
-    if (activeSession || (cleanPub.length < 2 && !userLocation)) {
+    if ((activeSession && !isCrawlAction) || (cleanPub.length < 2 && !userLocation)) {
       setPubOptions([]);
       setPubSearching(false);
       setPubSearchError(null);
@@ -328,10 +350,11 @@ export const RecordScreen = ({ navigation }: any) => {
       cancelled = true;
       clearTimeout(delayDebounceFn);
     };
-  }, [activeSession, pub, userLocation]);
+  }, [activeSession, pub, userLocation, activeCrawl, crawlPubAction, crawlPubDraft]);
 
   const resetActiveState = useCallback(() => {
     setActiveSession(null);
+    setActiveCrawl(null);
     setSessionBeers([]);
     setBeerDraft(createEmptyBeerDraft());
     setComment('');
@@ -339,6 +362,10 @@ export const RecordScreen = ({ navigation }: any) => {
     setExistingImageUrl(null);
     setSavingPhoto(false);
     setSelectedPub(null);
+    setCrawlPubAction(null);
+    setCrawlPubDraft('');
+    setPhotoWarningAction(null);
+    photoWarningBypassAction.current = null;
     lastSavedComment.current = { sessionId: null, comment: '' };
   }, []);
 
@@ -364,7 +391,7 @@ export const RecordScreen = ({ navigation }: any) => {
 
       const { data, error } = await supabase
         .from('sessions')
-        .select('id, user_id, pub_id, pub_name, status, comment, image_url, started_at')
+        .select('id, user_id, pub_id, pub_name, status, comment, image_url, started_at, pub_crawl_id, crawl_stop_order, is_crawl_stop, hide_from_feed')
         .eq('user_id', user.id)
         .eq('status', 'active')
         .order('started_at', { ascending: false })
@@ -390,6 +417,11 @@ export const RecordScreen = ({ navigation }: any) => {
       setSelectedImage(null);
       setSavingPhoto(false);
       await fetchSessionBeers(session.id);
+      if (session.pub_crawl_id) {
+        setActiveCrawl(await fetchActivePubCrawl());
+      } else {
+        setActiveCrawl(null);
+      }
     } catch (error: any) {
       console.error('Active session fetch error:', error);
       showAlert('Could not load session', error?.message || 'Please try again.');
@@ -746,6 +778,7 @@ export const RecordScreen = ({ navigation }: any) => {
 
       const session = data as ActiveSession;
       setActiveSession(session);
+      setActiveCrawl(null);
       setSessionBeers([]);
       setComment('');
       lastSavedComment.current = { sessionId: session.id, comment: '' };
@@ -768,6 +801,55 @@ export const RecordScreen = ({ navigation }: any) => {
       }
     } finally {
       setStarting(false);
+    }
+  };
+
+  const turnIntoPubCrawl = async () => {
+    if (!activeSession || convertingCrawl) return;
+    
+    setConvertingCrawl(true);
+    try {
+      const crawlState = await convertActiveSessionToPubCrawl(activeSession.id);
+      setActiveCrawl(crawlState);
+      hapticSuccess();
+      showAlert('Pub Crawl Started', 'Your session is now a pub crawl.');
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        // notify mates
+        try {
+          const [followingResult, followersResult] = await Promise.all([
+            supabase.from('follows').select('following_id').eq('follower_id', user.id),
+            supabase.from('follows').select('follower_id').eq('following_id', user.id),
+          ]);
+          
+          if (!followingResult.error && !followersResult.error) {
+            const followers = new Set(((followersResult.data || []) as FollowInRow[]).map(row => row.follower_id));
+            const mutualIds = ((followingResult.data || []) as FollowOutRow[])
+              .map(row => row.following_id)
+              .filter(id => followers.has(id));
+            
+            if (mutualIds.length > 0) {
+              await supabase.from('notifications').insert(
+                mutualIds.map(mateId => ({
+                  user_id: mateId,
+                  actor_id: user.id,
+                  type: 'pub_crawl_started',
+                  reference_id: crawlState.crawl.id,
+                }))
+              );
+            }
+          }
+        } catch (e) {
+          console.warn('Could not send pub crawl started notifications', e);
+        }
+      }
+    } catch (error: any) {
+      console.error('Convert to pub crawl error:', error);
+      hapticError();
+      showAlert('Could not start pub crawl', error?.message || 'Please try again.');
+    } finally {
+      setConvertingCrawl(false);
     }
   };
 
@@ -878,6 +960,7 @@ export const RecordScreen = ({ navigation }: any) => {
     }
 
     setSelectedImage(preparedImage);
+    photoWarningBypassAction.current = null;
 
     if (!activeSession) return;
 
@@ -958,6 +1041,158 @@ export const RecordScreen = ({ navigation }: any) => {
     if (!result.canceled && result.assets[0]) {
       await handleImageAsset(result.assets[0]);
     }
+  };
+
+  const handleChangeCurrentCrawlPub = async () => {
+    if (!activeCrawl || !activeSession) return;
+    const cleanDraft = crawlPubDraft.trim();
+    if (cleanDraft.length < 2) return;
+    
+    setCrawlBusy(true);
+    try {
+      const pubRecord = selectedPub || pubOptions.find(o => labelsMatchPub(cleanDraft, o)) || null;
+      await updateCurrentCrawlStopPub(activeCrawl.crawl.id, pubRecord, cleanDraft);
+      setCrawlPubAction(null);
+      await fetchActiveSession();
+      hapticSuccess();
+    } catch (e: any) {
+      hapticError();
+      showAlert('Could not change pub', e?.message);
+    } finally {
+      setCrawlBusy(false);
+    }
+  };
+
+  const handleNextCrawlStop = async () => {
+    if (!activeCrawl || !activeSession) return;
+    if (sessionBeers.length === 0) {
+      showAlert('Add a drink first', 'The current stop needs at least one drink before moving on.');
+      return;
+    }
+    if (!existingImageUrl && !selectedImage && photoWarningBypassAction.current !== 'next') {
+      setPhotoWarningAction('next');
+      return;
+    }
+    
+    if (crawlPubAction !== 'next') {
+      setCrawlPubAction('next');
+      setPhotoWarningAction(null);
+      return;
+    }
+
+    const cleanDraft = crawlPubDraft.trim();
+    if (cleanDraft.length < 2) return;
+
+    setCrawlBusy(true);
+    try {
+      let uploadedUrl: string | null = null;
+      if (selectedImage) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          uploadedUrl = await uploadImageToBucket('session_images', selectedImage, `users/${user.id}/sessions`);
+          const { error } = await supabase
+            .from('sessions')
+            .update({ image_url: uploadedUrl })
+            .eq('id', activeSession.id);
+          if (error) throw error;
+        }
+      }
+
+      const pubRecord = selectedPub || pubOptions.find(o => labelsMatchPub(cleanDraft, o)) || null;
+      await finishCrawlStopAndStartNext(activeCrawl.crawl.id, pubRecord, cleanDraft);
+      
+      if (uploadedUrl && existingImageUrl && existingImageUrl !== uploadedUrl) {
+        deletePublicImageUrl('session_images', existingImageUrl);
+      }
+
+      setCrawlPubAction(null);
+      setCrawlPubDraft('');
+      setSelectedPub(null);
+      setPhotoWarningAction(null);
+      photoWarningBypassAction.current = null;
+      await fetchActiveSession();
+      hapticSuccess();
+    } catch (e: any) {
+      hapticError();
+      showAlert('Could not start next stop', e?.message);
+    } finally {
+      setCrawlBusy(false);
+    }
+  };
+
+  const handleEndPubCrawl = async () => {
+    if (!activeCrawl || !activeSession) return;
+    if (sessionBeers.length === 0) {
+      showAlert('Add a drink first', 'The current stop needs at least one drink before ending the crawl.');
+      return;
+    }
+    if (!existingImageUrl && !selectedImage && photoWarningBypassAction.current !== 'end') {
+      setPhotoWarningAction('end');
+      return;
+    }
+
+    setCrawlBusy(true);
+    try {
+      let uploadedUrl: string | null = null;
+      if (selectedImage) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          uploadedUrl = await uploadImageToBucket('session_images', selectedImage, `users/${user.id}/sessions`);
+          const { error } = await supabase
+            .from('sessions')
+            .update({ image_url: uploadedUrl })
+            .eq('id', activeSession.id);
+          if (error) throw error;
+        }
+      }
+
+      const { data: { user } } = await supabase.auth.getUser();
+      const oldStats = user ? await fetchProfileStats(user.id) : null;
+      const oldTrophies = oldStats ? getTrophies(oldStats) : [];
+
+      await publishPubCrawl(activeCrawl.crawl.id);
+
+      if (uploadedUrl && existingImageUrl && existingImageUrl !== uploadedUrl) {
+        deletePublicImageUrl('session_images', existingImageUrl);
+      }
+
+      const newStats = user ? await fetchProfileStats(user.id) : null;
+      const newTrophies = newStats ? getTrophies(newStats) : [];
+      const newlyUnlockedTrophies = newTrophies.filter((nt) =>
+        nt.earned && !oldTrophies.find((ot) => ot.id === nt.id && ot.earned)
+      );
+
+      resetActiveState();
+      setPub('');
+      hapticSuccess();
+      showAlert('Crawl Finished', 'Your pub crawl has been posted to the feed.');
+      navigation.navigate('Feed', { newlyUnlockedTrophies });
+    } catch (e: any) {
+      hapticError();
+      showAlert('Could not end crawl', e?.message);
+    } finally {
+      setCrawlBusy(false);
+    }
+  };
+
+  const handleCancelCrawl = () => {
+    if (!activeCrawl || cancelling) return;
+    
+    hapticWarning();
+    confirmDestructive('Cancel Pub Crawl', 'Discard this entire pub crawl and all its stops?', 'Cancel Crawl', async () => {
+      setCancelling(true);
+      try {
+        await cancelPubCrawl(activeCrawl.crawl.id);
+        if (existingImageUrl) {
+          deletePublicImageUrl('session_images', existingImageUrl);
+        }
+        resetActiveState();
+      } catch (error: any) {
+        showAlert('Could not cancel crawl', error?.message || 'Please try again.');
+      } finally {
+        setCancelling(false);
+      }
+    });
   };
 
   const endSession = async () => {
@@ -1201,15 +1436,97 @@ export const RecordScreen = ({ navigation }: any) => {
                   <Lock color={colors.primary} size={20} />
                 </View>
                 <View style={styles.lockedPubText}>
-                  <Text style={styles.lockedPubLabel}>Drinking at</Text>
+                  <Text style={styles.lockedPubLabel}>
+                    {activeCrawl ? `Stop ${activeCrawl.activeStop?.stopOrder || 1}` : 'Drinking at'}
+                  </Text>
                   <Text style={styles.lockedPubName}>{activeSession.pub_name}</Text>
                 </View>
+                {!activeCrawl ? (
+                  <TouchableOpacity
+                    style={[
+                      styles.crawlConvertButton,
+                      convertingCrawl ? styles.crawlConvertButtonDisabled : null,
+                    ]}
+                    onPress={turnIntoPubCrawl}
+                    disabled={convertingCrawl}
+                    activeOpacity={0.78}
+                    accessibilityRole="button"
+                    accessibilityLabel="Turn into pub crawl"
+                  >
+                    {convertingCrawl ? (
+                      <ActivityIndicator color={colors.primary} size="small" />
+                    ) : (
+                      <Sparkles color={colors.primary} size={22} />
+                    )}
+                    <Text style={styles.crawlConvertKicker}>Turn into</Text>
+                    <Text style={styles.crawlConvertLabel}>Pub Crawl</Text>
+                  </TouchableOpacity>
+                ) : null}
               </View>
-              <View style={styles.startedRow}>
-                <Clock color={colors.textMuted} size={15} />
-                <Text style={styles.startedText}>{getStartedLabel(activeSession.started_at)}</Text>
-              </View>
+              
+              {activeCrawl && crawlPubAction === 'change' ? (
+                <View style={styles.crawlPubEditContainer}>
+                  <Text style={styles.sectionLabel}>Change Current Pub</Text>
+                  <AutocompleteInput
+                    value={crawlPubDraft}
+                    onChangeText={setCrawlPubDraft}
+                    onSelectItem={(label) => {
+                      const p = pubOptions.find(o => labelsMatchPub(label, o));
+                      if (p) setSelectedPub(p);
+                      setCrawlPubDraft(label);
+                    }}
+                    data={pubOptions.map(formatPubLabel)}
+                    placeholder="Search pub"
+                    icon={<MapPin color={colors.textMuted} size={20} />}
+                  />
+                  <View style={styles.crawlPubEditActions}>
+                    <TouchableOpacity onPress={() => setCrawlPubAction(null)} style={styles.cancelButton}>
+                      <Text style={styles.cancelText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <View style={styles.endButtonWrap}>
+                      <AppButton label="Save" onPress={handleChangeCurrentCrawlPub} loading={crawlBusy} />
+                    </View>
+                  </View>
+                </View>
+              ) : activeCrawl && !crawlPubAction ? (
+                <TouchableOpacity onPress={() => { setCrawlPubAction('change'); setCrawlPubDraft(activeSession.pub_name); }} style={styles.changePubButton}>
+                  <Text style={styles.changePubText}>Change Pub</Text>
+                </TouchableOpacity>
+              ) : null}
+
+              {!activeCrawl || !crawlPubAction ? (
+                <View style={styles.startedRow}>
+                  <Clock color={colors.textMuted} size={15} />
+                  <Text style={styles.startedText}>{getStartedLabel(activeSession.started_at)}</Text>
+                </View>
+              ) : null}
             </Surface>
+
+            {activeCrawl && crawlPubAction === 'next' ? (
+              <Surface style={styles.formSurface}>
+                <Text style={styles.sectionTitle}>Where to next?</Text>
+                <AutocompleteInput
+                  value={crawlPubDraft}
+                  onChangeText={setCrawlPubDraft}
+                  onSelectItem={(label) => {
+                    const p = pubOptions.find(o => labelsMatchPub(label, o));
+                    if (p) setSelectedPub(p);
+                    setCrawlPubDraft(label);
+                  }}
+                  data={pubOptions.map(formatPubLabel)}
+                  placeholder="Search next pub"
+                  icon={<MapPin color={colors.textMuted} size={20} />}
+                />
+                <View style={styles.crawlPubEditActions}>
+                  <TouchableOpacity onPress={() => { photoWarningBypassAction.current = null; setCrawlPubAction(null); }} style={styles.cancelButton}>
+                    <Text style={styles.cancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <View style={styles.endButtonWrap}>
+                    <AppButton label="Start Next Stop" onPress={handleNextCrawlStop} loading={crawlBusy} />
+                  </View>
+                </View>
+              </Surface>
+            ) : null}
 
             <Surface style={styles.formSurface}>
               <View style={styles.sectionHeader}>
@@ -1298,20 +1615,37 @@ export const RecordScreen = ({ navigation }: any) => {
                 ) : null}
               </TouchableOpacity>
 
+              {activeCrawl && crawlPubAction !== 'next' ? (
+                <View style={{ marginBottom: 12 }}>
+                  <AppButton label="Move to next bar" onPress={handleNextCrawlStop} loading={crawlBusy} />
+                </View>
+              ) : null}
+
               <View style={styles.endActions}>
                 <TouchableOpacity
                   style={styles.cancelButton}
-                  onPress={cancelSession}
+                  onPress={activeCrawl ? handleCancelCrawl : cancelSession}
                   disabled={cancelling}
                   activeOpacity={0.76}
                 >
                   <Text style={styles.cancelText}>{cancelling ? 'Cancelling...' : 'Cancel'}</Text>
                 </TouchableOpacity>
                 <View style={styles.endButtonWrap}>
-                  <AppButton label="End Session" onPress={endSession} loading={ending} />
+                  {activeCrawl ? (
+                    <AppButton
+                      label="End Pub Crawl"
+                      variant="danger"
+                      style={styles.pubCrawlEndButton}
+                      onPress={handleEndPubCrawl}
+                      loading={crawlBusy && photoWarningAction !== 'end'}
+                    />
+                  ) : (
+                    <AppButton label="End Session" onPress={endSession} loading={ending} />
+                  )}
                 </View>
               </View>
             </Surface>
+
           </>
         )}
       </View>
@@ -1328,6 +1662,56 @@ export const RecordScreen = ({ navigation }: any) => {
         onUsePub={useRoulettePub}
         onStartHere={startRouletteSession}
       />
+
+      <Modal
+        visible={!!photoWarningAction}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPhotoWarningAction(null)}
+      >
+        <View style={styles.photoChoiceBackdrop}>
+          <View style={styles.photoChoiceSheet}>
+            <View style={styles.photoChoiceHeader}>
+              <Text style={styles.photoChoiceTitle}>No Photo Added</Text>
+              <TouchableOpacity
+                style={styles.photoChoiceClose}
+                onPress={() => setPhotoWarningAction(null)}
+                hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+              >
+                <X color={colors.text} size={22} />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={[styles.sectionLabel, { marginBottom: 12 }]}>
+              Are you sure you want to move on without a photo?
+            </Text>
+
+            <TouchableOpacity style={styles.photoChoiceOption} onPress={() => { photoWarningBypassAction.current = null; setPhotoWarningAction(null); setPhotoChoiceVisible(true); }} activeOpacity={0.76}>
+              <View style={styles.photoChoiceIcon}>
+                <Camera color={colors.primary} size={22} />
+              </View>
+              <View style={styles.photoChoiceText}>
+                <Text style={styles.photoChoiceLabel}>Add Photo</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.photoChoiceOption} onPress={() => {
+              const action = photoWarningAction;
+              setPhotoWarningAction(null);
+              photoWarningBypassAction.current = action;
+              if (action === 'next') handleNextCrawlStop();
+              else if (action === 'end') handleEndPubCrawl();
+            }} activeOpacity={0.76}>
+              <View style={[styles.photoChoiceIcon, {backgroundColor: colors.surface}]}>
+                <CheckCircle2 color={colors.textMuted} size={22} />
+              </View>
+              <View style={styles.photoChoiceText}>
+                <Text style={styles.photoChoiceLabel}>Move On</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <Modal
         visible={photoChoiceVisible}
@@ -1625,6 +2009,7 @@ const styles = StyleSheet.create({
   lockedPubHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 12,
   },
   lockedPubIcon: {
@@ -1649,6 +2034,35 @@ const styles = StyleSheet.create({
   lockedPubName: {
     ...typography.h3,
     marginTop: 2,
+  },
+  crawlConvertButton: {
+    width: 104,
+    minHeight: 104,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    gap: 4,
+  },
+  crawlConvertButtonDisabled: {
+    opacity: 0.68,
+  },
+  crawlConvertKicker: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  crawlConvertLabel: {
+    ...typography.caption,
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '900',
+    textAlign: 'center',
   },
   startedRow: {
     flexDirection: 'row',
@@ -1824,6 +2238,10 @@ const styles = StyleSheet.create({
   endButtonWrap: {
     flex: 1,
   },
+  pubCrawlEndButton: {
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    borderColor: 'rgba(239, 68, 68, 0.46)',
+  },
   photoChoiceBackdrop: {
     flex: 1,
     backgroundColor: colors.overlay,
@@ -1885,5 +2303,23 @@ const styles = StyleSheet.create({
   photoChoiceHint: {
     ...typography.caption,
     marginTop: 3,
+  },
+  crawlPubEditContainer: {
+    marginTop: 4,
+    gap: 12,
+  },
+  crawlPubEditActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  changePubButton: {
+    alignSelf: 'flex-start',
+    paddingVertical: 4,
+  },
+  changePubText: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: '800',
   },
 });

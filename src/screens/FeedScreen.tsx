@@ -17,8 +17,12 @@ import { EmptyIllustration } from '../components/EmptyIllustration';
 import { getBeerLine, getSessionBeerSummary, SessionBeer } from '../lib/sessionBeers';
 import { getVolumeMl, TrophyDefinition } from '../lib/profileStats';
 import { TrophyUnlockModal } from '../components/TrophyUnlockModal';
+import { ImageViewerModal } from '../components/ImageViewerModal';
 import { openMaps } from '../lib/maps';
 import { getErrorMessage, withTimeout } from '../lib/timeouts';
+import { PubCrawlFeedCard } from '../components/PubCrawlFeedCard';
+import { PubCrawl, PubCrawlComment } from '../lib/pubCrawls';
+import { fetchPublishedPubCrawlsForFeedPage, togglePubCrawlCheers, addPubCrawlComment } from '../lib/pubCrawlsApi';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
 const cheersLogoSource = Platform.OS === 'web' ? { uri: '/beerva-icon-192.png' } : beervaLogo;
@@ -77,6 +81,18 @@ type FeedSession = {
   cheers_count: number;
   has_cheered: boolean;
 };
+
+export type FeedItem =
+  | { type: 'session'; id: string; publishedAt: string; session: FeedSession }
+  | { type: 'pub_crawl'; id: string; publishedAt: string; crawl: PubCrawl };
+
+const isPubCrawlPost = (item: FeedSession | PubCrawl): item is PubCrawl => (
+  'userId' in item && 'stops' in item
+);
+
+const sortFeedItemsByPublishedAt = (items: FeedItem[]) => (
+  [...items].sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
+);
 
 const PULL_REFRESH_THRESHOLD = 65;
 const PULL_MAX_DISTANCE = 110;
@@ -242,6 +258,7 @@ type FeedSessionCardProps = {
   onOpenCheers: (session: FeedSession) => void;
   onOpenComments: (session: FeedSession) => void;
   onOpenProfile: (userId: string) => void;
+  onImagePress: (url: string) => void;
   onToggleCheers: (session: FeedSession) => void;
 };
 
@@ -254,6 +271,7 @@ const FeedSessionCard = React.memo(({
   onOpenCheers,
   onOpenComments,
   onOpenProfile,
+  onImagePress,
   onToggleCheers,
 }: FeedSessionCardProps) => {
   const isOwnPost = item.user_id === currentUserId;
@@ -275,6 +293,13 @@ const FeedSessionCard = React.memo(({
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
   const overlayScale = React.useRef(new Animated.Value(0.6)).current;
   const lastTapRef = React.useRef(0);
+  const pendingImageOpenRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  React.useEffect(() => () => {
+    if (pendingImageOpenRef.current) {
+      clearTimeout(pendingImageOpenRef.current);
+    }
+  }, []);
 
   const playOverlay = React.useCallback(() => {
     overlayOpacity.setValue(0);
@@ -306,9 +331,15 @@ const FeedSessionCard = React.memo(({
   }, []);
 
   const handleImagePress = React.useCallback(() => {
+    if (!item.image_url) return;
+
     const now = Date.now();
     if (now - lastTapRef.current < 280) {
       lastTapRef.current = 0;
+      if (pendingImageOpenRef.current) {
+        clearTimeout(pendingImageOpenRef.current);
+        pendingImageOpenRef.current = null;
+      }
       if (isOwnPost || !currentUserId || item.has_cheered) {
         playOverlay();
         return;
@@ -317,8 +348,16 @@ const FeedSessionCard = React.memo(({
       triggerCheers();
     } else {
       lastTapRef.current = now;
+      if (pendingImageOpenRef.current) {
+        clearTimeout(pendingImageOpenRef.current);
+      }
+      pendingImageOpenRef.current = setTimeout(() => {
+        pendingImageOpenRef.current = null;
+        lastTapRef.current = 0;
+        onImagePress(item.image_url as string);
+      }, 280);
     }
-  }, [currentUserId, isOwnPost, item.has_cheered, playOverlay, triggerCheers]);
+  }, [currentUserId, isOwnPost, item.has_cheered, item.image_url, onImagePress, playOverlay, triggerCheers]);
 
   return (
     <Surface padded={false} style={styles.card}>
@@ -375,8 +414,8 @@ const FeedSessionCard = React.memo(({
           onPress={handleImagePress}
           style={({ pressed }) => [styles.imagePressable, pressed ? styles.imagePressed : null]}
           accessibilityRole="button"
-          accessibilityLabel={`Double tap to cheer ${username}'s session photo`}
-          accessibilityHint="Press twice quickly to give cheers"
+          accessibilityLabel={`Open ${username}'s session photo`}
+          accessibilityHint="Tap to view the full image. Press twice quickly to give cheers."
         >
           <View style={styles.imageWrap}>
             <CachedImage
@@ -553,7 +592,7 @@ const FeedSessionCard = React.memo(({
 
 export const FeedScreen = ({ route }: any) => {
   const navigation = useNavigation<any>();
-  const [sessions, setSessions] = useState<FeedSession[]>([]);
+  const [sessions, setSessions] = useState<FeedItem[]>([]);
   const [unlockedTrophies, setUnlockedTrophies] = useState<TrophyDefinition[]>([]);
   const newlyUnlockedTrophies = route?.params?.newlyUnlockedTrophies;
 
@@ -570,14 +609,17 @@ export const FeedScreen = ({ route }: any) => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [cheeringSessionIds, setCheeringSessionIds] = useState<Set<string>>(() => new Set());
-  const [commentingSession, setCommentingSession] = useState<FeedSession | null>(null);
-  const [cheersSession, setCheersSession] = useState<FeedSession | null>(null);
+  const [commentingSession, setCommentingSession] = useState<FeedSession | PubCrawl | null>(null);
+  const [cheersSession, setCheersSession] = useState<FeedSession | PubCrawl | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
+  const [viewingImageUrl, setViewingImageUrl] = useState<string | null>(null);
   const [submittingComment, setSubmittingComment] = useState(false);
   const { unreadCount } = useNotifications();
   const [pullDistance, setPullDistance] = useState(0);
   const [fetchError, setFetchError] = useState<string | null>(null);
-  const sessionsRef = useRef<FeedSession[]>([]);
+  const sessionsRef = useRef<FeedItem[]>([]);
+  const loadedSessionCountRef = useRef(0);
+  const loadedCrawlCountRef = useRef(0);
   const hasMoreRef = useRef(true);
   const loadingMoreRef = useRef(false);
   const refreshingRef = useRef(false);
@@ -607,7 +649,8 @@ export const FeedScreen = ({ route }: any) => {
       return;
     }
 
-    const offset = reset ? 0 : sessionsRef.current.length;
+    const sessionOffset = reset ? 0 : loadedSessionCountRef.current;
+    const crawlOffset = reset ? 0 : loadedCrawlCountRef.current;
     const requestId = latestRequestIdRef.current + 1;
     latestRequestIdRef.current = requestId;
     const isLatestRequest = () => requestId === latestRequestIdRef.current;
@@ -637,6 +680,8 @@ export const FeedScreen = ({ route }: any) => {
         if (!isLatestRequest()) return;
         setSessions([]);
         sessionsRef.current = [];
+        loadedSessionCountRef.current = 0;
+        loadedCrawlCountRef.current = 0;
         setFollowedUserCount(0);
         setHasMore(false);
         hasMoreRef.current = false;
@@ -661,41 +706,49 @@ export const FeedScreen = ({ route }: any) => {
       const feedUserIds = Array.from(new Set([user.id, ...followingIds]));
       setFollowedUserCount(followingIds.length);
 
-      const { data, error } = await withTimeout(
-        supabase
-          .from('sessions')
-          .select(`
-            id,
-            user_id,
-            pub_id,
-            pub_name,
-            beer_name,
-            volume,
-            quantity,
-            abv,
-            comment,
-            image_url,
-            status,
-            started_at,
-            ended_at,
-            published_at,
-            edited_at,
-            created_at
-          `)
-          .in('user_id', feedUserIds)
-          .eq('status', 'published')
-          .order('published_at', { ascending: false, nullsFirst: false })
-          .range(offset, offset + FEED_PAGE_SIZE),
+      const [sessionsResult, crawlsResult] = await withTimeout(
+        Promise.all([
+          supabase
+            .from('sessions')
+            .select(`
+              id,
+              user_id,
+              pub_id,
+              pub_name,
+              beer_name,
+              volume,
+              quantity,
+              abv,
+              comment,
+              image_url,
+              status,
+              started_at,
+              ended_at,
+              published_at,
+              edited_at,
+              created_at,
+              hide_from_feed
+            `)
+            .in('user_id', feedUserIds)
+            .eq('status', 'published')
+            .eq('hide_from_feed', false)
+            .order('published_at', { ascending: false, nullsFirst: false })
+            .range(sessionOffset, sessionOffset + FEED_PAGE_SIZE),
+          fetchPublishedPubCrawlsForFeedPage(feedUserIds, FEED_PAGE_SIZE, crawlOffset)
+        ]),
         FEED_REQUEST_TIMEOUT_MS,
-        'Feed sessions are taking too long.'
+        'Feed items are taking too long.'
       );
 
-      if (error) throw error;
+      if (sessionsResult.error) throw sessionsResult.error;
       if (!isLatestRequest()) return;
 
-      const rawRows = (data || []) as any[];
-      const hasNextPage = rawRows.length > FEED_PAGE_SIZE;
+      const rawRows = (sessionsResult.data || []) as any[];
+      const hasNextPage = rawRows.length > FEED_PAGE_SIZE || crawlsResult.hasMore;
       const sessionRows = rawRows.slice(0, FEED_PAGE_SIZE);
+      const crawls = crawlsResult.crawls;
+      loadedSessionCountRef.current = sessionOffset + sessionRows.length;
+      loadedCrawlCountRef.current = crawlOffset + crawlsResult.loadedCount;
       setHasMore(hasNextPage);
       hasMoreRef.current = hasNextPage;
 
@@ -802,7 +855,7 @@ export const FeedScreen = ({ route }: any) => {
         return acc;
       }, new Map<string, FeedComment[]>());
 
-      const pageSessions = sessionRows.map((session) => {
+      const pageSessions = sessionRows.map((session): FeedItem => {
         const sessionCheers = cheersBySession.get(session.id) || [];
         const sessionComments = commentsBySession.get(session.id) || [];
         const sessionBeers = beersBySession.get(session.id) || (
@@ -819,19 +872,39 @@ export const FeedScreen = ({ route }: any) => {
         );
 
         return {
-          ...session,
-          session_beers: sessionBeers,
-          profiles: profilesById.get(session.user_id) || null,
-          cheer_profiles: sessionCheers.map((cheer) => profilesById.get(cheer.user_id)).filter(Boolean) as ProfilePreview[],
-          comments: sessionComments,
-          comments_count: sessionComments.length,
-          cheers_count: sessionCheers.length,
-          has_cheered: user ? sessionCheers.some((cheer) => cheer.user_id === user.id) : false,
+          type: 'session',
+          id: session.id,
+          publishedAt: session.published_at || session.created_at,
+          session: {
+            ...session,
+            session_beers: sessionBeers,
+            profiles: profilesById.get(session.user_id) || null,
+            cheer_profiles: sessionCheers.map((cheer) => profilesById.get(cheer.user_id)).filter(Boolean) as ProfilePreview[],
+            comments: sessionComments,
+            comments_count: sessionComments.length,
+            cheers_count: sessionCheers.length,
+            has_cheered: user ? sessionCheers.some((cheer) => cheer.user_id === user.id) : false,
+          }
         };
       });
 
+      const pageCrawls = crawls.map((crawl): FeedItem => ({
+        type: 'pub_crawl',
+        id: crawl.id,
+        publishedAt: crawl.publishedAt || crawl.createdAt || '',
+        crawl: {
+          ...crawl,
+          has_cheered: user ? crawl.cheerProfiles.some(p => p.id === user.id) : false
+        } as any, // cheating types slightly
+      }));
+
+      const merged = sortFeedItemsByPublishedAt([...pageSessions, ...pageCrawls]);
+
       setSessions((previous) => {
-        const nextSessions = reset ? pageSessions : [...previous, ...pageSessions];
+        // If not reset, we need to filter out duplicates if crawls overlap
+        const existingIds = new Set(previous.map(p => p.id));
+        const uniqueMerged = merged.filter(m => !existingIds.has(m.id));
+        const nextSessions = reset ? merged : sortFeedItemsByPublishedAt([...previous, ...uniqueMerged]);
         sessionsRef.current = nextSessions;
         return nextSessions;
       });
@@ -954,7 +1027,7 @@ export const FeedScreen = ({ route }: any) => {
     navigation.navigate('People');
   }, [navigation]);
 
-  const openComments = useCallback((session: FeedSession) => {
+  const openComments = useCallback((session: FeedSession | PubCrawl) => {
     setCommentingSession(session);
     setCommentDraft('');
   }, []);
@@ -965,7 +1038,7 @@ export const FeedScreen = ({ route }: any) => {
     setSubmittingComment(false);
   }, []);
 
-  const openCheers = useCallback((session: FeedSession) => {
+  const openCheers = useCallback((session: FeedSession | PubCrawl) => {
     setCheersSession(session);
   }, []);
 
@@ -979,6 +1052,82 @@ export const FeedScreen = ({ route }: any) => {
 
     setSubmittingComment(true);
     try {
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url')
+        .eq('id', currentUserId)
+        .maybeSingle();
+
+      if (profileError) {
+        console.error('Comment profile fetch error:', profileError);
+      }
+
+      const currentProfile: ProfilePreview | null = profileData
+        ? {
+            id: profileData.id,
+            username: profileData.username,
+            avatar_url: profileData.avatar_url,
+          }
+        : null;
+
+      if (isPubCrawlPost(commentingSession)) {
+        const data = await addPubCrawlComment(commentingSession.id, cleanComment);
+        const nextComment: PubCrawlComment = {
+          id: data.id,
+          crawlId: data.pub_crawl_id,
+          userId: data.user_id,
+          body: data.body,
+          createdAt: data.created_at,
+          updatedAt: data.updated_at,
+          profile: currentProfile
+            ? {
+                id: currentProfile.id,
+                username: currentProfile.username || null,
+                avatarUrl: currentProfile.avatar_url || null,
+              }
+            : null,
+        };
+
+        setSessions((previous) => {
+          const nextSessions = previous.map((feedItem) => {
+            if (feedItem.type !== 'pub_crawl' || feedItem.id !== commentingSession.id) return feedItem;
+            return {
+              ...feedItem,
+              crawl: {
+                ...feedItem.crawl,
+                comments: [...feedItem.crawl.comments, nextComment],
+                commentsCount: feedItem.crawl.commentsCount + 1,
+              },
+            };
+          });
+          sessionsRef.current = nextSessions;
+          return nextSessions;
+        });
+
+        setCommentingSession((current) => {
+          if (!current || !isPubCrawlPost(current) || current.id !== commentingSession.id) return current;
+          return {
+            ...current,
+            comments: [...current.comments, nextComment],
+            commentsCount: current.commentsCount + 1,
+          };
+        });
+
+        setCommentDraft('');
+        hapticLight();
+
+        if (commentingSession.userId !== currentUserId) {
+          const { error: notifError } = await supabase.from('notifications').insert({
+            user_id: commentingSession.userId,
+            actor_id: currentUserId,
+            type: 'comment',
+            reference_id: commentingSession.id,
+          });
+          if (notifError) console.error('Comment notification insert error:', notifError);
+        }
+        return;
+      }
+
       const { data, error } = await supabase
         .from('session_comments')
         .insert({
@@ -991,55 +1140,40 @@ export const FeedScreen = ({ route }: any) => {
 
       if (error) throw error;
 
-      let currentProfile: ProfilePreview | null = null;
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, username, avatar_url')
-        .eq('id', currentUserId)
-        .maybeSingle();
-
-      if (profileError) {
-        console.error('Comment profile fetch error:', profileError);
-      } else if (profileData) {
-        currentProfile = {
-          id: profileData.id,
-          username: profileData.username,
-          avatar_url: profileData.avatar_url,
-        };
-      }
-
       const nextComment: FeedComment = {
         ...(data as Omit<FeedComment, 'profiles'>),
         profiles: currentProfile,
       };
 
       setSessions((previous) => {
-        const nextSessions = previous.map((session) => (
-          session.id === commentingSession.id
-            ? {
-                ...session,
-                comments: [...session.comments, nextComment],
-                comments_count: session.comments_count + 1,
-              }
-            : session
-        ));
+        const nextSessions = previous.map((feedItem) => {
+          if (feedItem.type !== 'session' || feedItem.id !== commentingSession.id) return feedItem;
+          return {
+            ...feedItem,
+            session: {
+              ...feedItem.session,
+              comments: [...feedItem.session.comments, nextComment],
+              comments_count: feedItem.session.comments_count + 1,
+            }
+          };
+        });
         sessionsRef.current = nextSessions;
         return nextSessions;
       });
 
-      setCommentingSession((current) => (
-        current?.id === commentingSession.id
-          ? {
-              ...current,
-              comments: [...current.comments, nextComment],
-              comments_count: current.comments_count + 1,
-            }
-          : current
-      ));
+      setCommentingSession((current) => {
+        if (!current || ('crawlId' in nextComment)) return current;
+        if (current.id !== commentingSession.id) return current;
+        return {
+          ...current,
+          comments: [...(current as FeedSession).comments, nextComment],
+          comments_count: (current as FeedSession).comments_count + 1,
+        } as FeedSession;
+      });
       setCommentDraft('');
       hapticLight();
 
-      if (commentingSession.user_id !== currentUserId) {
+      if ('user_id' in commentingSession && commentingSession.user_id !== currentUserId) {
         const { error: notifError } = await supabase.from('notifications').insert({
           user_id: commentingSession.user_id,
           actor_id: currentUserId,
@@ -1072,16 +1206,19 @@ export const FeedScreen = ({ route }: any) => {
     setCheeringSessionIds(pendingCheers);
 
     setSessions((previous) => {
-      const nextSessions = previous.map((session) => {
-        if (session.id !== item.id) return session;
+      const nextSessions = previous.map((feedItem) => {
+        if (feedItem.type !== 'session' || feedItem.id !== item.id) return feedItem;
 
         return {
-          ...session,
-          has_cheered: nextHasCheered,
-          cheers_count: Math.max(0, previousCheersCount + (nextHasCheered ? 1 : -1)),
-          cheer_profiles: nextHasCheered
-            ? session.cheer_profiles
-            : session.cheer_profiles.filter((profile) => profile.id !== currentUserId),
+          ...feedItem,
+          session: {
+            ...feedItem.session,
+            has_cheered: nextHasCheered,
+            cheers_count: Math.max(0, previousCheersCount + (nextHasCheered ? 1 : -1)),
+            cheer_profiles: nextHasCheered
+              ? feedItem.session.cheer_profiles
+              : feedItem.session.cheer_profiles.filter((profile: any) => profile.id !== currentUserId),
+          }
         };
       });
       sessionsRef.current = nextSessions;
@@ -1114,19 +1251,28 @@ export const FeedScreen = ({ route }: any) => {
             avatar_url: profileData.avatar_url,
           };
           setSessions((previous) => {
-            const nextSessions = previous.map((session) => (
-              session.id === item.id && !session.cheer_profiles.some((profile) => profile.id === cheerProfile.id)
-                ? { ...session, cheer_profiles: [...session.cheer_profiles, cheerProfile] }
-                : session
-            ));
+            const nextSessions = previous.map((feedItem) => {
+              if (feedItem.type !== 'session' || feedItem.id !== item.id) return feedItem;
+              if (feedItem.session.cheer_profiles.some((profile: any) => profile.id === cheerProfile.id)) return feedItem;
+              return {
+                ...feedItem,
+                session: {
+                  ...feedItem.session,
+                  cheer_profiles: [...feedItem.session.cheer_profiles, cheerProfile],
+                }
+              };
+            });
             sessionsRef.current = nextSessions;
             return nextSessions;
           });
-          setCheersSession((current) => (
-            current?.id === item.id && !current.cheer_profiles.some((profile) => profile.id === cheerProfile.id)
-              ? { ...current, cheer_profiles: [...current.cheer_profiles, cheerProfile] }
-              : current
-          ));
+          setCheersSession((current) => {
+            if (!current || !('cheer_profiles' in current)) return current;
+            if (current.id !== item.id || current.cheer_profiles.some((profile: any) => profile.id === cheerProfile.id)) return current;
+            return {
+              ...current,
+              cheer_profiles: [...current.cheer_profiles, cheerProfile],
+            } as FeedSession;
+          });
         }
 
         const { error: notifError } = await supabase.from('notifications').insert({
@@ -1152,35 +1298,40 @@ export const FeedScreen = ({ route }: any) => {
           .eq('type', 'cheer')
           .eq('reference_id', item.id);
 
-        setCheersSession((current) => (
-          current?.id === item.id
-            ? {
-                ...current,
-                cheer_profiles: current.cheer_profiles.filter((profile) => profile.id !== currentUserId),
-              }
-            : current
-        ));
+        setCheersSession((current) => {
+          if (!current || !('cheer_profiles' in current)) return current;
+          if (current.id !== item.id) return current;
+          return {
+            ...current,
+            cheer_profiles: current.cheer_profiles.filter((profile: any) => profile.id !== currentUserId),
+          } as FeedSession;
+        });
       }
     } catch (error: any) {
       setSessions((previous) => {
-        const nextSessions = previous.map((session) => (
-          session.id === item.id
-            ? {
-                ...session,
-                has_cheered: previousHasCheered,
-                cheers_count: previousCheersCount,
-                cheer_profiles: previousCheerProfiles,
-              }
-            : session
-        ));
+        const nextSessions = previous.map((feedItem) => {
+          if (feedItem.type !== 'session' || feedItem.id !== item.id) return feedItem;
+          return {
+            ...feedItem,
+            session: {
+              ...feedItem.session,
+              has_cheered: previousHasCheered,
+              cheers_count: previousCheersCount,
+              cheer_profiles: previousCheerProfiles,
+            }
+          };
+        });
         sessionsRef.current = nextSessions;
         return nextSessions;
       });
-      setCheersSession((current) => (
-        current?.id === item.id
-          ? { ...current, cheer_profiles: previousCheerProfiles }
-          : current
-      ));
+      setCheersSession((current) => {
+        if (!current || !('cheer_profiles' in current)) return current;
+        if (current.id !== item.id) return current;
+        return {
+          ...current,
+          cheer_profiles: previousCheerProfiles,
+        } as FeedSession;
+      });
       Alert.alert('Could not update cheers', error?.message || 'Please try again.');
     } finally {
       const nextPendingCheers = new Set(cheeringSessionIdsRef.current);
@@ -1211,6 +1362,7 @@ export const FeedScreen = ({ route }: any) => {
         sessionsRef.current = nextSessions;
         return nextSessions;
       });
+      loadedSessionCountRef.current = Math.max(0, loadedSessionCountRef.current - 1);
 
       if (session.image_url) {
         deletePublicImageUrl('session_images', session.image_url);
@@ -1255,21 +1407,123 @@ export const FeedScreen = ({ route }: any) => {
     );
   }, [loadingMore]);
 
-  const renderSession = useCallback(({ item }: { item: FeedSession }) => {
+  const toggleCrawlCheers = useCallback(async (crawl: PubCrawl) => {
+    if (!currentUserId || crawl.userId === currentUserId || cheeringSessionIdsRef.current.has(crawl.id)) {
+      return;
+    }
+
+    const pendingCheers = new Set(cheeringSessionIdsRef.current);
+    pendingCheers.add(crawl.id);
+    cheeringSessionIdsRef.current = pendingCheers;
+    setCheeringSessionIds(pendingCheers);
+
+    try {
+      const isNowCheered = await togglePubCrawlCheers(crawl, currentUserId);
+      let cheerProfile: { id: string; username: string | null; avatarUrl: string | null } = {
+        id: currentUserId,
+        username: null,
+        avatarUrl: null,
+      };
+
+      if (isNowCheered) {
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('id, username, avatar_url')
+          .eq('id', currentUserId)
+          .maybeSingle();
+
+        if (profileError) {
+          console.error('Pub crawl cheer profile fetch error:', profileError);
+        } else if (profileData) {
+          cheerProfile = {
+            id: profileData.id,
+            username: profileData.username || null,
+            avatarUrl: profileData.avatar_url || null,
+          };
+        }
+      }
+
+      setSessions((previous) => {
+        const nextSessions = previous.map((feedItem) => {
+          if (feedItem.type !== 'pub_crawl' || feedItem.id !== crawl.id) return feedItem;
+          const alreadyCheered = feedItem.crawl.cheerProfiles.some((profile) => profile.id === currentUserId);
+          const cheerProfiles = isNowCheered
+            ? (
+                alreadyCheered
+                  ? feedItem.crawl.cheerProfiles
+                  : [...feedItem.crawl.cheerProfiles, cheerProfile]
+              )
+            : feedItem.crawl.cheerProfiles.filter((profile) => profile.id !== currentUserId);
+
+          return {
+            ...feedItem,
+            crawl: {
+              ...feedItem.crawl,
+              cheersCount: Math.max(0, feedItem.crawl.cheersCount + (isNowCheered ? (alreadyCheered ? 0 : 1) : (alreadyCheered ? -1 : 0))),
+              cheerProfiles,
+            }
+          };
+        });
+        sessionsRef.current = nextSessions;
+        return nextSessions;
+      });
+
+      setCheersSession((current) => {
+        if (!current || !isPubCrawlPost(current) || current.id !== crawl.id) return current;
+        const alreadyCheered = current.cheerProfiles.some((profile) => profile.id === currentUserId);
+        return {
+          ...current,
+          cheersCount: Math.max(0, current.cheersCount + (isNowCheered ? (alreadyCheered ? 0 : 1) : (alreadyCheered ? -1 : 0))),
+          cheerProfiles: isNowCheered
+            ? (
+                alreadyCheered
+                  ? current.cheerProfiles
+                  : [...current.cheerProfiles, cheerProfile]
+              )
+            : current.cheerProfiles.filter((profile) => profile.id !== currentUserId),
+        };
+      });
+    } catch (e: any) {
+      Alert.alert('Could not update cheers', e?.message || 'Please try again.');
+    } finally {
+      const nextPendingCheers = new Set(cheeringSessionIdsRef.current);
+      nextPendingCheers.delete(crawl.id);
+      cheeringSessionIdsRef.current = nextPendingCheers;
+      setCheeringSessionIds(nextPendingCheers);
+    }
+  }, [currentUserId]);
+
+  const renderSession = useCallback(({ item }: { item: FeedItem }) => {
+    if (item.type === 'pub_crawl') {
+      return (
+        <PubCrawlFeedCard
+          crawl={item.crawl}
+          currentUserId={currentUserId}
+          isCheering={cheeringSessionIds.has(item.id)}
+          onToggleCheer={toggleCrawlCheers}
+          onOpenComments={openComments}
+          onOpenCheers={openCheers}
+          onOpenProfile={openProfile}
+          onImagePress={setViewingImageUrl}
+        />
+      );
+    }
+
     return (
       <FeedSessionCard
-        item={item}
+        item={item.session}
         currentUserId={currentUserId}
         isCheering={cheeringSessionIds.has(item.id)}
         onDeleteSession={deleteSession}
         onEditSession={editSession}
         onOpenCheers={openCheers}
-        onOpenComments={openComments}
+        onOpenComments={openComments as any}
         onOpenProfile={openProfile}
+        onImagePress={setViewingImageUrl}
         onToggleCheers={toggleCheers}
       />
     );
-  }, [cheeringSessionIds, currentUserId, deleteSession, editSession, openCheers, openComments, openProfile, toggleCheers]);
+  }, [cheeringSessionIds, currentUserId, deleteSession, editSession, openCheers, openComments, openProfile, toggleCheers, toggleCrawlCheers]);
 
   return (
     <View style={styles.container}>
@@ -1361,118 +1615,140 @@ export const FeedScreen = ({ route }: any) => {
         />
       )}
 
-      <Modal
-        visible={Boolean(cheersSession)}
-        transparent
-        animationType="fade"
-        onRequestClose={closeCheers}
-      >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Cheers</Text>
-              <TouchableOpacity style={styles.modalCloseButton} onPress={closeCheers}>
-                <X color={colors.text} size={21} />
-              </TouchableOpacity>
-            </View>
-            <FlatList
-              data={cheersSession?.cheer_profiles || []}
-              keyExtractor={(item) => item.id}
-              style={styles.modalList}
-              contentContainerStyle={[
-                styles.modalListContent,
-                !cheersSession?.cheer_profiles.length ? styles.modalEmptyContent : null,
-              ]}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.personRow}
-                  onPress={() => {
-                    closeCheers();
-                    openProfile(item.id);
-                  }}
-                  activeOpacity={0.75}
-                >
-                  <CachedImage
-                    uri={item.avatar_url}
-                    fallbackUri={`https://i.pravatar.cc/150?u=${item.id}`}
-                    style={styles.personAvatar}
-                    recyclingKey={`cheer-${item.id}-${item.avatar_url || 'fallback'}`}
-                    accessibilityLabel={`${item.username || 'Someone'}'s avatar`}
-                  />
-                  <View style={styles.personText}>
-                    <Text style={styles.personName}>{item.username || 'Someone'}</Text>
-                    <Text style={styles.personMeta}>Gave cheers</Text>
-                  </View>
-                </TouchableOpacity>
-              )}
-              ListEmptyComponent={
-                <View style={styles.modalEmptyState}>
-                  <Image source={beervaLogo} style={styles.modalEmptyLogo} />
-                  <Text style={styles.modalEmptyText}>No cheers yet.</Text>
-                </View>
-              }
-            />
-          </View>
-        </View>
-      </Modal>
+      <ImageViewerModal
+        visible={Boolean(viewingImageUrl)}
+        imageUrl={viewingImageUrl}
+        onClose={() => setViewingImageUrl(null)}
+      />
 
-      <Modal
-        visible={Boolean(commentingSession)}
-        transparent
-        animationType="fade"
-        onRequestClose={closeComments}
-      >
-        <KeyboardAvoidingView
-          style={styles.modalBackdrop}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
-          <View style={styles.modalSheet}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Comments</Text>
-              <TouchableOpacity style={styles.modalCloseButton} onPress={closeComments}>
-                <X color={colors.text} size={21} />
-              </TouchableOpacity>
-            </View>
-            <FlatList
-              data={commentingSession?.comments || []}
-              keyExtractor={(item) => item.id}
-              style={styles.modalList}
-              contentContainerStyle={[
-                styles.modalListContent,
-                !commentingSession?.comments.length ? styles.modalEmptyContent : null,
-              ]}
-              renderItem={({ item }) => (
-                <View style={styles.commentRow}>
-                  <TouchableOpacity
-                    onPress={() => {
-                      closeComments();
-                      openProfile(item.user_id);
-                    }}
-                    activeOpacity={0.75}
-                  >
-                    <CachedImage
-                      uri={item.profiles?.avatar_url}
-                      fallbackUri={`https://i.pravatar.cc/150?u=${item.user_id}`}
-                      style={styles.commentAvatar}
-                      recyclingKey={`comment-${item.id}-${item.profiles?.avatar_url || 'fallback'}`}
-                      accessibilityLabel={`${item.profiles?.username || 'Someone'}'s avatar`}
-                    />
+      {(() => {
+        const normalizedCheers = cheersSession 
+          ? ('cheerProfiles' in cheersSession 
+              ? (cheersSession.cheerProfiles as any[]).map(p => ({ id: p.id, username: p.username, avatar_url: p.avatarUrl } as ProfilePreview)) 
+              : cheersSession.cheer_profiles) 
+          : [];
+        return (
+          <Modal
+            visible={Boolean(cheersSession)}
+            transparent
+            animationType="fade"
+            onRequestClose={closeCheers}
+          >
+            <View style={styles.modalBackdrop}>
+              <View style={styles.modalSheet}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Cheers</Text>
+                  <TouchableOpacity style={styles.modalCloseButton} onPress={closeCheers}>
+                    <X color={colors.text} size={21} />
                   </TouchableOpacity>
-                  <View style={styles.commentBubble}>
-                    <Text style={styles.commentBubbleName}>{item.profiles?.username || 'Someone'}</Text>
-                    <Text style={styles.commentBubbleText}>{item.body}</Text>
-                    <Text style={styles.commentTime}>{getTimeAgo(item.created_at)}</Text>
-                  </View>
                 </View>
-              )}
-              ListEmptyComponent={
-                <View style={styles.modalEmptyState}>
-                  <MessageCircle color={colors.textMuted} size={28} />
-                  <Text style={styles.modalEmptyText}>No comments yet.</Text>
+                <FlatList
+                  data={normalizedCheers as any}
+                  keyExtractor={(item: any) => item.id}
+                  style={styles.modalList}
+                  contentContainerStyle={[
+                    styles.modalListContent,
+                    !normalizedCheers.length ? styles.modalEmptyContent : null,
+                  ]}
+                  renderItem={({ item }: { item: any }) => (
+                    <TouchableOpacity
+                      style={styles.personRow}
+                      onPress={() => {
+                        closeCheers();
+                        openProfile(item.id);
+                      }}
+                      activeOpacity={0.75}
+                    >
+                      <CachedImage
+                        uri={item.avatar_url}
+                        fallbackUri={`https://i.pravatar.cc/150?u=${item.id}`}
+                        style={styles.personAvatar}
+                        recyclingKey={`cheer-${item.id}-${item.avatar_url || 'fallback'}`}
+                        accessibilityLabel={`${item.username || 'Someone'}'s avatar`}
+                      />
+                      <View style={styles.personText}>
+                        <Text style={styles.personName}>{item.username || 'Someone'}</Text>
+                        <Text style={styles.personMeta}>Gave cheers</Text>
+                      </View>
+                    </TouchableOpacity>
+                  )}
+                  ListEmptyComponent={
+                    <View style={styles.modalEmptyState}>
+                      <Image source={beervaLogo} style={styles.modalEmptyLogo} />
+                      <Text style={styles.modalEmptyText}>No cheers yet.</Text>
+                    </View>
+                  }
+                />
+              </View>
+            </View>
+          </Modal>
+        );
+      })()}
+
+      {(() => {
+        const normalizedComments = commentingSession 
+          ? (isPubCrawlPost(commentingSession)
+              ? (commentingSession.comments as any[]).map(c => ({ id: c.id, user_id: c.userId, body: c.body, created_at: c.createdAt, profiles: c.profile ? { id: c.profile.id, username: c.profile.username, avatar_url: c.profile.avatarUrl } : null } as FeedComment))
+              : commentingSession.comments) 
+          : [];
+        return (
+          <Modal
+            visible={Boolean(commentingSession)}
+            transparent
+            animationType="fade"
+            onRequestClose={closeComments}
+          >
+            <KeyboardAvoidingView
+              style={styles.modalBackdrop}
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            >
+              <View style={styles.modalSheet}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Comments</Text>
+                  <TouchableOpacity style={styles.modalCloseButton} onPress={closeComments}>
+                    <X color={colors.text} size={21} />
+                  </TouchableOpacity>
                 </View>
-              }
-            />
-            <View style={styles.commentComposer}>
+                <FlatList
+                  data={normalizedComments as any}
+                  keyExtractor={(item: any) => item.id}
+                  style={styles.modalList}
+                  contentContainerStyle={[
+                    styles.modalListContent,
+                    !normalizedComments.length ? styles.modalEmptyContent : null,
+                  ]}
+                  renderItem={({ item }: { item: any }) => (
+                    <View style={styles.commentRow}>
+                      <TouchableOpacity
+                        onPress={() => {
+                          closeComments();
+                          openProfile(item.user_id);
+                        }}
+                        activeOpacity={0.75}
+                      >
+                        <CachedImage
+                          uri={item.profiles?.avatar_url}
+                          fallbackUri={`https://i.pravatar.cc/150?u=${item.user_id}`}
+                          style={styles.commentAvatar}
+                          recyclingKey={`comment-${item.id}-${item.profiles?.avatar_url || 'fallback'}`}
+                          accessibilityLabel={`${item.profiles?.username || 'Someone'}'s avatar`}
+                        />
+                      </TouchableOpacity>
+                      <View style={styles.commentBubble}>
+                        <Text style={styles.commentBubbleName}>{item.profiles?.username || 'Someone'}</Text>
+                        <Text style={styles.commentBubbleText}>{item.body}</Text>
+                        <Text style={styles.commentTime}>{getTimeAgo(item.created_at)}</Text>
+                      </View>
+                    </View>
+                  )}
+                  ListEmptyComponent={
+                    <View style={styles.modalEmptyState}>
+                      <MessageCircle color={colors.textMuted} size={28} />
+                      <Text style={styles.modalEmptyText}>No comments yet.</Text>
+                    </View>
+                  }
+                />
+                <View style={styles.commentComposer}>
               <TextInput
                 style={styles.commentComposerInput}
                 value={commentDraft}
@@ -1482,27 +1758,29 @@ export const FeedScreen = ({ route }: any) => {
                 maxLength={500}
                 multiline
               />
-              <TouchableOpacity
-                style={[
-                  styles.commentSendButton,
-                  (!commentDraft.trim() || submittingComment) ? styles.commentSendButtonDisabled : null,
-                ]}
-                onPress={submitComment}
-                disabled={!commentDraft.trim() || submittingComment}
-                activeOpacity={0.75}
-                accessibilityRole="button"
-                accessibilityLabel="Post comment"
-              >
-                {submittingComment ? (
-                  <ActivityIndicator color={colors.background} size="small" />
-                ) : (
-                  <Send color={colors.background} size={18} />
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+                  <TouchableOpacity
+                    style={[
+                      styles.commentSendButton,
+                      (!commentDraft.trim() || submittingComment) ? styles.commentSendButtonDisabled : null,
+                    ]}
+                    onPress={submitComment}
+                    disabled={!commentDraft.trim() || submittingComment}
+                    activeOpacity={0.75}
+                    accessibilityRole="button"
+                    accessibilityLabel="Post comment"
+                  >
+                    {submittingComment ? (
+                      <ActivityIndicator color={colors.background} size="small" />
+                    ) : (
+                      <Send color={colors.background} size={18} />
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </KeyboardAvoidingView>
+          </Modal>
+        );
+      })()}
     </View>
   );
 };
