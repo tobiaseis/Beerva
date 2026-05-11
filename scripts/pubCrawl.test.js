@@ -25,9 +25,11 @@ const loadTypeScriptModule = (relativePath) => {
 
 const helpersPath = 'src/lib/pubCrawls.ts';
 const mapPath = 'src/lib/staticRouteMap.ts';
+const routeMapPath = 'src/components/PubCrawlRouteMap.tsx';
 const mediaCarouselPath = 'src/components/PubCrawlMediaCarousel.tsx';
 const feedCardPath = 'src/components/PubCrawlFeedCard.tsx';
 const feedScreenPath = 'src/screens/FeedScreen.tsx';
+const recordScreenPath = 'src/screens/RecordScreen.tsx';
 const migrationPath = 'supabase/migrations/20260510220000_add_pub_crawls.sql';
 
 assert.ok(
@@ -39,12 +41,20 @@ assert.ok(
   'Static route map helpers should exist'
 );
 assert.ok(
+  fs.existsSync(path.resolve(__dirname, '..', routeMapPath)),
+  'Pub crawl route map component should exist'
+);
+assert.ok(
   fs.existsSync(path.resolve(__dirname, '..', mediaCarouselPath)),
   'Pub crawl media carousel should exist'
 );
 assert.ok(
   fs.existsSync(path.resolve(__dirname, '..', feedCardPath)),
   'Pub crawl feed card should exist'
+);
+assert.ok(
+  fs.existsSync(path.resolve(__dirname, '..', recordScreenPath)),
+  'Record screen should exist'
 );
 
 const {
@@ -194,6 +204,19 @@ const feedScreenSource = fs.readFileSync(path.resolve(__dirname, '..', feedScree
 assert.match(feedScreenSource, /addPubCrawlComment\(/, 'pub crawl comments should be written through the crawl comments API');
 assert.match(feedScreenSource, /onOpenCheers=\{openCheers/, 'feed should pass the cheers modal handler to pub crawl posts');
 assert.match(feedScreenSource, /onImagePress=\{setViewingImageUrl\}/, 'feed should pass the image viewer handler to pub crawl photo slides');
+assert.match(feedScreenSource, /<FeedSessionCard[\s\S]*onImagePress=\{setViewingImageUrl\}/, 'normal feed posts should pass the image viewer handler to session photos');
+assert.match(feedScreenSource, /pendingImageOpenRef/, 'normal feed photo taps should delay opening so double-tap cheers still works');
+
+const recordScreenSource = fs.readFileSync(path.resolve(__dirname, '..', recordScreenPath), 'utf8');
+assert.match(recordScreenSource, /styles\.crawlConvertButton/, 'turn-into-crawl should render as a compact button inside the locked pub card');
+assert.doesNotMatch(recordScreenSource, /<AppButton\s+label="Turn into Pub Crawl"/, 'turn-into-crawl should not be a full-width AppButton above the pub card');
+assert.match(recordScreenSource, /label="End Pub Crawl"[\s\S]*variant="danger"[\s\S]*style=\{styles\.pubCrawlEndButton\}/, 'end pub crawl should use a red-tinted danger button style');
+
+const routeMapSource = fs.readFileSync(path.resolve(__dirname, '..', routeMapPath), 'utf8');
+assert.doesNotMatch(routeMapSource, /Polyline/, 'route map should not draw lines between pub crawl stop markers');
+assert.doesNotMatch(routeMapSource, /buildOsrmWalkingRouteUrl|router\.project-osrm\.org/, 'route map should not fetch route geometry when only markers are shown');
+assert.match(routeMapSource, /<Circle/, 'route map should still render numbered marker circles');
+assert.match(routeMapSource, /<SvgText/, 'route map should still render stop numbers');
 
 const mappedStops = getMappedStops(crawl.stops);
 assert.deepEqual(

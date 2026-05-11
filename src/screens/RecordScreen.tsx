@@ -1426,15 +1426,6 @@ export const RecordScreen = ({ navigation }: any) => {
           </Surface>
         ) : (
           <>
-            {!activeCrawl && (
-              <AppButton
-                label="Turn into Pub Crawl"
-                variant="secondary"
-                onPress={turnIntoPubCrawl}
-                loading={convertingCrawl}
-              />
-            )}
-
             <Surface style={styles.lockedPubSurface}>
               <View style={styles.lockedPubHeader}>
                 <View style={styles.lockedPubIcon}>
@@ -1446,6 +1437,27 @@ export const RecordScreen = ({ navigation }: any) => {
                   </Text>
                   <Text style={styles.lockedPubName}>{activeSession.pub_name}</Text>
                 </View>
+                {!activeCrawl ? (
+                  <TouchableOpacity
+                    style={[
+                      styles.crawlConvertButton,
+                      convertingCrawl ? styles.crawlConvertButtonDisabled : null,
+                    ]}
+                    onPress={turnIntoPubCrawl}
+                    disabled={convertingCrawl}
+                    activeOpacity={0.78}
+                    accessibilityRole="button"
+                    accessibilityLabel="Turn into pub crawl"
+                  >
+                    {convertingCrawl ? (
+                      <ActivityIndicator color={colors.primary} size="small" />
+                    ) : (
+                      <Sparkles color={colors.primary} size={22} />
+                    )}
+                    <Text style={styles.crawlConvertKicker}>Turn into</Text>
+                    <Text style={styles.crawlConvertLabel}>Pub Crawl</Text>
+                  </TouchableOpacity>
+                ) : null}
               </View>
               
               {activeCrawl && crawlPubAction === 'change' ? (
@@ -1616,7 +1628,13 @@ export const RecordScreen = ({ navigation }: any) => {
                 </TouchableOpacity>
                 <View style={styles.endButtonWrap}>
                   {activeCrawl ? (
-                    <AppButton label="End Pub Crawl" onPress={handleEndPubCrawl} loading={crawlBusy && photoWarningAction !== 'end'} />
+                    <AppButton
+                      label="End Pub Crawl"
+                      variant="danger"
+                      style={styles.pubCrawlEndButton}
+                      onPress={handleEndPubCrawl}
+                      loading={crawlBusy && photoWarningAction !== 'end'}
+                    />
                   ) : (
                     <AppButton label="End Session" onPress={endSession} loading={ending} />
                   )}
@@ -1986,6 +2004,7 @@ const styles = StyleSheet.create({
   lockedPubHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 12,
   },
   lockedPubIcon: {
@@ -2010,6 +2029,35 @@ const styles = StyleSheet.create({
   lockedPubName: {
     ...typography.h3,
     marginTop: 2,
+  },
+  crawlConvertButton: {
+    width: 104,
+    minHeight: 104,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    gap: 4,
+  },
+  crawlConvertButtonDisabled: {
+    opacity: 0.68,
+  },
+  crawlConvertKicker: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  crawlConvertLabel: {
+    ...typography.caption,
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: '900',
+    textAlign: 'center',
   },
   startedRow: {
     flexDirection: 'row',
@@ -2184,6 +2232,10 @@ const styles = StyleSheet.create({
   },
   endButtonWrap: {
     flex: 1,
+  },
+  pubCrawlEndButton: {
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    borderColor: 'rgba(239, 68, 68, 0.46)',
   },
   photoChoiceBackdrop: {
     flex: 1,

@@ -197,29 +197,6 @@ export const getStaticMapViewport = (
   };
 };
 
-export const projectCoordinatesToViewport = (
-  coordinates: [number, number][],
-  centerLatitude: number,
-  centerLongitude: number,
-  zoom: number,
-  size: MapSize
-) => {
-  const centerWorld = projectLatLonToWorld(centerLatitude, centerLongitude, zoom);
-  const topLeftWorld = {
-    x: centerWorld.x - size.width / 2,
-    y: centerWorld.y - size.height / 2,
-  };
-
-  return coordinates.map((coord) => {
-    // GeoJSON is [longitude, latitude]
-    const world = projectLatLonToWorld(coord[1], coord[0], zoom);
-    return {
-      x: world.x - topLeftWorld.x,
-      y: world.y - topLeftWorld.y,
-    };
-  });
-};
-
 export const staticMapTileBoundsToCoordinates = (tile: Pick<StaticMapTile, 'x' | 'y' | 'z'>) => ({
   north: tileYToLatitude(tile.y, tile.z),
   south: tileYToLatitude(tile.y + 1, tile.z),

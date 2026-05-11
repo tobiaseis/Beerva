@@ -254,6 +254,7 @@ type FeedSessionCardProps = {
   onOpenCheers: (session: FeedSession) => void;
   onOpenComments: (session: FeedSession) => void;
   onOpenProfile: (userId: string) => void;
+  onImagePress: (url: string) => void;
   onToggleCheers: (session: FeedSession) => void;
 };
 
@@ -266,6 +267,7 @@ const FeedSessionCard = React.memo(({
   onOpenCheers,
   onOpenComments,
   onOpenProfile,
+  onImagePress,
   onToggleCheers,
 }: FeedSessionCardProps) => {
   const isOwnPost = item.user_id === currentUserId;
@@ -287,6 +289,13 @@ const FeedSessionCard = React.memo(({
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
   const overlayScale = React.useRef(new Animated.Value(0.6)).current;
   const lastTapRef = React.useRef(0);
+  const pendingImageOpenRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  React.useEffect(() => () => {
+    if (pendingImageOpenRef.current) {
+      clearTimeout(pendingImageOpenRef.current);
+    }
+  }, []);
 
   const playOverlay = React.useCallback(() => {
     overlayOpacity.setValue(0);
@@ -318,9 +327,15 @@ const FeedSessionCard = React.memo(({
   }, []);
 
   const handleImagePress = React.useCallback(() => {
+    if (!item.image_url) return;
+
     const now = Date.now();
     if (now - lastTapRef.current < 280) {
       lastTapRef.current = 0;
+      if (pendingImageOpenRef.current) {
+        clearTimeout(pendingImageOpenRef.current);
+        pendingImageOpenRef.current = null;
+      }
       if (isOwnPost || !currentUserId || item.has_cheered) {
         playOverlay();
         return;
@@ -329,8 +344,16 @@ const FeedSessionCard = React.memo(({
       triggerCheers();
     } else {
       lastTapRef.current = now;
+      if (pendingImageOpenRef.current) {
+        clearTimeout(pendingImageOpenRef.current);
+      }
+      pendingImageOpenRef.current = setTimeout(() => {
+        pendingImageOpenRef.current = null;
+        lastTapRef.current = 0;
+        onImagePress(item.image_url as string);
+      }, 280);
     }
-  }, [currentUserId, isOwnPost, item.has_cheered, playOverlay, triggerCheers]);
+  }, [currentUserId, isOwnPost, item.has_cheered, item.image_url, onImagePress, playOverlay, triggerCheers]);
 
   return (
     <Surface padded={false} style={styles.card}>
@@ -387,8 +410,8 @@ const FeedSessionCard = React.memo(({
           onPress={handleImagePress}
           style={({ pressed }) => [styles.imagePressable, pressed ? styles.imagePressed : null]}
           accessibilityRole="button"
-          accessibilityLabel={`Double tap to cheer ${username}'s session photo`}
-          accessibilityHint="Press twice quickly to give cheers"
+          accessibilityLabel={`Open ${username}'s session photo`}
+          accessibilityHint="Tap to view the full image. Press twice quickly to give cheers."
         >
           <View style={styles.imageWrap}>
             <CachedImage
@@ -1485,6 +1508,7 @@ export const FeedScreen = ({ route }: any) => {
         onOpenCheers={openCheers}
         onOpenComments={openComments as any}
         onOpenProfile={openProfile}
+        onImagePress={setViewingImageUrl}
         onToggleCheers={toggleCheers}
       />
     );
