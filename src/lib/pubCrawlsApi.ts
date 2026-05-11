@@ -68,6 +68,12 @@ export type ActivePubCrawlState = {
   activeStop: PubCrawl['stops'][number] | null;
 };
 
+export type PubCrawlFeedPage = {
+  crawls: PubCrawl[];
+  hasMore: boolean;
+  loadedCount: number;
+};
+
 const profileFromRow = (row: any): PubCrawlProfile => ({
   id: row.id,
   username: row.username || null,
@@ -352,7 +358,18 @@ export const fetchPublishedPubCrawlsForFeed = async (
   userIds: string[],
   limit = 20
 ): Promise<PubCrawl[]> => {
-  if (userIds.length === 0) return [];
+  const page = await fetchPublishedPubCrawlsForFeedPage(userIds, limit, 0);
+  return page.crawls;
+};
+
+export const fetchPublishedPubCrawlsForFeedPage = async (
+  userIds: string[],
+  pageSize = 20,
+  offset = 0
+): Promise<PubCrawlFeedPage> => {
+  if (userIds.length === 0) {
+    return { crawls: [], hasMore: false, loadedCount: 0 };
+  }
 
   const { data, error } = await withTimeout(
     supabase
@@ -361,14 +378,22 @@ export const fetchPublishedPubCrawlsForFeed = async (
       .in('user_id', userIds)
       .eq('status', 'published')
       .order('published_at', { ascending: false, nullsFirst: false })
-      .limit(limit),
+      .range(offset, offset + pageSize),
     PUB_CRAWL_TIMEOUT_MS,
     'Pub crawl feed posts are taking too long.'
   );
 
   if (error) throw error;
   const { data: { user } } = await supabase.auth.getUser();
-  return hydratePubCrawls((data || []) as PubCrawlBaseRow[], user?.id || null);
+  const rows = (data || []) as PubCrawlBaseRow[];
+  const pageRows = rows.slice(0, pageSize);
+  const crawls = await hydratePubCrawls(pageRows, user?.id || null);
+
+  return {
+    crawls,
+    hasMore: rows.length > pageSize,
+    loadedCount: pageRows.length,
+  };
 };
 
 export const togglePubCrawlCheers = async (crawl: PubCrawl, currentUserId: string) => {

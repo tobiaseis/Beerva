@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Image, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Beer, ChevronDown, ChevronUp, MapPin, MessageCircle } from 'lucide-react-native';
 
-import { PubCrawl, calculatePubCrawlSummary } from '../lib/pubCrawls';
+import { PubCrawl, PubCrawlStop, calculatePubCrawlSummary } from '../lib/pubCrawls';
 import { getBeerLine } from '../lib/sessionBeers';
 import { colors } from '../theme/colors';
 import { radius, shadows, spacing } from '../theme/layout';
@@ -48,6 +48,10 @@ const getTimeAgo = (dateString: string | null) => {
 
 const formatStatNumber = (value: number) => (
   Number.isInteger(value) ? String(value) : value.toFixed(1)
+);
+
+const getStopDrinkCount = (stop: PubCrawlStop) => (
+  stop.beers.reduce((sum, beer) => sum + Math.max(1, beer.quantity || 1), 0)
 );
 
 const getCheersLabel = (count: number) => `${count} ${count === 1 ? 'Cheer' : 'Cheers'}`;
@@ -183,36 +187,42 @@ export const PubCrawlFeedCard = ({
             </View>
 
             <View style={styles.stopBreakdown}>
-              {crawl.stops.map((stop) => (
-                <View key={stop.id} style={styles.stopSection}>
-                  <View style={styles.stopHeader}>
-                    <View style={styles.stopNumber}>
-                      <Text style={styles.stopNumberText}>{stop.stopOrder}</Text>
+              {crawl.stops.map((stop) => {
+                const stopDrinkCount = getStopDrinkCount(stop);
+
+                return (
+                  <View key={stop.id} style={styles.stopSection}>
+                    <View style={styles.stopHeader}>
+                      <View style={styles.stopNumber}>
+                        <Text style={styles.stopNumberText}>{stop.stopOrder}</Text>
+                      </View>
+                      <Text style={styles.stopName} numberOfLines={1}>{stop.pubName}</Text>
+                      <Text style={styles.stopDrinksCount}>
+                        {stopDrinkCount} {stopDrinkCount === 1 ? 'drink' : 'drinks'}
+                      </Text>
                     </View>
-                    <Text style={styles.stopName} numberOfLines={1}>{stop.pubName}</Text>
-                    <Text style={styles.stopDrinksCount}>{stop.beers.length} drinks</Text>
+
+                    {stop.comment ? (
+                      <Text style={styles.stopComment} numberOfLines={2}>{stop.comment}</Text>
+                    ) : null}
+
+                    {stop.beers.length > 0 ? (
+                      <View style={styles.beerBreakdown}>
+                        {stop.beers.map((beer) => (
+                          <Text key={beer.id || `${stop.id}-${beer.beerName}`} style={styles.beerBreakdownText}>
+                            {getBeerLine({
+                              beer_name: beer.beerName,
+                              volume: beer.volume,
+                              quantity: beer.quantity,
+                              abv: beer.abv,
+                            } as any)}
+                          </Text>
+                        ))}
+                      </View>
+                    ) : null}
                   </View>
-
-                  {stop.comment ? (
-                    <Text style={styles.stopComment} numberOfLines={2}>{stop.comment}</Text>
-                  ) : null}
-
-                  {stop.beers.length > 0 ? (
-                    <View style={styles.beerBreakdown}>
-                      {stop.beers.map((beer) => (
-                        <Text key={beer.id || `${stop.id}-${beer.beerName}`} style={styles.beerBreakdownText}>
-                          {getBeerLine({
-                            beer_name: beer.beerName,
-                            volume: beer.volume,
-                            quantity: beer.quantity,
-                            abv: beer.abv,
-                          } as any)}
-                        </Text>
-                      ))}
-                    </View>
-                  ) : null}
-                </View>
-              ))}
+                );
+              })}
             </View>
           </View>
         ) : null}

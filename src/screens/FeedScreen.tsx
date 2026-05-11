@@ -22,7 +22,7 @@ import { openMaps } from '../lib/maps';
 import { getErrorMessage, withTimeout } from '../lib/timeouts';
 import { PubCrawlFeedCard } from '../components/PubCrawlFeedCard';
 import { PubCrawl, PubCrawlComment } from '../lib/pubCrawls';
-import { fetchPublishedPubCrawlsForFeed, togglePubCrawlCheers, addPubCrawlComment } from '../lib/pubCrawlsApi';
+import { fetchPublishedPubCrawlsForFeedPage, togglePubCrawlCheers, addPubCrawlComment } from '../lib/pubCrawlsApi';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
 const cheersLogoSource = Platform.OS === 'web' ? { uri: '/beerva-icon-192.png' } : beervaLogo;
@@ -88,6 +88,10 @@ export type FeedItem =
 
 const isPubCrawlPost = (item: FeedSession | PubCrawl): item is PubCrawl => (
   'userId' in item && 'stops' in item
+);
+
+const sortFeedItemsByPublishedAt = (items: FeedItem[]) => (
+  [...items].sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
 );
 
 const PULL_REFRESH_THRESHOLD = 65;
@@ -614,6 +618,8 @@ export const FeedScreen = ({ route }: any) => {
   const [pullDistance, setPullDistance] = useState(0);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const sessionsRef = useRef<FeedItem[]>([]);
+  const loadedSessionCountRef = useRef(0);
+  const loadedCrawlCountRef = useRef(0);
   const hasMoreRef = useRef(true);
   const loadingMoreRef = useRef(false);
   const refreshingRef = useRef(false);
@@ -643,7 +649,8 @@ export const FeedScreen = ({ route }: any) => {
       return;
     }
 
-    const offset = reset ? 0 : sessionsRef.current.length;
+    const sessionOffset = reset ? 0 : loadedSessionCountRef.current;
+    const crawlOffset = reset ? 0 : loadedCrawlCountRef.current;
     const requestId = latestRequestIdRef.current + 1;
     latestRequestIdRef.current = requestId;
     const isLatestRequest = () => requestId === latestRequestIdRef.current;
@@ -673,6 +680,8 @@ export const FeedScreen = ({ route }: any) => {
         if (!isLatestRequest()) return;
         setSessions([]);
         sessionsRef.current = [];
+        loadedSessionCountRef.current = 0;
+        loadedCrawlCountRef.current = 0;
         setFollowedUserCount(0);
         setHasMore(false);
         hasMoreRef.current = false;
@@ -722,9 +731,10 @@ export const FeedScreen = ({ route }: any) => {
             `)
             .in('user_id', feedUserIds)
             .eq('status', 'published')
+            .eq('hide_from_feed', false)
             .order('published_at', { ascending: false, nullsFirst: false })
-            .range(offset, offset + FEED_PAGE_SIZE),
-          fetchPublishedPubCrawlsForFeed(feedUserIds, FEED_PAGE_SIZE)
+            .range(sessionOffset, sessionOffset + FEED_PAGE_SIZE),
+          fetchPublishedPubCrawlsForFeedPage(feedUserIds, FEED_PAGE_SIZE, crawlOffset)
         ]),
         FEED_REQUEST_TIMEOUT_MS,
         'Feed items are taking too long.'
@@ -734,9 +744,11 @@ export const FeedScreen = ({ route }: any) => {
       if (!isLatestRequest()) return;
 
       const rawRows = (sessionsResult.data || []) as any[];
-      let hasNextPage = rawRows.length > FEED_PAGE_SIZE;
-      const sessionRows = rawRows.slice(0, FEED_PAGE_SIZE).filter((r) => r.hide_from_feed !== true);
-      const crawls = crawlsResult || [];
+      const hasNextPage = rawRows.length > FEED_PAGE_SIZE || crawlsResult.hasMore;
+      const sessionRows = rawRows.slice(0, FEED_PAGE_SIZE);
+      const crawls = crawlsResult.crawls;
+      loadedSessionCountRef.current = sessionOffset + sessionRows.length;
+      loadedCrawlCountRef.current = crawlOffset + crawlsResult.loadedCount;
       setHasMore(hasNextPage);
       hasMoreRef.current = hasNextPage;
 
@@ -886,15 +898,13 @@ export const FeedScreen = ({ route }: any) => {
         } as any, // cheating types slightly
       }));
 
-      // Merge and sort
-      let merged = [...pageSessions, ...pageCrawls];
-      merged.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+      const merged = sortFeedItemsByPublishedAt([...pageSessions, ...pageCrawls]);
 
       setSessions((previous) => {
         // If not reset, we need to filter out duplicates if crawls overlap
         const existingIds = new Set(previous.map(p => p.id));
         const uniqueMerged = merged.filter(m => !existingIds.has(m.id));
-        const nextSessions = reset ? merged : [...previous, ...uniqueMerged];
+        const nextSessions = reset ? merged : sortFeedItemsByPublishedAt([...previous, ...uniqueMerged]);
         sessionsRef.current = nextSessions;
         return nextSessions;
       });
@@ -1352,6 +1362,7 @@ export const FeedScreen = ({ route }: any) => {
         sessionsRef.current = nextSessions;
         return nextSessions;
       });
+      loadedSessionCountRef.current = Math.max(0, loadedSessionCountRef.current - 1);
 
       if (session.image_url) {
         deletePublicImageUrl('session_images', session.image_url);

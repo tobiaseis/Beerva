@@ -215,6 +215,7 @@ export const RecordScreen = ({ navigation }: any) => {
   const rouletteRequestId = useRef(0);
   const passiveLocationAttempted = useRef(false);
   const passiveSeedAttempted = useRef(false);
+  const photoWarningBypassAction = useRef<'next' | 'end' | null>(null);
   const lastSavedComment = useRef<{ sessionId: string | null; comment: string }>({
     sessionId: null,
     comment: '',
@@ -364,6 +365,7 @@ export const RecordScreen = ({ navigation }: any) => {
     setCrawlPubAction(null);
     setCrawlPubDraft('');
     setPhotoWarningAction(null);
+    photoWarningBypassAction.current = null;
     lastSavedComment.current = { sessionId: null, comment: '' };
   }, []);
 
@@ -958,6 +960,7 @@ export const RecordScreen = ({ navigation }: any) => {
     }
 
     setSelectedImage(preparedImage);
+    photoWarningBypassAction.current = null;
 
     if (!activeSession) return;
 
@@ -1066,7 +1069,7 @@ export const RecordScreen = ({ navigation }: any) => {
       showAlert('Add a drink first', 'The current stop needs at least one drink before moving on.');
       return;
     }
-    if (!existingImageUrl && !selectedImage && photoWarningAction !== 'next') {
+    if (!existingImageUrl && !selectedImage && photoWarningBypassAction.current !== 'next') {
       setPhotoWarningAction('next');
       return;
     }
@@ -1106,6 +1109,7 @@ export const RecordScreen = ({ navigation }: any) => {
       setCrawlPubDraft('');
       setSelectedPub(null);
       setPhotoWarningAction(null);
+      photoWarningBypassAction.current = null;
       await fetchActiveSession();
       hapticSuccess();
     } catch (e: any) {
@@ -1122,7 +1126,7 @@ export const RecordScreen = ({ navigation }: any) => {
       showAlert('Add a drink first', 'The current stop needs at least one drink before ending the crawl.');
       return;
     }
-    if (!existingImageUrl && !selectedImage && photoWarningAction !== 'end') {
+    if (!existingImageUrl && !selectedImage && photoWarningBypassAction.current !== 'end') {
       setPhotoWarningAction('end');
       return;
     }
@@ -1514,7 +1518,7 @@ export const RecordScreen = ({ navigation }: any) => {
                   icon={<MapPin color={colors.textMuted} size={20} />}
                 />
                 <View style={styles.crawlPubEditActions}>
-                  <TouchableOpacity onPress={() => setCrawlPubAction(null)} style={styles.cancelButton}>
+                  <TouchableOpacity onPress={() => { photoWarningBypassAction.current = null; setCrawlPubAction(null); }} style={styles.cancelButton}>
                     <Text style={styles.cancelText}>Cancel</Text>
                   </TouchableOpacity>
                   <View style={styles.endButtonWrap}>
@@ -1682,7 +1686,7 @@ export const RecordScreen = ({ navigation }: any) => {
               Are you sure you want to move on without a photo?
             </Text>
 
-            <TouchableOpacity style={styles.photoChoiceOption} onPress={() => { setPhotoWarningAction(null); setPhotoChoiceVisible(true); }} activeOpacity={0.76}>
+            <TouchableOpacity style={styles.photoChoiceOption} onPress={() => { photoWarningBypassAction.current = null; setPhotoWarningAction(null); setPhotoChoiceVisible(true); }} activeOpacity={0.76}>
               <View style={styles.photoChoiceIcon}>
                 <Camera color={colors.primary} size={22} />
               </View>
@@ -1694,6 +1698,7 @@ export const RecordScreen = ({ navigation }: any) => {
             <TouchableOpacity style={styles.photoChoiceOption} onPress={() => {
               const action = photoWarningAction;
               setPhotoWarningAction(null);
+              photoWarningBypassAction.current = action;
               if (action === 'next') handleNextCrawlStop();
               else if (action === 'end') handleEndPubCrawl();
             }} activeOpacity={0.76}>

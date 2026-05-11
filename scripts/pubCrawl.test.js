@@ -29,7 +29,10 @@ const routeMapPath = 'src/components/PubCrawlRouteMap.tsx';
 const mediaCarouselPath = 'src/components/PubCrawlMediaCarousel.tsx';
 const feedCardPath = 'src/components/PubCrawlFeedCard.tsx';
 const feedScreenPath = 'src/screens/FeedScreen.tsx';
+const profileScreenPath = 'src/screens/ProfileScreen.tsx';
+const userProfileScreenPath = 'src/screens/UserProfileScreen.tsx';
 const recordScreenPath = 'src/screens/RecordScreen.tsx';
+const pubCrawlsApiPath = 'src/lib/pubCrawlsApi.ts';
 const migrationPath = 'supabase/migrations/20260510220000_add_pub_crawls.sql';
 
 assert.ok(
@@ -174,6 +177,21 @@ assert.equal(summary.truePints, 6.2);
 assert.equal(summary.averageAbv, 4.5);
 assert.equal(summary.routeLabel, 'First Bar -> Second Bar -> Third Bar');
 
+const summaryWithMissingAbv = calculatePubCrawlSummary([
+  {
+    ...crawl.stops[0],
+    beers: [
+      { ...crawl.stops[0].beers[0], volume: 'Pint', quantity: 1, abv: 5 },
+      { ...crawl.stops[0].beers[1], volume: 'Pint', quantity: 1, abv: null },
+    ],
+  },
+]);
+assert.equal(
+  summaryWithMissingAbv.averageAbv,
+  5,
+  'pub crawl average ABV should ignore drinks without ABV instead of treating them as 0%'
+);
+
 const slides = buildPubCrawlMediaSlides(crawl.stops);
 assert.equal(slides[0].type, 'map', 'first crawl slide should always be the map');
 assert.deepEqual(
@@ -199,6 +217,8 @@ assert.match(feedCardSource, /<Surface padded=\{false\} style=\{styles\.card\}>/
 assert.match(feedCardSource, /onOpenCheers/, 'pub crawl posts should expose the normal cheers affordance');
 assert.match(feedCardSource, /styles\.engagementPanel/, 'pub crawl posts should show the normal engagement preview panel');
 assert.match(feedCardSource, /styles\.cardFooter/, 'pub crawl posts should use the normal footer action row');
+assert.match(feedCardSource, /getStopDrinkCount/, 'expanded pub crawl stop rows should count drink quantities, not beer rows');
+assert.doesNotMatch(feedCardSource, /stop\.beers\.length\}\s*drinks/, 'expanded pub crawl stop rows should not undercount multi-quantity drinks');
 
 const feedScreenSource = fs.readFileSync(path.resolve(__dirname, '..', feedScreenPath), 'utf8');
 assert.match(feedScreenSource, /addPubCrawlComment\(/, 'pub crawl comments should be written through the crawl comments API');
@@ -206,11 +226,26 @@ assert.match(feedScreenSource, /onOpenCheers=\{openCheers/, 'feed should pass th
 assert.match(feedScreenSource, /onImagePress=\{setViewingImageUrl\}/, 'feed should pass the image viewer handler to pub crawl photo slides');
 assert.match(feedScreenSource, /<FeedSessionCard[\s\S]*onImagePress=\{setViewingImageUrl\}/, 'normal feed posts should pass the image viewer handler to session photos');
 assert.match(feedScreenSource, /pendingImageOpenRef/, 'normal feed photo taps should delay opening so double-tap cheers still works');
+assert.match(feedScreenSource, /loadedSessionCountRef/, 'feed pagination should track loaded normal sessions separately from merged feed items');
+assert.match(feedScreenSource, /loadedCrawlCountRef/, 'feed pagination should track loaded pub crawls separately from merged feed items');
+assert.match(feedScreenSource, /\.eq\('hide_from_feed', false\)/, 'feed should filter hidden crawl child sessions before paginating');
+assert.match(feedScreenSource, /fetchPublishedPubCrawlsForFeedPage\(feedUserIds, FEED_PAGE_SIZE, crawlOffset\)/, 'feed should request paged crawl posts with a crawl-specific offset');
+
+const profileScreenSource = fs.readFileSync(path.resolve(__dirname, '..', profileScreenPath), 'utf8');
+const userProfileScreenSource = fs.readFileSync(path.resolve(__dirname, '..', userProfileScreenPath), 'utf8');
+assert.match(profileScreenSource, /\.eq\('hide_from_feed', false\)/, 'own profile recent sessions should not show hidden pub crawl child stops');
+assert.match(userProfileScreenSource, /\.eq\('hide_from_feed', false\)/, 'user profile recent sessions should not show hidden pub crawl child stops');
+
+const pubCrawlsApiSource = fs.readFileSync(path.resolve(__dirname, '..', pubCrawlsApiPath), 'utf8');
+assert.match(pubCrawlsApiSource, /fetchPublishedPubCrawlsForFeedPage/, 'pub crawl feed API should expose a paged fetch helper');
+assert.match(pubCrawlsApiSource, /\.range\(offset, offset \+ pageSize\)/, 'pub crawl feed API should fetch one lookahead row for has-more detection');
 
 const recordScreenSource = fs.readFileSync(path.resolve(__dirname, '..', recordScreenPath), 'utf8');
 assert.match(recordScreenSource, /styles\.crawlConvertButton/, 'turn-into-crawl should render as a compact button inside the locked pub card');
 assert.doesNotMatch(recordScreenSource, /<AppButton\s+label="Turn into Pub Crawl"/, 'turn-into-crawl should not be a full-width AppButton above the pub card');
 assert.match(recordScreenSource, /label="End Pub Crawl"[\s\S]*variant="danger"[\s\S]*style=\{styles\.pubCrawlEndButton\}/, 'end pub crawl should use a red-tinted danger button style');
+assert.match(recordScreenSource, /photoWarningBypassAction/, 'pub crawl photo warning should remember when the user chose to continue without a photo');
+assert.match(recordScreenSource, /photoWarningBypassAction\.current = action/, 'continuing without a photo should bypass the next repeated warning for the same action');
 
 const routeMapSource = fs.readFileSync(path.resolve(__dirname, '..', routeMapPath), 'utf8');
 assert.doesNotMatch(routeMapSource, /Polyline/, 'route map should not draw lines between pub crawl stop markers');

@@ -206,6 +206,7 @@ export const calculatePubCrawlSummary = (stops: PubCrawlStop[] = []): PubCrawlSu
   let drinkCount = 0;
   let totalMl = 0;
   let weightedAbv = 0;
+  let abvVolumeMl = 0;
 
   stops.forEach((stop) => {
     stop.beers.forEach((beer) => {
@@ -216,6 +217,7 @@ export const calculatePubCrawlSummary = (stops: PubCrawlStop[] = []): PubCrawlSu
       totalMl += drinkMl;
       if (typeof beer.abv === 'number') {
         weightedAbv += drinkMl * beer.abv;
+        abvVolumeMl += drinkMl;
       }
     });
   });
@@ -224,7 +226,7 @@ export const calculatePubCrawlSummary = (stops: PubCrawlStop[] = []): PubCrawlSu
     barCount: stops.length,
     drinkCount,
     truePints: roundStat(totalMl / 568),
-    averageAbv: totalMl > 0 ? roundStat(weightedAbv / totalMl) : null,
+    averageAbv: abvVolumeMl > 0 ? roundStat(weightedAbv / abvVolumeMl) : null,
     routeLabel: stops.map((stop) => stop.pubName).join(' -> '),
   };
 };

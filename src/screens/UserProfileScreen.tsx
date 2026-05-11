@@ -165,6 +165,7 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
           .select('id, pub_id, pub_name, beer_name, volume, quantity, abv, comment, image_url, status, published_at, created_at', { count: 'exact' })
           .eq('user_id', profileId)
           .eq('status', 'published')
+          .eq('hide_from_feed', false)
           .order('published_at', { ascending: false, nullsFirst: false })
           .limit(5),
         fetchProfileStats(profileId),
