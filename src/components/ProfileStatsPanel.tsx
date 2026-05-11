@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Award, Beer, CalendarDays, Flame, MapPin, Moon, PartyPopper, Repeat, Sparkles, Sunrise, Trophy, X } from 'lucide-react-native';
 
 import { getTrophies, Stats, TrophyKind } from '../lib/profileStats';
@@ -50,8 +50,11 @@ type ProfileStatsPanelProps = {
   pintTimeline?: PintTimelinePoint[];
 };
 
+type InsightKind = 'best-session' | 'longest-streak';
+
 export const ProfileStatsPanel = ({ stats, pintTimeline = [] }: ProfileStatsPanelProps) => {
   const [pintsModalVisible, setPintsModalVisible] = useState(false);
+  const [insightModal, setInsightModal] = useState<InsightKind | null>(null);
   const trophies = useMemo(() => getTrophies(stats), [stats]);
   const earnedTrophies = useMemo(() => trophies.filter((trophy) => trophy.earned), [trophies]);
   const maxTimelinePints = useMemo(
@@ -68,14 +71,30 @@ export const ProfileStatsPanel = ({ stats, pintTimeline = [] }: ProfileStatsPane
       return a.index - b.index;
     })
     .map(({ trophy }) => trophy), [trophies]);
+  const insightDetails = insightModal === 'best-session'
+    ? {
+        title: 'Best Session',
+        value: stats.maxSessionPints,
+        unit: stats.maxSessionPints === 1 ? 'true pint' : 'true pints',
+        subtitle: 'Your biggest published session',
+        description: 'Best Session is the most true pints you have logged in one drinking session. Beerva adds the drinks in that session and normalizes them to 568 ml true pints.',
+      }
+    : insightModal === 'longest-streak'
+      ? {
+          title: 'Longest Streak',
+          value: stats.longestDayStreak,
+          unit: stats.longestDayStreak === 1 ? 'day' : 'days',
+          subtitle: 'Your longest run of drinking days',
+          description: 'Longest Streak is the most consecutive drinking days you have ever recorded. A drinking day follows the app day bucket, so late-night sessions still belong to the night they started.',
+        }
+      : null;
 
   return (
     <>
       <Surface style={styles.statsContainer}>
-        <TouchableOpacity
+        <Pressable
           style={styles.statBox}
           onPress={() => setPintsModalVisible(true)}
-          activeOpacity={0.76}
           accessibilityRole="button"
           accessibilityLabel="Show true pint details"
         >
@@ -83,7 +102,7 @@ export const ProfileStatsPanel = ({ stats, pintTimeline = [] }: ProfileStatsPane
             {stats.totalPints}
           </Text>
           <Text style={styles.statLabel} numberOfLines={1}>True Pints</Text>
-        </TouchableOpacity>
+        </Pressable>
         <View style={styles.divider} />
         <View style={styles.statBox}>
           <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
@@ -100,35 +119,49 @@ export const ProfileStatsPanel = ({ stats, pintTimeline = [] }: ProfileStatsPane
         </View>
       </Surface>
 
-      <Surface style={[styles.highScoreContainer, styles.highScoreCompact]}>
-        <View style={styles.highScoreCopy}>
-          <Text style={styles.highScoreLabel} numberOfLines={1}>Best Session</Text>
-          <Text style={styles.highScoreHint} numberOfLines={1}>Most true pints logged in one session</Text>
-        </View>
-        <Text
-          style={styles.highScoreValue}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-          minimumFontScale={0.72}
+      <View style={styles.highScoreGrid}>
+        <Pressable
+          style={styles.highScorePressable}
+          onPress={() => setInsightModal('best-session')}
+          accessibilityRole="button"
+          accessibilityLabel="Show best session details"
         >
-          {stats.maxSessionPints}
-        </Text>
-      </Surface>
+          <Surface padded={false} style={styles.highScoreTile}>
+            <Text style={styles.highScoreLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
+              Best Session
+            </Text>
+            <Text
+              style={styles.highScoreValue}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.72}
+            >
+              {stats.maxSessionPints}
+            </Text>
+          </Surface>
+        </Pressable>
 
-      <Surface style={[styles.highScoreContainer, styles.highScoreCompact, styles.streakContainer]}>
-        <View style={styles.highScoreCopy}>
-          <Text style={styles.highScoreLabel} numberOfLines={1}>Longest Streak</Text>
-          <Text style={styles.highScoreHint} numberOfLines={1}>Most consecutive drinking days</Text>
-        </View>
-        <Text
-          style={styles.highScoreValue}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-          minimumFontScale={0.72}
+        <Pressable
+          style={styles.highScorePressable}
+          onPress={() => setInsightModal('longest-streak')}
+          accessibilityRole="button"
+          accessibilityLabel="Show longest streak details"
         >
-          {stats.longestDayStreak}
-        </Text>
-      </Surface>
+          <Surface padded={false} style={styles.highScoreTile}>
+            <Text style={styles.highScoreLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
+              Longest Streak
+            </Text>
+            <Text
+              style={styles.highScoreValue}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.72}
+            >
+              {stats.longestDayStreak}
+            </Text>
+          </Surface>
+        </Pressable>
+      </View>
 
       <View style={styles.section}>
         <SectionHeader
@@ -177,14 +210,14 @@ export const ProfileStatsPanel = ({ stats, pintTimeline = [] }: ProfileStatsPane
                 <Text style={styles.modalTitle}>True Pints</Text>
                 <Text style={styles.modalSubtitle}>{stats.totalPints} logged all time</Text>
               </View>
-              <TouchableOpacity
+              <Pressable
                 style={styles.modalCloseButton}
                 onPress={() => setPintsModalVisible(false)}
                 accessibilityRole="button"
                 accessibilityLabel="Close true pints details"
               >
                 <X color={colors.text} size={20} />
-              </TouchableOpacity>
+              </Pressable>
             </View>
 
             <Text style={styles.explainerText}>
@@ -224,6 +257,45 @@ export const ProfileStatsPanel = ({ stats, pintTimeline = [] }: ProfileStatsPane
           </View>
         </View>
       </Modal>
+
+      <Modal
+        visible={Boolean(insightModal)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setInsightModal(null)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderCopy}>
+                <Text style={styles.modalTitle}>{insightDetails?.title}</Text>
+                <Text style={styles.modalSubtitle}>{insightDetails?.subtitle}</Text>
+              </View>
+              <Pressable
+                style={styles.modalCloseButton}
+                onPress={() => setInsightModal(null)}
+                accessibilityRole="button"
+                accessibilityLabel={`Close ${insightDetails?.title || 'stat'} details`}
+              >
+                <X color={colors.text} size={20} />
+              </Pressable>
+            </View>
+
+            <View style={styles.insightValueCard}>
+              <Text style={styles.insightValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                {insightDetails?.value}
+              </Text>
+              <Text style={styles.insightUnit} numberOfLines={1}>
+                {insightDetails?.unit}
+              </Text>
+            </View>
+
+            <Text style={styles.explainerText}>
+              {insightDetails?.description}
+            </Text>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 };
@@ -260,42 +332,40 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: '100%',
   },
-  highScoreContainer: {
+  highScoreGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     marginHorizontal: 16,
     marginTop: 12,
+    gap: 10,
   },
-  highScoreCompact: {
-    paddingHorizontal: Platform.OS === 'web' ? 14 : 16,
-    paddingVertical: Platform.OS === 'web' ? 11 : 12,
-    minHeight: 72,
-  },
-  streakContainer: {
-    marginTop: 8,
-  },
-  highScoreCopy: {
+  highScorePressable: {
     flex: 1,
     minWidth: 0,
-    paddingRight: 12,
+  },
+  highScoreTile: {
+    minHeight: Platform.OS === 'web' ? 82 : 88,
+    paddingHorizontal: Platform.OS === 'web' ? 10 : 12,
+    paddingVertical: Platform.OS === 'web' ? 11 : 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderColor: colors.borderSoft,
   },
   highScoreLabel: {
-    ...typography.h3,
+    ...typography.body,
     color: colors.text,
-  },
-  highScoreHint: {
-    ...typography.caption,
-    marginTop: 1,
+    fontWeight: '800',
+    textAlign: 'center',
+    maxWidth: '100%',
   },
   highScoreValue: {
     fontFamily: 'Righteous_400Regular',
-    fontSize: 28,
-    lineHeight: 34,
+    fontSize: 32,
+    lineHeight: 38,
     color: colors.primary,
-    minWidth: 56,
-    maxWidth: 96,
-    textAlign: 'right',
+    marginTop: 3,
+    maxWidth: '100%',
+    textAlign: 'center',
+    fontVariant: ['tabular-nums'],
   },
   section: {
     padding: Platform.OS === 'web' ? 16 : 20,
@@ -394,6 +464,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: spacing.md,
   },
+  modalHeaderCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
   modalTitle: {
     ...typography.h3,
     fontSize: 20,
@@ -416,6 +490,29 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.text,
     lineHeight: 22,
+  },
+  insightValueCard: {
+    minHeight: 92,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 14,
+  },
+  insightValue: {
+    fontFamily: 'Righteous_400Regular',
+    fontSize: 38,
+    lineHeight: 44,
+    color: colors.primary,
+    fontVariant: ['tabular-nums'],
+  },
+  insightUnit: {
+    ...typography.caption,
+    color: colors.text,
+    fontWeight: '800',
+    textAlign: 'center',
   },
   graphCard: {
     borderRadius: radius.lg,

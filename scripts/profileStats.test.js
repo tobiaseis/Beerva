@@ -324,6 +324,13 @@ const profileStatsPanelSource = fs.readFileSync(
 );
 assert.match(profileStatsPanelSource, /Longest Streak/, 'profile stats panel should show a longest streak box under best session');
 assert.match(profileStatsPanelSource, /stats\.longestDayStreak/, 'longest streak box should use the existing longest day streak stat');
-assert.match(profileStatsPanelSource, /highScoreCompact/, 'best session and streak boxes should use a compact card style');
+assert.match(profileStatsPanelSource, /highScoreGrid/, 'best session and streak boxes should sit side-by-side in one row');
+assert.match(profileStatsPanelSource, /Show best session details/, 'best session stat box should open a details view');
+assert.match(profileStatsPanelSource, /Show longest streak details/, 'longest streak stat box should open a details view');
+assert.doesNotMatch(
+  profileStatsPanelSource,
+  /<Text style=\{styles\.highScoreHint\}/,
+  'best session and streak boxes should not show explanatory copy until pressed'
+);
 
 console.log('profileStats trophy tests passed');
