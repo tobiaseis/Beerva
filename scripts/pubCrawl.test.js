@@ -25,6 +25,9 @@ const loadTypeScriptModule = (relativePath) => {
 
 const helpersPath = 'src/lib/pubCrawls.ts';
 const mapPath = 'src/lib/staticRouteMap.ts';
+const mediaCarouselPath = 'src/components/PubCrawlMediaCarousel.tsx';
+const feedCardPath = 'src/components/PubCrawlFeedCard.tsx';
+const feedScreenPath = 'src/screens/FeedScreen.tsx';
 const migrationPath = 'supabase/migrations/20260510220000_add_pub_crawls.sql';
 
 assert.ok(
@@ -34,6 +37,14 @@ assert.ok(
 assert.ok(
   fs.existsSync(path.resolve(__dirname, '..', mapPath)),
   'Static route map helpers should exist'
+);
+assert.ok(
+  fs.existsSync(path.resolve(__dirname, '..', mediaCarouselPath)),
+  'Pub crawl media carousel should exist'
+);
+assert.ok(
+  fs.existsSync(path.resolve(__dirname, '..', feedCardPath)),
+  'Pub crawl feed card should exist'
 );
 
 const {
@@ -160,6 +171,29 @@ assert.deepEqual(
   ['1:https://example.com/first.jpg', '3:https://example.com/third.jpg'],
   'photo slides should skip stops without photos'
 );
+
+const mediaCarouselSource = fs.readFileSync(path.resolve(__dirname, '..', mediaCarouselPath), 'utf8');
+assert.match(
+  mediaCarouselSource,
+  /buildPubCrawlMediaSlides/,
+  'carousel should use the shared media slide builder that preserves crawl photo order'
+);
+assert.match(
+  mediaCarouselSource,
+  /style=\{styles\.photoPressable\}/,
+  'photo slides should give the pressable wrapper explicit dimensions so images cannot collapse'
+);
+
+const feedCardSource = fs.readFileSync(path.resolve(__dirname, '..', feedCardPath), 'utf8');
+assert.match(feedCardSource, /<Surface padded=\{false\} style=\{styles\.card\}>/, 'pub crawl posts should use the normal feed card shell');
+assert.match(feedCardSource, /onOpenCheers/, 'pub crawl posts should expose the normal cheers affordance');
+assert.match(feedCardSource, /styles\.engagementPanel/, 'pub crawl posts should show the normal engagement preview panel');
+assert.match(feedCardSource, /styles\.cardFooter/, 'pub crawl posts should use the normal footer action row');
+
+const feedScreenSource = fs.readFileSync(path.resolve(__dirname, '..', feedScreenPath), 'utf8');
+assert.match(feedScreenSource, /addPubCrawlComment\(/, 'pub crawl comments should be written through the crawl comments API');
+assert.match(feedScreenSource, /onOpenCheers=\{openCheers/, 'feed should pass the cheers modal handler to pub crawl posts');
+assert.match(feedScreenSource, /onImagePress=\{setViewingImageUrl\}/, 'feed should pass the image viewer handler to pub crawl photo slides');
 
 const mappedStops = getMappedStops(crawl.stops);
 assert.deepEqual(

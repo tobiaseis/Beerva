@@ -21,7 +21,7 @@ import { ImageViewerModal } from '../components/ImageViewerModal';
 import { openMaps } from '../lib/maps';
 import { getErrorMessage, withTimeout } from '../lib/timeouts';
 import { PubCrawlFeedCard } from '../components/PubCrawlFeedCard';
-import { PubCrawl } from '../lib/pubCrawls';
+import { PubCrawl, PubCrawlComment } from '../lib/pubCrawls';
 import { fetchPublishedPubCrawlsForFeed, togglePubCrawlCheers, addPubCrawlComment } from '../lib/pubCrawlsApi';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
@@ -85,6 +85,10 @@ type FeedSession = {
 export type FeedItem =
   | { type: 'session'; id: string; publishedAt: string; session: FeedSession }
   | { type: 'pub_crawl'; id: string; publishedAt: string; crawl: PubCrawl };
+
+const isPubCrawlPost = (item: FeedSession | PubCrawl): item is PubCrawl => (
+  'userId' in item && 'stops' in item
+);
 
 const PULL_REFRESH_THRESHOLD = 65;
 const PULL_MAX_DISTANCE = 110;
@@ -990,7 +994,7 @@ export const FeedScreen = ({ route }: any) => {
     navigation.navigate('People');
   }, [navigation]);
 
-  const openComments = useCallback((session: FeedSession) => {
+  const openComments = useCallback((session: FeedSession | PubCrawl) => {
     setCommentingSession(session);
     setCommentDraft('');
   }, []);
@@ -1001,7 +1005,7 @@ export const FeedScreen = ({ route }: any) => {
     setSubmittingComment(false);
   }, []);
 
-  const openCheers = useCallback((session: FeedSession) => {
+  const openCheers = useCallback((session: FeedSession | PubCrawl) => {
     setCheersSession(session);
   }, []);
 
@@ -1015,6 +1019,82 @@ export const FeedScreen = ({ route }: any) => {
 
     setSubmittingComment(true);
     try {
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url')
+        .eq('id', currentUserId)
+        .maybeSingle();
+
+      if (profileError) {
+        console.error('Comment profile fetch error:', profileError);
+      }
+
+      const currentProfile: ProfilePreview | null = profileData
+        ? {
+            id: profileData.id,
+            username: profileData.username,
+            avatar_url: profileData.avatar_url,
+          }
+        : null;
+
+      if (isPubCrawlPost(commentingSession)) {
+        const data = await addPubCrawlComment(commentingSession.id, cleanComment);
+        const nextComment: PubCrawlComment = {
+          id: data.id,
+          crawlId: data.pub_crawl_id,
+          userId: data.user_id,
+          body: data.body,
+          createdAt: data.created_at,
+          updatedAt: data.updated_at,
+          profile: currentProfile
+            ? {
+                id: currentProfile.id,
+                username: currentProfile.username || null,
+                avatarUrl: currentProfile.avatar_url || null,
+              }
+            : null,
+        };
+
+        setSessions((previous) => {
+          const nextSessions = previous.map((feedItem) => {
+            if (feedItem.type !== 'pub_crawl' || feedItem.id !== commentingSession.id) return feedItem;
+            return {
+              ...feedItem,
+              crawl: {
+                ...feedItem.crawl,
+                comments: [...feedItem.crawl.comments, nextComment],
+                commentsCount: feedItem.crawl.commentsCount + 1,
+              },
+            };
+          });
+          sessionsRef.current = nextSessions;
+          return nextSessions;
+        });
+
+        setCommentingSession((current) => {
+          if (!current || !isPubCrawlPost(current) || current.id !== commentingSession.id) return current;
+          return {
+            ...current,
+            comments: [...current.comments, nextComment],
+            commentsCount: current.commentsCount + 1,
+          };
+        });
+
+        setCommentDraft('');
+        hapticLight();
+
+        if (commentingSession.userId !== currentUserId) {
+          const { error: notifError } = await supabase.from('notifications').insert({
+            user_id: commentingSession.userId,
+            actor_id: currentUserId,
+            type: 'comment',
+            reference_id: commentingSession.id,
+          });
+          if (notifError) console.error('Comment notification insert error:', notifError);
+        }
+        return;
+      }
+
       const { data, error } = await supabase
         .from('session_comments')
         .insert({
@@ -1026,23 +1106,6 @@ export const FeedScreen = ({ route }: any) => {
         .single();
 
       if (error) throw error;
-
-      let currentProfile: ProfilePreview | null = null;
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, username, avatar_url')
-        .eq('id', currentUserId)
-        .maybeSingle();
-
-      if (profileError) {
-        console.error('Comment profile fetch error:', profileError);
-      } else if (profileData) {
-        currentProfile = {
-          id: profileData.id,
-          username: profileData.username,
-          avatar_url: profileData.avatar_url,
-        };
-      }
 
       const nextComment: FeedComment = {
         ...(data as Omit<FeedComment, 'profiles'>),
@@ -1311,7 +1374,10 @@ export const FeedScreen = ({ route }: any) => {
   }, [loadingMore]);
 
   const toggleCrawlCheers = useCallback(async (crawl: PubCrawl) => {
-    if (!currentUserId) return;
+    if (!currentUserId || crawl.userId === currentUserId || cheeringSessionIdsRef.current.has(crawl.id)) {
+      return;
+    }
+
     const pendingCheers = new Set(cheeringSessionIdsRef.current);
     pendingCheers.add(crawl.id);
     cheeringSessionIdsRef.current = pendingCheers;
@@ -1319,23 +1385,69 @@ export const FeedScreen = ({ route }: any) => {
 
     try {
       const isNowCheered = await togglePubCrawlCheers(crawl, currentUserId);
+      let cheerProfile: { id: string; username: string | null; avatarUrl: string | null } = {
+        id: currentUserId,
+        username: null,
+        avatarUrl: null,
+      };
+
+      if (isNowCheered) {
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('id, username, avatar_url')
+          .eq('id', currentUserId)
+          .maybeSingle();
+
+        if (profileError) {
+          console.error('Pub crawl cheer profile fetch error:', profileError);
+        } else if (profileData) {
+          cheerProfile = {
+            id: profileData.id,
+            username: profileData.username || null,
+            avatarUrl: profileData.avatar_url || null,
+          };
+        }
+      }
+
       setSessions((previous) => {
         const nextSessions = previous.map((feedItem) => {
           if (feedItem.type !== 'pub_crawl' || feedItem.id !== crawl.id) return feedItem;
+          const alreadyCheered = feedItem.crawl.cheerProfiles.some((profile) => profile.id === currentUserId);
+          const cheerProfiles = isNowCheered
+            ? (
+                alreadyCheered
+                  ? feedItem.crawl.cheerProfiles
+                  : [...feedItem.crawl.cheerProfiles, cheerProfile]
+              )
+            : feedItem.crawl.cheerProfiles.filter((profile) => profile.id !== currentUserId);
+
           return {
             ...feedItem,
             crawl: {
               ...feedItem.crawl,
-              cheersCount: Math.max(0, feedItem.crawl.cheersCount + (isNowCheered ? 1 : -1)),
-              has_cheered: isNowCheered,
-              cheerProfiles: isNowCheered
-                ? feedItem.crawl.cheerProfiles
-                : feedItem.crawl.cheerProfiles.filter((profile) => profile.id !== currentUserId),
-            } as any
+              cheersCount: Math.max(0, feedItem.crawl.cheersCount + (isNowCheered ? (alreadyCheered ? 0 : 1) : (alreadyCheered ? -1 : 0))),
+              cheerProfiles,
+            }
           };
         });
         sessionsRef.current = nextSessions;
         return nextSessions;
+      });
+
+      setCheersSession((current) => {
+        if (!current || !isPubCrawlPost(current) || current.id !== crawl.id) return current;
+        const alreadyCheered = current.cheerProfiles.some((profile) => profile.id === currentUserId);
+        return {
+          ...current,
+          cheersCount: Math.max(0, current.cheersCount + (isNowCheered ? (alreadyCheered ? 0 : 1) : (alreadyCheered ? -1 : 0))),
+          cheerProfiles: isNowCheered
+            ? (
+                alreadyCheered
+                  ? current.cheerProfiles
+                  : [...current.cheerProfiles, cheerProfile]
+              )
+            : current.cheerProfiles.filter((profile) => profile.id !== currentUserId),
+        };
       });
     } catch (e: any) {
       Alert.alert('Could not update cheers', e?.message || 'Please try again.');
@@ -1352,9 +1464,13 @@ export const FeedScreen = ({ route }: any) => {
       return (
         <PubCrawlFeedCard
           crawl={item.crawl}
-          currentUserId={currentUserId || ''}
+          currentUserId={currentUserId}
+          isCheering={cheeringSessionIds.has(item.id)}
           onToggleCheer={toggleCrawlCheers}
-          onOpenComments={openComments as any}
+          onOpenComments={openComments}
+          onOpenCheers={openCheers}
+          onOpenProfile={openProfile}
+          onImagePress={setViewingImageUrl}
         />
       );
     }
@@ -1464,6 +1580,12 @@ export const FeedScreen = ({ route }: any) => {
         />
       )}
 
+      <ImageViewerModal
+        visible={Boolean(viewingImageUrl)}
+        imageUrl={viewingImageUrl}
+        onClose={() => setViewingImageUrl(null)}
+      />
+
       {(() => {
         const normalizedCheers = cheersSession 
           ? ('cheerProfiles' in cheersSession 
@@ -1530,7 +1652,7 @@ export const FeedScreen = ({ route }: any) => {
 
       {(() => {
         const normalizedComments = commentingSession 
-          ? ('crawlId' in commentingSession 
+          ? (isPubCrawlPost(commentingSession)
               ? (commentingSession.comments as any[]).map(c => ({ id: c.id, user_id: c.userId, body: c.body, created_at: c.createdAt, profiles: c.profile ? { id: c.profile.id, username: c.profile.username, avatar_url: c.profile.avatarUrl } : null } as FeedComment))
               : commentingSession.comments) 
           : [];
