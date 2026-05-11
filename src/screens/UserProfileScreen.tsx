@@ -394,13 +394,17 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
 
         <View style={styles.followStats}>
           <View style={styles.followStat}>
-            <Text style={styles.followStatValue}>{followCounts.followers}</Text>
-            <Text style={styles.followStatLabel}>Followers</Text>
+            <Text style={styles.followStatValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
+              {followCounts.followers}
+            </Text>
+            <Text style={styles.followStatLabel} numberOfLines={1}>Followers</Text>
           </View>
           <View style={styles.followDivider} />
           <View style={styles.followStat}>
-            <Text style={styles.followStatValue}>{followCounts.following}</Text>
-            <Text style={styles.followStatLabel}>Following</Text>
+            <Text style={styles.followStatValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
+              {followCounts.following}
+            </Text>
+            <Text style={styles.followStatLabel} numberOfLines={1}>Following</Text>
           </View>
         </View>
 
@@ -563,23 +567,30 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderSoft,
     borderRadius: radius.lg,
-    marginTop: 18,
-    marginBottom: 14,
-    minWidth: 220,
+    marginTop: 14,
+    marginBottom: 12,
+    minWidth: 216,
+    overflow: 'hidden',
   },
   followStat: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 12,
+    justifyContent: 'center',
+    minHeight: 50,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
   },
   followStatValue: {
     ...typography.h3,
     color: colors.primary,
+    fontFamily: 'Righteous_400Regular',
+    lineHeight: 26,
     fontVariant: ['tabular-nums'],
   },
   followStatLabel: {
     ...typography.caption,
-    marginTop: 2,
+    marginTop: 0,
+    textAlign: 'center',
   },
   followDivider: {
     width: 1,

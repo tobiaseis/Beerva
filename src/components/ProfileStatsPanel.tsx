@@ -79,25 +79,31 @@ export const ProfileStatsPanel = ({ stats, pintTimeline = [] }: ProfileStatsPane
           accessibilityRole="button"
           accessibilityLabel="Show true pint details"
         >
-          <Text style={styles.statValue}>{stats.totalPints}</Text>
-          <Text style={styles.statLabel}>True Pints</Text>
+          <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
+            {stats.totalPints}
+          </Text>
+          <Text style={styles.statLabel} numberOfLines={1}>True Pints</Text>
         </TouchableOpacity>
         <View style={styles.divider} />
         <View style={styles.statBox}>
-          <Text style={styles.statValue}>{stats.uniquePubs}</Text>
-          <Text style={styles.statLabel}>Unique Pubs</Text>
+          <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
+            {stats.uniquePubs}
+          </Text>
+          <Text style={styles.statLabel} numberOfLines={1}>Unique Pubs</Text>
         </View>
         <View style={styles.divider} />
         <View style={styles.statBox}>
-          <Text style={styles.statValue}>{stats.avgAbv}%</Text>
-          <Text style={styles.statLabel}>Avg ABV</Text>
+          <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
+            {stats.avgAbv}%
+          </Text>
+          <Text style={styles.statLabel} numberOfLines={1}>Avg ABV</Text>
         </View>
       </Surface>
 
-      <Surface style={styles.highScoreContainer}>
+      <Surface style={[styles.highScoreContainer, styles.highScoreCompact]}>
         <View style={styles.highScoreCopy}>
-          <Text style={styles.highScoreLabel}>Best Session</Text>
-          <Text style={styles.highScoreHint}>Most true pints logged in one session</Text>
+          <Text style={styles.highScoreLabel} numberOfLines={1}>Best Session</Text>
+          <Text style={styles.highScoreHint} numberOfLines={1}>Most true pints logged in one session</Text>
         </View>
         <Text
           style={styles.highScoreValue}
@@ -106,6 +112,21 @@ export const ProfileStatsPanel = ({ stats, pintTimeline = [] }: ProfileStatsPane
           minimumFontScale={0.72}
         >
           {stats.maxSessionPints}
+        </Text>
+      </Surface>
+
+      <Surface style={[styles.highScoreContainer, styles.highScoreCompact, styles.streakContainer]}>
+        <View style={styles.highScoreCopy}>
+          <Text style={styles.highScoreLabel} numberOfLines={1}>Longest Streak</Text>
+          <Text style={styles.highScoreHint} numberOfLines={1}>Most consecutive drinking days</Text>
+        </View>
+        <Text
+          style={styles.highScoreValue}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.72}
+        >
+          {stats.longestDayStreak}
         </Text>
       </Surface>
 
@@ -211,27 +232,33 @@ const styles = StyleSheet.create({
   statsContainer: {
     flexDirection: 'row',
     marginHorizontal: 16,
-    padding: Platform.OS === 'web' ? 16 : 20,
+    paddingHorizontal: Platform.OS === 'web' ? 12 : 14,
+    paddingVertical: Platform.OS === 'web' ? 10 : 11,
   },
   statBox: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 58,
+    minHeight: 44,
     borderRadius: radius.md,
+    paddingHorizontal: 4,
   },
   divider: {
     width: 1,
     backgroundColor: colors.borderSoft,
   },
   statValue: {
-    ...typography.h2,
+    ...typography.h3,
     color: colors.primary,
+    fontFamily: 'Righteous_400Regular',
+    lineHeight: 26,
+    maxWidth: '100%',
   },
   statLabel: {
     ...typography.caption,
-    marginTop: 4,
+    marginTop: 1,
     textAlign: 'center',
+    maxWidth: '100%',
   },
   highScoreContainer: {
     flexDirection: 'row',
@@ -239,7 +266,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginHorizontal: 16,
     marginTop: 12,
-    padding: Platform.OS === 'web' ? 16 : 18,
+  },
+  highScoreCompact: {
+    paddingHorizontal: Platform.OS === 'web' ? 14 : 16,
+    paddingVertical: Platform.OS === 'web' ? 11 : 12,
+    minHeight: 72,
+  },
+  streakContainer: {
+    marginTop: 8,
   },
   highScoreCopy: {
     flex: 1,
@@ -249,18 +283,18 @@ const styles = StyleSheet.create({
   highScoreLabel: {
     ...typography.h3,
     color: colors.text,
-    fontSize: 18,
   },
   highScoreHint: {
     ...typography.caption,
-    marginTop: 4,
+    marginTop: 1,
   },
   highScoreValue: {
     fontFamily: 'Righteous_400Regular',
-    fontSize: 30,
+    fontSize: 28,
+    lineHeight: 34,
     color: colors.primary,
-    minWidth: 72,
-    maxWidth: 104,
+    minWidth: 56,
+    maxWidth: 96,
     textAlign: 'right',
   },
   section: {
