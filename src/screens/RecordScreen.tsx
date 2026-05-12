@@ -58,6 +58,7 @@ import {
   updateCurrentCrawlStopPub,
 } from '../lib/pubCrawlsApi';
 import { supabase } from '../lib/supabase';
+import { getCurrentTimezone } from '../lib/timezone';
 import { fetchProfileStats } from '../lib/profileStatsApi';
 import { getTrophies } from '../lib/profileStats';
 import { useFocused } from '../lib/useFocused';
@@ -76,6 +77,7 @@ type ActiveSession = {
   comment: string | null;
   image_url: string | null;
   started_at: string;
+  timezone?: string | null;
   pub_crawl_id?: string | null;
   crawl_stop_order?: number | null;
   is_crawl_stop?: boolean | null;
@@ -391,7 +393,7 @@ export const RecordScreen = ({ navigation }: any) => {
 
       const { data, error } = await supabase
         .from('sessions')
-        .select('id, user_id, pub_id, pub_name, status, comment, image_url, started_at, pub_crawl_id, crawl_stop_order, is_crawl_stop, hide_from_feed')
+        .select('id, user_id, pub_id, pub_name, status, comment, image_url, started_at, timezone, pub_crawl_id, crawl_stop_order, is_crawl_stop, hide_from_feed')
         .eq('user_id', user.id)
         .eq('status', 'active')
         .order('started_at', { ascending: false })
@@ -495,6 +497,7 @@ export const RecordScreen = ({ navigation }: any) => {
       id: user.id,
       username: user.user_metadata?.username || user.email?.split('@')[0] || 'beer_lover',
       avatar_url: user.user_metadata?.avatar_url || 'https://i.pravatar.cc/150?u=' + user.id,
+      timezone: getCurrentTimezone(),
       updated_at: new Date().toISOString(),
     }, { onConflict: 'id' });
 
@@ -796,11 +799,12 @@ export const RecordScreen = ({ navigation }: any) => {
           pub_name: sessionPubName,
           status: 'active',
           started_at: now,
+          timezone: getCurrentTimezone(),
           comment: null,
           image_url: null,
           ...createLegacyPlaceholder(),
         })
-        .select('id, user_id, pub_id, pub_name, status, comment, image_url, started_at')
+        .select('id, user_id, pub_id, pub_name, status, comment, image_url, started_at, timezone')
         .single();
 
       if (error) throw error;
@@ -1226,6 +1230,7 @@ export const RecordScreen = ({ navigation }: any) => {
           status: 'published',
           ended_at: now,
           published_at: now,
+          timezone: getCurrentTimezone(),
           comment: comment.trim() || null,
           image_url: imageUrl,
           ...getLegacySessionBeerFields(sessionBeers),

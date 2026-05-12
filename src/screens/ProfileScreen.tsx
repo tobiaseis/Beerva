@@ -25,6 +25,7 @@ import {
   getPushSupportInfo,
   isCurrentlySubscribed,
 } from '../lib/pushNotifications';
+import { getCurrentTimezone } from '../lib/timezone';
 import * as ImagePicker from 'expo-image-picker';
 import { Beer, CalendarDays, MapPin } from 'lucide-react-native';
 
@@ -391,6 +392,7 @@ export const ProfileScreen = () => {
         id: user.id,
         username,
         avatar_url: avatarUrl,
+        timezone: getCurrentTimezone(),
         updated_at: new Date().toISOString()
       }, { onConflict: 'id' });
 

@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Platform, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { ArrowLeft, Beer, Check, MapPin, MessageCircle, PartyPopper, XCircle } from 'lucide-react-native';
+import { ArrowLeft, Beer, Check, Coffee, MapPin, MessageCircle, PartyPopper, XCircle } from 'lucide-react-native';
 
 import { CachedImage } from '../components/CachedImage';
 import { EmptyIllustration } from '../components/EmptyIllustration';
@@ -12,7 +12,7 @@ import { colors } from '../theme/colors';
 import { radius, shadows, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
 
-type NotificationType = 'cheer' | 'invite' | 'session_started' | 'comment' | 'invite_response' | 'pub_crawl_started';
+type NotificationType = 'cheer' | 'invite' | 'session_started' | 'comment' | 'invite_response' | 'pub_crawl_started' | 'hangover_check';
 type InviteStatus = 'pending' | 'accepted' | 'declined';
 
 type ProfilePreview = {
@@ -98,12 +98,12 @@ export const NotificationsScreen = ({ navigation }: any) => {
       const actorIds = Array.from(new Set(baseRows.map((n) => n.actor_id).filter(Boolean)));
       const sessionIds = Array.from(new Set(
         baseRows
-          .filter((n) => n.type === 'session_started' && n.reference_id)
+          .filter((n) => (n.type === 'session_started' || (n.type === 'hangover_check' && n.metadata?.target_type !== 'pub_crawl')) && n.reference_id)
           .map((n) => n.reference_id as string)
       ));
       const crawlIds = Array.from(new Set(
         baseRows
-          .filter((n) => n.type === 'pub_crawl_started' && n.reference_id)
+          .filter((n) => (n.type === 'pub_crawl_started' || (n.type === 'hangover_check' && n.metadata?.target_type === 'pub_crawl')) && n.reference_id)
           .map((n) => n.reference_id as string)
       ));
       const inviteIds = Array.from(new Set(
@@ -205,6 +205,15 @@ export const NotificationsScreen = ({ navigation }: any) => {
     navigation.navigate('UserProfile', { userId });
   }, [navigation]);
 
+  const openHangoverRating = useCallback((item: NotificationRow) => {
+    if (!item.reference_id) return;
+    navigation.navigate('HangoverRating', {
+      targetType: item.metadata?.target_type === 'pub_crawl' ? 'pub_crawl' : 'session',
+      targetId: item.reference_id,
+      notificationId: item.id,
+    });
+  }, [navigation]);
+
   const respondToInvite = useCallback(async (item: NotificationRow, status: Exclude<InviteStatus, 'pending'>) => {
     const inviteId = item.invite?.id || item.reference_id;
     if (!currentUserId || !inviteId || item.invite?.status !== 'pending') return;
@@ -239,6 +248,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
 
   const renderIcon = (item: NotificationRow) => {
     if (item.type === 'cheer') return <Beer color={colors.primary} size={24} />;
+    if (item.type === 'hangover_check') return <Coffee color={colors.primary} size={24} />;
     if (item.type === 'comment') return <MessageCircle color={colors.primary} size={24} />;
     if (item.type === 'session_started') return <MapPin color={colors.primary} size={24} />;
     if (item.type === 'invite_response' && item.invite?.status === 'accepted') {
@@ -314,13 +324,26 @@ export const NotificationsScreen = ({ navigation }: any) => {
           {item.type === 'invite' && item.reference_id && !item.invite ? (
             <Text style={styles.unavailableText}>This invite is no longer available.</Text>
           ) : null}
+
+          {item.type === 'hangover_check' && item.reference_id ? (
+            <TouchableOpacity
+              style={styles.hangoverActionButton}
+              onPress={() => openHangoverRating(item)}
+              activeOpacity={0.76}
+              accessibilityRole="button"
+              accessibilityLabel="Rate hangover"
+            >
+              <Coffee color={colors.background} size={16} />
+              <Text style={styles.hangoverActionText}>Rate hangover</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
         <View style={styles.iconContainer}>
           {renderIcon(item)}
         </View>
       </View>
     );
-  }, [currentUserId, openProfile, respondToInvite, respondingInviteIds]);
+  }, [currentUserId, openHangoverRating, openProfile, respondToInvite, respondingInviteIds]);
 
   return (
     <View style={styles.container}>
@@ -495,6 +518,22 @@ const styles = StyleSheet.create({
     ...typography.caption,
     marginTop: 8,
     color: colors.textMuted,
+  },
+  hangoverActionButton: {
+    alignSelf: 'flex-start',
+    minHeight: 38,
+    borderRadius: radius.pill,
+    paddingHorizontal: 12,
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    backgroundColor: colors.primary,
+  },
+  hangoverActionText: {
+    color: colors.background,
+    fontSize: 13,
+    fontWeight: '900',
   },
   iconContainer: {
     marginLeft: 12,

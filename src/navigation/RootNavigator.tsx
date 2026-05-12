@@ -19,9 +19,11 @@ import { AuthScreen } from '../screens/AuthScreen';
 import { ProfileSetupScreen } from '../screens/ProfileSetupScreen';
 import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { EditSessionScreen } from '../screens/EditSessionScreen';
+import { HangoverRatingScreen } from '../screens/HangoverRatingScreen';
 import { colors } from '../theme/colors';
 import { radius, shadows } from '../theme/layout';
 import { NotificationsProvider, useNotifications } from '../lib/notificationsContext';
+import { syncCurrentTimezone } from '../lib/timezone';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
 
@@ -55,10 +57,49 @@ const shouldOpenNotificationsFromUrl = () => {
   return params.get('notifications') === '1';
 };
 
+type HangoverLaunchParams = {
+  targetType: 'session' | 'pub_crawl';
+  targetId: string;
+  notificationId?: string | null;
+};
+
+const getHangoverLaunchParamsFromUrl = (): HangoverLaunchParams | null => {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
+  // Handles /?hangover=1&target_type=session&target_id=...
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('hangover') !== '1') return null;
+
+  const rawTargetType = params.get('target_type') || params.get('target');
+  const targetType = rawTargetType === 'pub_crawl' || rawTargetType === 'session'
+    ? rawTargetType
+    : null;
+  const targetId = params.get('target_id') || params.get('id');
+
+  if (!targetType || !targetId) return null;
+
+  return {
+    targetType,
+    targetId,
+    notificationId: params.get('notificationId'),
+  };
+};
+
 const clearNotificationLaunchParams = () => {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return;
   const url = new URL(window.location.href);
   url.searchParams.delete('notifications');
+  url.searchParams.delete('notificationId');
+  window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+};
+
+const clearHangoverLaunchParams = () => {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+  const url = new URL(window.location.href);
+  url.searchParams.delete('hangover');
+  url.searchParams.delete('target_type');
+  url.searchParams.delete('target');
+  url.searchParams.delete('target_id');
+  url.searchParams.delete('id');
   url.searchParams.delete('notificationId');
   window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
 };
@@ -181,6 +222,7 @@ export const RootNavigator = () => {
   const profileCheckedUserIdRef = useRef<string | null>(null);
   const profileCheckRequestIdRef = useRef(0);
   const pendingNotificationsOpenRef = useRef(shouldOpenNotificationsFromUrl());
+  const pendingHangoverOpenRef = useRef<HangoverLaunchParams | null>(getHangoverLaunchParamsFromUrl());
   const sessionUserId = session?.user?.id ?? null;
   const sessionHasCachedUsername = hasCachedUsername(session);
 
@@ -280,6 +322,13 @@ export const RootNavigator = () => {
     checkProfileSetup(session);
   }, [checkProfileSetup, sessionUserId, sessionHasCachedUsername]);
 
+  useEffect(() => {
+    if (!sessionUserId) return;
+    syncCurrentTimezone().catch((error) => {
+      console.warn('Could not sync profile timezone:', error);
+    });
+  }, [sessionUserId]);
+
   const waitingForProfileCheck = Boolean(
     sessionUserId
     && profileCheckedUserId !== sessionUserId
@@ -288,8 +337,7 @@ export const RootNavigator = () => {
 
   useEffect(() => {
     if (
-      !pendingNotificationsOpenRef.current
-      || !navigationReady
+      !navigationReady
       || waitingForProfileCheck
       || loading
       || profileLoading
@@ -299,6 +347,16 @@ export const RootNavigator = () => {
     ) {
       return;
     }
+
+    const pendingHangoverOpen = pendingHangoverOpenRef.current;
+    if (pendingHangoverOpen) {
+      pendingHangoverOpenRef.current = null;
+      navigationRef.navigate('HangoverRating' as never, pendingHangoverOpen as never);
+      clearHangoverLaunchParams();
+      return;
+    }
+
+    if (!pendingNotificationsOpenRef.current) return;
 
     pendingNotificationsOpenRef.current = false;
     navigationRef.navigate('Notifications' as never);
@@ -332,6 +390,7 @@ export const RootNavigator = () => {
               <Stack.Screen name="PubLegendDetail" component={PubLegendDetailScreen} />
               <Stack.Screen name="Notifications" component={NotificationsScreen} />
               <Stack.Screen name="EditSession" component={EditSessionScreen} />
+              <Stack.Screen name="HangoverRating" component={HangoverRatingScreen} />
             </Stack.Navigator>
           </NotificationsProvider>
         )

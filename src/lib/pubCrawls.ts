@@ -38,6 +38,7 @@ export type PubCrawlRow = {
   started_at?: string | null;
   ended_at?: string | null;
   published_at?: string | null;
+  hangover_score?: number | string | null;
   created_at?: string | null;
   profiles?: {
     username?: string | null;
@@ -83,6 +84,7 @@ export type PubCrawl = {
   startedAt: string | null;
   endedAt: string | null;
   publishedAt: string | null;
+  hangoverScore: number | null;
   createdAt: string | null;
   username: string | null;
   avatarUrl: string | null;
@@ -195,6 +197,9 @@ export const mapPubCrawlRow = (row: PubCrawlRow): PubCrawl => ({
   startedAt: toStringOrNull(row.started_at),
   endedAt: toStringOrNull(row.ended_at),
   publishedAt: toStringOrNull(row.published_at),
+  hangoverScore: row.hangover_score === null || row.hangover_score === undefined
+    ? null
+    : toNullableNumber(row.hangover_score),
   createdAt: toStringOrNull(row.created_at),
   username: toStringOrNull(row.profiles?.username),
   avatarUrl: toStringOrNull(row.profiles?.avatar_url),

@@ -69,6 +69,7 @@ type FeedSession = {
   ended_at?: string | null;
   published_at?: string | null;
   edited_at?: string | null;
+  hangover_score?: number | null;
   created_at: string;
   session_beers: SessionBeer[];
   profiles?: {
@@ -507,6 +508,13 @@ const FeedSessionCard = React.memo(({
         {item.edited_at ? (
           <Text style={styles.editedText}>Edited</Text>
         ) : null}
+
+        {typeof item.hangover_score === 'number' ? (
+          <View style={styles.hangoverBadge}>
+            <Text style={styles.hangoverBadgeLabel}>Hangover</Text>
+            <Text style={styles.hangoverBadgeValue}>{item.hangover_score}/10</Text>
+          </View>
+        ) : null}
       </View>
 
       {item.cheers_count > 0 || item.comments_count > 0 ? (
@@ -726,6 +734,7 @@ export const FeedScreen = ({ route }: any) => {
               ended_at,
               published_at,
               edited_at,
+              hangover_score,
               created_at,
               hide_from_feed
             `)
@@ -2104,6 +2113,32 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '900',
     marginTop: 3,
+    fontVariant: ['tabular-nums'],
+  },
+  hangoverBadge: {
+    alignSelf: 'flex-end',
+    minWidth: 88,
+    minHeight: 48,
+    borderRadius: radius.md,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    backgroundColor: colors.dangerSoft,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.32)',
+  },
+  hangoverBadgeLabel: {
+    ...typography.tiny,
+    color: colors.textMuted,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  hangoverBadgeValue: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: '900',
+    marginTop: 1,
     fontVariant: ['tabular-nums'],
   },
   commentTop: {

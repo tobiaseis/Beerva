@@ -23,10 +23,12 @@ type NotificationRow = {
   id: string;
   user_id: string;
   actor_id: string;
-  type: 'cheer' | 'invite' | 'session_started' | 'comment' | 'invite_response' | 'pub_crawl_started';
+  type: 'cheer' | 'invite' | 'session_started' | 'comment' | 'invite_response' | 'pub_crawl_started' | 'hangover_check';
   reference_id: string | null;
   metadata?: {
     pub_name?: string | null;
+    prompt_id?: string | null;
+    target_type?: 'session' | 'pub_crawl' | string | null;
   } | null;
 };
 
@@ -116,12 +118,20 @@ Deno.serve(async (req) => {
     bodyText = notificationPubName
       ? `${actorName} started a pub crawl at ${notificationPubName}`
       : `${actorName} started a pub crawl`;
+  } else if (record.type === 'hangover_check') {
+    title = 'Morning-after damage report';
+    bodyText = 'Did last night win? Tap to rate the hangover before your liver files a bug report.';
   }
+
+  const hangoverTargetType = record.metadata?.target_type === 'pub_crawl' ? 'pub_crawl' : 'session';
+  const url = record.type === 'hangover_check' && record.reference_id
+    ? `/?hangover=1&target_type=${encodeURIComponent(hangoverTargetType)}&target_id=${encodeURIComponent(record.reference_id)}&notificationId=${encodeURIComponent(record.id)}`
+    : `/?notifications=1&notificationId=${encodeURIComponent(record.id)}`;
 
   const payload = JSON.stringify({
     title,
     body: bodyText,
-    url: `/?notifications=1&notificationId=${encodeURIComponent(record.id)}`,
+    url,
     tag: `beerva-${record.type}-${record.id}`,
   });
 

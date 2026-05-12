@@ -21,6 +21,7 @@ type PubCrawlBaseRow = {
   started_at: string | null;
   ended_at: string | null;
   published_at: string | null;
+  hangover_score: number | null;
   created_at: string | null;
 };
 
@@ -282,7 +283,7 @@ export const fetchActivePubCrawl = async (): Promise<ActivePubCrawlState | null>
   const { data, error } = await withTimeout(
     supabase
       .from('pub_crawls')
-      .select('id, user_id, status, started_at, ended_at, published_at, created_at')
+      .select('id, user_id, status, started_at, ended_at, published_at, hangover_score, created_at')
       .eq('user_id', user.id)
       .eq('status', 'active')
       .maybeSingle(),
@@ -416,7 +417,7 @@ export const fetchPublishedPubCrawlsForFeedPage = async (
   const { data, error } = await withTimeout(
     supabase
       .from('pub_crawls')
-      .select('id, user_id, status, started_at, ended_at, published_at, created_at')
+      .select('id, user_id, status, started_at, ended_at, published_at, hangover_score, created_at')
       .in('user_id', userIds)
       .eq('status', 'published')
       .order('published_at', { ascending: false, nullsFirst: false })

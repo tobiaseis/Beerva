@@ -20,6 +20,7 @@ import {
   getPushSupportInfo,
   isCurrentlySubscribed,
 } from '../lib/pushNotifications';
+import { getCurrentTimezone } from '../lib/timezone';
 
 type ProfileSetupScreenProps = {
   onComplete: () => void;
@@ -171,6 +172,7 @@ export const ProfileSetupScreen = ({ onComplete }: ProfileSetupScreenProps) => {
         id: user.id,
         username: cleanUsername,
         avatar_url: avatarUrl,
+        timezone: getCurrentTimezone(),
         updated_at: new Date().toISOString(),
       }, { onConflict: 'id' });
 

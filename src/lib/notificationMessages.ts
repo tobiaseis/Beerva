@@ -1,5 +1,7 @@
 export type NotificationMetadata = {
   pub_name?: string | null;
+  prompt_id?: string | null;
+  target_type?: 'session' | 'pub_crawl' | string | null;
 };
 
 export type NotificationMessageInput = {
@@ -38,6 +40,7 @@ export const getNotificationMessage = (item: NotificationMessageInput) => {
       ? ` started a pub crawl at ${pubName}.`
       : ' started a pub crawl.';
   }
+  if (item.type === 'hangover_check') return ' needs a morning-after damage report.';
   if (item.type === 'invite_response') {
     if (item.invite?.status === 'accepted') return ' will be there.';
     if (item.invite?.status === 'declined') return " can't make it.";

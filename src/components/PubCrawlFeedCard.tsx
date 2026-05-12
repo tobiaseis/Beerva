@@ -226,6 +226,13 @@ export const PubCrawlFeedCard = ({
             </View>
           </View>
         ) : null}
+
+        {crawl.hangoverScore !== null ? (
+          <View style={styles.hangoverBadge}>
+            <Text style={styles.hangoverBadgeLabel}>Hangover</Text>
+            <Text style={styles.hangoverBadgeValue}>{crawl.hangoverScore}/10</Text>
+          </View>
+        ) : null}
       </View>
 
       {crawl.cheersCount > 0 || crawl.commentsCount > 0 ? (
@@ -483,6 +490,32 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '900',
     marginTop: 3,
+    fontVariant: ['tabular-nums'],
+  },
+  hangoverBadge: {
+    alignSelf: 'flex-end',
+    minWidth: 88,
+    minHeight: 48,
+    borderRadius: radius.md,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    backgroundColor: colors.dangerSoft,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.32)',
+  },
+  hangoverBadgeLabel: {
+    ...typography.tiny,
+    color: colors.textMuted,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+  },
+  hangoverBadgeValue: {
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: '900',
+    marginTop: 1,
     fontVariant: ['tabular-nums'],
   },
   stopBreakdown: {
