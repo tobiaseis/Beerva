@@ -368,8 +368,8 @@ const styles = StyleSheet.create({
   },
   highScoreLabel: {
     ...typography.body,
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 13,
+    lineHeight: 17,
     color: colors.text,
     fontWeight: '800',
     textAlign: 'center',
@@ -377,8 +377,8 @@ const styles = StyleSheet.create({
   },
   highScoreValue: {
     fontFamily: 'Righteous_400Regular',
-    fontSize: 28,
-    lineHeight: 34,
+    fontSize: 30,
+    lineHeight: 36,
     color: colors.primary,
     marginTop: 3,
     maxWidth: '100%',

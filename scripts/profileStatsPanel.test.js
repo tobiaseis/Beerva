@@ -51,14 +51,14 @@ assert.match(
 
 assert.match(
   source,
-  /highScoreLabel: \{[\s\S]*fontSize: 12,[\s\S]*lineHeight: 16,/,
-  'high-score labels should use smaller compact type'
+  /highScoreLabel: \{[\s\S]*fontSize: 14,[\s\S]*lineHeight: 18,/,
+  'high-score labels should use compact type that is slightly larger than the smallest version'
 );
 
 assert.match(
   source,
-  /highScoreValue: \{[\s\S]*fontSize: 28,[\s\S]*lineHeight: 34,/,
-  'high-score values should be slightly smaller than before'
+  /highScoreValue: \{[\s\S]*fontSize: 30,[\s\S]*lineHeight: 36,/,
+  'high-score values should be larger than the smallest version but smaller than the original'
 );
 
 console.log('profile stats panel checks passed');
