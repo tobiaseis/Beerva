@@ -37,4 +37,28 @@ assert.match(
   'trophy grid should render only when the cabinet is expanded'
 );
 
-console.log('profile stats panel collapse checks passed');
+assert.match(
+  source,
+  /🍺 Best Session 🍺/,
+  'best session high-score tile should add beer emoji flair'
+);
+
+assert.match(
+  source,
+  /🔥 Longest Streak 🔥/,
+  'longest streak high-score tile should add fire emoji flair'
+);
+
+assert.match(
+  source,
+  /highScoreLabel: \{[\s\S]*fontSize: 12,[\s\S]*lineHeight: 16,/,
+  'high-score labels should use smaller compact type'
+);
+
+assert.match(
+  source,
+  /highScoreValue: \{[\s\S]*fontSize: 28,[\s\S]*lineHeight: 34,/,
+  'high-score values should be slightly smaller than before'
+);
+
+console.log('profile stats panel checks passed');

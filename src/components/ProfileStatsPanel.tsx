@@ -128,7 +128,7 @@ export const ProfileStatsPanel = ({ stats, pintTimeline = [] }: ProfileStatsPane
         >
           <Surface padded={false} style={styles.highScoreTile}>
             <Text style={styles.highScoreLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
-              Best Session
+              🍺 Best Session 🍺
             </Text>
             <Text
               style={styles.highScoreValue}
@@ -149,7 +149,7 @@ export const ProfileStatsPanel = ({ stats, pintTimeline = [] }: ProfileStatsPane
         >
           <Surface padded={false} style={styles.highScoreTile}>
             <Text style={styles.highScoreLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
-              Longest Streak
+              🔥 Longest Streak 🔥
             </Text>
             <Text
               style={styles.highScoreValue}
@@ -368,6 +368,8 @@ const styles = StyleSheet.create({
   },
   highScoreLabel: {
     ...typography.body,
+    fontSize: 12,
+    lineHeight: 16,
     color: colors.text,
     fontWeight: '800',
     textAlign: 'center',
@@ -375,8 +377,8 @@ const styles = StyleSheet.create({
   },
   highScoreValue: {
     fontFamily: 'Righteous_400Regular',
-    fontSize: 32,
-    lineHeight: 38,
+    fontSize: 28,
+    lineHeight: 34,
     color: colors.primary,
     marginTop: 3,
     maxWidth: '100%',
