@@ -117,6 +117,11 @@ export type PubCrawlSummary = {
   routeLabel: string;
 };
 
+export type ActivePubCrawlFallbackState = {
+  crawl: PubCrawl;
+  activeStop: PubCrawlStop | null;
+};
+
 export type PubCrawlMediaSlide =
   | { id: 'map'; type: 'map' }
   | { id: string; type: 'photo'; stopId: string; stopOrder: number; pubName: string; imageUrl: string };
@@ -201,6 +206,31 @@ export const mapPubCrawlRow = (row: PubCrawlRow): PubCrawl => ({
     .map(mapPubCrawlStopRow)
     .sort((a, b) => a.stopOrder - b.stopOrder),
 });
+
+export const buildFallbackActivePubCrawlState = (
+  crawlRow: PubCrawlRow,
+  sessionRow?: PubCrawlStopRow | null,
+  beerRows: PubCrawlBeerRow[] = []
+): ActivePubCrawlFallbackState => {
+  const crawlId = toStringOrNull(crawlRow.id);
+  const fallbackStops = sessionRow && crawlId
+    ? [{
+        ...sessionRow,
+        pub_crawl_id: toStringOrNull(sessionRow.pub_crawl_id) || crawlId,
+        crawl_stop_order: sessionRow.crawl_stop_order || 1,
+        session_beers: beerRows.length > 0 ? beerRows : sessionRow.session_beers || [],
+      }]
+    : [];
+  const crawl = mapPubCrawlRow({
+    ...crawlRow,
+    stops: fallbackStops,
+  });
+
+  return {
+    crawl,
+    activeStop: crawl.stops.find((stop) => !stop.endedAt && !stop.publishedAt) || crawl.stops[0] || null,
+  };
+};
 
 export const calculatePubCrawlSummary = (stops: PubCrawlStop[] = []): PubCrawlSummary => {
   let drinkCount = 0;

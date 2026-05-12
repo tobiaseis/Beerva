@@ -3,6 +3,16 @@ import type { PubRecord } from './pubDirectory';
 export const ROULETTE_MAX_DISTANCE_METERS = 1000;
 export const ROULETTE_MAX_WHEEL_PUBS = 12;
 
+export const getRouletteNoPubsMessage = (
+  maxDistanceMeters = ROULETTE_MAX_DISTANCE_METERS
+) => {
+  const distanceKm = maxDistanceMeters / 1000;
+  const distanceLabel = Number.isInteger(distanceKm)
+    ? `${distanceKm} km`
+    : `${distanceKm.toFixed(1)} km`;
+  return `The wheel looked within ${distanceLabel} and came back thirsty. Try Refresh or search a pub manually.`;
+};
+
 const normalizeKey = (value?: string | null) => (
   value?.trim().toLowerCase().replace(/\s+/g, ' ') || ''
 );

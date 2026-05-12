@@ -1,5 +1,14 @@
 import { PubRecord, formatPubLabel, incrementPubUseCount } from './pubDirectory';
-import { mapPubCrawlRow, PubCrawl, PubCrawlComment, PubCrawlProfile, PubCrawlRow, PubCrawlStopRow } from './pubCrawls';
+import {
+  buildFallbackActivePubCrawlState,
+  mapPubCrawlRow,
+  PubCrawl,
+  PubCrawlBeerRow,
+  PubCrawlComment,
+  PubCrawlProfile,
+  PubCrawlRow,
+  PubCrawlStopRow,
+} from './pubCrawls';
 import { supabase } from './supabase';
 import { getErrorMessage, withTimeout } from './timeouts';
 
@@ -68,11 +77,21 @@ export type ActivePubCrawlState = {
   activeStop: PubCrawl['stops'][number] | null;
 };
 
+export type ConvertPubCrawlFallback = {
+  session?: PubCrawlStopRow | null;
+  beers?: PubCrawlBeerRow[] | null;
+};
+
 export type PubCrawlFeedPage = {
   crawls: PubCrawl[];
   hasMore: boolean;
   loadedCount: number;
 };
+
+const toActivePubCrawlState = (crawl: PubCrawl): ActivePubCrawlState => ({
+  crawl,
+  activeStop: crawl.stops.find((stop) => !stop.endedAt && !stop.publishedAt) || crawl.stops[crawl.stops.length - 1] || null,
+});
 
 const profileFromRow = (row: any): PubCrawlProfile => ({
   id: row.id,
@@ -89,6 +108,14 @@ const toComment = (row: CommentRow, profilesById: Map<string, PubCrawlProfile>):
   updatedAt: row.updated_at,
   profile: profilesById.get(row.user_id) || null,
 });
+
+const normalizePubCrawlBaseRow = (data: unknown): PubCrawlBaseRow => {
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row || typeof row !== 'object' || !('id' in row)) {
+    throw new Error('Could not read the pub crawl that was created.');
+  }
+  return row as PubCrawlBaseRow;
+};
 
 const hydratePubCrawls = async (crawlRows: PubCrawlBaseRow[], currentUserId?: string | null): Promise<PubCrawl[]> => {
   if (crawlRows.length === 0) return [];
@@ -267,11 +294,13 @@ export const fetchActivePubCrawl = async (): Promise<ActivePubCrawlState | null>
   if (!data) return null;
 
   const [crawl] = await hydratePubCrawls([data as PubCrawlBaseRow], user.id);
-  const activeStop = crawl.stops.find((stop) => !stop.endedAt && !stop.publishedAt) || crawl.stops[crawl.stops.length - 1] || null;
-  return { crawl, activeStop };
+  return toActivePubCrawlState(crawl);
 };
 
-export const convertActiveSessionToPubCrawl = async (sessionId: string): Promise<ActivePubCrawlState> => {
+export const convertActiveSessionToPubCrawl = async (
+  sessionId: string,
+  fallback?: ConvertPubCrawlFallback
+): Promise<ActivePubCrawlState> => {
   const { data, error } = await withTimeout(
     supabase.rpc('convert_session_to_pub_crawl', { target_session_id: sessionId }),
     PUB_CRAWL_TIMEOUT_MS,
@@ -279,8 +308,21 @@ export const convertActiveSessionToPubCrawl = async (sessionId: string): Promise
   );
 
   if (error) throw error;
-  const [crawl] = await hydratePubCrawls([data as PubCrawlBaseRow]);
-  return { crawl, activeStop: crawl.stops[0] || null };
+  const crawlRow = normalizePubCrawlBaseRow(data);
+
+  try {
+    const [crawl] = await hydratePubCrawls([crawlRow]);
+    return toActivePubCrawlState(crawl);
+  } catch (hydrationError) {
+    if (!fallback?.session) throw hydrationError;
+
+    console.warn('Could not hydrate converted pub crawl; using active session fallback.', hydrationError);
+    return buildFallbackActivePubCrawlState(
+      crawlRow as PubCrawlRow,
+      fallback.session,
+      fallback.beers || []
+    );
+  }
 };
 
 export const updateCurrentCrawlStopPub = async (

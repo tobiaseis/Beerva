@@ -25,6 +25,7 @@ const loadTypeScriptModule = (relativePath) => {
 
 const {
   getRouletteTargetRotation,
+  getRouletteNoPubsMessage,
   isRoulettePubInRange,
   pickRouletteWinner,
   prepareRoulettePubs,
@@ -42,6 +43,10 @@ const pub = (overrides) => ({
 });
 
 assert.equal(ROULETTE_MAX_DISTANCE_METERS, 1000);
+assert.equal(
+  getRouletteNoPubsMessage(),
+  'The wheel looked within 1 km and came back thirsty. Try Refresh or search a pub manually.'
+);
 assert.equal(isRoulettePubInRange(pub({ id: 'inside', distance_meters: 1000 })), true);
 assert.equal(isRoulettePubInRange(pub({ id: 'outside', distance_meters: 1001 })), false);
 assert.equal(isRoulettePubInRange(pub({ id: 'unknown', distance_meters: null })), false);
@@ -91,6 +96,18 @@ assert.equal(
 assert.ok(
   getRouletteTargetRotation(1, 6, 725, 2) > 725,
   'target rotation should always keep the wheel moving forward'
+);
+
+const recordScreenSource = fs.readFileSync(path.resolve(__dirname, '..', 'src/screens/RecordScreen.tsx'), 'utf8');
+assert.match(
+  recordScreenSource,
+  /getRouletteNoPubsMessage/,
+  'roulette empty results should use the friendly no-pubs message helper'
+);
+assert.doesNotMatch(
+  recordScreenSource,
+  /setRouletteError\(\s*lookupError\s*\|\|\s*remoteError\s*\|\|/,
+  'roulette empty results should not expose lookup or API messages as the no-pubs copy'
 );
 
 console.log('pubRoulette tests passed');

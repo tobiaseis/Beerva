@@ -47,7 +47,7 @@ import {
   searchCachedPubs,
   UserLocation,
 } from '../lib/pubDirectory';
-import { prepareRoulettePubs } from '../lib/pubRoulette';
+import { getRouletteNoPubsMessage, prepareRoulettePubs } from '../lib/pubRoulette';
 import {
   ActivePubCrawlState,
   cancelPubCrawl,
@@ -535,6 +535,42 @@ export const RecordScreen = ({ navigation }: any) => {
     }
   };
 
+  const notifyMatesPubCrawlStarted = async (crawlId: string) => {
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!user) return;
+
+      const [followingResult, followersResult] = await Promise.all([
+        supabase.from('follows').select('following_id').eq('follower_id', user.id),
+        supabase.from('follows').select('follower_id').eq('following_id', user.id),
+      ]);
+
+      if (followingResult.error) throw followingResult.error;
+      if (followersResult.error) throw followersResult.error;
+
+      const followers = new Set(((followersResult.data || []) as FollowInRow[]).map((row) => row.follower_id));
+      const mutualIds = ((followingResult.data || []) as FollowOutRow[])
+        .map((row) => row.following_id)
+        .filter((id) => followers.has(id));
+
+      if (mutualIds.length === 0) return;
+
+      const { error } = await supabase.from('notifications').insert(
+        mutualIds.map((mateId) => ({
+          user_id: mateId,
+          actor_id: user.id,
+          type: 'pub_crawl_started',
+          reference_id: crawlId,
+        }))
+      );
+
+      if (error) throw error;
+    } catch (error) {
+      console.warn('Could not send pub crawl started notifications', error);
+    }
+  };
+
   const seedNearbyPubs = useCallback(async (location: UserLocation, signal?: AbortSignal) => {
     const cacheKey = getLocationCacheKey(location);
     const query = pub.trim();
@@ -659,17 +695,12 @@ export const RecordScreen = ({ navigation }: any) => {
       }
 
       let remotePubs: PubRecord[] = [];
-      let lookupError: string | null = null;
-      let remoteError: string | null = null;
-
       try {
         const remote = await fetchAndCacheNearbyPubs(location, '');
         remotePubs = remote.pubs;
-        lookupError = remote.lookupError;
         nearbySeedKeys.current.add(getLocationCacheKey(location));
         pubSearchCache.current.clear();
       } catch (error: any) {
-        remoteError = error?.message || 'Nearby pub lookup failed.';
         console.warn('Roulette live pub lookup failed:', error);
       }
 
@@ -680,11 +711,7 @@ export const RecordScreen = ({ navigation }: any) => {
       setPubOptions((previous) => mergePubRecords(nearbyPubs, previous));
 
       if (nearbyPubs.length === 0) {
-        setRouletteError(
-          lookupError
-          || remoteError
-          || 'No bars within 1 km found. Try searching a pub manually.'
-        );
+        setRouletteError(getRouletteNoPubsMessage());
         hapticWarning();
       } else {
         hapticSuccess();
@@ -809,41 +836,14 @@ export const RecordScreen = ({ navigation }: any) => {
     
     setConvertingCrawl(true);
     try {
-      const crawlState = await convertActiveSessionToPubCrawl(activeSession.id);
+      const crawlState = await convertActiveSessionToPubCrawl(activeSession.id, {
+        session: activeSession,
+        beers: sessionBeers,
+      });
       setActiveCrawl(crawlState);
       hapticSuccess();
       showAlert('Pub Crawl Started', 'Your session is now a pub crawl.');
-      
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        // notify mates
-        try {
-          const [followingResult, followersResult] = await Promise.all([
-            supabase.from('follows').select('following_id').eq('follower_id', user.id),
-            supabase.from('follows').select('follower_id').eq('following_id', user.id),
-          ]);
-          
-          if (!followingResult.error && !followersResult.error) {
-            const followers = new Set(((followersResult.data || []) as FollowInRow[]).map(row => row.follower_id));
-            const mutualIds = ((followingResult.data || []) as FollowOutRow[])
-              .map(row => row.following_id)
-              .filter(id => followers.has(id));
-            
-            if (mutualIds.length > 0) {
-              await supabase.from('notifications').insert(
-                mutualIds.map(mateId => ({
-                  user_id: mateId,
-                  actor_id: user.id,
-                  type: 'pub_crawl_started',
-                  reference_id: crawlState.crawl.id,
-                }))
-              );
-            }
-          }
-        } catch (e) {
-          console.warn('Could not send pub crawl started notifications', e);
-        }
-      }
+      notifyMatesPubCrawlStarted(crawlState.crawl.id);
     } catch (error: any) {
       console.error('Convert to pub crawl error:', error);
       hapticError();
