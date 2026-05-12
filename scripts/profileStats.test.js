@@ -368,14 +368,26 @@ assert.match(
 
 assert.equal(
   getBeerLine({ beer_name: 'Jägerbomb', volume: '2cl', quantity: 1 }),
-  '1x Jägerbomb',
-  'Jägerbomb post text should describe the unit drink, not the counted shot volume'
+  '1 x Jägerbomb',
+  'Jägerbomb post text should use the same spaced quantity format as other drinks'
 );
 
 assert.equal(
   getSessionBeerSummary([{ beer_name: 'Jägerbomb', volume: '2cl', quantity: 3, abv: 35 }]),
-  '3x Jägerbomb',
-  'Jägerbomb summaries should describe quantity as unit drinks'
+  '3 x Jägerbomb',
+  'Jägerbomb summaries should use the same spaced quantity format as other drinks'
+);
+
+assert.equal(
+  getBeerLine({ beer_name: 'Sambuca Shot', volume: '2cl', quantity: 1 }),
+  '1 x Sambuca Shot',
+  'Sambuca post text should use the same spaced quantity format as other drinks'
+);
+
+assert.equal(
+  getSessionBeerSummary([{ beer_name: 'Sambuca Shot', volume: '2cl', quantity: 4, abv: 38 }]),
+  '4 x Sambuca Shot',
+  'Sambuca summaries should use the same spaced quantity format as other drinks'
 );
 
 assert.equal(

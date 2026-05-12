@@ -339,7 +339,7 @@ export const getBeerLine = (beer: Pick<SessionBeer, 'beer_name' | 'volume' | 'qu
   const beverage = getBeverageCatalogItem(beer.beer_name || '');
   if (beverage?.kind === 'mixed' && beverage.countedVolume) {
     const qty = beer.quantity || 1;
-    return `${qty}x ${beverage.name}`;
+    return `${qty} x ${beverage.name}`;
   }
 
   return `${getBeerDrinkLabel(beer)} of ${beer.beer_name || 'Beer'}`;
@@ -363,7 +363,7 @@ export const getSessionBeerSummary = (beers: SessionBeer[]) => {
 
   const beverage = getBeverageCatalogItem(beers[0].beer_name || '');
   if (beverage?.kind === 'mixed' && beverage.countedVolume) {
-    return `${total}x ${beverage.name}`;
+    return `${total} x ${beverage.name}`;
   }
 
   return `${total} ${drinkLabel} of ${beers[0].beer_name || 'Beer'}`;
