@@ -23,8 +23,11 @@ type NotificationRow = {
   id: string;
   user_id: string;
   actor_id: string;
-  type: 'cheer' | 'invite' | 'session_started' | 'comment' | 'invite_response';
+  type: 'cheer' | 'invite' | 'session_started' | 'comment' | 'invite_response' | 'pub_crawl_started';
   reference_id: string | null;
+  metadata?: {
+    pub_name?: string | null;
+  } | null;
 };
 
 Deno.serve(async (req) => {
@@ -49,7 +52,13 @@ Deno.serve(async (req) => {
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-  const [{ data: actor }, { data: subscriptions }, { data: referencedSession }, { data: referencedInvite }] = await Promise.all([
+  const [
+    { data: actor },
+    { data: subscriptions },
+    { data: referencedSession },
+    { data: referencedCrawlStop },
+    { data: referencedInvite },
+  ] = await Promise.all([
     supabase.from('profiles').select('username').eq('id', record.actor_id).maybeSingle(),
     supabase
       .from('push_subscriptions')
@@ -57,6 +66,14 @@ Deno.serve(async (req) => {
       .eq('user_id', record.user_id),
     record.type === 'session_started' && record.reference_id
       ? supabase.from('sessions').select('pub_name').eq('id', record.reference_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    record.type === 'pub_crawl_started' && record.reference_id
+      ? supabase
+          .from('sessions')
+          .select('pub_name')
+          .eq('pub_crawl_id', record.reference_id)
+          .eq('crawl_stop_order', 1)
+          .maybeSingle()
       : Promise.resolve({ data: null }),
     (record.type === 'invite' || record.type === 'invite_response') && record.reference_id
       ? supabase.from('drinking_invites').select('status').eq('id', record.reference_id).maybeSingle()
@@ -68,6 +85,10 @@ Deno.serve(async (req) => {
   }
 
   const actorName = actor?.username || 'Someone';
+  const metadataPubName = typeof record.metadata?.pub_name === 'string'
+    ? record.metadata.pub_name.trim()
+    : '';
+  const notificationPubName = metadataPubName || referencedSession?.pub_name || referencedCrawlStop?.pub_name || null;
 
   let title = 'Beerva';
   let bodyText = '';
@@ -87,9 +108,14 @@ Deno.serve(async (req) => {
       : `${actorName} cannot make it`;
   } else if (record.type === 'session_started') {
     title = 'Drinking session started';
-    bodyText = referencedSession?.pub_name
-      ? `${actorName} started a session at ${referencedSession.pub_name}`
+    bodyText = notificationPubName
+      ? `${actorName} started a session at ${notificationPubName}`
       : `${actorName} started a drinking session`;
+  } else if (record.type === 'pub_crawl_started') {
+    title = 'Pub crawl started';
+    bodyText = notificationPubName
+      ? `${actorName} started a pub crawl at ${notificationPubName}`
+      : `${actorName} started a pub crawl`;
   }
 
   const payload = JSON.stringify({

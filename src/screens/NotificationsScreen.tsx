@@ -5,6 +5,7 @@ import { ArrowLeft, Beer, Check, MapPin, MessageCircle, PartyPopper, XCircle } f
 
 import { CachedImage } from '../components/CachedImage';
 import { EmptyIllustration } from '../components/EmptyIllustration';
+import { getNotificationMessage, NotificationMetadata } from '../lib/notificationMessages';
 import { useNotifications } from '../lib/notificationsContext';
 import { supabase } from '../lib/supabase';
 import { colors } from '../theme/colors';
@@ -37,6 +38,7 @@ type NotificationRow = {
   actor_id: string;
   type: NotificationType;
   reference_id: string | null;
+  metadata: NotificationMetadata | null;
   read: boolean;
   created_at: string;
   profiles: ProfilePreview | null;
@@ -64,27 +66,6 @@ const getInviteStatusText = (status: InviteStatus) => {
   return 'Waiting for your reply';
 };
 
-const getNotificationMessage = (item: NotificationRow) => {
-  if (item.type === 'cheer') return ' cheered your session!';
-  if (item.type === 'comment') return ' commented on your session.';
-  if (item.type === 'session_started') {
-    return item.session?.pub_name
-      ? ` started a drinking session at ${item.session.pub_name}.`
-      : ' started a drinking session.';
-  }
-  if (item.type === 'pub_crawl_started') {
-    return item.session?.pub_name
-      ? ` started a pub crawl at ${item.session.pub_name}.`
-      : ' started a pub crawl.';
-  }
-  if (item.type === 'invite_response') {
-    if (item.invite?.status === 'accepted') return ' will be there.';
-    if (item.invite?.status === 'declined') return " can't make it.";
-    return ' answered your drinking invite.';
-  }
-  return ' invited you to drink!';
-};
-
 export const NotificationsScreen = ({ navigation }: any) => {
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -106,7 +87,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
 
       const { data, error } = await supabase
         .from('notifications')
-        .select('id, actor_id, type, reference_id, read, created_at')
+        .select('id, actor_id, type, reference_id, metadata, read, created_at')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(50);

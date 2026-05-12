@@ -272,7 +272,11 @@ assert.match(recordScreenSource, /label="End Pub Crawl"[\s\S]*variant="danger"[\
 assert.match(recordScreenSource, /photoWarningBypassAction/, 'pub crawl photo warning should remember when the user chose to continue without a photo');
 assert.match(recordScreenSource, /photoWarningBypassAction\.current = action/, 'continuing without a photo should bypass the next repeated warning for the same action');
 assert.match(recordScreenSource, /const notifyMatesPubCrawlStarted = async/, 'pub crawl notifications should be isolated from conversion success handling');
-assert.match(recordScreenSource, /notifyMatesPubCrawlStarted\(crawlState\.crawl\.id\);/, 'turn-into-crawl should fire pub crawl notifications after conversion has succeeded');
+assert.match(
+  recordScreenSource,
+  /notifyMatesPubCrawlStarted\(crawlState\.crawl\.id,\s*crawlState\.activeStop\?\.pubName \|\| activeSession\.pub_name\);/,
+  'turn-into-crawl should fire pub crawl notifications with the crawl id and pub name after conversion has succeeded'
+);
 assert.doesNotMatch(
   recordScreenSource,
   /const turnIntoPubCrawl[\s\S]*const \{ data: \{ user \} \} = await supabase\.auth\.getUser\(\);[\s\S]*showAlert\('Could not start pub crawl'/,

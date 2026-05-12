@@ -11,6 +11,7 @@
     "preview:web": "node scripts/serve-dist.js",
     "test:stats": "node scripts/profileStats.test.js",
     "test:roulette": "node scripts/pubRoulette.test.js",
+    "test:notifications": "node scripts/notifications.test.js",
     "test:pub-legends": "node scripts/pubLegends.test.js",
     "test:pub-crawl": "node scripts/pubCrawl.test.js"
   },

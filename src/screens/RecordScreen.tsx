@@ -501,7 +501,7 @@ export const RecordScreen = ({ navigation }: any) => {
     if (error) throw error;
   };
 
-  const notifyMatesSessionStarted = async (sessionId: string, userId: string) => {
+  const notifyMatesSessionStarted = async (sessionId: string, userId: string, pubName: string) => {
     try {
       const [followingResult, followersResult] = await Promise.all([
         supabase.from('follows').select('following_id').eq('follower_id', userId),
@@ -524,6 +524,7 @@ export const RecordScreen = ({ navigation }: any) => {
           actor_id: userId,
           type: 'session_started',
           reference_id: sessionId,
+          metadata: { pub_name: pubName },
         }))
       );
 
@@ -535,7 +536,7 @@ export const RecordScreen = ({ navigation }: any) => {
     }
   };
 
-  const notifyMatesPubCrawlStarted = async (crawlId: string) => {
+  const notifyMatesPubCrawlStarted = async (crawlId: string, pubName: string) => {
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError) throw userError;
@@ -562,6 +563,7 @@ export const RecordScreen = ({ navigation }: any) => {
           actor_id: user.id,
           type: 'pub_crawl_started',
           reference_id: crawlId,
+          metadata: { pub_name: pubName },
         }))
       );
 
@@ -815,7 +817,7 @@ export const RecordScreen = ({ navigation }: any) => {
       setPub('');
       setSelectedPub(null);
       hapticSuccess();
-      notifyMatesSessionStarted(session.id, user.id);
+      notifyMatesSessionStarted(session.id, user.id, session.pub_name);
       showAlert('Session started', 'Your mates have been notified. Add drinks as you go.');
     } catch (error: any) {
       console.error('Start session error:', error);
@@ -843,7 +845,7 @@ export const RecordScreen = ({ navigation }: any) => {
       setActiveCrawl(crawlState);
       hapticSuccess();
       showAlert('Pub Crawl Started', 'Your session is now a pub crawl.');
-      notifyMatesPubCrawlStarted(crawlState.crawl.id);
+      notifyMatesPubCrawlStarted(crawlState.crawl.id, crawlState.activeStop?.pubName || activeSession.pub_name);
     } catch (error: any) {
       console.error('Convert to pub crawl error:', error);
       hapticError();
