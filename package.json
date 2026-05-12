@@ -17,7 +17,8 @@
     "test:hangover": "node scripts/hangover.test.js",
     "test:feed-header": "node scripts/feedHeader.test.js",
     "test:profile-panel": "node scripts/profileStatsPanel.test.js",
-    "test:pwa-startup": "node scripts/pwaStartup.test.js"
+    "test:pwa-startup": "node scripts/pwaStartup.test.js",
+    "test:pwa-install": "node scripts/pwaInstallPrompt.test.js"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",

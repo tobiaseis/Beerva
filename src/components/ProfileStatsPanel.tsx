@@ -369,8 +369,8 @@ const styles = StyleSheet.create({
   },
   highScoreLabel: {
     ...typography.body,
-    fontSize: 15,
-    lineHeight: 19,
+    fontSize: 14,
+    lineHeight: 18,
     color: colors.text,
     fontWeight: '800',
     textAlign: 'center',

@@ -13,6 +13,7 @@ import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold';
 import { Animated, Image, Platform, StyleSheet, View } from 'react-native';
 import { registerServiceWorker } from './src/lib/pushNotifications';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
+import { PwaInstallPrompt } from './src/components/PwaInstallPrompt';
 
 const beervaLogo = require('./assets/beerva-header-logo.png');
 
@@ -71,7 +72,10 @@ export default function App() {
       <ErrorBoundary>
         <View style={styles.appShell}>
           {fontsReady && splashDone ? (
-            <RootNavigator />
+            <>
+              <RootNavigator />
+              <PwaInstallPrompt />
+            </>
           ) : null}
 
           {/* Splash overlay – renders on top, fades out */}
@@ -100,6 +104,7 @@ const styles = StyleSheet.create({
   appShell: {
     flex: 1,
     backgroundColor: colors.background,
+    position: 'relative',
     ...(Platform.OS === 'web' ? {
       width: '100%',
       maxWidth: 680,
