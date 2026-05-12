@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Award, Beer, CalendarDays, Flame, MapPin, Moon, PartyPopper, Repeat, Sparkles, Sunrise, Trophy, X } from 'lucide-react-native';
+import { Award, Beer, CalendarDays, ChevronDown, ChevronUp, Flame, MapPin, Moon, PartyPopper, Repeat, Sparkles, Sunrise, Trophy, X } from 'lucide-react-native';
 
 import { getTrophies, Stats, TrophyKind } from '../lib/profileStats';
 import { PintTimelinePoint } from '../lib/profileStatsApi';
@@ -42,7 +42,6 @@ export const renderTrophyIcon = (kind: TrophyKind, earned: boolean, iconSize = 2
 import { colors } from '../theme/colors';
 import { radius, shadows, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
-import { SectionHeader } from './SectionHeader';
 import { Surface } from './Surface';
 
 type ProfileStatsPanelProps = {
@@ -55,6 +54,7 @@ type InsightKind = 'best-session' | 'longest-streak';
 export const ProfileStatsPanel = ({ stats, pintTimeline = [] }: ProfileStatsPanelProps) => {
   const [pintsModalVisible, setPintsModalVisible] = useState(false);
   const [insightModal, setInsightModal] = useState<InsightKind | null>(null);
+  const [trophyCabinetExpanded, setTrophyCabinetExpanded] = useState(true);
   const trophies = useMemo(() => getTrophies(stats), [stats]);
   const earnedTrophies = useMemo(() => trophies.filter((trophy) => trophy.earned), [trophies]);
   const maxTimelinePints = useMemo(
@@ -164,37 +164,53 @@ export const ProfileStatsPanel = ({ stats, pintTimeline = [] }: ProfileStatsPane
       </View>
 
       <View style={styles.section}>
-        <SectionHeader
-          title="Trophy Cabinet"
-          subtitle=""
-          meta={`${earnedTrophies.length}/${trophies.length}`}
-        />
+        <Pressable
+          style={styles.cabinetHeader}
+          onPress={() => setTrophyCabinetExpanded((expanded) => !expanded)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: trophyCabinetExpanded }}
+          accessibilityLabel={trophyCabinetExpanded ? 'Collapse trophy cabinet' : 'Expand trophy cabinet'}
+        >
+          <View style={styles.cabinetHeaderCopy}>
+            <Text style={styles.sectionTitle}>Trophy Cabinet</Text>
+            <Text style={styles.cabinetMeta}>{earnedTrophies.length}/{trophies.length}</Text>
+          </View>
+          <View style={styles.cabinetChevron}>
+            {trophyCabinetExpanded ? (
+              <ChevronUp color={colors.primary} size={20} />
+            ) : (
+              <ChevronDown color={colors.primary} size={20} />
+            )}
+          </View>
+        </Pressable>
 
-        <View style={styles.badges}>
-          {orderedTrophies.map((trophy) => (
-            <View
-              key={trophy.id}
-              style={[
-                styles.badge,
-                trophy.earned ? styles.badgeEarned : styles.badgeLocked,
-              ]}
-            >
-              <View style={[
-                styles.badgeIcon,
-                trophy.earned ? styles.badgeIconEarned : styles.badgeIconLocked,
-              ]}>
-                {renderTrophyIcon(trophy.kind, trophy.earned)}
+        {trophyCabinetExpanded ? (
+          <View style={styles.badges}>
+            {orderedTrophies.map((trophy) => (
+              <View
+                key={trophy.id}
+                style={[
+                  styles.badge,
+                  trophy.earned ? styles.badgeEarned : styles.badgeLocked,
+                ]}
+              >
+                <View style={[
+                  styles.badgeIcon,
+                  trophy.earned ? styles.badgeIconEarned : styles.badgeIconLocked,
+                ]}>
+                  {renderTrophyIcon(trophy.kind, trophy.earned)}
+                </View>
+                <Text style={[
+                  styles.badgeText,
+                  trophy.earned ? styles.badgeTextEarned : styles.badgeTextLocked,
+                ]}>
+                  {trophy.title}
+                </Text>
+                <Text style={styles.badgeDescription}>{trophy.description}</Text>
               </View>
-              <Text style={[
-                styles.badgeText,
-                trophy.earned ? styles.badgeTextEarned : styles.badgeTextLocked,
-              ]}>
-                {trophy.title}
-              </Text>
-              <Text style={styles.badgeDescription}>{trophy.description}</Text>
-            </View>
-          ))}
-        </View>
+            ))}
+          </View>
+        ) : null}
       </View>
 
       <Modal
@@ -371,19 +387,37 @@ const styles = StyleSheet.create({
     padding: Platform.OS === 'web' ? 16 : 20,
     gap: spacing.md,
   },
-  sectionHeader: {
+  cabinetHeader: {
+    minHeight: 44,
+    borderRadius: radius.md,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    gap: spacing.sm,
+  },
+  cabinetHeaderCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  cabinetMeta: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: '800',
+    marginTop: 2,
+    fontVariant: ['tabular-nums'],
+  },
+  cabinetChevron: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primarySoft,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
   },
   sectionTitle: {
     ...typography.h3,
-  },
-  sectionMeta: {
-    ...typography.caption,
-    color: colors.primary,
-    fontWeight: '700',
   },
   badges: {
     flexDirection: 'row',
