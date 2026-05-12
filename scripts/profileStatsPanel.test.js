@@ -39,14 +39,26 @@ assert.match(
 
 assert.match(
   source,
-  /🍺 Best Session 🍺/,
-  'best session high-score tile should add beer emoji flair'
+  />\s*Best Session\s*<\/Text>/,
+  'best session label should stay as plain text'
 );
 
 assert.match(
   source,
-  /🔥 Longest Streak 🔥/,
-  'longest streak high-score tile should add fire emoji flair'
+  />\s*Longest Streak\s*<\/Text>/,
+  'longest streak label should stay as plain text'
+);
+
+assert.match(
+  source,
+  /<View style=\{styles\.highScoreMetricRow\}>[\s\S]*🍺[\s\S]*stats\.maxSessionPints[\s\S]*🍺[\s\S]*<\/View>/,
+  'best session tile should place one beer emoji on each side of the number'
+);
+
+assert.match(
+  source,
+  /<View style=\{styles\.highScoreMetricRow\}>[\s\S]*🔥[\s\S]*stats\.longestDayStreak[\s\S]*🔥[\s\S]*<\/View>/,
+  'longest streak tile should place one fire emoji on each side of the number'
 );
 
 assert.match(

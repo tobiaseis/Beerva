@@ -128,16 +128,20 @@ export const ProfileStatsPanel = ({ stats, pintTimeline = [] }: ProfileStatsPane
         >
           <Surface padded={false} style={styles.highScoreTile}>
             <Text style={styles.highScoreLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
-              🍺 Best Session 🍺
+              Best Session
             </Text>
-            <Text
-              style={styles.highScoreValue}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.72}
-            >
-              {stats.maxSessionPints}
-            </Text>
+            <View style={styles.highScoreMetricRow}>
+              <Text style={styles.highScoreEmoji} numberOfLines={1}>🍺</Text>
+              <Text
+                style={styles.highScoreValue}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.72}
+              >
+                {stats.maxSessionPints}
+              </Text>
+              <Text style={styles.highScoreEmoji} numberOfLines={1}>🍺</Text>
+            </View>
           </Surface>
         </Pressable>
 
@@ -149,16 +153,20 @@ export const ProfileStatsPanel = ({ stats, pintTimeline = [] }: ProfileStatsPane
         >
           <Surface padded={false} style={styles.highScoreTile}>
             <Text style={styles.highScoreLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
-              🔥 Longest Streak 🔥
+              Longest Streak
             </Text>
-            <Text
-              style={styles.highScoreValue}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.72}
-            >
-              {stats.longestDayStreak}
-            </Text>
+            <View style={styles.highScoreMetricRow}>
+              <Text style={styles.highScoreEmoji} numberOfLines={1}>🔥</Text>
+              <Text
+                style={styles.highScoreValue}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.72}
+              >
+                {stats.longestDayStreak}
+              </Text>
+              <Text style={styles.highScoreEmoji} numberOfLines={1}>🔥</Text>
+            </View>
           </Surface>
         </Pressable>
       </View>
@@ -376,12 +384,26 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     maxWidth: '100%',
   },
+  highScoreMetricRow: {
+    width: '100%',
+    marginTop: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Platform.OS === 'web' ? 16 : 14,
+  },
+  highScoreEmoji: {
+    width: 34,
+    fontSize: 24,
+    lineHeight: 30,
+    textAlign: 'center',
+  },
   highScoreValue: {
     fontFamily: 'Righteous_400Regular',
     fontSize: 30,
     lineHeight: 36,
     color: colors.primary,
-    marginTop: 3,
+    minWidth: 46,
     maxWidth: '100%',
     textAlign: 'center',
     fontVariant: ['tabular-nums'],
