@@ -1805,9 +1805,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   header: {
-    paddingTop: Platform.OS === 'web' ? 18 : 60,
+    paddingTop: Platform.OS === 'web' ? 12 : 52,
     paddingHorizontal: 20,
-    paddingBottom: Platform.OS === 'web' ? 16 : 20,
+    paddingBottom: Platform.OS === 'web' ? 10 : 14,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderSoft,
     backgroundColor: colors.background,

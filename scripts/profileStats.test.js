@@ -169,6 +169,24 @@ assert.equal(
   'Officially an Alcoholic should unlock after 2+ true pints per week for six weeks straight'
 );
 
+assert.equal(
+  getTrophies({ ...emptyStats, maxSessionsAtSamePub: 10 }).find((trophy) => trophy.id === 'local-legend')?.earned,
+  true,
+  'Local Legend should unlock after 10 sessions at the same pub'
+);
+
+assert.equal(
+  getTrophies({ ...emptyStats, maxSessionsAtSamePub: 19 }).find((trophy) => trophy.id === 'regular')?.earned,
+  false,
+  'Regular should stay locked before 20 sessions at the same pub'
+);
+
+assert.equal(
+  getTrophies({ ...emptyStats, maxSessionsAtSamePub: 20 }).find((trophy) => trophy.id === 'regular')?.earned,
+  true,
+  'Regular should unlock after 20 sessions at the same pub'
+);
+
 const brokenWeekPintStreakStats = calculateStats([
   twoPintWeekRow('broken-week-1', '2026-01-05T18:00:00.000Z'),
   twoPintWeekRow('broken-week-2', '2026-01-12T18:00:00.000Z'),

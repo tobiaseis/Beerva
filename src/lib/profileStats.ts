@@ -584,6 +584,13 @@ export const getTrophies = (stats: Stats): TrophyDefinition[] => {
       earned: stats.maxSessionsAtSamePub >= 10,
     },
     {
+      id: 'regular',
+      title: 'Regular',
+      description: '20+ sessions at the same pub',
+      kind: 'pubs',
+      earned: stats.maxSessionsAtSamePub >= 20,
+    },
+    {
       id: 'streak-3',
       title: 'Hat Trick',
       description: 'Sessions on 3 days in a row',
