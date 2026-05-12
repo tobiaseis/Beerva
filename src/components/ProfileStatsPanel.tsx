@@ -166,7 +166,7 @@ export const ProfileStatsPanel = ({ stats, pintTimeline = [] }: ProfileStatsPane
       <View style={styles.section}>
         <SectionHeader
           title="Trophy Cabinet"
-          subtitle="Don't let society tell you that you can't acquire all these trophies"
+          subtitle=""
           meta={`${earnedTrophies.length}/${trophies.length}`}
         />
 
