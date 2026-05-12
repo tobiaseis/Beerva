@@ -16,7 +16,7 @@ import { useNotifications } from '../lib/notificationsContext';
 import { EmptyIllustration } from '../components/EmptyIllustration';
 import { getBeerLine, getSessionBeerSummary, SessionBeer } from '../lib/sessionBeers';
 import { getVolumeMl, TrophyDefinition } from '../lib/profileStats';
-import { TrophyUnlockModal } from '../components/TrophyUnlockModal';
+import { AllTrophiesUnlockedModal, TrophyUnlockModal } from '../components/TrophyUnlockModal';
 import { ImageViewerModal } from '../components/ImageViewerModal';
 import { openMaps } from '../lib/maps';
 import { getErrorMessage, withTimeout } from '../lib/timeouts';
@@ -602,14 +602,30 @@ export const FeedScreen = ({ route }: any) => {
   const navigation = useNavigation<any>();
   const [sessions, setSessions] = useState<FeedItem[]>([]);
   const [unlockedTrophies, setUnlockedTrophies] = useState<TrophyDefinition[]>([]);
+  const [allTrophiesPrizeVisible, setAllTrophiesPrizeVisible] = useState(false);
   const newlyUnlockedTrophies = route?.params?.newlyUnlockedTrophies;
+  const allTrophiesUnlocked = route?.params?.allTrophiesUnlocked;
 
   useEffect(() => {
+    const clearedParams: { newlyUnlockedTrophies?: undefined; allTrophiesUnlocked?: undefined } = {};
+    let shouldClearParams = false;
+
     if (newlyUnlockedTrophies?.length > 0) {
       setUnlockedTrophies(newlyUnlockedTrophies);
-      navigation.setParams({ newlyUnlockedTrophies: undefined });
+      clearedParams.newlyUnlockedTrophies = undefined;
+      shouldClearParams = true;
     }
-  }, [newlyUnlockedTrophies, navigation]);
+
+    if (allTrophiesUnlocked) {
+      setAllTrophiesPrizeVisible(true);
+      clearedParams.allTrophiesUnlocked = undefined;
+      shouldClearParams = true;
+    }
+
+    if (shouldClearParams) {
+      navigation.setParams(clearedParams);
+    }
+  }, [newlyUnlockedTrophies, allTrophiesUnlocked, navigation]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [followedUserCount, setFollowedUserCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -1623,6 +1639,11 @@ export const FeedScreen = ({ route }: any) => {
           onClose={() => setUnlockedTrophies((prev) => prev.slice(1))}
         />
       )}
+
+      <AllTrophiesUnlockedModal
+        visible={allTrophiesPrizeVisible && unlockedTrophies.length === 0}
+        onClose={() => setAllTrophiesPrizeVisible(false)}
+      />
 
       <ImageViewerModal
         visible={Boolean(viewingImageUrl)}

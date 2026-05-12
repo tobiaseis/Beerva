@@ -173,6 +173,7 @@ export const ProfileStatsPanel = ({ stats, pintTimeline = [] }: ProfileStatsPane
         >
           <View style={styles.cabinetHeaderCopy}>
             <Text style={styles.sectionTitle}>Trophy Cabinet</Text>
+            <Text style={styles.cabinetPrizeText}>Unlock all trophies to get a secret prize!</Text>
             <Text style={styles.cabinetMeta}>{earnedTrophies.length}/{trophies.length}</Text>
           </View>
           <View style={styles.cabinetChevron}>
@@ -368,8 +369,8 @@ const styles = StyleSheet.create({
   },
   highScoreLabel: {
     ...typography.body,
-    fontSize: 13,
-    lineHeight: 17,
+    fontSize: 15,
+    lineHeight: 19,
     color: colors.text,
     fontWeight: '800',
     textAlign: 'center',
@@ -407,6 +408,11 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginTop: 2,
     fontVariant: ['tabular-nums'],
+  },
+  cabinetPrizeText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    marginTop: 4,
   },
   cabinetChevron: {
     width: 36,

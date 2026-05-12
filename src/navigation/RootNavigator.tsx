@@ -29,7 +29,7 @@ const beervaLogo = require('../../assets/beerva-header-logo.png');
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
-const navigationRef = createNavigationContainerRef();
+const navigationRef = createNavigationContainerRef<Record<string, object | undefined>>();
 const AUTH_BOOTSTRAP_TIMEOUT_MS = 12000;
 const PROFILE_CHECK_TIMEOUT_MS = 12000;
 
@@ -55,6 +55,12 @@ const shouldOpenNotificationsFromUrl = () => {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
   const params = new URLSearchParams(window.location.search);
   return params.get('notifications') === '1';
+};
+
+const shouldOpenRecordFromUrl = () => {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
+  const params = new URLSearchParams(window.location.search);
+  return params.get('tab') === 'record';
 };
 
 type HangoverLaunchParams = {
@@ -89,6 +95,13 @@ const clearNotificationLaunchParams = () => {
   const url = new URL(window.location.href);
   url.searchParams.delete('notifications');
   url.searchParams.delete('notificationId');
+  window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+};
+
+const clearRecordLaunchParams = () => {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+  const url = new URL(window.location.href);
+  url.searchParams.delete('tab');
   window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
 };
 
@@ -222,6 +235,7 @@ export const RootNavigator = () => {
   const profileCheckedUserIdRef = useRef<string | null>(null);
   const profileCheckRequestIdRef = useRef(0);
   const pendingNotificationsOpenRef = useRef(shouldOpenNotificationsFromUrl());
+  const pendingRecordOpenRef = useRef(shouldOpenRecordFromUrl());
   const pendingHangoverOpenRef = useRef<HangoverLaunchParams | null>(getHangoverLaunchParamsFromUrl());
   const sessionUserId = session?.user?.id ?? null;
   const sessionHasCachedUsername = hasCachedUsername(session);
@@ -351,16 +365,23 @@ export const RootNavigator = () => {
     const pendingHangoverOpen = pendingHangoverOpenRef.current;
     if (pendingHangoverOpen) {
       pendingHangoverOpenRef.current = null;
-      navigationRef.navigate('HangoverRating' as never, pendingHangoverOpen as never);
+      navigationRef.navigate('HangoverRating', pendingHangoverOpen);
       clearHangoverLaunchParams();
       return;
     }
 
-    if (!pendingNotificationsOpenRef.current) return;
+    if (pendingNotificationsOpenRef.current) {
+      pendingNotificationsOpenRef.current = false;
+      navigationRef.navigate('Notifications');
+      clearNotificationLaunchParams();
+      return;
+    }
 
-    pendingNotificationsOpenRef.current = false;
-    navigationRef.navigate('Notifications' as never);
-    clearNotificationLaunchParams();
+    if (!pendingRecordOpenRef.current) return;
+
+    pendingRecordOpenRef.current = false;
+    navigationRef.navigate('MainTabs', { screen: 'Record' });
+    clearRecordLaunchParams();
   }, [loading, navigationReady, needsProfileSetup, profileLoading, sessionUserId, waitingForProfileCheck]);
 
   if (loading || profileLoading || waitingForProfileCheck) {

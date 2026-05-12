@@ -1167,12 +1167,15 @@ export const RecordScreen = ({ navigation }: any) => {
       const newlyUnlockedTrophies = newTrophies.filter((nt) =>
         nt.earned && !oldTrophies.find((ot) => ot.id === nt.id && ot.earned)
       );
+      const allTrophiesUnlocked = newTrophies.length > 0
+        && newTrophies.every((trophy) => trophy.earned)
+        && oldTrophies.some((trophy) => !trophy.earned);
 
       resetActiveState();
       setPub('');
       hapticSuccess();
       showAlert('Crawl Finished', 'Your pub crawl has been posted to the feed.');
-      navigation.navigate('Feed', { newlyUnlockedTrophies });
+      navigation.navigate('Feed', { newlyUnlockedTrophies, allTrophiesUnlocked });
     } catch (e: any) {
       hapticError();
       showAlert('Could not end crawl', e?.message);
@@ -1251,12 +1254,15 @@ export const RecordScreen = ({ navigation }: any) => {
       const newlyUnlockedTrophies = newTrophies.filter((nt) =>
         nt.earned && !oldTrophies.find((ot) => ot.id === nt.id && ot.earned)
       );
+      const allTrophiesUnlocked = newTrophies.length > 0
+        && newTrophies.every((trophy) => trophy.earned)
+        && oldTrophies.some((trophy) => !trophy.earned);
 
       resetActiveState();
       setPub('');
       hapticSuccess();
       showAlert('Posted', 'Your drinking session is now on the feed.');
-      navigation.navigate('Feed', { newlyUnlockedTrophies });
+      navigation.navigate('Feed', { newlyUnlockedTrophies, allTrophiesUnlocked });
     } catch (error: any) {
       console.error('End session error:', error);
       if (uploadedUrl) {

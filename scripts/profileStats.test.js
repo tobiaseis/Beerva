@@ -277,6 +277,61 @@ assert.equal(
   'Exactly 50 RTDs should unlock King of Luderbenzin without help from non-RTDs'
 );
 
+const longSessionTrophies = getTrophies({ ...emptyStats, maxSessionPints: 25 });
+const longSessionTrophyIds = longSessionTrophies.map((trophy) => trophy.id);
+const longSessionTrophyTitles = longSessionTrophies.map((trophy) => trophy.title);
+assert.equal(
+  longSessionTrophyIds.includes('session-20'),
+  false,
+  '20 pint session trophy should be removed because it cannot be achieved'
+);
+assert.equal(
+  longSessionTrophyIds.includes('session-25'),
+  false,
+  '25 pint session trophy should be removed because it cannot be achieved'
+);
+assert.equal(
+  longSessionTrophyTitles.includes('20 Pint Session') || longSessionTrophyTitles.includes('25 Pint Session'),
+  false,
+  'removed session trophies should not appear by title'
+);
+assert.equal(
+  longSessionTrophies.find((trophy) => trophy.id === 'session-15')?.earned,
+  true,
+  '15 pint session trophy should remain as the highest session trophy'
+);
+
+const allTrophiesStats = {
+  ...emptyStats,
+  totalPints: 1000,
+  uniquePubs: 100,
+  avgAbv: 8,
+  maxSessionPints: 15,
+  strongestAbv: 11.1,
+  hasLateNightSession: true,
+  maxSessionsInOneDay: 7,
+  maxPubsInOneDay: 3,
+  maxSessionsAtSamePub: 20,
+  longestDayStreak: 7,
+  maxTwoPintWeekStreak: 6,
+  uniqueBeers: 25,
+  maxBeersInOneDay: 3,
+  hasEarlyBirdSession: true,
+  monthsLogged: 12,
+  rtdCount: 50,
+  uniqueRtds: 5,
+  maxRtdsInOneDay: 3,
+  jagerbombCount: 100,
+  maxJagerbombsInOneDay: 10,
+  sambucaCount: 50,
+  maxSambucasInOneDay: 10,
+};
+assert.equal(
+  getTrophies(allTrophiesStats).every((trophy) => trophy.earned),
+  true,
+  'all remaining trophies should be achievable with maxed-out stats'
+);
+
 assert.equal(getVolumeMl('2cl'), 20, '2cl servings should count as 20ml');
 assert.equal(getVolumeMl('4cl'), 40, '4cl servings should count as 40ml');
 assert.equal(getVolumeMl('27.5cl'), 275, '27.5cl RTD servings should count as 275ml');
@@ -345,10 +400,53 @@ assert.match(profileStatsPanelSource, /stats\.longestDayStreak/, 'longest streak
 assert.match(profileStatsPanelSource, /highScoreGrid/, 'best session and streak boxes should sit side-by-side in one row');
 assert.match(profileStatsPanelSource, /Show best session details/, 'best session stat box should open a details view');
 assert.match(profileStatsPanelSource, /Show longest streak details/, 'longest streak stat box should open a details view');
+assert.match(
+  profileStatsPanelSource,
+  /Unlock all trophies to get a secret prize!/,
+  'trophy cabinet should tease the all-trophies prize'
+);
 assert.doesNotMatch(
   profileStatsPanelSource,
   /<Text style=\{styles\.highScoreHint\}/,
   'best session and streak boxes should not show explanatory copy until pressed'
+);
+
+const feedScreenSource = fs.readFileSync(
+  path.resolve(__dirname, '..', 'src/screens/FeedScreen.tsx'),
+  'utf8'
+);
+assert.match(feedScreenSource, /allTrophiesUnlocked/, 'feed should receive the all-trophies prize route param');
+assert.match(feedScreenSource, /AllTrophiesUnlockedModal/, 'feed should render the all-trophies prize modal');
+
+const trophyUnlockModalSource = fs.readFileSync(
+  path.resolve(__dirname, '..', 'src/components/TrophyUnlockModal.tsx'),
+  'utf8'
+);
+assert.match(trophyUnlockModalSource, /WOW!/, 'all-trophies prize modal should celebrate with WOW!');
+assert.match(
+  trophyUnlockModalSource,
+  /You have unlocked all trophies\. Congratulations on needing a new liver!/,
+  'all-trophies prize modal should use the requested prize message'
+);
+
+const recordScreenSource = fs.readFileSync(
+  path.resolve(__dirname, '..', 'src/screens/RecordScreen.tsx'),
+  'utf8'
+);
+assert.match(
+  recordScreenSource,
+  /newTrophies\.every\(\(trophy\) => trophy\.earned\)/,
+  'ending a session should detect when all trophies are earned'
+);
+assert.match(
+  recordScreenSource,
+  /oldTrophies\.some\(\(trophy\) => !trophy\.earned\)/,
+  'all-trophies prize should only trigger when the user just crossed the finish line'
+);
+assert.match(
+  recordScreenSource,
+  /allTrophiesUnlocked/,
+  'ending a session should pass the all-trophies prize flag to the feed'
 );
 
 console.log('profileStats trophy tests passed');

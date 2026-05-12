@@ -52,7 +52,7 @@ assert.match(
 assert.match(
   source,
   /highScoreLabel: \{[\s\S]*fontSize: 15,[\s\S]*lineHeight: 19,/,
-  'high-score labels should use compact type that is slightly larger than the smallest version'
+  'high-score labels should use compact type that is slightly larger than the smallest version. Changed to 15/19 on purpose'
 );
 
 assert.match(

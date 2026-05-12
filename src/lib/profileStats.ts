@@ -528,7 +528,7 @@ export const getTrophies = (stats: Stats): TrophyDefinition[] => {
     earned: stats.uniquePubs >= threshold,
   }));
 
-  const sessionTrophies = [5, 10, 15, 20, 25].map((threshold) => ({
+  const sessionTrophies = [5, 10, 15].map((threshold) => ({
     id: `session-${threshold}`,
     title: `${threshold} Pint Session`,
     description: `${threshold}+ true pints in one session`,

@@ -4,13 +4,12 @@ import { StatusBar } from 'expo-status-bar';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { colors } from './src/theme/colors';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { useFonts, Righteous_400Regular } from '@expo-google-fonts/righteous';
-import {
-  Inter_400Regular,
-  Inter_500Medium,
-  Inter_600SemiBold,
-  Inter_700Bold,
-} from '@expo-google-fonts/inter';
+import { useFonts } from 'expo-font';
+import { Righteous_400Regular } from '@expo-google-fonts/righteous/400Regular';
+import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular';
+import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
+import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
+import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold';
 import { Animated, Image, Platform, StyleSheet, View } from 'react-native';
 import { registerServiceWorker } from './src/lib/pushNotifications';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
@@ -21,13 +20,14 @@ const SPLASH_HOLD_MS = 600;
 const SPLASH_FADE_MS = 400;
 
 export default function App() {
-  let [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     Righteous_400Regular,
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
   });
+  const fontsReady = fontsLoaded || Boolean(fontError);
 
   const [splashDone, setSplashDone] = useState(false);
   const splashOpacity = useRef(new Animated.Value(1)).current;
@@ -51,7 +51,7 @@ export default function App() {
 
   // Once fonts are loaded, hold splash briefly then fade out
   useEffect(() => {
-    if (!fontsLoaded) return;
+    if (!fontsReady) return;
 
     const timeout = setTimeout(() => {
       Animated.timing(splashOpacity, {
@@ -64,13 +64,13 @@ export default function App() {
     }, SPLASH_HOLD_MS);
 
     return () => clearTimeout(timeout);
-  }, [fontsLoaded, splashOpacity]);
+  }, [fontsReady, splashOpacity]);
 
   return (
     <SafeAreaProvider style={styles.safeArea}>
       <ErrorBoundary>
         <View style={styles.appShell}>
-          {fontsLoaded && splashDone ? (
+          {fontsReady && splashDone ? (
             <RootNavigator />
           ) : null}
 

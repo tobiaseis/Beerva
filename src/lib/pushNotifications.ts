@@ -29,6 +29,12 @@ export const isStandalonePwa = (): boolean => {
   return window.matchMedia?.('(display-mode: standalone)').matches || navigatorWithStandalone.standalone === true;
 };
 
+const isServiceWorkerSupported = (): boolean => (
+  Platform.OS === 'web'
+  && typeof navigator !== 'undefined'
+  && 'serviceWorker' in navigator
+);
+
 export const getPushSupportInfo = (): PushSupportInfo => {
   if (Platform.OS !== 'web') {
     return { supported: false, reason: 'Push notifications are only configured for the web app.' };
@@ -41,7 +47,7 @@ export const getPushSupportInfo = (): PushSupportInfo => {
   const userAgent = navigator.userAgent || '';
   const isIos = /iphone|ipad|ipod/i.test(userAgent);
   const hasRequiredApis = (
-    'serviceWorker' in navigator &&
+    isServiceWorkerSupported() &&
     'PushManager' in window &&
     'Notification' in window
   );
@@ -102,7 +108,7 @@ const attachServiceWorkerUpdateFlow = (registration: ServiceWorkerRegistration) 
 };
 
 export const registerServiceWorker = async (): Promise<ServiceWorkerRegistration | null> => {
-  if (!isPushSupported()) return null;
+  if (!isServiceWorkerSupported()) return null;
   try {
     const existing = await navigator.serviceWorker.getRegistration('/');
     if (existing) {
