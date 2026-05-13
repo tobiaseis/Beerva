@@ -345,28 +345,76 @@ export const getBeerLine = (beer: Pick<SessionBeer, 'beer_name' | 'volume' | 'qu
   return `${getBeerDrinkLabel(beer)} of ${beer.beer_name || 'Beer'}`;
 };
 
+const getBeerDisplayName = (beerName?: string | null) => {
+  const trimmedName = beerName?.trim();
+  const beverage = getBeverageCatalogItem(trimmedName || '');
+  return beverage?.name || trimmedName || 'Beer';
+};
+
+const getBeerSummaryKey = (beerName?: string | null) => (
+  normalizeBeerName(getBeerDisplayName(beerName))
+);
+
+const getBeerBreakdownKey = (beer: Pick<SessionBeer, 'beer_name' | 'volume'>) => {
+  const beverage = getBeverageCatalogItem(beer.beer_name || '');
+  const displayName = getBeerDisplayName(beer.beer_name);
+  const volume = beverage?.kind === 'mixed' && beverage.countedVolume
+    ? beverage.countedVolume
+    : beer.volume || 'Pint';
+
+  return `${normalizeBeerName(displayName)}|${volume.trim().toLowerCase()}`;
+};
+
+export const getSessionBeerBreakdownLines = (
+  beers: Array<Pick<SessionBeer, 'beer_name' | 'volume' | 'quantity'>>
+) => {
+  const groups = new Map<string, Pick<SessionBeer, 'beer_name' | 'volume' | 'quantity'>>();
+
+  beers.forEach((beer) => {
+    const key = getBeerBreakdownKey(beer);
+    const existing = groups.get(key);
+    const quantity = beer.quantity || 1;
+
+    if (existing) {
+      groups.set(key, {
+        ...existing,
+        quantity: (existing.quantity || 1) + quantity,
+      });
+      return;
+    }
+
+    groups.set(key, {
+      beer_name: getBeerDisplayName(beer.beer_name),
+      volume: beer.volume || 'Pint',
+      quantity,
+    });
+  });
+
+  return Array.from(groups.values()).map((beer) => getBeerLine(beer));
+};
+
 export const getTotalBeerQuantity = (beers: Array<Pick<SessionBeer, 'quantity'>>) => {
   return beers.reduce((sum, beer) => sum + (beer.quantity || 1), 0);
 };
 
 export const getSessionBeerSummary = (beers: SessionBeer[]) => {
   if (beers.length === 0) return 'No drinks added';
-  if (beers.length === 1) return getBeerLine(beers[0]);
 
   const total = getTotalBeerQuantity(beers);
-  const uniqueBeerCount = new Set(beers.map((beer) => beer.beer_name).filter(Boolean)).size;
+  const uniqueBeerCount = new Set(beers.map((beer) => getBeerSummaryKey(beer.beer_name)).filter(Boolean)).size;
   const drinkLabel = total === 1 ? 'drink' : 'drinks';
+
+  if (uniqueBeerCount === 1 && total > 1) {
+    return `${total} x ${getBeerDisplayName(beers[0].beer_name)}`;
+  }
+
+  if (beers.length === 1) return getBeerLine(beers[0]);
 
   if (uniqueBeerCount > 1) {
     return `${total} ${drinkLabel} across ${uniqueBeerCount} kinds`;
   }
 
-  const beverage = getBeverageCatalogItem(beers[0].beer_name || '');
-  if (beverage?.kind === 'mixed' && beverage.countedVolume) {
-    return `${total} x ${beverage.name}`;
-  }
-
-  return `${total} ${drinkLabel} of ${beers[0].beer_name || 'Beer'}`;
+  return `${total} ${drinkLabel} of ${getBeerDisplayName(beers[0].beer_name)}`;
 };
 
 export const getLegacySessionBeerFields = (beers: SessionBeer[]) => {

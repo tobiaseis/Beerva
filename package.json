@@ -16,6 +16,7 @@
     "test:pub-directory": "node scripts/pubDirectory.test.js",
     "test:record-place-category": "node scripts/recordPlaceCategory.test.js",
     "test:pub-crawl": "node scripts/pubCrawl.test.js",
+    "test:session-beers": "node scripts/sessionBeers.test.js",
     "test:hangover": "node scripts/hangover.test.js",
     "test:feed-header": "node scripts/feedHeader.test.js",
     "test:floating-nav": "node scripts/floatingBottomNav.test.js",

@@ -3,7 +3,7 @@ import { Image, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react
 import { Beer, ChevronDown, ChevronUp, MapPin, MessageCircle } from 'lucide-react-native';
 
 import { PubCrawl, PubCrawlStop, calculatePubCrawlSummary } from '../lib/pubCrawls';
-import { getBeerLine } from '../lib/sessionBeers';
+import { getSessionBeerBreakdownLines } from '../lib/sessionBeers';
 import { colors } from '../theme/colors';
 import { feedCardColors, feedCardMetrics, getCompactFeedActionCount } from '../theme/feedCard';
 import { radius, shadows } from '../theme/layout';
@@ -190,6 +190,13 @@ export const PubCrawlFeedCard = ({
             <View style={styles.stopBreakdown}>
               {crawl.stops.map((stop) => {
                 const stopDrinkCount = getStopDrinkCount(stop);
+                const beerBreakdownLines = getSessionBeerBreakdownLines(
+                  stop.beers.map((beer) => ({
+                    beer_name: beer.beerName,
+                    volume: beer.volume,
+                    quantity: beer.quantity,
+                  }))
+                );
 
                 return (
                   <View key={stop.id} style={styles.stopSection}>
@@ -207,16 +214,11 @@ export const PubCrawlFeedCard = ({
                       <Text style={styles.stopComment} numberOfLines={2}>{stop.comment}</Text>
                     ) : null}
 
-                    {stop.beers.length > 0 ? (
+                    {beerBreakdownLines.length > 0 ? (
                       <View style={styles.beerBreakdown}>
-                        {stop.beers.map((beer) => (
-                          <Text key={beer.id || `${stop.id}-${beer.beerName}`} style={styles.beerBreakdownText}>
-                            {getBeerLine({
-                              beer_name: beer.beerName,
-                              volume: beer.volume,
-                              quantity: beer.quantity,
-                              abv: beer.abv,
-                            } as any)}
+                        {beerBreakdownLines.map((line, index) => (
+                          <Text key={`${stop.id}-${line}-${index}`} style={styles.beerBreakdownText}>
+                            {line}
                           </Text>
                         ))}
                       </View>

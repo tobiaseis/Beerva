@@ -15,7 +15,7 @@ import { radius, shadows } from '../theme/layout';
 import { hapticLight, hapticMedium, hapticWarning } from '../lib/haptics';
 import { useNotifications } from '../lib/notificationsContext';
 import { EmptyIllustration } from '../components/EmptyIllustration';
-import { getBeerLine, getSessionBeerSummary, SessionBeer } from '../lib/sessionBeers';
+import { getSessionBeerBreakdownLines, getSessionBeerSummary, SessionBeer } from '../lib/sessionBeers';
 import { getVolumeMl, TrophyDefinition } from '../lib/profileStats';
 import { AllTrophiesUnlockedModal, TrophyUnlockModal } from '../components/TrophyUnlockModal';
 import { ImageViewerModal } from '../components/ImageViewerModal';
@@ -290,6 +290,7 @@ const FeedSessionCard = React.memo(({
   const beerCount = getSessionBeerCount(item);
   const truePints = getSessionTruePints(item);
   const averageAbv = getSessionAverageAbv(item);
+  const beerBreakdownLines = getSessionBeerBreakdownLines(item.session_beers);
   const [statsExpanded, setStatsExpanded] = React.useState(false);
   const cheersScale = React.useRef(new Animated.Value(1)).current;
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
@@ -494,11 +495,11 @@ const FeedSessionCard = React.memo(({
                 </View>
               ) : null}
             </View>
-            {item.session_beers.length > 1 ? (
+            {beerBreakdownLines.length > 0 && beerCount > 1 ? (
               <View style={styles.beerBreakdown}>
-                {item.session_beers.map((beer) => (
-                  <Text key={beer.id || `${beer.beer_name}-${beer.consumed_at}`} style={styles.beerBreakdownText}>
-                    {getBeerLine(beer)}
+                {beerBreakdownLines.map((line, index) => (
+                  <Text key={`${line}-${index}`} style={styles.beerBreakdownText}>
+                    {line}
                   </Text>
                 ))}
               </View>
