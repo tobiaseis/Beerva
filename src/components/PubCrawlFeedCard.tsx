@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Image, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Beer, ChevronDown, ChevronUp, MapPin, MessageCircle } from 'lucide-react-native';
 
 import { PubCrawl, PubCrawlStop, calculatePubCrawlSummary } from '../lib/pubCrawls';
@@ -13,7 +13,7 @@ import { PubCrawlMediaCarousel } from './PubCrawlMediaCarousel';
 import { Surface } from './Surface';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
-const cheersLogoSource = Platform.OS === 'web' ? { uri: '/beerva-icon-192.png' } : beervaLogo;
+const cheersLogoSource = beervaLogo;
 
 type Props = {
   crawl: PubCrawl;

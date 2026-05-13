@@ -157,6 +157,16 @@ const assertModernFeedCard = (source, label) => {
 const feedScreen = readSource('src/screens/FeedScreen.tsx');
 const pubCrawlCard = readSource('src/components/PubCrawlFeedCard.tsx');
 
+assert.doesNotMatch(
+  feedScreen,
+  /beerva-icon-192\.png/,
+  'Feed inline logos should use the transparent beer-arrow mark, not the blue PWA app icon'
+);
+assert.doesNotMatch(
+  pubCrawlCard,
+  /beerva-icon-192\.png/,
+  'Pub crawl inline logos should use the transparent beer-arrow mark, not the blue PWA app icon'
+);
 assert.match(
   feedScreen,
   /from '..\/theme\/feedCard'/,

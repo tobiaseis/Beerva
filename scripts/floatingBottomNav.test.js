@@ -6,6 +6,10 @@ const source = fs.readFileSync(
   path.resolve(__dirname, '..', 'src/navigation/RootNavigator.tsx'),
   'utf8'
 );
+const readSource = (relativePath) => fs.readFileSync(
+  path.resolve(__dirname, '..', relativePath),
+  'utf8'
+);
 
 const extractScreenOptionsBlock = (navigatorSource) => {
   const marker = 'screenOptions={{';
@@ -61,21 +65,21 @@ assert.match(
 );
 assert.match(
   source,
-  /floatingTabBarSceneBottomInset\s*=\s*floatingTabBarHeight\s*\+\s*floatingTabBarBottom\s*\+\s*16/,
-  'Floating nav should expose a scene bottom inset based on the pill height and bottom offset'
+  /floatingTabBarMetrics/,
+  'Floating nav should use shared metrics for the pill and tab content spacer'
 );
 
 const screenOptions = extractScreenOptionsBlock(source);
 
 assert.match(
   screenOptions,
-  /sceneStyle:\s*Platform\.OS === 'web'/,
-  'Web tab scenes should receive a dedicated bottom inset when the tab bar floats'
+  /sceneStyle:\s*\{\s*backgroundColor:\s*colors\.background\s*\}/,
+  'Tab scenes should keep a plain background without a painted bottom spacer'
 );
-assert.match(
+assert.doesNotMatch(
   screenOptions,
-  /paddingBottom:\s*floatingTabBarSceneBottomInset/,
-  'Web tab scenes should reserve enough bottom space for the floating pill'
+  /paddingBottom:\s*floatingTabBarMetrics\.webContentInset|paddingBottom:\s*floatingTabBarSceneBottomInset/,
+  'Floating nav spacer should live in scroll/list content, not the scene wrapper'
 );
 assert.match(
   screenOptions,
@@ -94,13 +98,13 @@ assert.match(
 );
 assert.match(
   screenOptions,
-  /bottom:\s*floatingTabBarBottom/,
+  /bottom:\s*floatingTabBarMetrics\.webBottom/,
   'Floating nav should sit off the bottom edge'
 );
 assert.match(
   screenOptions,
-  /height:\s*floatingTabBarHeight/,
-  'Floating nav height should be shared with the scene bottom inset'
+  /height:\s*floatingTabBarMetrics\.webHeight/,
+  'Floating nav height should be shared with the tab content inset'
 );
 assert.match(
   screenOptions,
@@ -130,5 +134,21 @@ assert.doesNotMatch(
   /position:\s*'absolute'/,
   'Record tab should not be positioned outside the pill'
 );
+
+const tabContentFiles = [
+  'src/screens/FeedScreen.tsx',
+  'src/screens/PeopleScreen.tsx',
+  'src/screens/RecordScreen.tsx',
+  'src/screens/PubLegendsScreen.tsx',
+  'src/screens/ProfileScreen.tsx',
+];
+
+for (const file of tabContentFiles) {
+  assert.match(
+    readSource(file),
+    /floatingTabBarMetrics\.webContentInset/,
+    `${file} should reserve scroll/list bottom space for the floating pill`
+  );
+}
 
 console.log('floating bottom nav checks passed');

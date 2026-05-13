@@ -5,7 +5,7 @@ import { Search, UserCheck, UserPlus, Users } from 'lucide-react-native';
 import { CachedImage } from '../components/CachedImage';
 import { supabase } from '../lib/supabase';
 import { colors } from '../theme/colors';
-import { radius, shadows, spacing } from '../theme/layout';
+import { floatingTabBarMetrics, radius, shadows, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
 import { SkeletonPersonRow } from '../components/Skeleton';
 import { EmptyIllustration } from '../components/EmptyIllustration';
@@ -334,7 +334,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: Platform.OS === 'web' ? 14 : 16,
-    paddingBottom: Platform.OS === 'web' ? 24 : 16,
+    paddingBottom: Platform.OS === 'web' ? floatingTabBarMetrics.webContentInset : 16,
     gap: spacing.md,
   },
   emptyContent: {

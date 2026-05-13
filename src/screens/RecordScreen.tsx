@@ -64,7 +64,7 @@ import { fetchProfileStats } from '../lib/profileStatsApi';
 import { getTrophies } from '../lib/profileStats';
 import { useFocused } from '../lib/useFocused';
 import { colors } from '../theme/colors';
-import { radius, shadows, spacing } from '../theme/layout';
+import { floatingTabBarMetrics, radius, shadows, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
@@ -1845,6 +1845,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+    paddingBottom: Platform.OS === 'web' ? floatingTabBarMetrics.webContentInset : 0,
   },
   header: {
     paddingTop: Platform.OS === 'web' ? 18 : 60,

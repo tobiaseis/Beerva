@@ -15,7 +15,7 @@ import { openMaps } from '../lib/maps';
 import { CachedImage } from '../components/CachedImage';
 import { getUsernameSaveErrorMessage, normalizeUsername } from '../lib/usernames';
 import { AppButton } from '../components/AppButton';
-import { radius, shadows, spacing } from '../theme/layout';
+import { floatingTabBarMetrics, radius, shadows, spacing } from '../theme/layout';
 import { SkeletonProfile } from '../components/Skeleton';
 import { useFocused } from '../lib/useFocused';
 import {
@@ -433,7 +433,11 @@ export const ProfileScreen = () => {
   const joinDate = profile?.updated_at ? new Date(profile.updated_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'Recently';
 
   return (
-    <ScrollView style={styles.container} contentInsetAdjustmentBehavior="automatic">
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.scrollContent}
+      contentInsetAdjustmentBehavior="automatic"
+    >
       <View style={styles.header}>
         <View style={styles.avatarContainer}>
           <CachedImage
@@ -675,6 +679,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  scrollContent: {
+    paddingBottom: Platform.OS === 'web' ? floatingTabBarMetrics.webContentInset : 0,
   },
   header: {
     alignItems: 'center',

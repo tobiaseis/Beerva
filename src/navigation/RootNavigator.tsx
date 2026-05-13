@@ -21,7 +21,7 @@ import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { EditSessionScreen } from '../screens/EditSessionScreen';
 import { HangoverRatingScreen } from '../screens/HangoverRatingScreen';
 import { colors } from '../theme/colors';
-import { radius, shadows } from '../theme/layout';
+import { floatingTabBarMetrics, radius, shadows } from '../theme/layout';
 import { NotificationsProvider, useNotifications } from '../lib/notificationsContext';
 import { syncCurrentTimezone } from '../lib/timezone';
 
@@ -33,9 +33,6 @@ const navigationRef = createNavigationContainerRef<Record<string, object | undef
 const AUTH_BOOTSTRAP_TIMEOUT_MS = 12000;
 const PROFILE_CHECK_TIMEOUT_MS = 12000;
 const floatingTabBarBackground = '#172238';
-const floatingTabBarBottom = 16;
-const floatingTabBarHeight = 60;
-const floatingTabBarSceneBottomInset = floatingTabBarHeight + floatingTabBarBottom + 16;
 
 const hasCachedUsername = (activeSession: Session | null) => (
   Boolean(activeSession?.user?.user_metadata?.username)
@@ -131,21 +128,16 @@ const MainTabs = () => {
   <Tab.Navigator
     screenOptions={{
       headerShown: false,
-      sceneStyle: Platform.OS === 'web'
-        ? {
-            backgroundColor: colors.background,
-            paddingBottom: floatingTabBarSceneBottomInset,
-          }
-        : { backgroundColor: colors.background },
+      sceneStyle: { backgroundColor: colors.background },
       animation: 'fade',
       tabBarStyle: Platform.OS === 'web'
         ? {
             position: 'absolute',
             left: floatingTabBarLeft,
-            bottom: floatingTabBarBottom,
+            bottom: floatingTabBarMetrics.webBottom,
             width: floatingTabBarWidth,
             backgroundColor: floatingTabBarBackground,
-            height: floatingTabBarHeight,
+            height: floatingTabBarMetrics.webHeight,
             paddingTop: 6,
             paddingBottom: 7,
             borderRadius: radius.pill,

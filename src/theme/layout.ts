@@ -23,3 +23,12 @@ export const shadows = {
     boxShadow: '0 18px 42px rgba(2, 6, 23, 0.30)',
   } as any,
 };
+
+const floatingTabBarWebBottom = 16;
+const floatingTabBarWebHeight = 60;
+
+export const floatingTabBarMetrics = {
+  webBottom: floatingTabBarWebBottom,
+  webHeight: floatingTabBarWebHeight,
+  webContentInset: floatingTabBarWebHeight + floatingTabBarWebBottom + 16,
+};

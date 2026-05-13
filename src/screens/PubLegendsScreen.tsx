@@ -8,7 +8,7 @@ import { formatTruePints, PubLegend } from '../lib/pubLegends';
 import { fetchPubLegends } from '../lib/pubLegendsApi';
 import { hapticLight } from '../lib/haptics';
 import { colors } from '../theme/colors';
-import { radius, shadows, spacing } from '../theme/layout';
+import { floatingTabBarMetrics, radius, shadows, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
 
 const getPubLocation = (item: PubLegend) => item.city || item.address || 'Pub';
@@ -187,7 +187,7 @@ const styles = StyleSheet.create({
   listContent: {
     paddingTop: Platform.OS === 'web' ? 18 : 58,
     paddingHorizontal: 16,
-    paddingBottom: Platform.OS === 'web' ? 28 : 92,
+    paddingBottom: Platform.OS === 'web' ? floatingTabBarMetrics.webContentInset : 92,
     gap: spacing.md,
   },
   emptyContent: {

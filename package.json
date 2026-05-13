@@ -20,6 +20,7 @@
     "test:hangover": "node scripts/hangover.test.js",
     "test:app-theme": "node scripts/appThemeTokens.test.js",
     "test:app-theme-screens": "node scripts/appThemeScreens.test.js",
+    "test:logo-usage": "node scripts/logoUsage.test.js",
     "test:feed-header": "node scripts/feedHeader.test.js",
     "test:floating-nav": "node scripts/floatingBottomNav.test.js",
     "test:feed-redesign": "node scripts/feedCardRedesign.test.js",

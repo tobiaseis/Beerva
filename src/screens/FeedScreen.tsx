@@ -11,7 +11,7 @@ import { deletePublicImageUrl } from '../lib/imageUpload';
 import { Surface } from '../components/Surface';
 import { SkeletonFeedCard } from '../components/Skeleton';
 import { feedCardColors, feedCardMetrics, getCompactFeedActionCount } from '../theme/feedCard';
-import { radius, shadows } from '../theme/layout';
+import { floatingTabBarMetrics, radius, shadows } from '../theme/layout';
 import { hapticLight, hapticMedium, hapticWarning } from '../lib/haptics';
 import { useNotifications } from '../lib/notificationsContext';
 import { EmptyIllustration } from '../components/EmptyIllustration';
@@ -26,7 +26,7 @@ import { PubCrawl, PubCrawlComment } from '../lib/pubCrawls';
 import { fetchPublishedPubCrawlsForFeedPage, togglePubCrawlCheers, addPubCrawlComment } from '../lib/pubCrawlsApi';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
-const cheersLogoSource = Platform.OS === 'web' ? { uri: '/beerva-icon-192.png' } : beervaLogo;
+const cheersLogoSource = beervaLogo;
 
 type SessionCheer = {
   session_id: string;
@@ -1899,7 +1899,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: Platform.OS === 'web' ? 10 : 12,
-    paddingBottom: Platform.OS === 'web' ? 24 : 16,
+    paddingBottom: Platform.OS === 'web' ? floatingTabBarMetrics.webContentInset : 16,
     width: '100%',
     maxWidth: Platform.OS === 'web' ? 520 : undefined,
     alignSelf: 'center',
