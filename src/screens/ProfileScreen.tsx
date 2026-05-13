@@ -829,8 +829,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   badgeLocked: {
-    backgroundColor: 'rgba(30, 41, 59, 0.45)',
-    borderColor: 'rgba(148, 163, 184, 0.16)',
+    backgroundColor: colors.cardMuted,
+    borderColor: colors.borderSoft,
   },
   badgeIcon: {
     width: 52,
@@ -841,10 +841,10 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   badgeIconEarned: {
-    backgroundColor: 'rgba(245, 158, 11, 0.14)',
+    backgroundColor: colors.primarySoft,
   },
   badgeIconLocked: {
-    backgroundColor: 'rgba(148, 163, 184, 0.08)',
+    backgroundColor: colors.surface,
   },
   badgeText: {
     ...typography.caption,
