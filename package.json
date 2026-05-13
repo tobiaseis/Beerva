@@ -18,6 +18,7 @@
     "test:pub-crawl": "node scripts/pubCrawl.test.js",
     "test:hangover": "node scripts/hangover.test.js",
     "test:feed-header": "node scripts/feedHeader.test.js",
+    "test:floating-nav": "node scripts/floatingBottomNav.test.js",
     "test:feed-redesign": "node scripts/feedCardRedesign.test.js",
     "test:profile-panel": "node scripts/profileStatsPanel.test.js",
     "test:pwa-startup": "node scripts/pwaStartup.test.js",

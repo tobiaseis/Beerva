@@ -3,7 +3,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNavigationContainerRef, DefaultTheme, NavigationContainer, type Theme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { PlusCircle, Trophy, User, Users } from 'lucide-react-native';
-import { View, ActivityIndicator, Platform, Image } from 'react-native';
+import { View, ActivityIndicator, Platform, Image, useWindowDimensions } from 'react-native';
 import { Session } from '@supabase/supabase-js';
 
 import { supabase } from '../lib/supabase';
@@ -32,6 +32,7 @@ const Stack = createNativeStackNavigator();
 const navigationRef = createNavigationContainerRef<Record<string, object | undefined>>();
 const AUTH_BOOTSTRAP_TIMEOUT_MS = 12000;
 const PROFILE_CHECK_TIMEOUT_MS = 12000;
+const floatingTabBarBackground = '#172238';
 
 const hasCachedUsername = (activeSession: Session | null) => (
   Boolean(activeSession?.user?.user_metadata?.username)
@@ -119,6 +120,10 @@ const clearHangoverLaunchParams = () => {
 
 const MainTabs = () => {
   const { unreadCount } = useNotifications();
+  const { width: viewportWidth } = useWindowDimensions();
+  const floatingTabBarWidth = Math.min(Math.max(viewportWidth - 32, 0), 520);
+  const floatingTabBarLeft = (viewportWidth - floatingTabBarWidth) / 2;
+
   return (
   <Tab.Navigator
     screenOptions={{
@@ -127,18 +132,20 @@ const MainTabs = () => {
       animation: 'fade',
       tabBarStyle: Platform.OS === 'web'
         ? {
-            backgroundColor: colors.surfaceRaised,
-            height: 64,
-            paddingTop: 8,
-            paddingBottom: 8,
-            marginHorizontal: 12,
-            marginBottom: 8,
-            borderRadius: radius.xl,
+            position: 'absolute',
+            left: floatingTabBarLeft,
+            bottom: 16,
+            width: floatingTabBarWidth,
+            backgroundColor: floatingTabBarBackground,
+            height: 60,
+            paddingTop: 6,
+            paddingBottom: 7,
+            borderRadius: radius.pill,
             borderWidth: 1,
             borderTopWidth: 1,
-            borderColor: colors.borderSoft,
-            borderTopColor: colors.borderSoft,
-            ...shadows.card,
+            borderColor: 'rgba(148, 163, 184, 0.18)',
+            borderTopColor: 'rgba(148, 163, 184, 0.18)',
+            ...shadows.raised,
           }
         : {
             backgroundColor: colors.surfaceRaised,
@@ -149,16 +156,17 @@ const MainTabs = () => {
             borderTopWidth: 1,
           },
       tabBarLabelStyle: Platform.OS === 'web' ? {
-        fontSize: 12,
+        fontSize: 11,
         fontWeight: '600',
-        marginTop: 2,
+        marginTop: 0,
         fontFamily: 'Inter_600SemiBold',
       } : {
         fontFamily: 'Inter_500Medium',
       },
       tabBarItemStyle: Platform.OS === 'web' ? {
-        paddingVertical: 4,
-        borderRadius: radius.lg,
+        paddingVertical: 5,
+        marginHorizontal: 2,
+        borderRadius: radius.pill,
       } : undefined,
       tabBarActiveTintColor: colors.primary,
       tabBarInactiveTintColor: colors.textMuted,
