@@ -1,9 +1,17 @@
+export const appThemeColors = {
+  card: 'rgba(15, 23, 42, 0.82)',
+  inset: 'rgba(15, 23, 42, 0.56)',
+  floating: '#172238',
+  border: 'rgba(148, 163, 184, 0.12)',
+  divider: 'rgba(148, 163, 184, 0.10)',
+};
+
 export const colors = {
   background: '#0D121A',
-  surface: '#141C2B',
-  surfaceRaised: '#1B2740',
-  card: '#1F2B47',
-  cardMuted: '#131927',
+  surface: appThemeColors.inset,
+  surfaceRaised: appThemeColors.floating,
+  card: appThemeColors.card,
+  cardMuted: appThemeColors.inset,
   primary: '#F7B53A',
   primaryDark: '#D58A08',
   primarySoft: 'rgba(247, 181, 58, 0.14)',
@@ -11,12 +19,12 @@ export const colors = {
   text: '#F8FAFC',
   textMuted: '#9AA7BA',
   textSubtle: '#64748B',
-  border: '#2B3A4F',
-  borderSoft: 'rgba(148, 163, 184, 0.14)',
+  border: appThemeColors.border,
+  borderSoft: appThemeColors.divider,
   success: '#10B981',
   successSoft: 'rgba(16, 185, 129, 0.13)',
   danger: '#EF4444',
   dangerSoft: 'rgba(239, 68, 68, 0.12)',
-  glass: 'rgba(18, 26, 39, 0.82)',
+  glass: appThemeColors.card,
   overlay: 'rgba(2, 6, 23, 0.76)',
 };

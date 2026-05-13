@@ -1,10 +1,12 @@
+import { colors } from './colors';
+
 export const feedCardColors = {
-  card: 'rgba(15, 23, 42, 0.82)',
-  border: 'rgba(148, 163, 184, 0.12)',
-  metadataDivider: 'rgba(148, 163, 184, 0.10)',
-  metadataIconBackground: 'rgba(247, 181, 58, 0.12)',
-  statBackground: 'rgba(15, 23, 42, 0.56)',
-  actionActiveBackground: 'rgba(247, 181, 58, 0.12)',
+  card: colors.card,
+  border: colors.border,
+  metadataDivider: colors.borderSoft,
+  metadataIconBackground: colors.primarySoft,
+  statBackground: colors.cardMuted,
+  actionActiveBackground: colors.primarySoft,
 };
 
 export const feedCardMetrics = {
