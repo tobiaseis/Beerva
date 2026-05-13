@@ -15,7 +15,7 @@
 - Create: `scripts/appThemeTokens.test.js`
   - Guards the shared theme colors, feed-card tokens, and `Surface` component against drifting away from the feed palette.
 - Create: `scripts/appThemeScreens.test.js`
-  - Guards major non-feed surfaces against old purple/casino hard-coded colors that clash with the feed theme.
+  - Guards major non-roulette surfaces against old hard-coded colors that clash with the feed theme and protects the Pub Roulette casino styling from being normalized.
 - Modify: `package.json`
   - Adds `test:app-theme` and `test:app-theme-screens`.
 - Modify: `src/theme/colors.ts`
@@ -24,16 +24,13 @@
   - Points feed-card tokens at shared theme tokens so the feed remains the authority and other pages can share the same palette.
 - Modify: `src/components/Surface.tsx`
   - Keeps `Surface` on shared tokens; raised surfaces inherit the aligned floating/nav color.
-- Modify: `src/screens/RecordScreen.tsx`
-  - Recolors roulette CTA chrome from saturated casino purple/rainbow surfaces to feed-compatible amber/slate surfaces.
-- Modify: `src/components/PubRouletteModal.tsx`
-  - Recolors modal sheet/header/body/stage/action/result surfaces to the app-wide feed theme.
 - Modify: `src/components/TrophyUnlockModal.tsx`
   - Recolors trophy/prize modal cards and buttons to the app-wide feed theme while keeping celebratory confetti accents.
 - Modify: `src/screens/ProfileScreen.tsx`
   - Replaces the remaining hard-coded locked trophy panel surfaces with shared feed-theme tokens.
 
 No data, navigation, auth, Supabase, notification, feed, pub crawl, cheers, comments, stats, or trophy logic should change.
+The Pub Roulette CTA, modal, wheel, rails, and casino colors should not change; they are intentionally loud.
 
 ---
 
@@ -337,24 +334,14 @@ const readSource = (relativePath) => fs.readFileSync(
 );
 
 const scannedFiles = [
-  'src/screens/RecordScreen.tsx',
-  'src/components/PubRouletteModal.tsx',
   'src/components/TrophyUnlockModal.tsx',
   'src/screens/ProfileScreen.tsx',
 ];
 
 const legacySurfacePatterns = [
   /#2A063D/i,
-  /#250F38/i,
-  /#190B2B/i,
   /#170822/i,
-  /#130516/i,
-  /#111827/i,
-  /#38BDF8/i,
-  /#D8B4FE/i,
   /rgba\(30,\s*41,\s*59,\s*0\.45\)/,
-  /rgba\(18,\s*24,\s*38,\s*0\.58\)/,
-  /rgba\(14,\s*165,\s*233,\s*0\.16\)/,
 ];
 
 for (const file of scannedFiles) {
@@ -372,25 +359,30 @@ for (const file of scannedFiles) {
 const recordScreen = readSource('src/screens/RecordScreen.tsx');
 assert.match(
   recordScreen,
-  /rouletteCta:\s*\{[\s\S]*backgroundColor:\s*colors\.card/,
-  'Record roulette CTA should use the shared feed card surface'
+  /rouletteCta:\s*\{[\s\S]*backgroundColor:\s*'#2A063D'/,
+  'Record roulette CTA should preserve its casino purple surface'
 );
 assert.match(
   recordScreen,
-  /rouletteCtaIcon:\s*\{[\s\S]*backgroundColor:\s*colors\.surface/,
-  'Record roulette icon should use the shared inset surface'
+  /rouletteCtaRailRed:\s*\{[\s\S]*backgroundColor:\s*'#E11D48'/,
+  'Record roulette CTA should preserve the colorful casino rail'
 );
 
 const rouletteModal = readSource('src/components/PubRouletteModal.tsx');
 assert.match(
   rouletteModal,
-  /sheet:\s*\{[\s\S]*backgroundColor:\s*colors\.card/,
-  'Roulette modal sheet should use the shared feed card surface'
+  /const WHEEL_COLORS = \['#E11D48', '#0EA5E9', '#16A34A', '#F59E0B', '#7C3AED', '#DC2626', '#0891B2', '#FACC15'\]/,
+  'Roulette wheel should preserve the crazy casino color palette'
 );
 assert.match(
   rouletteModal,
-  /wheelStage:\s*\{[\s\S]*backgroundColor:\s*colors\.surface/,
-  'Roulette modal wheel stage should use the shared inset surface'
+  /sheet:\s*\{[\s\S]*backgroundColor:\s*'#190B2B'/,
+  'Roulette modal sheet should preserve its casino surface'
+);
+assert.match(
+  rouletteModal,
+  /wheelStage:\s*\{[\s\S]*backgroundColor:\s*'#250F38'/,
+  'Roulette modal wheel stage should preserve its casino surface'
 );
 
 const trophyModal = readSource('src/components/TrophyUnlockModal.tsx');
@@ -424,7 +416,7 @@ Run:
 npm run test:app-theme-screens
 ```
 
-Expected: FAIL with a message mentioning `src/screens/RecordScreen.tsx should not use legacy hard-coded surface color /#2A063D/i`.
+Expected: FAIL with a message mentioning `src/components/TrophyUnlockModal.tsx should not use legacy hard-coded surface color /#2A063D/i`.
 
 - [ ] **Step 4: Commit the failing screen guard**
 
@@ -437,233 +429,24 @@ git commit -m "test: guard non-feed theme surfaces"
 
 ---
 
-### Task 4: Recolor Hard-Coded Non-Feed Surfaces
+### Task 4: Recolor Non-Roulette Hard-Coded Surfaces
 
 **Files:**
-- Modify: `src/screens/RecordScreen.tsx`
-- Modify: `src/components/PubRouletteModal.tsx`
 - Modify: `src/components/TrophyUnlockModal.tsx`
 - Modify: `src/screens/ProfileScreen.tsx`
 
-- [ ] **Step 1: Recolor the Record roulette CTA**
+- [ ] **Step 1: Preserve the roulette casino feature**
 
-In `src/screens/RecordScreen.tsx`, replace these style blocks:
-
-```typescript
-  rouletteCta: {
-    minHeight: 108,
-    borderRadius: radius.xl,
-    paddingHorizontal: spacing.lg,
-    paddingTop: 20,
-    paddingBottom: spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.primaryBorder,
-    overflow: 'hidden',
-    ...shadows.card,
-  },
-  rouletteCtaColorRail: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 5,
-    flexDirection: 'row',
-  },
-  rouletteCtaRailSegment: {
-    flex: 1,
-  },
-  rouletteCtaRailRed: {
-    backgroundColor: colors.primary,
-  },
-  rouletteCtaRailGold: {
-    backgroundColor: colors.primaryDark,
-  },
-  rouletteCtaRailBlue: {
-    backgroundColor: colors.borderSoft,
-  },
-  rouletteCtaRailGreen: {
-    backgroundColor: colors.primarySoft,
-  },
-  rouletteCtaRailPurple: {
-    backgroundColor: colors.cardMuted,
-  },
-  rouletteCtaDisabled: {
-    opacity: 0.68,
-  },
-  rouletteCtaIcon: {
-    width: 58,
-    height: 58,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.primaryBorder,
-    transform: [{ rotate: '-6deg' }],
-  },
-  rouletteCtaText: {
-    flex: 1,
-    minWidth: 0,
-  },
-  rouletteCtaKicker: {
-    ...typography.tiny,
-    color: colors.primary,
-    fontWeight: '900',
-    textTransform: 'uppercase',
-  },
-  rouletteCtaTitle: {
-    ...typography.body,
-    color: colors.text,
-    fontWeight: '900',
-    marginTop: 2,
-  },
-  rouletteCtaSubtitle: {
-    ...typography.h3,
-    marginTop: 2,
-    color: colors.text,
-  },
-  rouletteCtaJackpot: {
-    minWidth: 50,
-    minHeight: 44,
-    borderRadius: radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primarySoft,
-    borderWidth: 1,
-    borderColor: colors.primaryBorder,
-    transform: [{ rotate: '5deg' }],
-  },
-  rouletteCtaJackpotText: {
-    ...typography.body,
-    color: colors.primary,
-    fontWeight: '900',
-  },
-```
-
-- [ ] **Step 2: Recolor the roulette modal surfaces**
-
-In `src/components/PubRouletteModal.tsx`, replace these style blocks:
+Do not edit `src/screens/RecordScreen.tsx` roulette CTA styles or `src/components/PubRouletteModal.tsx` styles in this task. The source-level guard from Task 3 intentionally asserts that these casino colors remain in place:
 
 ```typescript
-  sheet: {
-    maxHeight: '92%',
-    borderRadius: 24,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.primaryBorder,
-    overflow: 'hidden',
-    ...shadows.raised,
-  },
-  header: {
-    minHeight: 78,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.surfaceRaised,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderSoft,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  body: {
-    padding: spacing.lg,
-    gap: spacing.md,
-    alignItems: 'center',
-    backgroundColor: colors.background,
-  },
-  casinoStrip: {
-    alignSelf: 'stretch',
-    height: 8,
-    borderRadius: radius.pill,
-    overflow: 'hidden',
-    flexDirection: 'row',
-    borderWidth: 1,
-    borderColor: colors.primaryBorder,
-  },
-  status: {
-    ...typography.caption,
-    color: colors.textMuted,
-    textAlign: 'center',
-  },
-  wheelStage: {
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 20,
-    paddingBottom: 18,
-    borderRadius: 24,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
-    overflow: 'hidden',
-  },
-  pointer: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: 15,
-    borderRightWidth: 15,
-    borderTopWidth: 26,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderTopColor: colors.primary,
-    marginBottom: -10,
-    zIndex: 3,
-  },
-  wheel: {
-    borderRadius: 999,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: colors.primaryBorder,
-    ...shadows.card,
-  },
-  loadingCover: {
-    position: 'absolute',
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surfaceRaised,
-    borderWidth: 1,
-    borderColor: colors.primaryBorder,
-  },
-  spinButton: {
-    minHeight: 54,
-    alignSelf: 'stretch',
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.lg,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.primary,
-    borderWidth: 1,
-    borderColor: colors.primaryBorder,
-    ...shadows.card,
-  },
-  resultCard: {
-    alignSelf: 'stretch',
-    borderRadius: radius.xl,
-    padding: spacing.md,
-    flexDirection: 'row',
-    gap: spacing.md,
-    backgroundColor: colors.primarySoft,
-    borderWidth: 1,
-    borderColor: colors.primaryBorder,
-  },
+backgroundColor: '#2A063D'
+backgroundColor: '#190B2B'
+backgroundColor: '#250F38'
+const WHEEL_COLORS = ['#E11D48', '#0EA5E9', '#16A34A', '#F59E0B', '#7C3AED', '#DC2626', '#0891B2', '#FACC15'];
 ```
 
-Keep `WHEEL_COLORS`, `CASINO_ACCENTS`, wheel SVG fills, and celebratory wheel segment colors unchanged; they are gameplay/content accents, not page surfaces.
-
-- [ ] **Step 3: Recolor trophy unlock modal surfaces**
+- [ ] **Step 2: Recolor trophy unlock modal surfaces**
 
 In `src/components/TrophyUnlockModal.tsx`, replace these style blocks:
 
@@ -729,7 +512,7 @@ In `src/components/TrophyUnlockModal.tsx`, replace these style blocks:
 
 Keep `prizeColors` unchanged; the floating celebratory shapes can remain colorful while the modal chrome follows the app theme.
 
-- [ ] **Step 4: Recolor remaining profile trophy surfaces**
+- [ ] **Step 3: Recolor remaining profile trophy surfaces**
 
 In `src/screens/ProfileScreen.tsx`, replace these style blocks:
 
@@ -746,7 +529,7 @@ In `src/screens/ProfileScreen.tsx`, replace these style blocks:
   },
 ```
 
-- [ ] **Step 5: Run the screen-level theme guard**
+- [ ] **Step 4: Run the screen-level theme guard**
 
 Run:
 
@@ -756,7 +539,7 @@ npm run test:app-theme-screens
 
 Expected: PASS with `app theme screen checks passed`.
 
-- [ ] **Step 6: Run shared theme guard**
+- [ ] **Step 5: Run shared theme guard**
 
 Run:
 
@@ -766,12 +549,12 @@ npm run test:app-theme
 
 Expected: PASS with `app theme token checks passed`.
 
-- [ ] **Step 7: Commit hard-coded surface cleanup**
+- [ ] **Step 6: Commit hard-coded surface cleanup**
 
 Run:
 
 ```bash
-git add src/screens/RecordScreen.tsx src/components/PubRouletteModal.tsx src/components/TrophyUnlockModal.tsx src/screens/ProfileScreen.tsx
+git add src/components/TrophyUnlockModal.tsx src/screens/ProfileScreen.tsx
 git commit -m "style: align special surfaces with feed theme"
 ```
 
@@ -865,7 +648,8 @@ npm run preview:web
 Inspect these pages in a mobile-sized viewport:
 
 - Feed: feed cards still match the approved modern look.
-- Record: form panels, drink controls, roulette CTA, and upload/photo choices use the same dark slate/amber palette.
+- Record: form panels, drink controls, and upload/photo choices use the same dark slate/amber palette; roulette CTA keeps its loud casino colors.
+- Pub Roulette modal: wheel, sheet, rails, pointer, spin button, and jackpot visuals keep the crazy casino colors.
 - People: search and list cards use the same feed card/inset colors.
 - Profile and User Profile: profile header, stat widgets, session cards, trophy cards, and modals use the same feed palette.
 - Pub Legends and Pub Legend Detail: leaderboard cards and detail rows use the same feed palette.
@@ -881,4 +665,3 @@ git status --short --branch
 ```
 
 Expected: no uncommitted app implementation changes. The branch may be ahead of `origin/redesign-modern-feed` by the new commits.
-

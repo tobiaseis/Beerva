@@ -26,6 +26,7 @@ This is a presentation-layer theme pass. It should not change navigation structu
 - Keep existing layouts and behavior intact unless a tiny spacing/color adjustment is necessary to make the theme read correctly.
 - Keep the Beerva logo and amber accent identity unchanged.
 - Keep the floating bottom nav design unchanged except for any shared-token compatibility needed to keep it aligned with the feed theme.
+- Keep the Pub Roulette feature's intentionally loud casino colors unchanged. The wheel, roulette modal, rainbow/casino rails, jackpot styling, and roulette CTA are meant to feel fun and engaging, so they are exempt from the app-wide feed-theme normalization.
 - Preserve accessibility contrast for text, disabled states, inputs, and action buttons.
 
 ## Visual Direction
@@ -103,14 +104,16 @@ This keeps the change broad enough for consistency but controlled enough to avoi
 - `src/components/ProfileStatsPanel.tsx`
   - Keep its existing widget layout but soften card, inset, trophy, and detail modal surfaces.
 - Shared modal/utility components
-  - Update modal backgrounds, prompt surfaces, skeletons, and install prompt panels to the same palette where applicable.
+  - Update modal backgrounds, prompt surfaces, skeletons, and install prompt panels that use regular app chrome.
+  - Do not update Pub Roulette modal surfaces; they keep the casino theme.
 
 ### Screens
 
 - `AuthScreen`
   - Bring the form surface and inputs into the same card/inset palette.
 - `RecordScreen`
-  - Apply feed-themed surfaces to forms, active session panels, pub search, roulette, upload/photo, draft cards, and action panels.
+  - Apply feed-themed surfaces to forms, active session panels, pub search, upload/photo, draft cards, and action panels.
+  - Preserve the roulette CTA's colorful casino styling.
 - `PeopleScreen`
   - Keep the current redesign layout but update list cards/search surfaces to the feed palette.
 - `ProfileScreen` and `UserProfileScreen`
@@ -161,4 +164,4 @@ Manual inspection should cover:
 - No new typography system.
 - No changes to database, Supabase queries, RPCs, notifications behavior, profile stats, pub crawl logic, cheers, comments, or feed ordering.
 - No reintroduction of the breakout add-post button in the floating bottom nav.
-
+- No toning down or neutralizing the Pub Roulette feature's casino colors.
