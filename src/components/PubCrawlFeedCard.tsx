@@ -5,6 +5,7 @@ import { Beer, ChevronDown, ChevronUp, MapPin, MessageCircle } from 'lucide-reac
 import { PubCrawl, PubCrawlStop, calculatePubCrawlSummary } from '../lib/pubCrawls';
 import { getBeerLine } from '../lib/sessionBeers';
 import { colors } from '../theme/colors';
+import { feedCardColors, feedCardMetrics } from '../theme/feedCard';
 import { radius, shadows, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
 import { CachedImage } from './CachedImage';
@@ -318,17 +319,18 @@ export const PubCrawlFeedCard = ({
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: radius.xl,
+    borderRadius: feedCardMetrics.cardRadius,
     marginBottom: spacing.lg,
     overflow: 'hidden',
-    backgroundColor: colors.card,
+    backgroundColor: feedCardColors.card,
+    borderColor: feedCardColors.border,
     ...shadows.card,
   },
   cardHeader: {
     flexDirection: 'row',
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.md,
+    paddingTop: 16,
+    paddingBottom: 13,
     alignItems: 'center',
   },
   profileLink: {
@@ -375,16 +377,14 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   imagePressable: {
-    marginHorizontal: spacing.md,
-    borderRadius: radius.lg,
+    marginHorizontal: 0,
+    borderRadius: feedCardMetrics.mediaRadius,
     overflow: 'hidden',
     backgroundColor: colors.cardMuted,
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
   },
   inlineLogoSmall: {
-    width: 18,
-    height: 18,
+    width: 20,
+    height: 20,
     resizeMode: 'contain',
   },
   cheersLogo: {
@@ -401,28 +401,32 @@ const styles = StyleSheet.create({
   },
   cardContent: {
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderSoft,
-    gap: spacing.md,
+    paddingTop: 12,
+    paddingBottom: 13,
+    gap: 10,
   },
   sessionSummary: {
-    gap: 8,
+    gap: 0,
+    paddingVertical: 4,
+    borderTopWidth: 1,
+    borderTopColor: feedCardColors.metadataDivider,
+    borderBottomWidth: 1,
+    borderBottomColor: feedCardColors.metadataDivider,
   },
   summaryRow: {
+    minHeight: 34,
     flexDirection: 'row',
     alignItems: 'center',
     minWidth: 0,
-    gap: 8,
+    gap: 9,
   },
   summaryIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.primarySoft,
+    backgroundColor: feedCardColors.metadataIconBackground,
   },
   summaryLocationText: {
     ...typography.body,
@@ -440,16 +444,13 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   statsToggle: {
-    minHeight: 34,
+    minHeight: 28,
     alignSelf: 'flex-start',
     borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.primaryBorder,
-    backgroundColor: colors.primarySoft,
-    paddingHorizontal: 12,
+    paddingRight: 2,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
   },
   statsToggleText: {
     ...typography.caption,
@@ -458,6 +459,7 @@ const styles = StyleSheet.create({
   },
   statsPanel: {
     gap: spacing.sm,
+    paddingTop: 1,
   },
   detailGrid: {
     flexDirection: 'row',
@@ -467,14 +469,14 @@ const styles = StyleSheet.create({
   detailPill: {
     flex: 1,
     flexBasis: 94,
-    minHeight: 58,
+    minHeight: 56,
     minWidth: 0,
     borderRadius: radius.md,
-    backgroundColor: colors.surface,
+    backgroundColor: feedCardColors.statBackground,
     borderWidth: 1,
-    borderColor: colors.borderSoft,
+    borderColor: feedCardColors.metadataDivider,
     paddingHorizontal: 10,
-    paddingVertical: 9,
+    paddingVertical: 8,
     justifyContent: 'center',
   },
   detailLabel: {
@@ -523,9 +525,9 @@ const styles = StyleSheet.create({
   },
   stopSection: {
     borderRadius: radius.md,
-    backgroundColor: colors.surface,
+    backgroundColor: feedCardColors.statBackground,
     borderWidth: 1,
-    borderColor: colors.borderSoft,
+    borderColor: feedCardColors.metadataDivider,
     paddingHorizontal: 10,
     paddingVertical: 10,
   },
@@ -576,11 +578,11 @@ const styles = StyleSheet.create({
   },
   engagementPanel: {
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderSoft,
-    gap: 10,
+    paddingTop: 12,
+    paddingBottom: 8,
+    borderTopWidth: 1,
+    borderTopColor: feedCardColors.metadataDivider,
+    gap: 9,
   },
   cheerSummaryRow: {
     minHeight: 30,
@@ -616,30 +618,27 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   cardFooter: {
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingTop: 8,
+    paddingBottom: 13,
     flexDirection: 'row',
-    gap: 8,
+    alignItems: 'center',
+    gap: 22,
   },
   actionWrapper: {
-    flex: 1,
-    minWidth: 0,
+    alignSelf: 'flex-start',
   },
   actionBtn: {
-    flex: 1,
+    alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 40,
-    paddingHorizontal: 12,
+    minHeight: 34,
+    paddingHorizontal: 8,
     borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
-    backgroundColor: colors.surface,
   },
   actionBtnActive: {
-    backgroundColor: colors.primarySoft,
-    borderColor: colors.primaryBorder,
+    backgroundColor: feedCardColors.actionActiveBackground,
   },
   actionBtnDisabled: {
     opacity: 0.62,
