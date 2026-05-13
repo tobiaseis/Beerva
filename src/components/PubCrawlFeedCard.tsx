@@ -5,8 +5,8 @@ import { Beer, ChevronDown, ChevronUp, MapPin, MessageCircle } from 'lucide-reac
 import { PubCrawl, PubCrawlStop, calculatePubCrawlSummary } from '../lib/pubCrawls';
 import { getBeerLine } from '../lib/sessionBeers';
 import { colors } from '../theme/colors';
-import { feedCardColors, feedCardMetrics } from '../theme/feedCard';
-import { radius, shadows, spacing } from '../theme/layout';
+import { feedCardColors, feedCardMetrics, getCompactFeedActionCount } from '../theme/feedCard';
+import { radius, shadows } from '../theme/layout';
 import { typography } from '../theme/typography';
 import { CachedImage } from './CachedImage';
 import { PubCrawlMediaCarousel } from './PubCrawlMediaCarousel';
@@ -236,6 +236,40 @@ export const PubCrawlFeedCard = ({
         ) : null}
       </View>
 
+      <View style={styles.cardFooter}>
+        <View style={styles.actionWrapper}>
+          <TouchableOpacity
+            style={[
+              styles.actionBtn,
+              hasCheered ? styles.actionBtnActive : null,
+              isOwnPost ? styles.actionBtnDisabled : null,
+            ]}
+            onPress={() => onToggleCheer(crawl)}
+            disabled={isOwnPost || isCheering || !currentUserId}
+            activeOpacity={0.72}
+            accessibilityRole="button"
+            accessibilityLabel={`Give cheers to ${username}`}
+            accessibilityState={{ disabled: isOwnPost || isCheering || !currentUserId, selected: hasCheered }}
+          >
+            <CheersLogo muted={!hasCheered} />
+            <Text style={[styles.actionText, hasCheered ? styles.actionTextActive : null]}>
+              {getCompactFeedActionCount(crawl.cheersCount)}
+            </Text>
+          </TouchableOpacity>
+        </View>
+        <TouchableOpacity
+          style={styles.actionBtn}
+          onPress={() => onOpenComments(crawl)}
+          disabled={!currentUserId}
+          activeOpacity={0.72}
+          accessibilityRole="button"
+          accessibilityLabel={`Open comments for ${username}'s pub crawl`}
+        >
+          <MessageCircle color={colors.textMuted} size={19} />
+          <Text style={styles.actionText}>{getCompactFeedActionCount(crawl.commentsCount)}</Text>
+        </TouchableOpacity>
+      </View>
+
       {crawl.cheersCount > 0 || crawl.commentsCount > 0 ? (
         <View style={styles.engagementPanel}>
           {crawl.cheersCount > 0 ? (
@@ -246,7 +280,24 @@ export const PubCrawlFeedCard = ({
               accessibilityRole="button"
               accessibilityLabel={`View ${getCheersLabel(crawl.cheersCount).toLowerCase()}`}
             >
-              <CheersLogo />
+              {crawl.cheerProfiles.length > 0 ? (
+                <View style={styles.cheerAvatarStack}>
+                  {crawl.cheerProfiles.slice(0, 3).map((profile, index) => (
+                    <CachedImage
+                      key={profile.id}
+                      uri={profile.avatarUrl}
+                      fallbackUri={`https://i.pravatar.cc/150?u=${profile.id}`}
+                      style={[styles.cheerAvatar, index > 0 ? styles.cheerAvatarOverlap : null]}
+                      recyclingKey={`crawl-cheer-${crawl.id}-${profile.id}-${profile.avatarUrl || 'fallback'}`}
+                      accessibilityLabel={`${profile.username || 'Someone'} gave cheers`}
+                    />
+                  ))}
+                </View>
+              ) : (
+                <View style={styles.cheerAvatarStack}>
+                  <CheersLogo />
+                </View>
+              )}
               <Text style={styles.cheerSummaryText} numberOfLines={1}>
                 {cheerSummary}
               </Text>
@@ -279,40 +330,6 @@ export const PubCrawlFeedCard = ({
           ) : null}
         </View>
       ) : null}
-
-      <View style={styles.cardFooter}>
-        <View style={styles.actionWrapper}>
-          <TouchableOpacity
-            style={[
-              styles.actionBtn,
-              hasCheered ? styles.actionBtnActive : null,
-              isOwnPost ? styles.actionBtnDisabled : null,
-            ]}
-            onPress={() => onToggleCheer(crawl)}
-            disabled={isOwnPost || isCheering || !currentUserId}
-            activeOpacity={0.72}
-            accessibilityRole="button"
-            accessibilityLabel={`Give cheers to ${username}`}
-            accessibilityState={{ disabled: isOwnPost || isCheering || !currentUserId, selected: hasCheered }}
-          >
-            <CheersLogo muted={!hasCheered} />
-            <Text style={[styles.actionText, hasCheered ? styles.actionTextActive : null]}>
-              {getCheersLabel(crawl.cheersCount)}
-            </Text>
-          </TouchableOpacity>
-        </View>
-        <TouchableOpacity
-          style={styles.actionBtn}
-          onPress={() => onOpenComments(crawl)}
-          disabled={!currentUserId}
-          activeOpacity={0.72}
-          accessibilityRole="button"
-          accessibilityLabel={`Open comments for ${username}'s pub crawl`}
-        >
-          <MessageCircle color={colors.textMuted} size={19} />
-          <Text style={styles.actionText}>{getCommentsLabel(crawl.commentsCount)}</Text>
-        </TouchableOpacity>
-      </View>
     </Surface>
   );
 };
@@ -320,17 +337,18 @@ export const PubCrawlFeedCard = ({
 const styles = StyleSheet.create({
   card: {
     borderRadius: feedCardMetrics.cardRadius,
-    marginBottom: spacing.lg,
+    marginBottom: 16,
     overflow: 'hidden',
     backgroundColor: feedCardColors.card,
     borderColor: feedCardColors.border,
     ...shadows.card,
+    boxShadow: '0 10px 26px rgba(2, 6, 23, 0.18)',
   },
   cardHeader: {
     flexDirection: 'row',
-    paddingHorizontal: spacing.lg,
-    paddingTop: 16,
-    paddingBottom: 13,
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 10,
     alignItems: 'center',
   },
   profileLink: {
@@ -340,12 +358,12 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   avatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    marginRight: 12,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    marginRight: 10,
     borderWidth: 1,
-    borderColor: colors.primaryBorder,
+    borderColor: feedCardColors.border,
   },
   userInfo: {
     flex: 1,
@@ -353,16 +371,16 @@ const styles = StyleSheet.create({
   },
   userName: {
     ...typography.h3,
-    fontSize: 16,
+    fontSize: 15,
   },
   timeText: {
     ...typography.caption,
     marginTop: 2,
   },
   crawlBadge: {
-    minHeight: 28,
+    minHeight: 24,
     marginLeft: 10,
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     borderRadius: radius.pill,
     borderWidth: 1,
     borderColor: colors.primaryBorder,
@@ -383,13 +401,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.cardMuted,
   },
   inlineLogoSmall: {
-    width: 20,
-    height: 20,
+    width: 18,
+    height: 18,
     resizeMode: 'contain',
   },
   cheersLogo: {
-    width: 22,
-    height: 22,
+    width: 20,
+    height: 20,
     resizeMode: 'contain',
   },
   cheersLogoMuted: {
@@ -400,30 +418,26 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cardContent: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: 12,
-    paddingBottom: 13,
-    gap: 10,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 4,
+    gap: 6,
   },
   sessionSummary: {
-    gap: 0,
-    paddingVertical: 4,
-    borderTopWidth: 1,
-    borderTopColor: feedCardColors.metadataDivider,
-    borderBottomWidth: 1,
-    borderBottomColor: feedCardColors.metadataDivider,
+    gap: 2,
+    paddingVertical: 0,
   },
   summaryRow: {
-    minHeight: 34,
+    minHeight: 30,
     flexDirection: 'row',
     alignItems: 'center',
     minWidth: 0,
-    gap: 9,
+    gap: 8,
   },
   summaryIcon: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: feedCardColors.metadataIconBackground,
@@ -444,32 +458,33 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   statsToggle: {
-    minHeight: 28,
+    minHeight: 24,
     alignSelf: 'flex-start',
     borderRadius: radius.pill,
-    paddingRight: 2,
+    paddingRight: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
   },
   statsToggleText: {
     ...typography.caption,
     color: colors.primary,
+    fontSize: 12,
     fontWeight: '900',
   },
   statsPanel: {
-    gap: spacing.sm,
-    paddingTop: 1,
+    gap: 8,
+    paddingTop: 4,
   },
   detailGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 6,
   },
   detailPill: {
     flex: 1,
-    flexBasis: 94,
-    minHeight: 56,
+    flexBasis: 78,
+    minHeight: 48,
     minWidth: 0,
     borderRadius: radius.md,
     backgroundColor: feedCardColors.statBackground,
@@ -482,22 +497,22 @@ const styles = StyleSheet.create({
   detailLabel: {
     ...typography.caption,
     color: colors.textMuted,
-    fontSize: 11,
+    fontSize: 10,
     textTransform: 'uppercase',
     letterSpacing: 0,
     fontWeight: '800',
   },
   detailValue: {
     color: colors.text,
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '900',
     marginTop: 3,
     fontVariant: ['tabular-nums'],
   },
   hangoverBadge: {
     alignSelf: 'flex-end',
-    minWidth: 88,
-    minHeight: 48,
+    minWidth: 80,
+    minHeight: 42,
     borderRadius: radius.md,
     paddingHorizontal: 10,
     paddingVertical: 7,
@@ -521,15 +536,15 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   stopBreakdown: {
-    gap: 8,
+    gap: 7,
   },
   stopSection: {
     borderRadius: radius.md,
     backgroundColor: feedCardColors.statBackground,
     borderWidth: 1,
     borderColor: feedCardColors.metadataDivider,
-    paddingHorizontal: 10,
-    paddingVertical: 10,
+    paddingHorizontal: 9,
+    paddingVertical: 9,
   },
   stopHeader: {
     flexDirection: 'row',
@@ -568,8 +583,8 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   beerBreakdown: {
-    paddingTop: 8,
-    paddingLeft: 32,
+    paddingTop: 7,
+    paddingLeft: 28,
     gap: 5,
   },
   beerBreakdownText: {
@@ -577,18 +592,32 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
   engagementPanel: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: 12,
-    paddingBottom: 8,
-    borderTopWidth: 1,
-    borderTopColor: feedCardColors.metadataDivider,
-    gap: 9,
+    paddingHorizontal: 14,
+    paddingTop: 0,
+    paddingBottom: 14,
+    gap: 7,
   },
   cheerSummaryRow: {
-    minHeight: 30,
+    minHeight: 24,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  cheerAvatarStack: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 20,
+  },
+  cheerAvatar: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: feedCardColors.card,
+    backgroundColor: colors.cardMuted,
+  },
+  cheerAvatarOverlap: {
+    marginLeft: -7,
   },
   cheerSummaryText: {
     ...typography.caption,
@@ -597,10 +626,10 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   commentPreviewList: {
-    gap: 6,
+    gap: 4,
   },
   commentPreviewRow: {
-    minHeight: 22,
+    minHeight: 20,
     justifyContent: 'center',
   },
   commentPreviewText: {
@@ -618,12 +647,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   cardFooter: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: 8,
-    paddingBottom: 13,
+    paddingHorizontal: 14,
+    paddingTop: 6,
+    paddingBottom: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 22,
+    gap: 20,
   },
   actionWrapper: {
     alignSelf: 'flex-start',
@@ -633,9 +662,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 34,
-    paddingHorizontal: 8,
+    minHeight: 30,
+    paddingHorizontal: 2,
     borderRadius: radius.pill,
+    gap: 6,
   },
   actionBtnActive: {
     backgroundColor: feedCardColors.actionActiveBackground,
@@ -645,8 +675,9 @@ const styles = StyleSheet.create({
   },
   actionText: {
     ...typography.bodyMuted,
-    marginLeft: 8,
-    fontWeight: '600',
+    marginLeft: 0,
+    fontSize: 15,
+    fontWeight: '800',
   },
   actionTextActive: {
     color: colors.primary,

@@ -35,6 +35,23 @@ const assertModernFeedCard = (source, label) => {
     /feedCardColors/,
     `${label} should use shared feed-card visual tokens`
   );
+  assert.match(
+    source,
+    /getCompactFeedActionCount/,
+    `${label} should render compact social action counts`
+  );
+  assert.match(
+    source,
+    /cheerAvatarStack/,
+    `${label} should show avatar-stack social proof instead of a bulky cheer row`
+  );
+
+  const footerIndex = source.indexOf('<View style={styles.cardFooter}>');
+  const engagementIndex = source.indexOf('<View style={styles.engagementPanel}>');
+  assert.ok(
+    footerIndex !== -1 && engagementIndex !== -1 && footerIndex < engagementIndex,
+    `${label} action bar should appear before social proof and comments`
+  );
 
   const cardBlock = extractStyleBlock(source, 'card');
   assert.match(
@@ -49,30 +66,22 @@ const assertModernFeedCard = (source, label) => {
   );
 
   const summaryBlock = extractStyleBlock(source, 'sessionSummary');
-  assert.match(
+  assert.doesNotMatch(
     summaryBlock,
-    /borderTopWidth:\s*1/,
-    `${label} metadata should be separated by a light top divider`
-  );
-  assert.match(
-    summaryBlock,
-    /borderBottomWidth:\s*1/,
-    `${label} metadata should be separated by a light bottom divider`
-  );
-  assert.match(
-    summaryBlock,
-    /borderTopColor:\s*feedCardColors\.metadataDivider/,
-    `${label} metadata top divider should be subtle`
-  );
-  assert.match(
-    summaryBlock,
-    /borderBottomColor:\s*feedCardColors\.metadataDivider/,
-    `${label} metadata bottom divider should be subtle`
+    /border(Top|Bottom)Width:/,
+    `${label} metadata should feel integrated, not boxed in by horizontal rails`
   );
   assert.doesNotMatch(
     summaryBlock,
     /backgroundColor:\s*colors\.(surface|cardMuted|surfaceRaised)/,
     `${label} metadata should not be a heavy filled block`
+  );
+
+  const summaryRowBlock = extractStyleBlock(source, 'summaryRow');
+  assert.match(
+    summaryRowBlock,
+    /minHeight:\s*30/,
+    `${label} metadata rows should be visually compact`
   );
 
   const summaryIconBlock = extractStyleBlock(source, 'summaryIcon');
@@ -81,12 +90,34 @@ const assertModernFeedCard = (source, label) => {
     /backgroundColor:\s*feedCardColors\.metadataIconBackground/,
     `${label} metadata icon should be a small brand anchor`
   );
+  assert.match(
+    summaryIconBlock,
+    /width:\s*20/,
+    `${label} metadata icon should be smaller than the old chip`
+  );
+
+  const engagementBlock = extractStyleBlock(source, 'engagementPanel');
+  assert.doesNotMatch(
+    engagementBlock,
+    /borderTopWidth:/,
+    `${label} social proof should not be a separated panel`
+  );
 
   const actionBlock = extractStyleBlock(source, 'actionBtn');
   assert.match(
     actionBlock,
     /alignSelf:\s*'flex-start'/,
     `${label} actions should size to their content`
+  );
+  assert.match(
+    actionBlock,
+    /minHeight:\s*30/,
+    `${label} actions should be small Instagram-style controls`
+  );
+  assert.match(
+    actionBlock,
+    /paddingHorizontal:\s*2/,
+    `${label} actions should avoid chunky pill padding`
   );
   assert.doesNotMatch(
     actionBlock,
@@ -110,6 +141,17 @@ const assertModernFeedCard = (source, label) => {
     /backgroundColor:\s*feedCardColors\.actionActiveBackground/,
     `${label} active cheers should keep a subtle amber state`
   );
+
+  assert.doesNotMatch(
+    source,
+    /\{getCheersLabel\((item\.cheers_count|crawl\.cheersCount)\)\}/,
+    `${label} cheers action should show a compact count, not a wordy label`
+  );
+  assert.doesNotMatch(
+    source,
+    /\{getCommentsLabel\((item\.comments_count|crawl\.commentsCount)\)\}/,
+    `${label} comments action should show a compact count, not a wordy label`
+  );
 };
 
 const feedScreen = readSource('src/screens/FeedScreen.tsx');
@@ -124,6 +166,11 @@ assert.match(
   pubCrawlCard,
   /from '..\/theme\/feedCard'/,
   'PubCrawlFeedCard should import feed-card tokens'
+);
+assert.match(
+  feedScreen,
+  /maxWidth:\s*Platform\.OS === 'web' \? 520/,
+  'Feed should use a narrower Instagram-style web column'
 );
 
 assertModernFeedCard(feedScreen, 'Feed session');

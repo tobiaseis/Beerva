@@ -1,0 +1,482 @@
+import React, { useState } from 'react';
+import { 
+  MapPin, 
+  MessageCircle, 
+  Share2, 
+  ChevronDown, 
+  Bell, 
+  Home, 
+  Users, 
+  PlusCircle, 
+  Trophy, 
+  User,
+  MoreHorizontal,
+  Search,
+  Crown,
+  Edit3,
+  Settings,
+  Flame
+} from 'lucide-react';
+
+// --- MOCK DATA ---
+const feedData = [
+  {
+    id: 1,
+    user: {
+      name: 'Jakke',
+      avatar: 'https://i.pravatar.cc/150?u=jakke',
+      timeAgo: '3 days ago'
+    },
+    caption: 'Smagen af sol',
+    image: 'https://images.unsplash.com/photo-1575037614876-c3853d40f8cb?q=80&w=1000&auto=format&fit=crop',
+    location: 'Jette 80år Tisvildeleje',
+    drink: '33cl of Bryghuset Møn',
+    cheersCount: 4,
+    commentsCount: 1,
+    hasCheered: true,
+    cheerers: [
+      'https://i.pravatar.cc/150?u=beist',
+      'https://i.pravatar.cc/150?u=kristoffer',
+      'https://i.pravatar.cc/150?u=dj'
+    ],
+    latestComment: {
+      user: 'Beist',
+      text: 'Skål og hils! 🍻🍻'
+    }
+  }
+];
+
+const peopleData = [
+  { id: 1, name: 'Bingseøl', avatar: 'https://i.pravatar.cc/150?img=1', isFollowing: true },
+  { id: 2, name: 'bob', avatar: 'https://i.pravatar.cc/150?img=11', isFollowing: true },
+  { id: 3, name: 'Dj_Skybase', avatar: 'https://i.pravatar.cc/150?img=33', isFollowing: true },
+  { id: 4, name: 'Elb', avatar: 'https://i.pravatar.cc/150?img=14', isFollowing: false },
+  { id: 5, name: 'Hanner', avatar: 'https://i.pravatar.cc/150?img=5', isFollowing: true }
+];
+
+const pubsData = [
+  { id: 1, name: 'Smedekroen, Aalborg', city: 'Pub', posts: 4, drinkers: 3, king: 'Beist', kingPints: '1.7' },
+  { id: 2, name: 'NUBI', city: 'Nørresundby', posts: 2, drinkers: 1, king: 'Tubpac', kingPints: '5.1' },
+  { id: 3, name: 'Sherlock Holmes Pub', city: 'Aarhus', posts: 1, drinkers: 1, king: 'Tubpac', kingPints: '0.6' }
+];
+
+const profileData = {
+  name: 'Beist',
+  avatar: 'https://i.pravatar.cc/150?u=beist',
+  joinedDate: 'May 2026',
+  followers: 13,
+  following: 13,
+  stats: {
+    truePints: '1.7',
+    uniquePubs: '1',
+    avgAbv: '4.6%',
+    bestSession: '1.7',
+    longestStreak: '1'
+  },
+  trophies: [
+    { id: 1, name: 'First Pint', icon: '🍺' },
+    { id: 2, name: '10 Pint Club', icon: '🍻' },
+    { id: 3, name: 'Weekend Warrior', icon: '🛡️' }
+  ]
+};
+
+// --- COMPONENTS ---
+
+const TopNav = () => (
+  <div className="sticky top-0 z-50 bg-slate-950/80 backdrop-blur-md px-4 py-4 flex justify-between items-center border-b border-slate-800/50">
+    <div className="flex items-center gap-2">
+      <span className="text-3xl">🍻</span>
+      <h1 className="text-2xl font-extrabold tracking-tight text-white">
+        Beer<span className="text-amber-500">va</span>
+      </h1>
+    </div>
+    <button className="p-2 bg-slate-900 rounded-full text-slate-300 hover:text-white transition">
+      <Bell size={20} />
+    </button>
+  </div>
+);
+
+const FeedPost = ({ post }) => {
+  const [isCheered, setIsCheered] = useState(post.hasCheered);
+  const [cheersCount, setCheersCount] = useState(post.cheersCount);
+  const [showStats, setShowStats] = useState(false);
+
+  const toggleCheers = () => {
+    setIsCheered(!isCheered);
+    setCheersCount(prev => isCheered ? prev - 1 : prev + 1);
+  };
+
+  return (
+    <article className="bg-slate-900/60 mb-6 rounded-3xl overflow-hidden border border-slate-800/60 shadow-lg">
+      {/* Post Header */}
+      <div className="flex items-center justify-between p-4">
+        <div className="flex items-center gap-3">
+          <img 
+            src={post.user.avatar} 
+            alt={post.user.name} 
+            className="w-10 h-10 rounded-full object-cover border border-slate-700"
+          />
+          <div>
+            <h2 className="font-bold text-slate-100 text-[15px] leading-tight">{post.user.name}</h2>
+            <p className="text-xs text-slate-400">{post.user.timeAgo}</p>
+          </div>
+        </div>
+        <button className="text-slate-500 hover:text-slate-300">
+          <MoreHorizontal size={20} />
+        </button>
+      </div>
+
+      {/* Caption */}
+      {post.caption && (
+        <div className="px-4 pb-3">
+          <p className="text-slate-200 text-[15px]">{post.caption}</p>
+        </div>
+      )}
+
+      {/* Image */}
+      <div className="w-full aspect-[4/5] bg-slate-800">
+        <img 
+          src={post.image} 
+          alt="Beer moment" 
+          className="w-full h-full object-cover"
+        />
+      </div>
+
+      {/* Activity Details (Strava-style block) */}
+      <div className="p-4 bg-slate-800/30 border-b border-slate-800/50">
+        <div className="flex flex-col gap-2.5">
+          <div className="flex items-center gap-2 text-slate-300">
+            <div className="bg-slate-800 p-1.5 rounded-lg text-amber-500">
+              <MapPin size={16} />
+            </div>
+            <span className="font-medium text-[15px]">{post.location}</span>
+          </div>
+          <div className="flex items-center gap-2 text-slate-300">
+             <div className="bg-slate-800 p-1.5 rounded-lg text-amber-500">
+               <span className="text-[16px] leading-none">🍺</span>
+            </div>
+            <span className="text-[15px]">{post.drink}</span>
+          </div>
+        </div>
+
+        {/* Collapsible Stats */}
+        <div className="mt-3">
+          <button 
+            onClick={() => setShowStats(!showStats)}
+            className="flex items-center gap-1 text-xs font-semibold text-slate-400 hover:text-slate-300 transition-colors"
+          >
+            {showStats ? 'Hide stats' : 'More stats'} 
+            <ChevronDown size={14} className={`transform transition-transform ${showStats ? 'rotate-180' : ''}`} />
+          </button>
+          
+          {showStats && (
+            <div className="mt-3 grid grid-cols-3 gap-2 animate-in slide-in-from-top-2 fade-in duration-200">
+              <div className="bg-slate-950/50 rounded-xl p-3 text-center border border-slate-800/50">
+                <p className="text-xs text-slate-400 mb-1">ABV</p>
+                <p className="font-bold text-slate-200">4.6%</p>
+              </div>
+              <div className="bg-slate-950/50 rounded-xl p-3 text-center border border-slate-800/50">
+                <p className="text-xs text-slate-400 mb-1">True Pints</p>
+                <p className="font-bold text-slate-200">0.7</p>
+              </div>
+              <div className="bg-slate-950/50 rounded-xl p-3 text-center border border-slate-800/50">
+                <p className="text-xs text-slate-400 mb-1">Pace</p>
+                <p className="font-bold text-slate-200">Steady</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Action Bar (Modernized) */}
+      <div className="px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-6">
+          <button 
+            onClick={toggleCheers}
+            className={`flex items-center gap-2 transition-colors ${isCheered ? 'text-amber-500' : 'text-slate-400 hover:text-slate-200'}`}
+          >
+            <span className={`text-xl transition-transform active:scale-75 ${isCheered ? 'drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]' : 'opacity-80 grayscale'}`}>
+              🍻
+            </span>
+            <span className="font-semibold text-[15px]">{cheersCount}</span>
+          </button>
+          
+          <button className="flex items-center gap-2 text-slate-400 hover:text-slate-200 transition-colors">
+            <MessageCircle size={22} strokeWidth={2} />
+            <span className="font-semibold text-[15px]">{post.commentsCount}</span>
+          </button>
+        </div>
+        
+        <button className="text-slate-400 hover:text-slate-200 transition-colors">
+          <Share2 size={20} strokeWidth={2} />
+        </button>
+      </div>
+
+      {/* Social Proof & Comments */}
+      <div className="px-4 pb-4">
+        {/* Avatar Stack for Cheers */}
+        {cheersCount > 0 && (
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex -space-x-2">
+              {post.cheerers.map((avatar, i) => (
+                <img 
+                  key={i} 
+                  src={avatar} 
+                  alt="cheerer" 
+                  className="w-5 h-5 rounded-full border border-slate-900"
+                />
+              ))}
+            </div>
+            <p className="text-xs text-slate-400">
+              Cheers from <span className="font-semibold text-slate-200">Beist</span> and {cheersCount - 1} others
+            </p>
+          </div>
+        )}
+
+        {/* Latest Comment */}
+        {post.latestComment && (
+          <div className="text-[14px] leading-snug">
+            <span className="font-bold text-slate-200 mr-2">{post.latestComment.user}</span>
+            <span className="text-slate-300">{post.latestComment.text}</span>
+          </div>
+        )}
+        
+        <button className="text-slate-500 text-[13px] font-medium mt-1 hover:text-slate-300">
+          View all {post.commentsCount} comments
+        </button>
+      </div>
+    </article>
+  );
+};
+
+const PeopleView = () => (
+  <div className="animate-in fade-in slide-in-from-bottom-4 duration-300 px-4 py-2 pb-8">
+    <h2 className="text-2xl font-bold text-amber-500 mb-4 flex items-center gap-2">
+      <Users size={24} /> People
+    </h2>
+    <div className="relative mb-6">
+      <Search className="absolute left-4 top-3.5 text-slate-500" size={18} />
+      <input
+        type="text"
+        placeholder="Search users"
+        className="w-full bg-slate-900/80 border border-slate-800 rounded-2xl py-3 pl-11 pr-4 text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500/50 transition-colors"
+      />
+    </div>
+    <div className="flex flex-col gap-3">
+      {peopleData.map(person => (
+        <div key={person.id} className="flex items-center justify-between bg-slate-900/40 p-3 rounded-2xl border border-slate-800/50 transition-colors hover:bg-slate-900/80 cursor-pointer">
+          <div className="flex items-center gap-3">
+            <img src={person.avatar} alt={person.name} className="w-12 h-12 rounded-full border border-slate-700 object-cover" />
+            <span className="font-semibold text-slate-200 text-[15px]">{person.name}</span>
+          </div>
+          <button className={`px-4 py-1.5 rounded-xl text-sm font-medium transition-colors ${person.isFollowing ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-amber-500 text-slate-950 hover:bg-amber-400'}`}>
+            {person.isFollowing ? 'Following' : 'Follow'}
+          </button>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const LeaderboardView = () => (
+  <div className="animate-in fade-in slide-in-from-bottom-4 duration-300 px-4 py-2 pb-8">
+    <h2 className="text-2xl font-bold text-amber-500 mb-2 flex items-center gap-2">
+      <Trophy size={24} /> Pub Legends
+    </h2>
+    <p className="text-slate-400 text-sm mb-6">The busiest bars, ranked by published posts.</p>
+
+    <div className="flex flex-col gap-4">
+      {pubsData.map((pub, index) => (
+        <div key={pub.id} className={`relative bg-slate-900/60 rounded-3xl p-4 border ${index === 0 ? 'border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.1)]' : 'border-slate-800/60'}`}>
+           <div className="flex gap-4">
+             <div className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center font-bold ${index === 0 ? 'bg-amber-500 text-slate-950' : 'bg-slate-800 text-slate-300'}`}>
+               {index === 0 ? <Crown size={20} /> : index + 1}
+             </div>
+             <div className="flex-1">
+               <div className="flex justify-between items-start">
+                 <div>
+                   {index === 0 && <span className="text-[10px] font-bold text-amber-500 tracking-wider uppercase mb-1 block">Current Hotspot</span>}
+                   <h3 className="font-bold text-slate-100 text-[17px] leading-tight">{pub.name}</h3>
+                   <div className="flex items-center gap-1 text-slate-400 text-xs mt-1">
+                     <MapPin size={12} /> {pub.city}
+                   </div>
+                 </div>
+                 <ChevronDown size={18} className="text-slate-600 -rotate-90 mt-1" />
+               </div>
+
+               <div className="flex gap-2 mt-4">
+                 <div className="flex items-center gap-1.5 bg-slate-950/50 rounded-lg px-2.5 py-1.5 border border-slate-800/50">
+                   <span className="text-amber-500 text-sm">🍺</span>
+                   <span className="text-xs font-medium text-slate-300">{pub.posts} posts</span>
+                 </div>
+                 <div className="flex items-center gap-1.5 bg-slate-950/50 rounded-lg px-2.5 py-1.5 border border-slate-800/50">
+                   <Users size={14} className="text-amber-500" />
+                   <span className="text-xs font-medium text-slate-300">{pub.drinkers} drinkers</span>
+                 </div>
+               </div>
+
+               <div className="mt-4 pt-3 border-t border-slate-800/50 text-[13px]">
+                 <span className="text-amber-500 font-medium">King of the Pub: </span>
+                 <span className="text-slate-300">{pub.king} - {pub.kingPints} true pints</span>
+               </div>
+             </div>
+           </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const ProfileView = () => (
+  <div className="animate-in fade-in slide-in-from-bottom-4 duration-300 px-4 py-2 pb-8">
+    <div className="flex justify-between items-start mb-8">
+      <div className="w-8" /> {/* Spacer */}
+      <div className="flex flex-col items-center relative">
+        <div className="relative">
+          <img src={profileData.avatar} alt="Profile" className="w-24 h-24 rounded-full border-2 border-amber-500 object-cover p-1 bg-slate-950" />
+          <button className="absolute bottom-0 right-0 bg-amber-500 p-2 rounded-full text-slate-950 border-2 border-slate-950 hover:bg-amber-400 transition-colors">
+            <Edit3 size={14} />
+          </button>
+        </div>
+        <h2 className="text-2xl font-extrabold text-white mt-3">{profileData.name}</h2>
+        <p className="text-slate-400 text-sm">Joined {profileData.joinedDate}</p>
+      </div>
+      <button className="text-slate-500 hover:text-slate-300 mt-2 transition-colors">
+        <Settings size={22} />
+      </button>
+    </div>
+
+    {/* Follow Stats */}
+    <div className="flex gap-3 mb-6">
+      <div className="flex-1 bg-slate-900/60 rounded-2xl py-3 text-center border border-slate-800/60 shadow-sm">
+        <p className="text-amber-500 font-bold text-xl">{profileData.followers}</p>
+        <p className="text-slate-400 text-[10px] font-semibold uppercase tracking-wider mt-0.5">Followers</p>
+      </div>
+      <div className="flex-1 bg-slate-900/60 rounded-2xl py-3 text-center border border-slate-800/60 shadow-sm">
+        <p className="text-amber-500 font-bold text-xl">{profileData.following}</p>
+        <p className="text-slate-400 text-[10px] font-semibold uppercase tracking-wider mt-0.5">Following</p>
+      </div>
+    </div>
+
+    {/* Main Stats Grid */}
+    <div className="grid grid-cols-3 gap-3 mb-3">
+      <div className="bg-slate-900/60 rounded-2xl p-3 text-center border border-slate-800/60">
+        <p className="text-slate-100 font-bold text-lg">{profileData.stats.truePints}</p>
+        <p className="text-slate-400 text-[9px] uppercase font-bold tracking-wider mt-1">True Pints</p>
+      </div>
+      <div className="bg-slate-900/60 rounded-2xl p-3 text-center border border-slate-800/60">
+        <p className="text-slate-100 font-bold text-lg">{profileData.stats.uniquePubs}</p>
+        <p className="text-slate-400 text-[9px] uppercase font-bold tracking-wider mt-1">Unique Pubs</p>
+      </div>
+      <div className="bg-slate-900/60 rounded-2xl p-3 text-center border border-slate-800/60">
+        <p className="text-slate-100 font-bold text-lg">{profileData.stats.avgAbv}</p>
+        <p className="text-slate-400 text-[9px] uppercase font-bold tracking-wider mt-1">Avg ABV</p>
+      </div>
+    </div>
+
+    <div className="grid grid-cols-2 gap-3 mb-8">
+       <div className="bg-slate-900/60 rounded-2xl p-4 text-center border border-slate-800/60 flex flex-col items-center justify-center">
+        <div className="flex items-center gap-1.5 text-slate-300 text-[11px] font-semibold uppercase tracking-wider mb-2">
+          <span>🍺</span> Best Session <span>🍺</span>
+        </div>
+        <p className="text-amber-500 font-extrabold text-3xl">{profileData.stats.bestSession}</p>
+      </div>
+      <div className="bg-slate-900/60 rounded-2xl p-4 text-center border border-slate-800/60 flex flex-col items-center justify-center relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent opacity-20"></div>
+        <div className="flex items-center gap-1.5 text-slate-300 text-[11px] font-semibold uppercase tracking-wider mb-2">
+          <Flame size={14} className="text-amber-500" /> Longest Streak <Flame size={14} className="text-amber-500" />
+        </div>
+        <p className="text-amber-500 font-extrabold text-3xl">{profileData.stats.longestStreak}</p>
+      </div>
+    </div>
+
+    {/* Trophy Cabinet */}
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-bold text-white">Trophy Cabinet</h3>
+        <span className="bg-slate-900 px-3 py-1 rounded-full border border-slate-800 text-amber-500 text-xs font-semibold">
+          {profileData.trophies.length}/50
+        </span>
+      </div>
+      <div className="flex gap-3 overflow-x-auto pb-4 snap-x" style={{ scrollbarWidth: 'none' }}>
+        {profileData.trophies.map((trophy, i) => (
+          <div key={i} className="min-w-[110px] snap-center bg-slate-900/60 rounded-2xl p-4 border border-slate-800/60 flex flex-col items-center text-center">
+            <div className="w-12 h-12 rounded-full bg-slate-950 border border-slate-800 flex items-center justify-center mb-3">
+               <span className="text-xl opacity-90 drop-shadow-md">{trophy.icon}</span>
+            </div>
+            <p className="text-slate-200 text-xs font-bold leading-tight">{trophy.name}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+);
+
+const BottomNav = ({ activeTab, setActiveTab }) => (
+  <div className="fixed bottom-0 left-0 right-0 p-4 pb-6 pointer-events-none z-50">
+    <div className="mx-auto max-w-md bg-slate-900/90 backdrop-blur-xl border border-slate-800 rounded-full px-6 py-3 flex justify-between items-center shadow-2xl pointer-events-auto">
+      <button 
+        onClick={() => setActiveTab('home')} 
+        className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'home' ? 'text-amber-500' : 'text-slate-500 hover:text-slate-300'}`}
+      >
+        <Home size={24} strokeWidth={activeTab === 'home' ? 2.5 : 2} />
+      </button>
+      <button 
+        onClick={() => setActiveTab('people')} 
+        className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'people' ? 'text-amber-500' : 'text-slate-500 hover:text-slate-300'}`}
+      >
+        <Users size={24} strokeWidth={activeTab === 'people' ? 2.5 : 2} />
+      </button>
+      
+      {/* Center FAB */}
+      <button className="bg-amber-500 hover:bg-amber-400 text-slate-950 p-3 rounded-full shadow-[0_0_15px_rgba(245,158,11,0.4)] transition-transform active:scale-95 -mt-8 border-4 border-slate-950">
+        <PlusCircle size={28} strokeWidth={2.5} />
+      </button>
+
+      <button 
+        onClick={() => setActiveTab('leaderboard')} 
+        className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'leaderboard' ? 'text-amber-500' : 'text-slate-500 hover:text-slate-300'}`}
+      >
+        <Trophy size={24} strokeWidth={activeTab === 'leaderboard' ? 2.5 : 2} />
+      </button>
+      <button 
+        onClick={() => setActiveTab('profile')} 
+        className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'profile' ? 'text-amber-500' : 'text-slate-500 hover:text-slate-300'}`}
+      >
+        <User size={24} strokeWidth={activeTab === 'profile' ? 2.5 : 2} />
+      </button>
+    </div>
+  </div>
+);
+
+export default function App() {
+  const [activeTab, setActiveTab] = useState('home');
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-50 font-sans selection:bg-amber-500/30">
+      <div className="max-w-md mx-auto relative min-h-screen pb-24">
+        {/* Only show the global TopNav on the home feed */}
+        {activeTab === 'home' && <TopNav />}
+        
+        <main className={activeTab === 'home' ? "px-3 pt-4" : "pt-6"}>
+          {activeTab === 'home' && (
+            <>
+              {feedData.map(post => (
+                <FeedPost key={post.id} post={post} />
+              ))}
+              <div className="h-20 flex items-center justify-center text-slate-600 text-sm">
+                No more pints to show 🍻
+              </div>
+            </>
+          )}
+          
+          {activeTab === 'people' && <PeopleView />}
+          {activeTab === 'leaderboard' && <LeaderboardView />}
+          {activeTab === 'profile' && <ProfileView />}
+        </main>
+
+        <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
+      </div>
+    </div>
+  );
+}
