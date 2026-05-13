@@ -33,6 +33,9 @@ const navigationRef = createNavigationContainerRef<Record<string, object | undef
 const AUTH_BOOTSTRAP_TIMEOUT_MS = 12000;
 const PROFILE_CHECK_TIMEOUT_MS = 12000;
 const floatingTabBarBackground = '#172238';
+const floatingTabBarBottom = 16;
+const floatingTabBarHeight = 60;
+const floatingTabBarSceneBottomInset = floatingTabBarHeight + floatingTabBarBottom + 16;
 
 const hasCachedUsername = (activeSession: Session | null) => (
   Boolean(activeSession?.user?.user_metadata?.username)
@@ -128,16 +131,21 @@ const MainTabs = () => {
   <Tab.Navigator
     screenOptions={{
       headerShown: false,
-      sceneStyle: { backgroundColor: colors.background },
+      sceneStyle: Platform.OS === 'web'
+        ? {
+            backgroundColor: colors.background,
+            paddingBottom: floatingTabBarSceneBottomInset,
+          }
+        : { backgroundColor: colors.background },
       animation: 'fade',
       tabBarStyle: Platform.OS === 'web'
         ? {
             position: 'absolute',
             left: floatingTabBarLeft,
-            bottom: 16,
+            bottom: floatingTabBarBottom,
             width: floatingTabBarWidth,
             backgroundColor: floatingTabBarBackground,
-            height: 60,
+            height: floatingTabBarHeight,
             paddingTop: 6,
             paddingBottom: 7,
             borderRadius: radius.pill,

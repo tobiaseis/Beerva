@@ -59,9 +59,24 @@ assert.match(
   /floatingTabBarWidth\s*=\s*Math\.min\(Math\.max\(viewportWidth - 32,\s*0\),\s*520\)/,
   'Floating nav should keep mobile side gutters and avoid becoming a full-width desktop box'
 );
+assert.match(
+  source,
+  /floatingTabBarSceneBottomInset\s*=\s*floatingTabBarHeight\s*\+\s*floatingTabBarBottom\s*\+\s*16/,
+  'Floating nav should expose a scene bottom inset based on the pill height and bottom offset'
+);
 
 const screenOptions = extractScreenOptionsBlock(source);
 
+assert.match(
+  screenOptions,
+  /sceneStyle:\s*Platform\.OS === 'web'/,
+  'Web tab scenes should receive a dedicated bottom inset when the tab bar floats'
+);
+assert.match(
+  screenOptions,
+  /paddingBottom:\s*floatingTabBarSceneBottomInset/,
+  'Web tab scenes should reserve enough bottom space for the floating pill'
+);
 assert.match(
   screenOptions,
   /backgroundColor:\s*floatingTabBarBackground/,
@@ -79,8 +94,13 @@ assert.match(
 );
 assert.match(
   screenOptions,
-  /bottom:\s*16/,
+  /bottom:\s*floatingTabBarBottom/,
   'Floating nav should sit off the bottom edge'
+);
+assert.match(
+  screenOptions,
+  /height:\s*floatingTabBarHeight/,
+  'Floating nav height should be shared with the scene bottom inset'
 );
 assert.match(
   screenOptions,
