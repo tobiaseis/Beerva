@@ -13,6 +13,8 @@
     "test:roulette": "node scripts/pubRoulette.test.js",
     "test:notifications": "node scripts/notifications.test.js",
     "test:pub-legends": "node scripts/pubLegends.test.js",
+    "test:pub-directory": "node scripts/pubDirectory.test.js",
+    "test:record-place-category": "node scripts/recordPlaceCategory.test.js",
     "test:pub-crawl": "node scripts/pubCrawl.test.js",
     "test:hangover": "node scripts/hangover.test.js",
     "test:feed-header": "node scripts/feedHeader.test.js",

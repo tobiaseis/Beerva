@@ -25,6 +25,7 @@ const loadTypeScriptModule = (relativePath) => {
 
 const helpersPath = 'src/lib/pubLegends.ts';
 const migrationPath = 'supabase/migrations/20260510133000_add_pub_legends_leaderboards.sql';
+const placeCategoryMigrationPath = 'supabase/migrations/20260513120000_add_pub_place_category.sql';
 
 assert.ok(
   fs.existsSync(path.resolve(__dirname, '..', helpersPath)),
@@ -33,6 +34,10 @@ assert.ok(
 assert.ok(
   fs.existsSync(path.resolve(__dirname, '..', migrationPath)),
   'Pub Legends should add Supabase leaderboard RPCs'
+);
+assert.ok(
+  fs.existsSync(path.resolve(__dirname, '..', placeCategoryMigrationPath)),
+  'Place category migration should update pub schema and leaderboard filtering'
 );
 
 const { formatTruePints, mapPubKingSessionRow, mapPubLegendRow } = loadTypeScriptModule(helpersPath);
@@ -102,6 +107,33 @@ assert.equal(formatTruePints(1), '1.0 true pint');
 assert.equal(formatTruePints(Number.NaN), '0.0 true pints');
 
 const migrationSql = fs.readFileSync(path.resolve(__dirname, '..', migrationPath), 'utf8');
+const placeCategoryMigrationSql = fs.readFileSync(path.resolve(__dirname, '..', placeCategoryMigrationPath), 'utf8');
+assert.match(
+  placeCategoryMigrationSql,
+  /add column if not exists place_category text not null default 'pub'/,
+  'pubs should default existing and new rows to real pubs'
+);
+assert.match(
+  placeCategoryMigrationSql,
+  /pubs_place_category_check/,
+  'pubs should constrain place_category to known values'
+);
+assert.match(
+  placeCategoryMigrationSql,
+  /drop function if exists public\.search_pubs\(text, double precision, double precision, integer\)/,
+  'search_pubs should be recreated because the return table changes'
+);
+assert.match(
+  placeCategoryMigrationSql,
+  /place_category text/,
+  'search_pubs should return place_category to the app'
+);
+
+const categoryFilters = placeCategoryMigrationSql.match(/coalesce\(pubs\.place_category,\s*'pub'\)\s*=\s*'pub'/g) || [];
+assert.ok(
+  categoryFilters.length >= 2,
+  'Pub Legends list and King of the Pub should both exclude other places'
+);
 assert.match(migrationSql, /get_pub_legends/, 'migration should create get_pub_legends');
 assert.match(migrationSql, /get_pub_king_of_the_pub/, 'migration should create get_pub_king_of_the_pub');
 assert.match(migrationSql, /status\s*=\s*'published'/, 'leaderboards should only use published sessions');
