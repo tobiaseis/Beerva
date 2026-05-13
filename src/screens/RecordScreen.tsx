@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Beer, Camera, CheckCircle2, Clock, Images, LocateFixed, Lock, MapPin, MessageSquare, PlusCircle, Sparkles, Trash2, X } from 'lucide-react-native';
+import { Beer, Camera, CheckCircle2, Clock, Home, Images, LocateFixed, Lock, MapPin, MessageSquare, PlusCircle, Sparkles, Trash2, X } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 
 import { AppButton } from '../components/AppButton';
@@ -43,6 +43,7 @@ import {
   formatPubLabel,
   incrementPubUseCount,
   labelsMatchPub,
+  PlaceCategory,
   PubRecord,
   searchCachedPubs,
   UserLocation,
@@ -189,6 +190,7 @@ export const RecordScreen = ({ navigation }: any) => {
   const [selectedImage, setSelectedImage] = useState<SelectedImage | null>(null);
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
   const [photoChoiceVisible, setPhotoChoiceVisible] = useState(false);
+  const [pubCategoryChoiceVisible, setPubCategoryChoiceVisible] = useState(false);
 
   const [loadingActive, setLoadingActive] = useState(true);
   const [starting, setStarting] = useState(false);
@@ -751,13 +753,20 @@ export const RecordScreen = ({ navigation }: any) => {
     hapticSuccess();
   };
 
-  const addTypedPub = async () => {
+  const openPubCategoryChoice = () => {
+    if (pub.trim().length < 2 || addingPub) return;
+    setPubCategoryChoiceVisible(true);
+    hapticMedium();
+  };
+
+  const addTypedPub = async (placeCategory: PlaceCategory = 'pub') => {
     const cleanPub = pub.trim();
     if (cleanPub.length < 2 || addingPub) return;
 
+    setPubCategoryChoiceVisible(false);
     setAddingPub(true);
     try {
-      const pubRecord = await createUserPub(cleanPub, userLocation);
+      const pubRecord = await createUserPub(cleanPub, userLocation, placeCategory);
       setPubOptions((previous) => [
         pubRecord,
         ...previous.filter((item) => item.id !== pubRecord.id),
@@ -1312,7 +1321,7 @@ export const RecordScreen = ({ navigation }: any) => {
   const addPubFooter = cleanPub.length >= 2 && !selectedPub && !hasExactPubOption ? (
     <TouchableOpacity
       style={styles.addPubFooter}
-      onPress={addTypedPub}
+      onPress={openPubCategoryChoice}
       disabled={addingPub}
       activeOpacity={0.76}
     >
@@ -1720,6 +1729,58 @@ export const RecordScreen = ({ navigation }: any) => {
               </View>
               <View style={styles.photoChoiceText}>
                 <Text style={styles.photoChoiceLabel}>Move On</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={pubCategoryChoiceVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPubCategoryChoiceVisible(false)}
+      >
+        <View style={styles.photoChoiceBackdrop}>
+          <View style={styles.photoChoiceSheet}>
+            <View style={styles.photoChoiceHeader}>
+              <Text style={styles.photoChoiceTitle}>Choose place type</Text>
+              <TouchableOpacity
+                style={styles.photoChoiceClose}
+                onPress={() => setPubCategoryChoiceVisible(false)}
+                hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+              >
+                <X color={colors.text} size={22} />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={styles.photoChoiceOption}
+              onPress={() => addTypedPub('pub')}
+              disabled={addingPub}
+              activeOpacity={0.76}
+            >
+              <View style={styles.photoChoiceIcon}>
+                <Beer color={colors.primary} size={22} />
+              </View>
+              <View style={styles.photoChoiceText}>
+                <Text style={styles.photoChoiceLabel}>Pub</Text>
+                <Text style={styles.photoChoiceHint}>Counts toward Pub Legends</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.photoChoiceOption}
+              onPress={() => addTypedPub('other')}
+              disabled={addingPub}
+              activeOpacity={0.76}
+            >
+              <View style={[styles.photoChoiceIcon, { backgroundColor: colors.surface }]}>
+                <Home color={colors.textMuted} size={22} />
+              </View>
+              <View style={styles.photoChoiceText}>
+                <Text style={styles.photoChoiceLabel}>Other</Text>
+                <Text style={styles.photoChoiceHint}>Excluded from Pub Legends</Text>
               </View>
             </TouchableOpacity>
           </View>
