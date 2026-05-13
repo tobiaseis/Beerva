@@ -1,5 +1,7 @@
 import { supabase } from './supabase';
 
+export type PlaceCategory = 'pub' | 'other';
+
 export type UserLocation = {
   latitude: number;
   longitude: number;
@@ -15,6 +17,7 @@ export type PubRecord = {
   source?: string | null;
   source_id?: string | null;
   use_count?: number | null;
+  place_category?: PlaceCategory | null;
   distance_meters?: number | null;
 };
 
@@ -28,7 +31,7 @@ export const formatPubLabel = (pub: Pick<PubRecord, 'name' | 'city'>) => {
   return `${pub.name}, ${city}`;
 };
 
-export const formatPubDetail = (pub: Pick<PubRecord, 'address' | 'distance_meters' | 'source'>) => {
+export const formatPubDetail = (pub: Pick<PubRecord, 'address' | 'distance_meters' | 'source' | 'place_category'>) => {
   const details: string[] = [];
 
   if (typeof pub.distance_meters === 'number') {
@@ -40,6 +43,7 @@ export const formatPubDetail = (pub: Pick<PubRecord, 'address' | 'distance_meter
   }
 
   if (pub.address) details.push(pub.address);
+  if (pub.place_category === 'other') details.push('Other place');
   if (pub.source === 'user') details.push('Added by Beerva');
 
   return details.join(' / ');
@@ -133,7 +137,8 @@ export const fetchAndCacheNearbyPubs = async (
 
 export const createUserPub = async (
   name: string,
-  location?: UserLocation | null
+  location?: UserLocation | null,
+  placeCategory: PlaceCategory = 'pub'
 ): Promise<PubRecord> => {
   const cleanName = name.trim();
   if (cleanName.length < 2) throw new Error('Pub name is too short.');
@@ -154,8 +159,9 @@ export const createUserPub = async (
       source: 'user',
       status: 'active',
       created_by: user.id,
+      place_category: placeCategory,
     })
-    .select('id, name, city, address, latitude, longitude, source, source_id, use_count')
+    .select('id, name, city, address, latitude, longitude, source, source_id, use_count, place_category')
     .single();
 
   if (error) throw error;
