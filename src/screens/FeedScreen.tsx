@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, FlatList, Image, ActivityIndicator, RefreshControl, TouchableOpacity, Pressable, Alert, Platform, Animated, Modal, TextInput, KeyboardAvoidingView } from 'react-native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
-import { Beer, ChevronDown, ChevronUp, Edit3, MapPin, Trash2, Bell, AlertTriangle, RefreshCw, MessageCircle, Send, X } from 'lucide-react-native';
+import { Beer, ChevronDown, ChevronUp, Edit3, MapPin, Trash2, Bell, AlertTriangle, RefreshCw, MessageCircle, Send, Trophy, X } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { confirmDestructive } from '../lib/dialogs';
 import { useFocusEffect, useNavigation, useScrollToTop } from '@react-navigation/native';
@@ -24,6 +24,8 @@ import { getErrorMessage, withTimeout } from '../lib/timeouts';
 import { PubCrawlFeedCard } from '../components/PubCrawlFeedCard';
 import { PubCrawl, PubCrawlComment } from '../lib/pubCrawls';
 import { fetchPublishedPubCrawlsForFeedPage, togglePubCrawlCheers, addPubCrawlComment } from '../lib/pubCrawlsApi';
+import { ChallengeSummary, formatChallengeProgress, formatChallengeRank } from '../lib/challenges';
+import { fetchJoinedActiveChallengeSummary } from '../lib/challengesApi';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
 const cheersLogoSource = beervaLogo;
@@ -657,6 +659,7 @@ export const FeedScreen = ({ route }: any) => {
   const [commentDraft, setCommentDraft] = useState('');
   const [viewingImageUrl, setViewingImageUrl] = useState<string | null>(null);
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [activeChallengeSummary, setActiveChallengeSummary] = useState<ChallengeSummary | null>(null);
   const { unreadCount } = useNotifications();
   const [pullDistance, setPullDistance] = useState(0);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -975,10 +978,21 @@ export const FeedScreen = ({ route }: any) => {
     }
   }, []);
 
+  const fetchActiveChallengeSummary = useCallback(async () => {
+    try {
+      const summary = await fetchJoinedActiveChallengeSummary();
+      setActiveChallengeSummary(summary);
+    } catch (error) {
+      console.error('Active challenge summary fetch error:', error);
+      setActiveChallengeSummary(null);
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       fetchSessions({ reset: true });
-    }, [fetchSessions])
+      fetchActiveChallengeSummary();
+    }, [fetchActiveChallengeSummary, fetchSessions])
   );
 
   useEffect(() => {
@@ -1040,6 +1054,7 @@ export const FeedScreen = ({ route }: any) => {
     if (pullDistance >= PULL_REFRESH_THRESHOLD && !refreshing) {
       setRefreshing(true);
       fetchSessions({ reset: true });
+      fetchActiveChallengeSummary();
     }
     setPullDistance(0);
   };
@@ -1047,7 +1062,8 @@ export const FeedScreen = ({ route }: any) => {
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     fetchSessions({ reset: true });
-  }, [fetchSessions]);
+    fetchActiveChallengeSummary();
+  }, [fetchActiveChallengeSummary, fetchSessions]);
 
   const loadMoreSessions = useCallback(() => {
     fetchSessions({ reset: false });
@@ -1414,13 +1430,40 @@ export const FeedScreen = ({ route }: any) => {
     });
   }, [currentUserId]);
 
-  const renderFeedHeader = useCallback(() => {
-    if (Platform.OS !== 'web' || (!pullDistance && !refreshing)) {
-      return null;
-    }
+  const renderChallengePreviewStrip = useCallback(() => {
+    if (!activeChallengeSummary) return null;
 
-    return <PullIndicator pullDistance={pullDistance} refreshing={refreshing} />;
-  }, [pullDistance, refreshing]);
+    return (
+      <TouchableOpacity
+        style={styles.challengePreviewStrip}
+        onPress={() => navigation.navigate('ChallengeDetail', { challengeSlug: activeChallengeSummary.slug })}
+        activeOpacity={0.78}
+        accessibilityRole="button"
+        accessibilityLabel={`${activeChallengeSummary.title} challenge progress`}
+      >
+        <Trophy color={colors.primary} size={15} />
+        <Text style={styles.challengePreviewText} numberOfLines={1}>
+          {activeChallengeSummary.title} - {formatChallengeRank(activeChallengeSummary.currentUserRank)} - {formatChallengeProgress(activeChallengeSummary.currentUserProgress, activeChallengeSummary.targetValue)}
+        </Text>
+      </TouchableOpacity>
+    );
+  }, [activeChallengeSummary, navigation]);
+
+  const renderFeedHeader = useCallback(() => {
+    const pullIndicator = Platform.OS === 'web' && (pullDistance || refreshing)
+      ? <PullIndicator pullDistance={pullDistance} refreshing={refreshing} />
+      : null;
+    const challengePreview = renderChallengePreviewStrip();
+
+    if (!pullIndicator && !challengePreview) return null;
+
+    return (
+      <View style={styles.feedHeaderExtras}>
+        {pullIndicator}
+        {challengePreview}
+      </View>
+    );
+  }, [pullDistance, refreshing, renderChallengePreviewStrip]);
 
   const renderEmptyFeed = useCallback(() => (
     <View style={styles.emptyState}>
@@ -1907,6 +1950,10 @@ const styles = StyleSheet.create({
   emptyContent: {
     flexGrow: 1,
   },
+  feedHeaderExtras: {
+    gap: 6,
+    marginBottom: 6,
+  },
   pullIndicator: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -1922,6 +1969,24 @@ const styles = StyleSheet.create({
     width: 36,
     height: 34,
     resizeMode: 'contain',
+  },
+  challengePreviewStrip: {
+    minHeight: 34,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 11,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  challengePreviewText: {
+    ...typography.caption,
+    color: colors.text,
+    flex: 1,
+    minWidth: 0,
+    fontWeight: '800',
   },
   footerLoader: {
     paddingVertical: 16,

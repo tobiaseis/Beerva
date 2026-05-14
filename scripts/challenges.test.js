@@ -45,6 +45,7 @@ const {
   CHALLENGE_STATUS,
   formatChallengeProgress,
   formatChallengeRank,
+  formatChallengeStatusLabel,
   getChallengeStatus,
   mapChallengeDetailRow,
   mapChallengeSummaryRow,
@@ -55,6 +56,9 @@ assert.equal(formatChallengeProgress(6.234, 15), '6.2/15');
 assert.equal(formatChallengeProgress(null, 15), '0.0/15');
 assert.equal(formatChallengeRank(3), '#3');
 assert.equal(formatChallengeRank(null), 'Unranked');
+assert.equal(formatChallengeStatusLabel('active'), 'Active');
+assert.equal(formatChallengeStatusLabel('upcoming'), 'Upcoming');
+assert.equal(formatChallengeStatusLabel('ended'), 'Closed');
 
 assert.equal(
   getChallengeStatus(
@@ -141,6 +145,11 @@ assert.match(migrationSql, /create table if not exists public\.challenges/i, 'mi
 assert.match(migrationSql, /create table if not exists public\.challenge_entries/i, 'migration should create challenge entries table');
 assert.match(migrationSql, /may-2026-15-true-pints/, 'migration should seed the May challenge slug');
 assert.match(migrationSql, /Drink 15 beers in May/, 'migration should seed the public headline');
+assert.match(
+  migrationSql,
+  /Reach 15 true pints between May 1 and May 31\. All logged beverages count toward your total, normalized by serving size\./,
+  'migration should seed the full true-pints detail copy'
+);
 assert.match(migrationSql, /true_pints/, 'migration should seed the true-pints metric');
 assert.match(migrationSql, /2026-04-30 22:00:00\+00/, 'migration should store May 1 Copenhagen start in UTC');
 assert.match(migrationSql, /2026-05-31 22:00:00\+00/, 'migration should store exclusive June 1 Copenhagen end in UTC');
@@ -162,9 +171,13 @@ assert.match(apiSource, /supabase\.rpc\('get_challenge_detail'/, 'detail should 
 
 const pubLegendsSource = read(pubLegendsScreenPath);
 assert.match(pubLegendsSource, /activeSegment/, 'Pub Legends should track active segment');
+assert.match(pubLegendsSource, /legendsErrorMessage/, 'Pub Legends should keep legend errors separate');
+assert.match(pubLegendsSource, /challengesErrorMessage/, 'Pub Legends should keep challenge errors separate');
 assert.match(pubLegendsSource, /Pub Legends[\s\S]*Challenges/, 'Pub Legends should render a Pub Legends | Challenges segment');
 assert.match(pubLegendsSource, /fetchOfficialChallenges/, 'Pub Legends should load official challenges');
 assert.match(pubLegendsSource, /Join/, 'Challenges list should expose compact Join control');
+assert.match(pubLegendsSource, /formatChallengeStatusLabel/, 'Challenge rows should include compact status metadata');
+assert.match(pubLegendsSource, /entered/, 'Challenge rows should include entrants count');
 assert.doesNotMatch(pubLegendsSource, /label="Join Challenge"/, 'Challenges should not use a chunky full-width Join Challenge AppButton');
 
 const detailScreenSource = read(detailScreenPath);
@@ -172,6 +185,8 @@ assert.match(detailScreenSource, /fetchChallengeDetail/, 'detail screen should l
 assert.match(detailScreenSource, /joinChallenge/, 'detail screen should support joining');
 assert.match(detailScreenSource, /FlatList/, 'detail screen should render leaderboard as a list');
 assert.match(detailScreenSource, /styles\.joinButtonCompact/, 'detail screen should use compact join button styling');
+assert.match(detailScreenSource, /challenge\.joined\s*\?\s*\(/, 'detail screen should gate progress and rank behind joined state');
+assert.match(detailScreenSource, /Join to see your retroactive progress/, 'detail screen should explain retroactive progress before joining');
 
 const feedScreenSource = read(feedScreenPath);
 assert.match(feedScreenSource, /fetchJoinedActiveChallengeSummary/, 'Feed should load joined active challenge summary');

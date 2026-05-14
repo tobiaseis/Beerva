@@ -15,6 +15,7 @@ import { PeopleScreen } from '../screens/PeopleScreen';
 import { UserProfileScreen } from '../screens/UserProfileScreen';
 import { PubLegendsScreen } from '../screens/PubLegendsScreen';
 import { PubLegendDetailScreen } from '../screens/PubLegendDetailScreen';
+import { ChallengeDetailScreen } from '../screens/ChallengeDetailScreen';
 import { AuthScreen } from '../screens/AuthScreen';
 import { ProfileSetupScreen } from '../screens/ProfileSetupScreen';
 import { NotificationsScreen } from '../screens/NotificationsScreen';
@@ -418,6 +419,7 @@ export const RootNavigator = () => {
               <Stack.Screen name="MainTabs" component={MainTabs} />
               <Stack.Screen name="UserProfile" component={UserProfileScreen} />
               <Stack.Screen name="PubLegendDetail" component={PubLegendDetailScreen} />
+              <Stack.Screen name="ChallengeDetail" component={ChallengeDetailScreen} />
               <Stack.Screen name="Notifications" component={NotificationsScreen} />
               <Stack.Screen name="EditSession" component={EditSessionScreen} />
               <Stack.Screen name="HangoverRating" component={HangoverRatingScreen} />
