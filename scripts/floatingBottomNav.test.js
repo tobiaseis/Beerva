@@ -93,8 +93,23 @@ assert.match(
 );
 assert.match(
   screenOptions,
-  /left:\s*floatingTabBarLeft/,
-  'Floating nav should be centered from a computed left offset'
+  /left:\s*0/,
+  'Floating nav should keep a symmetric left anchor'
+);
+assert.match(
+  screenOptions,
+  /right:\s*0/,
+  'Floating nav should keep a symmetric right anchor'
+);
+assert.match(
+  screenOptions,
+  /marginHorizontal:\s*'auto'/,
+  'Floating nav should be centered by automatic horizontal margins'
+);
+assert.doesNotMatch(
+  source,
+  /floatingTabBarLeft\s*=/,
+  'Floating nav should not depend on a computed left offset'
 );
 assert.match(
   screenOptions,

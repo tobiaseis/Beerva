@@ -122,7 +122,6 @@ const MainTabs = () => {
   const { unreadCount } = useNotifications();
   const { width: viewportWidth } = useWindowDimensions();
   const floatingTabBarWidth = Math.min(Math.max(viewportWidth - 32, 0), 520);
-  const floatingTabBarLeft = (viewportWidth - floatingTabBarWidth) / 2;
 
   return (
   <Tab.Navigator
@@ -133,9 +132,11 @@ const MainTabs = () => {
       tabBarStyle: Platform.OS === 'web'
         ? {
             position: 'absolute',
-            left: floatingTabBarLeft,
+            left: 0,
+            right: 0,
             bottom: floatingTabBarMetrics.webBottom,
             width: floatingTabBarWidth,
+            marginHorizontal: 'auto',
             backgroundColor: floatingTabBarBackground,
             height: floatingTabBarMetrics.webHeight,
             paddingTop: 6,
