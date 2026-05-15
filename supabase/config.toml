@@ -1,0 +1,4 @@
+project_id = "beerva"
+
+[functions.send-push]
+verify_jwt = false

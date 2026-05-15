@@ -27,7 +27,9 @@
     "test:feed-redesign": "node scripts/feedCardRedesign.test.js",
     "test:profile-panel": "node scripts/profileStatsPanel.test.js",
     "test:pwa-startup": "node scripts/pwaStartup.test.js",
-    "test:pwa-install": "node scripts/pwaInstallPrompt.test.js"
+    "test:pwa-install": "node scripts/pwaInstallPrompt.test.js",
+    "test:record-session-drinks": "node scripts/recordSessionDrinks.test.js",
+    "test:push-delivery": "node scripts/pushDelivery.test.js"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",

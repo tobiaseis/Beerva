@@ -4,7 +4,7 @@
 //   VAPID_PUBLIC_KEY
 //   VAPID_PRIVATE_KEY
 //   VAPID_EMAIL
-//   WEBHOOK_SECRET
+//   WEBHOOK_SECRET (optional; if set, mirror it in Vault as beerva_push_webhook_secret)
 
 import webpush from 'npm:web-push@3.6.7';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
@@ -47,12 +47,29 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: 'Invalid JSON' }), { status: 400 });
   }
 
-  const record: NotificationRow | undefined = body?.record;
-  if (!record) {
+  let record: NotificationRow | undefined = body?.record;
+  if (!record?.id) {
     return new Response(JSON.stringify({ error: 'No record in payload' }), { status: 400 });
   }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  const { data: storedNotification, error: notificationError } = await supabase
+    .from('notifications')
+    .select('id, user_id, actor_id, type, reference_id, metadata')
+    .eq('id', record.id)
+    .maybeSingle();
+
+  if (notificationError) {
+    console.error('Notification lookup error', notificationError.message);
+    return new Response(JSON.stringify({ error: 'Notification lookup failed' }), { status: 500 });
+  }
+
+  if (!storedNotification) {
+    return new Response(JSON.stringify({ error: 'Notification not found' }), { status: 404 });
+  }
+
+  record = storedNotification as NotificationRow;
 
   const [
     { data: actor },

@@ -34,6 +34,7 @@ import {
   createEmptyBeerDraft,
   getBeerLine,
   getLegacySessionBeerFields,
+  getTotalBeerQuantity,
   SessionBeer,
 } from '../lib/sessionBeers';
 import {
@@ -934,6 +935,39 @@ export const RecordScreen = ({ navigation }: any) => {
     }
   };
 
+  const incrementBeerInSession = async (beer: SessionBeer) => {
+    if (!activeSession || !beer.id) return;
+
+    const nextQuantity = (beer.quantity || 1) + 1;
+    const nextBeers = sessionBeers.map((item) => (
+      item.id === beer.id ? { ...item, quantity: nextQuantity } : item
+    ));
+
+    setSessionBeers(nextBeers);
+
+    const { data, error } = await supabase
+      .from('session_beers')
+      .update({ quantity: nextQuantity })
+      .eq('id', beer.id)
+      .eq('session_id', activeSession.id)
+      .select('id, session_id, beer_name, volume, quantity, abv, note, consumed_at, created_at')
+      .single();
+
+    if (error) {
+      setSessionBeers(sessionBeers);
+      hapticError();
+      showAlert('Could not add one more', error.message);
+      return;
+    }
+
+    const persistedBeers = sessionBeers.map((item) => (
+      item.id === beer.id ? data as SessionBeer : item
+    ));
+    setSessionBeers(persistedBeers);
+    syncLegacyFields(activeSession.id, persistedBeers);
+    hapticSuccess();
+  };
+
   const removeBeerFromSession = async (beer: SessionBeer) => {
     if (!activeSession || !beer.id) return;
 
@@ -1553,7 +1587,7 @@ export const RecordScreen = ({ navigation }: any) => {
             <Surface style={styles.formSurface}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Drinks</Text>
-                <Text style={styles.sectionMeta}>{sessionBeers.length}</Text>
+                <Text style={styles.sectionMeta}>{getTotalBeerQuantity(sessionBeers)}</Text>
               </View>
 
               {sessionBeers.length === 0 ? (
@@ -1570,13 +1604,26 @@ export const RecordScreen = ({ navigation }: any) => {
                         <Text style={styles.beerRowTitle}>{beer.beer_name}</Text>
                         <Text style={styles.beerRowMeta}>{getBeerLine(beer)}</Text>
                       </View>
-                      <TouchableOpacity
-                        style={styles.removeBeerButton}
-                        onPress={() => removeBeerFromSession(beer)}
-                        hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
-                      >
-                        <Trash2 color={colors.danger} size={17} />
-                      </TouchableOpacity>
+                      <View style={styles.beerRowActions}>
+                        <TouchableOpacity
+                          style={styles.incrementBeerButton}
+                          onPress={() => incrementBeerInSession(beer)}
+                          hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Add one more ${beer.beer_name}`}
+                        >
+                          <PlusCircle color={colors.primary} size={17} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.removeBeerButton}
+                          onPress={() => removeBeerFromSession(beer)}
+                          hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Remove ${beer.beer_name}`}
+                        >
+                          <Trash2 color={colors.danger} size={17} />
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   ))}
                 </View>
@@ -2205,6 +2252,21 @@ const styles = StyleSheet.create({
   beerRowMeta: {
     ...typography.caption,
     marginTop: 2,
+  },
+  beerRowActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  incrementBeerButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primarySoft,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
   },
   removeBeerButton: {
     width: 34,

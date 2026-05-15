@@ -29,9 +29,9 @@ const loadTypeScriptModuleWithMocks = (relativePath, mocks) => {
   return compiledModule.exports;
 };
 
-const createSupabaseMock = (expectedCategory) => {
+const createSupabaseMock = (expectedCategory, options = {}) => {
   const calls = {
-    insertedPub: null,
+    insertedPubs: [],
     selectColumns: '',
     rpcArgs: null,
   };
@@ -49,8 +49,10 @@ const createSupabaseMock = (expectedCategory) => {
       assert.equal(table, 'pubs');
       const builder = {
         insert: (payload) => {
-          calls.insertedPub = payload;
-          assert.equal(payload.place_category, expectedCategory);
+          calls.insertedPubs.push(payload);
+          if (!options.legacySchemaCacheError) {
+            assert.equal(payload.place_category, expectedCategory);
+          }
           return builder;
         },
         select: (columns) => {
@@ -58,19 +60,21 @@ const createSupabaseMock = (expectedCategory) => {
           return builder;
         },
         single: async () => ({
+          error: options.legacySchemaCacheError && calls.insertedPubs.length === 1
+            ? { message: "Could not find the 'place_category' column of 'pubs' in the schema cache" }
+            : null,
           data: {
             id: 'pub-1',
-            name: calls.insertedPub.name,
+            name: calls.insertedPubs[calls.insertedPubs.length - 1].name,
             city: null,
             address: null,
-            latitude: calls.insertedPub.latitude,
-            longitude: calls.insertedPub.longitude,
-            source: calls.insertedPub.source,
+            latitude: calls.insertedPubs[calls.insertedPubs.length - 1].latitude,
+            longitude: calls.insertedPubs[calls.insertedPubs.length - 1].longitude,
+            source: calls.insertedPubs[calls.insertedPubs.length - 1].source,
             source_id: null,
             use_count: 0,
-            place_category: calls.insertedPub.place_category,
+            place_category: calls.insertedPubs[calls.insertedPubs.length - 1].place_category,
           },
-          error: null,
         }),
       };
       return builder;
@@ -94,10 +98,10 @@ const run = async () => {
   );
 
   assert.equal(otherPub.place_category, 'other');
-  assert.equal(otherMock.calls.insertedPub.name, 'Backyard Bar');
-  assert.equal(otherMock.calls.insertedPub.source, 'user');
-  assert.equal(otherMock.calls.insertedPub.status, 'active');
-  assert.equal(otherMock.calls.insertedPub.created_by, 'user-1');
+  assert.equal(otherMock.calls.insertedPubs[0].name, 'Backyard Bar');
+  assert.equal(otherMock.calls.insertedPubs[0].source, 'user');
+  assert.equal(otherMock.calls.insertedPubs[0].status, 'active');
+  assert.equal(otherMock.calls.insertedPubs[0].created_by, 'user-1');
   assert.match(otherMock.calls.selectColumns, /place_category/);
   assert.equal(
     otherDirectory.formatPubDetail({
@@ -114,7 +118,20 @@ const run = async () => {
   const realPub = await pubDirectory.createUserPub('Real Pub', null);
 
   assert.equal(realPub.place_category, 'pub');
-  assert.equal(pubMock.calls.insertedPub.place_category, 'pub');
+  assert.equal(pubMock.calls.insertedPubs[0].place_category, 'pub');
+
+  const legacyMock = createSupabaseMock('other', { legacySchemaCacheError: true });
+  const legacyDirectory = loadPubDirectory(legacyMock.supabase);
+  const legacyPub = await legacyDirectory.createUserPub('CC crib', null, 'other');
+
+  assert.equal(legacyMock.calls.insertedPubs.length, 2);
+  assert.equal(legacyMock.calls.insertedPubs[0].place_category, 'other');
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(legacyMock.calls.insertedPubs[1], 'place_category'),
+    false,
+    'legacy schema-cache fallback should retry without the missing place_category column'
+  );
+  assert.equal(legacyPub.place_category, 'other');
 };
 
 run()
