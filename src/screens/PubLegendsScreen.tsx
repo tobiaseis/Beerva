@@ -108,6 +108,7 @@ export const PubLegendsScreen = ({ navigation }: any) => {
     hapticLight();
     navigation.getParent()?.navigate('PubLegendDetail', {
       pubKey: item.pubKey,
+      pubId: item.pubId,
       pubName: item.pubName,
     });
   }, [navigation]);

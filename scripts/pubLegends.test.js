@@ -24,8 +24,12 @@ const loadTypeScriptModule = (relativePath) => {
 };
 
 const helpersPath = 'src/lib/pubLegends.ts';
+const apiPath = 'src/lib/pubLegendsApi.ts';
+const legendsScreenPath = 'src/screens/PubLegendsScreen.tsx';
+const legendDetailScreenPath = 'src/screens/PubLegendDetailScreen.tsx';
 const migrationPath = 'supabase/migrations/20260510133000_add_pub_legends_leaderboards.sql';
 const placeCategoryMigrationPath = 'supabase/migrations/20260513120000_add_pub_place_category.sql';
+const placeCategoryRepairMigrationPath = 'supabase/migrations/20260518113000_add_pub_place_category_repair_rpc.sql';
 
 assert.ok(
   fs.existsSync(path.resolve(__dirname, '..', helpersPath)),
@@ -38,6 +42,10 @@ assert.ok(
 assert.ok(
   fs.existsSync(path.resolve(__dirname, '..', placeCategoryMigrationPath)),
   'Place category migration should update pub schema and leaderboard filtering'
+);
+assert.ok(
+  fs.existsSync(path.resolve(__dirname, '..', placeCategoryRepairMigrationPath)),
+  'Place category repair migration should let users reclassify their own manually added places'
 );
 
 const { formatTruePints, mapPubKingSessionRow, mapPubLegendRow } = loadTypeScriptModule(helpersPath);
@@ -108,6 +116,7 @@ assert.equal(formatTruePints(Number.NaN), '0.0 true pints');
 
 const migrationSql = fs.readFileSync(path.resolve(__dirname, '..', migrationPath), 'utf8');
 const placeCategoryMigrationSql = fs.readFileSync(path.resolve(__dirname, '..', placeCategoryMigrationPath), 'utf8');
+const placeCategoryRepairMigrationSql = fs.readFileSync(path.resolve(__dirname, '..', placeCategoryRepairMigrationPath), 'utf8');
 assert.match(
   placeCategoryMigrationSql,
   /add column if not exists place_category text not null default 'pub'/,
@@ -138,5 +147,42 @@ assert.match(migrationSql, /get_pub_legends/, 'migration should create get_pub_l
 assert.match(migrationSql, /get_pub_king_of_the_pub/, 'migration should create get_pub_king_of_the_pub');
 assert.match(migrationSql, /status\s*=\s*'published'/, 'leaderboards should only use published sessions');
 assert.match(migrationSql, /beerva_serving_volume_ml/, 'leaderboards should calculate true pints from serving volume');
+
+assert.match(
+  placeCategoryRepairMigrationSql,
+  /create or replace function public\.set_pub_place_category/i,
+  'users should have an RPC for repairing places accidentally categorized as pubs'
+);
+assert.match(
+  placeCategoryRepairMigrationSql,
+  /source\s*=\s*'user'/i,
+  'place repair RPC should only reclassify manually added places'
+);
+assert.match(
+  placeCategoryRepairMigrationSql,
+  /created_by\s*=\s*requesting_user_id/i,
+  'place repair RPC should only reclassify places created by the current user'
+);
+assert.match(
+  placeCategoryRepairMigrationSql,
+  /clean_place_category not in \('pub', 'other'\)/i,
+  'place repair RPC should only accept known categories'
+);
+assert.match(
+  placeCategoryRepairMigrationSql,
+  /grant execute on function public\.set_pub_place_category/i,
+  'authenticated users should be able to call the place repair RPC'
+);
+
+const apiSource = fs.readFileSync(path.resolve(__dirname, '..', apiPath), 'utf8');
+assert.match(apiSource, /setPubPlaceCategory/, 'Pub Legends API should expose a place reclassification helper');
+assert.match(apiSource, /set_pub_place_category/, 'Pub Legends API helper should call the repair RPC');
+
+const legendsScreenSource = fs.readFileSync(path.resolve(__dirname, '..', legendsScreenPath), 'utf8');
+assert.match(legendsScreenSource, /pubId: item\.pubId/, 'Pub Legends list should pass pubId into the detail screen');
+
+const legendDetailSource = fs.readFileSync(path.resolve(__dirname, '..', legendDetailScreenPath), 'utf8');
+assert.match(legendDetailSource, /Exclude from Pub Legends/, 'Pub Legend detail should expose a cleanup action for wrongly categorized private places');
+assert.match(legendDetailSource, /setPubPlaceCategory\(pubId, 'other'\)/, 'cleanup action should mark the place as other');
 
 console.log('Pub Legends tests passed');

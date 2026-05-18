@@ -5,8 +5,9 @@ import { ArrowLeft, Beer, Crown, Trophy, User } from 'lucide-react-native';
 
 import { CachedImage } from '../components/CachedImage';
 import { EmptyIllustration } from '../components/EmptyIllustration';
+import { confirmDestructive, showAlert } from '../lib/dialogs';
 import { formatTruePints, PubKingSession } from '../lib/pubLegends';
-import { fetchKingOfThePub } from '../lib/pubLegendsApi';
+import { fetchKingOfThePub, setPubPlaceCategory } from '../lib/pubLegendsApi';
 import { hapticLight } from '../lib/haptics';
 import { colors } from '../theme/colors';
 import { radius, shadows, spacing } from '../theme/layout';
@@ -25,10 +26,12 @@ const formatSessionDate = (value?: string | null) => {
 
 export const PubLegendDetailScreen = ({ navigation, route }: any) => {
   const pubKey = route?.params?.pubKey as string | undefined;
+  const pubId = route?.params?.pubId as string | null | undefined;
   const pubName = (route?.params?.pubName as string | undefined) || 'Pub';
   const [leaders, setLeaders] = useState<PubKingSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [markingOther, setMarkingOther] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const requestIdRef = useRef(0);
   const hasLoadedOnce = useRef(false);
@@ -83,6 +86,31 @@ export const PubLegendDetailScreen = ({ navigation, route }: any) => {
     hapticLight();
     navigation.navigate('UserProfile', { userId });
   }, [navigation]);
+
+  const markPubAsOther = useCallback(() => {
+    if (!pubId || markingOther) return;
+
+    confirmDestructive(
+      'Exclude from Pub Legends?',
+      'This marks the place as Other. It can still be used for drinking sessions, but it will disappear from Pub Legends.',
+      'Exclude',
+      async () => {
+        setMarkingOther(true);
+        try {
+          await setPubPlaceCategory(pubId, 'other');
+          showAlert('Excluded from Pub Legends', 'This place is now marked as Other.');
+          navigation.goBack();
+        } catch (error) {
+          showAlert(
+            'Could not exclude place',
+            error instanceof Error ? error.message : 'Please try again.'
+          );
+        } finally {
+          setMarkingOther(false);
+        }
+      }
+    );
+  }, [markingOther, navigation, pubId]);
 
   const champion = leaders[0] || null;
 
@@ -168,9 +196,27 @@ export const PubLegendDetailScreen = ({ navigation, route }: any) => {
         </View>
       ) : null}
 
+      {pubId ? (
+        <Pressable
+          style={({ pressed }) => [
+            styles.excludeButton,
+            markingOther ? styles.excludeButtonDisabled : null,
+            pressed ? styles.pressed : null,
+          ]}
+          onPress={markPubAsOther}
+          disabled={markingOther}
+          accessibilityRole="button"
+          accessibilityLabel="Exclude from Pub Legends"
+        >
+          <Text style={styles.excludeButtonText}>
+            {markingOther ? 'Excluding...' : 'Exclude from Pub Legends'}
+          </Text>
+        </Pressable>
+      ) : null}
+
       <Text style={styles.sectionLabel}>Top sessions</Text>
     </View>
-  ), [champion, navigation, pubName]);
+  ), [champion, markPubAsOther, markingOther, navigation, pubId, pubName]);
 
   return (
     <View style={styles.container}>
@@ -320,6 +366,24 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     textTransform: 'uppercase',
     marginTop: 4,
+  },
+  excludeButton: {
+    minHeight: 42,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+  },
+  excludeButtonDisabled: {
+    opacity: 0.6,
+  },
+  excludeButtonText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontWeight: '800',
   },
   leaderRow: {
     backgroundColor: colors.card,

@@ -1,6 +1,9 @@
 import { supabase } from './supabase';
 import { getErrorMessage, withTimeout } from './timeouts';
 import {
+  PlaceCategory,
+} from './pubDirectory';
+import {
   mapPubKingSessionRow,
   mapPubLegendRow,
   PubKingSession,
@@ -41,5 +44,25 @@ export const fetchKingOfThePub = async (pubKey: string): Promise<PubKingSession[
     return ((data || []) as PubKingSessionRow[]).map(mapPubKingSessionRow);
   } catch (error) {
     throw new Error(getErrorMessage(error, 'Could not load King of the Pub.'));
+  }
+};
+
+export const setPubPlaceCategory = async (
+  pubId: string,
+  placeCategory: PlaceCategory
+): Promise<void> => {
+  try {
+    const { error } = await withTimeout(
+      supabase.rpc('set_pub_place_category', {
+        target_pub_id: pubId,
+        target_place_category: placeCategory,
+      }),
+      PUB_LEGENDS_TIMEOUT_MS,
+      'Place category update is taking too long.'
+    );
+
+    if (error) throw error;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, 'Could not update place category.'));
   }
 };
