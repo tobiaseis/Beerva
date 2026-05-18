@@ -30,6 +30,7 @@ const legendDetailScreenPath = 'src/screens/PubLegendDetailScreen.tsx';
 const migrationPath = 'supabase/migrations/20260510133000_add_pub_legends_leaderboards.sql';
 const placeCategoryMigrationPath = 'supabase/migrations/20260513120000_add_pub_place_category.sql';
 const placeCategoryRepairMigrationPath = 'supabase/migrations/20260518113000_add_pub_place_category_repair_rpc.sql';
+const legacySessionRepairMigrationPath = 'supabase/migrations/20260518114500_link_legacy_sessions_on_place_exclusion.sql';
 
 assert.ok(
   fs.existsSync(path.resolve(__dirname, '..', helpersPath)),
@@ -46,6 +47,10 @@ assert.ok(
 assert.ok(
   fs.existsSync(path.resolve(__dirname, '..', placeCategoryRepairMigrationPath)),
   'Place category repair migration should let users reclassify their own manually added places'
+);
+assert.ok(
+  fs.existsSync(path.resolve(__dirname, '..', legacySessionRepairMigrationPath)),
+  'A follow-up migration should update already-applied place repair RPCs for legacy name-only sessions'
 );
 
 const { formatTruePints, mapPubKingSessionRow, mapPubLegendRow } = loadTypeScriptModule(helpersPath);
@@ -117,6 +122,7 @@ assert.equal(formatTruePints(Number.NaN), '0.0 true pints');
 const migrationSql = fs.readFileSync(path.resolve(__dirname, '..', migrationPath), 'utf8');
 const placeCategoryMigrationSql = fs.readFileSync(path.resolve(__dirname, '..', placeCategoryMigrationPath), 'utf8');
 const placeCategoryRepairMigrationSql = fs.readFileSync(path.resolve(__dirname, '..', placeCategoryRepairMigrationPath), 'utf8');
+const legacySessionRepairMigrationSql = fs.readFileSync(path.resolve(__dirname, '..', legacySessionRepairMigrationPath), 'utf8');
 assert.match(
   placeCategoryMigrationSql,
   /add column if not exists place_category text not null default 'pub'/,
@@ -172,6 +178,41 @@ assert.match(
   placeCategoryRepairMigrationSql,
   /grant execute on function public\.set_pub_place_category/i,
   'authenticated users should be able to call the place repair RPC'
+);
+assert.match(
+  legacySessionRepairMigrationSql,
+  /create or replace function public\.set_pub_place_category/i,
+  'legacy session repair migration should replace the already-deployed place repair RPC'
+);
+assert.match(
+  legacySessionRepairMigrationSql,
+  /sessions\.pub_id is null/i,
+  'place repair RPC should repair legacy name-only sessions so excluded places disappear from Pub Legends'
+);
+assert.match(
+  legacySessionRepairMigrationSql,
+  /lower\(btrim\(coalesce\(sessions\.pub_name,\s*''\)\)\)\s*=\s*lower\(btrim\(coalesce\(updated_pub\.name,\s*''\)\)\)/i,
+  'place repair RPC should match legacy sessions by normalized pub name'
+);
+assert.match(
+  legacySessionRepairMigrationSql,
+  /sessions\.user_id\s*=\s*requesting_user_id/i,
+  'place repair RPC should only link the current user session history when repairing legacy rows'
+);
+assert.match(
+  legacySessionRepairMigrationSql,
+  /update public\.sessions[\s\S]*from public\.pubs/i,
+  'legacy session repair migration should backfill sessions for places already excluded with the old RPC'
+);
+assert.match(
+  legacySessionRepairMigrationSql,
+  /pubs\.place_category\s*=\s*'other'/i,
+  'legacy session backfill should only attach sessions to places already marked other'
+);
+assert.match(
+  legacySessionRepairMigrationSql,
+  /sessions\.user_id\s*=\s*pubs\.created_by/i,
+  'legacy session backfill should only repair the creator-owned session history'
 );
 
 const apiSource = fs.readFileSync(path.resolve(__dirname, '..', apiPath), 'utf8');
