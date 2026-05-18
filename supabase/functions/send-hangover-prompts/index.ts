@@ -4,11 +4,13 @@
 // Required secrets:
 //   SUPABASE_URL
 //   SUPABASE_SERVICE_ROLE_KEY
+//   HANGOVER_CRON_SECRET
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const cronSecret = Deno.env.get('HANGOVER_CRON_SECRET') || '';
 
 type HangoverPrompt = {
   id: string;
@@ -18,7 +20,18 @@ type HangoverPrompt = {
   prompt_at: string;
 };
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  if (!cronSecret) {
+    return new Response(JSON.stringify({ error: 'HANGOVER_CRON_SECRET is not configured' }), { status: 500 });
+  }
+
+  const customSecret = req.headers.get('x-beerva-cron-secret') || '';
+  const legacyAuth = req.headers.get('authorization') || req.headers.get('Authorization') || '';
+  const legacyBearerSecret = legacyAuth.startsWith('Bearer ') ? legacyAuth.slice('Bearer '.length) : '';
+  if (customSecret !== cronSecret && legacyBearerSecret !== cronSecret) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+  }
+
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   const { data: prompts, error: claimError } = await supabase.rpc('claim_due_hangover_prompts', {

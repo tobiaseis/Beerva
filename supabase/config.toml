@@ -2,3 +2,6 @@ project_id = "beerva"
 
 [functions.send-push]
 verify_jwt = false
+
+[functions.send-hangover-prompts]
+verify_jwt = false

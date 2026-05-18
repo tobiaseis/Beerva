@@ -22,15 +22,8 @@ export type PubRecord = {
 };
 
 const NEARBY_PUB_LOOKUP_TIMEOUT_MS = 12000;
-const PUB_SELECT_COLUMNS = 'id, name, city, address, latitude, longitude, source, source_id, use_count, place_category';
-const LEGACY_PUB_SELECT_COLUMNS = 'id, name, city, address, latitude, longitude, source, source_id, use_count';
 
 const normalize = (value: string) => value.trim().toLowerCase();
-
-const isMissingPlaceCategoryError = (error: any) => {
-  const message = typeof error?.message === 'string' ? error.message.toLowerCase() : '';
-  return message.includes('place_category') && message.includes('schema cache');
-};
 
 export const formatPubLabel = (pub: Pick<PubRecord, 'name' | 'city'>) => {
   const city = pub.city?.trim();
@@ -157,38 +150,18 @@ export const createUserPub = async (
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not logged in!');
 
-  const basePayload = {
-    name: cleanName,
-    latitude: location?.latitude ?? null,
-    longitude: location?.longitude ?? null,
-    source: 'user',
-    status: 'active',
-    created_by: user.id,
-  };
+  const { data, error } = await supabase.rpc('create_user_pub', {
+    target_name: cleanName,
+    target_lat: location?.latitude ?? null,
+    target_lon: location?.longitude ?? null,
+    target_place_category: placeCategory,
+  });
 
-  const { data, error } = await supabase
-    .from('pubs')
-    .insert({
-      ...basePayload,
-      place_category: placeCategory,
-    })
-    .select(PUB_SELECT_COLUMNS)
-    .single();
+  if (error) throw error;
 
-  if (!error) return data as PubRecord;
-  if (!isMissingPlaceCategoryError(error)) throw error;
-
-  const { data: legacyData, error: legacyError } = await supabase
-    .from('pubs')
-    .insert(basePayload)
-    .select(LEGACY_PUB_SELECT_COLUMNS)
-    .single();
-
-  if (legacyError) throw legacyError;
-  return {
-    ...(legacyData as PubRecord),
-    place_category: placeCategory,
-  };
+  const createdPub = Array.isArray(data) ? data[0] : data;
+  if (!createdPub) throw new Error('Could not create place.');
+  return createdPub as PubRecord;
 };
 
 export const incrementPubUseCount = async (pubId?: string | null) => {

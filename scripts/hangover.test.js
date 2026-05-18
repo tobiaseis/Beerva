@@ -3,6 +3,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const read = (relativePath) => fs.readFileSync(path.resolve(__dirname, '..', relativePath), 'utf8');
+const root = path.resolve(__dirname, '..');
+const allMigrationSql = fs.readdirSync(path.join(root, 'supabase/migrations'))
+  .filter((file) => file.endsWith('.sql'))
+  .map((file) => fs.readFileSync(path.join(root, 'supabase/migrations', file), 'utf8'))
+  .join('\n');
 
 const migrationSql = read('supabase/migrations/20260512170000_add_hangover_prompts.sql');
 
@@ -26,6 +31,21 @@ const schedulerSource = read('supabase/functions/send-hangover-prompts/index.ts'
 assert.match(schedulerSource, /claim_due_hangover_prompts/, 'scheduled function should use the atomic claim RPC');
 assert.match(schedulerSource, /type: 'hangover_check'/, 'scheduled function should insert hangover notifications');
 assert.match(schedulerSource, /sent_at/, 'scheduled function should mark prompts as sent after notification insert');
+assert.match(schedulerSource, /HANGOVER_CRON_SECRET/, 'scheduled function should support a shared cron secret');
+assert.match(schedulerSource, /x-beerva-cron-secret/i, 'scheduled function should validate the cron secret from a custom header');
+
+const supabaseConfig = read('supabase/config.toml');
+assert.match(
+  supabaseConfig,
+  /\[functions\.send-hangover-prompts\][\s\S]*?verify_jwt\s*=\s*false/,
+  'send-hangover-prompts should disable gateway JWT verification and rely on its cron secret'
+);
+
+assert.match(allMigrationSql, /create extension if not exists pg_cron/i, 'database should enable pg_cron for hangover scheduling');
+assert.match(allMigrationSql, /cron\.schedule/i, 'database should schedule the hangover prompt worker');
+assert.match(allMigrationSql, /functions\/v1\/send-hangover-prompts/i, 'hangover schedule should call the send-hangover-prompts edge function');
+assert.match(allMigrationSql, /beerva_hangover_cron_secret/i, 'hangover schedule should read its cron secret from Vault');
+assert.match(allMigrationSql, /x-beerva-cron-secret/i, 'hangover schedule should send the cron secret in a custom header');
 
 const rootNavigatorSource = read('src/navigation/RootNavigator.tsx');
 assert.match(rootNavigatorSource, /HangoverRating/, 'navigator should register the hangover rating screen');

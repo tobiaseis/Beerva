@@ -34,8 +34,10 @@ type NotificationRow = {
 
 Deno.serve(async (req) => {
   if (webhookSecret) {
-    const auth = req.headers.get('authorization') || req.headers.get('Authorization') || '';
-    if (auth !== `Bearer ${webhookSecret}`) {
+    const customSecret = req.headers.get('x-beerva-webhook-secret') || '';
+    const legacyAuth = req.headers.get('authorization') || req.headers.get('Authorization') || '';
+    const legacyBearerSecret = legacyAuth.startsWith('Bearer ') ? legacyAuth.slice('Bearer '.length) : '';
+    if (customSecret !== webhookSecret && legacyBearerSecret !== webhookSecret) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
   }

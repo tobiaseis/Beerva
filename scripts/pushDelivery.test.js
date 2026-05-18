@@ -33,7 +33,19 @@ assert.match(
 assert.match(
   migrationSql,
   /Authorization/i,
-  'the notification trigger should include an Authorization header for the push webhook secret'
+  'the notification trigger should be able to include an Authorization header for Supabase Edge gateway auth'
+);
+
+assert.match(
+  migrationSql,
+  /beerva_edge_function_jwt/i,
+  'the notification trigger should read an optional Edge gateway JWT from Vault for projects where verify_jwt is still enabled'
+);
+
+assert.match(
+  migrationSql,
+  /x-beerva-webhook-secret/i,
+  'the notification trigger should send the app webhook secret in a custom header, not overload Authorization'
 );
 
 assert.match(
@@ -64,6 +76,12 @@ assert.match(
   sendPushSource,
   /WEBHOOK_SECRET/,
   'send-push should keep validating the database webhook secret inside the function'
+);
+
+assert.match(
+  sendPushSource,
+  /x-beerva-webhook-secret/i,
+  'send-push should validate webhook calls through the custom x-beerva-webhook-secret header'
 );
 
 console.log('push delivery checks passed');

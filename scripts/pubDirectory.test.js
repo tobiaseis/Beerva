@@ -29,55 +29,47 @@ const loadTypeScriptModuleWithMocks = (relativePath, mocks) => {
   return compiledModule.exports;
 };
 
-const createSupabaseMock = (expectedCategory, options = {}) => {
+const createSupabaseMock = (expectedCategory) => {
   const calls = {
-    insertedPubs: [],
-    selectColumns: '',
-    rpcArgs: null,
+    searchArgs: null,
+    createArgs: null,
+    rawPubInsertAttempted: false,
   };
 
   const supabase = {
     rpc: async (name, args) => {
-      assert.equal(name, 'search_pubs');
-      calls.rpcArgs = args;
-      return { data: [], error: null };
+      if (name === 'search_pubs') {
+        calls.searchArgs = args;
+        return { data: [], error: null };
+      }
+
+      assert.equal(name, 'create_user_pub');
+      calls.createArgs = args;
+      assert.equal(args.target_place_category, expectedCategory);
+      return {
+        data: [{
+          id: 'pub-1',
+          name: args.target_name,
+          city: null,
+          address: null,
+          latitude: args.target_lat,
+          longitude: args.target_lon,
+          source: 'user',
+          source_id: null,
+          use_count: 0,
+          place_category: args.target_place_category,
+          distance_meters: null,
+        }],
+        error: null,
+      };
     },
     auth: {
       getUser: async () => ({ data: { user: { id: 'user-1' } } }),
     },
     from: (table) => {
       assert.equal(table, 'pubs');
-      const builder = {
-        insert: (payload) => {
-          calls.insertedPubs.push(payload);
-          if (!options.legacySchemaCacheError) {
-            assert.equal(payload.place_category, expectedCategory);
-          }
-          return builder;
-        },
-        select: (columns) => {
-          calls.selectColumns = columns;
-          return builder;
-        },
-        single: async () => ({
-          error: options.legacySchemaCacheError && calls.insertedPubs.length === 1
-            ? { message: "Could not find the 'place_category' column of 'pubs' in the schema cache" }
-            : null,
-          data: {
-            id: 'pub-1',
-            name: calls.insertedPubs[calls.insertedPubs.length - 1].name,
-            city: null,
-            address: null,
-            latitude: calls.insertedPubs[calls.insertedPubs.length - 1].latitude,
-            longitude: calls.insertedPubs[calls.insertedPubs.length - 1].longitude,
-            source: calls.insertedPubs[calls.insertedPubs.length - 1].source,
-            source_id: null,
-            use_count: 0,
-            place_category: calls.insertedPubs[calls.insertedPubs.length - 1].place_category,
-          },
-        }),
-      };
-      return builder;
+      calls.rawPubInsertAttempted = true;
+      throw new Error('createUserPub should use create_user_pub RPC, not a raw pubs insert');
     },
   };
 
@@ -98,11 +90,11 @@ const run = async () => {
   );
 
   assert.equal(otherPub.place_category, 'other');
-  assert.equal(otherMock.calls.insertedPubs[0].name, 'Backyard Bar');
-  assert.equal(otherMock.calls.insertedPubs[0].source, 'user');
-  assert.equal(otherMock.calls.insertedPubs[0].status, 'active');
-  assert.equal(otherMock.calls.insertedPubs[0].created_by, 'user-1');
-  assert.match(otherMock.calls.selectColumns, /place_category/);
+  assert.equal(otherMock.calls.createArgs.target_name, 'Backyard Bar');
+  assert.equal(otherMock.calls.createArgs.target_lat, 57.04);
+  assert.equal(otherMock.calls.createArgs.target_lon, 9.92);
+  assert.equal(otherMock.calls.createArgs.target_place_category, 'other');
+  assert.equal(otherMock.calls.rawPubInsertAttempted, false);
   assert.equal(
     otherDirectory.formatPubDetail({
       address: null,
@@ -118,20 +110,7 @@ const run = async () => {
   const realPub = await pubDirectory.createUserPub('Real Pub', null);
 
   assert.equal(realPub.place_category, 'pub');
-  assert.equal(pubMock.calls.insertedPubs[0].place_category, 'pub');
-
-  const legacyMock = createSupabaseMock('other', { legacySchemaCacheError: true });
-  const legacyDirectory = loadPubDirectory(legacyMock.supabase);
-  const legacyPub = await legacyDirectory.createUserPub('CC crib', null, 'other');
-
-  assert.equal(legacyMock.calls.insertedPubs.length, 2);
-  assert.equal(legacyMock.calls.insertedPubs[0].place_category, 'other');
-  assert.equal(
-    Object.prototype.hasOwnProperty.call(legacyMock.calls.insertedPubs[1], 'place_category'),
-    false,
-    'legacy schema-cache fallback should retry without the missing place_category column'
-  );
-  assert.equal(legacyPub.place_category, 'other');
+  assert.equal(pubMock.calls.createArgs.target_place_category, 'pub');
 };
 
 run()
