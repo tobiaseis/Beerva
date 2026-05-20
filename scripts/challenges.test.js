@@ -43,10 +43,14 @@ assert.ok(exists(migrationPath), 'official challenge migration should exist');
 
 const {
   CHALLENGE_STATUS,
+  CHALLENGE_TYPE,
   formatChallengeProgress,
   formatChallengeRank,
   formatChallengeStatusLabel,
+  getChallengePreJoinCopy,
   getChallengeStatus,
+  getLeaderboardEntryMeta,
+  isLeaderboardChallenge,
   mapChallengeDetailRow,
   mapChallengeSummaryRow,
 } = loadTypeScriptModule(challengesHelperPath);
@@ -59,6 +63,23 @@ assert.equal(formatChallengeRank(null), 'Unranked');
 assert.equal(formatChallengeStatusLabel('active'), 'Active');
 assert.equal(formatChallengeStatusLabel('upcoming'), 'Upcoming');
 assert.equal(formatChallengeStatusLabel('ended'), 'Closed');
+assert.equal(CHALLENGE_TYPE.TARGET, 'target');
+assert.equal(CHALLENGE_TYPE.LEADERBOARD, 'leaderboard');
+assert.equal(formatChallengeProgress(8.44, null, 'leaderboard'), '8.4 true pints');
+assert.equal(
+  getChallengePreJoinCopy({ challengeType: 'leaderboard', slug: 'karnevalsdruk-2026' }),
+  'Join to count your Karneval drinks from the full 06:00 to 06:00 window.'
+);
+assert.equal(
+  getLeaderboardEntryMeta({ completed: true, progressValue: 8.44 }, { challengeType: 'leaderboard' }),
+  '8.4 true pints'
+);
+assert.equal(
+  getLeaderboardEntryMeta({ completed: true, progressValue: 15.1 }, { challengeType: 'target' }),
+  'Completed'
+);
+assert.equal(isLeaderboardChallenge({ challengeType: 'leaderboard' }), true);
+assert.equal(isLeaderboardChallenge({ challengeType: 'target' }), false);
 
 assert.equal(
   getChallengeStatus(
@@ -91,6 +112,7 @@ const summaryRow = {
   title: 'Drink 15 beers in May',
   description: 'Reach 15 true pints between May 1 and May 31. All logged beverages count toward your total, normalized by serving size.',
   metric_type: 'true_pints',
+  challenge_type: 'target',
   target_value: '15',
   starts_at: '2026-04-30T22:00:00Z',
   ends_at: '2026-05-31T22:00:00Z',
@@ -112,6 +134,23 @@ assert.equal(summary.entrantsCount, 4);
 assert.equal(summary.currentUserRank, 3);
 assert.equal(summary.currentUserProgress, 6.234);
 assert.deepEqual(summary.raw, summaryRow);
+
+const leaderboardSummary = mapChallengeSummaryRow({
+  ...summaryRow,
+  slug: 'karnevalsdruk-2026',
+  title: 'KarnevalsDruk',
+  description: 'Log drinks from 06:00 May 23 to 06:00 May 24. Highest true-pint total wins among joined drinkers.',
+  challenge_type: 'leaderboard',
+  target_value: null,
+  starts_at: '2026-05-23T04:00:00Z',
+  ends_at: '2026-05-24T04:00:00Z',
+  join_closes_at: '2026-05-24T04:00:00Z',
+  current_user_progress: '8.44',
+});
+
+assert.equal(leaderboardSummary.challengeType, 'leaderboard');
+assert.equal(leaderboardSummary.targetValue, null);
+assert.equal(formatChallengeProgress(leaderboardSummary.currentUserProgress, leaderboardSummary.targetValue, leaderboardSummary.challengeType), '8.4 true pints');
 
 const detail = mapChallengeDetailRow({
   ...summaryRow,
