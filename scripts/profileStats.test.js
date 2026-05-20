@@ -4,6 +4,15 @@ const Module = require('node:module');
 const path = require('node:path');
 const ts = require('typescript');
 
+const challengeAwardsPath = 'src/lib/challengeAwards.ts';
+const challengeAwardsApiPath = 'src/lib/challengeAwardsApi.ts';
+const profileStatsPanelPath = 'src/components/ProfileStatsPanel.tsx';
+const profileScreenPath = 'src/screens/ProfileScreen.tsx';
+const userProfileScreenPath = 'src/screens/UserProfileScreen.tsx';
+
+const exists = (relativePath) => fs.existsSync(path.resolve(__dirname, '..', relativePath));
+const readSource = (relativePath) => fs.readFileSync(path.resolve(__dirname, '..', relativePath), 'utf8');
+
 const loadTypeScriptModule = (relativePath) => {
   const filename = path.resolve(__dirname, '..', relativePath);
   const source = fs.readFileSync(filename, 'utf8');
@@ -331,6 +340,47 @@ assert.equal(
   true,
   'all remaining trophies should be achievable with maxed-out stats'
 );
+
+assert.ok(exists(challengeAwardsPath), 'challenge award mapper should exist');
+assert.ok(exists(challengeAwardsApiPath), 'challenge award API should exist');
+
+const { mapChallengeAwardRow } = loadTypeScriptModule(challengeAwardsPath);
+const awardTrophy = mapChallengeAwardRow({
+  id: 'award-1',
+  challenge_id: 'challenge-1',
+  user_id: 'user-1',
+  award_slug: 'winner-of-karneval-2026',
+  title: 'Winner of Karneval 2026',
+  description: 'Won KarnevalsDruk 2026 by drinking the most true pints.',
+  rank: 1,
+  progress_value: 8.44,
+  metadata: { true_pints: 8.4 },
+  awarded_at: '2026-05-24T04:05:00Z',
+});
+
+assert.equal(awardTrophy.id, 'challenge-award-winner-of-karneval-2026');
+assert.equal(awardTrophy.title, 'Winner of Karneval 2026');
+assert.equal(awardTrophy.kind, 'challenge');
+assert.equal(awardTrophy.earned, true);
+
+const profileStatsSource = readSource('src/lib/profileStats.ts');
+assert.match(profileStatsSource, /\| 'challenge'/, 'TrophyKind should include challenge awards');
+
+const challengeAwardsApiSource = readSource(challengeAwardsApiPath);
+assert.match(challengeAwardsApiSource, /get_challenge_awards/, 'challenge award API should call award RPC');
+assert.match(challengeAwardsApiSource, /mapChallengeAwardRow/, 'challenge award API should map award rows');
+
+const challengeProfileStatsPanelSource = readSource(profileStatsPanelPath);
+assert.match(challengeProfileStatsPanelSource, /challengeAwards/, 'ProfileStatsPanel should accept challenge awards');
+assert.match(challengeProfileStatsPanelSource, /\.\.\.challengeAwards/, 'ProfileStatsPanel should merge challenge awards into trophies');
+
+const profileScreenSource = readSource(profileScreenPath);
+assert.match(profileScreenSource, /fetchChallengeAwards/, 'ProfileScreen should fetch current user challenge awards');
+assert.match(profileScreenSource, /challengeAwards=\{challengeAwards\}/, 'ProfileScreen should pass challenge awards to stats panel');
+
+const userProfileScreenSource = readSource(userProfileScreenPath);
+assert.match(userProfileScreenSource, /fetchChallengeAwards/, 'UserProfileScreen should fetch viewed user challenge awards');
+assert.match(userProfileScreenSource, /challengeAwards=\{challengeAwards\}/, 'UserProfileScreen should pass challenge awards to stats panel');
 
 assert.equal(getVolumeMl('2cl'), 20, '2cl servings should count as 20ml');
 assert.equal(getVolumeMl('4cl'), 40, '4cl servings should count as 40ml');
