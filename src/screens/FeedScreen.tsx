@@ -26,6 +26,9 @@ import { PubCrawl, PubCrawlComment } from '../lib/pubCrawls';
 import { fetchPublishedPubCrawlsForFeedPage, togglePubCrawlCheers, addPubCrawlComment } from '../lib/pubCrawlsApi';
 import { ChallengeSummary, formatChallengeProgress, formatChallengeRank } from '../lib/challenges';
 import { fetchJoinedActiveChallengeSummary } from '../lib/challengesApi';
+import { OfficialFeedPost } from '../lib/officialFeedPosts';
+import { fetchOfficialFeedPostsForFeedPage } from '../lib/officialFeedPostsApi';
+import { OfficialFeedPostCard } from '../components/OfficialFeedPostCard';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
 const cheersLogoSource = beervaLogo;
@@ -88,7 +91,8 @@ type FeedSession = {
 
 export type FeedItem =
   | { type: 'session'; id: string; publishedAt: string; session: FeedSession }
-  | { type: 'pub_crawl'; id: string; publishedAt: string; crawl: PubCrawl };
+  | { type: 'pub_crawl'; id: string; publishedAt: string; crawl: PubCrawl }
+  | { type: 'official_post'; id: string; publishedAt: string; post: OfficialFeedPost };
 
 const isPubCrawlPost = (item: FeedSession | PubCrawl): item is PubCrawl => (
   'userId' in item && 'stops' in item
@@ -666,6 +670,7 @@ export const FeedScreen = ({ route }: any) => {
   const sessionsRef = useRef<FeedItem[]>([]);
   const loadedSessionCountRef = useRef(0);
   const loadedCrawlCountRef = useRef(0);
+  const loadedOfficialPostCountRef = useRef(0);
   const hasMoreRef = useRef(true);
   const loadingMoreRef = useRef(false);
   const refreshingRef = useRef(false);
@@ -697,6 +702,7 @@ export const FeedScreen = ({ route }: any) => {
 
     const sessionOffset = reset ? 0 : loadedSessionCountRef.current;
     const crawlOffset = reset ? 0 : loadedCrawlCountRef.current;
+    const officialOffset = reset ? 0 : loadedOfficialPostCountRef.current;
     const requestId = latestRequestIdRef.current + 1;
     latestRequestIdRef.current = requestId;
     const isLatestRequest = () => requestId === latestRequestIdRef.current;
@@ -728,6 +734,7 @@ export const FeedScreen = ({ route }: any) => {
         sessionsRef.current = [];
         loadedSessionCountRef.current = 0;
         loadedCrawlCountRef.current = 0;
+        loadedOfficialPostCountRef.current = 0;
         setFollowedUserCount(0);
         setHasMore(false);
         hasMoreRef.current = false;
@@ -752,7 +759,7 @@ export const FeedScreen = ({ route }: any) => {
       const feedUserIds = Array.from(new Set([user.id, ...followingIds]));
       setFollowedUserCount(followingIds.length);
 
-      const [sessionsResult, crawlsResult] = await withTimeout(
+      const [sessionsResult, crawlsResult, officialPostsResult] = await withTimeout(
         Promise.all([
           supabase
             .from('sessions')
@@ -781,7 +788,8 @@ export const FeedScreen = ({ route }: any) => {
             .eq('hide_from_feed', false)
             .order('published_at', { ascending: false, nullsFirst: false })
             .range(sessionOffset, sessionOffset + FEED_PAGE_SIZE),
-          fetchPublishedPubCrawlsForFeedPage(feedUserIds, FEED_PAGE_SIZE, crawlOffset)
+          fetchPublishedPubCrawlsForFeedPage(feedUserIds, FEED_PAGE_SIZE, crawlOffset),
+          fetchOfficialFeedPostsForFeedPage(FEED_PAGE_SIZE, officialOffset)
         ]),
         FEED_REQUEST_TIMEOUT_MS,
         'Feed items are taking too long.'
@@ -791,11 +799,13 @@ export const FeedScreen = ({ route }: any) => {
       if (!isLatestRequest()) return;
 
       const rawRows = (sessionsResult.data || []) as any[];
-      const hasNextPage = rawRows.length > FEED_PAGE_SIZE || crawlsResult.hasMore;
+      const hasNextPage = rawRows.length > FEED_PAGE_SIZE || crawlsResult.hasMore || officialPostsResult.length > FEED_PAGE_SIZE;
       const sessionRows = rawRows.slice(0, FEED_PAGE_SIZE);
       const crawls = crawlsResult.crawls;
+      const officialPosts = officialPostsResult.slice(0, FEED_PAGE_SIZE);
       loadedSessionCountRef.current = sessionOffset + sessionRows.length;
       loadedCrawlCountRef.current = crawlOffset + crawlsResult.loadedCount;
+      loadedOfficialPostCountRef.current = officialOffset + officialPosts.length;
       setHasMore(hasNextPage);
       hasMoreRef.current = hasNextPage;
 
@@ -945,7 +955,14 @@ export const FeedScreen = ({ route }: any) => {
         } as any, // cheating types slightly
       }));
 
-      const merged = sortFeedItemsByPublishedAt([...pageSessions, ...pageCrawls]);
+      const pageOfficialPosts = officialPosts.map((post): FeedItem => ({
+        type: 'official_post',
+        id: post.id,
+        publishedAt: post.publishedAt || post.createdAt || '',
+        post,
+      }));
+
+      const merged = sortFeedItemsByPublishedAt([...pageSessions, ...pageCrawls, ...pageOfficialPosts]);
 
       setSessions((previous) => {
         // If not reset, we need to filter out duplicates if crawls overlap
@@ -1581,6 +1598,15 @@ export const FeedScreen = ({ route }: any) => {
   }, [currentUserId]);
 
   const renderSession = useCallback(({ item }: { item: FeedItem }) => {
+    if (item.type === 'official_post') {
+      return (
+        <OfficialFeedPostCard
+          post={item.post}
+          onOpenProfile={openProfile}
+        />
+      );
+    }
+
     if (item.type === 'pub_crawl') {
       return (
         <PubCrawlFeedCard
