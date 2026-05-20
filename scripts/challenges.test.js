@@ -35,11 +35,15 @@ const pubLegendsScreenPath = 'src/screens/PubLegendsScreen.tsx';
 const feedScreenPath = 'src/screens/FeedScreen.tsx';
 const navigatorPath = 'src/navigation/RootNavigator.tsx';
 const migrationPath = 'supabase/migrations/20260514170000_add_official_challenges.sql';
+const karnevalsdrukMigrationPath = 'supabase/migrations/20260520120000_add_karnevalsdruk_challenge.sql';
+const challengeFinalizerPath = 'supabase/functions/finalize-challenges/index.ts';
 
 assert.ok(exists(challengesHelperPath), 'challenge helper module should exist');
 assert.ok(exists(challengesApiPath), 'challenge API module should exist');
 assert.ok(exists(detailScreenPath), 'challenge detail screen should exist');
 assert.ok(exists(migrationPath), 'official challenge migration should exist');
+assert.ok(exists(karnevalsdrukMigrationPath), 'KarnevalsDruk migration should exist');
+assert.ok(exists(challengeFinalizerPath), 'challenge finalizer Edge Function should exist');
 
 const {
   CHALLENGE_STATUS,
@@ -198,6 +202,31 @@ assert.match(migrationSql, /coalesce\(session_beers\.consumed_at,\s*sessions\.st
 assert.doesNotMatch(migrationSql, /sessions\.hide_from_feed\s*=\s*false/, 'hidden pub crawl child sessions should still count toward challenge progress');
 assert.match(migrationSql, /join public\.challenge_entries/, 'leaderboard should only include joined users');
 assert.match(migrationSql, /order by progress_value desc/i, 'leaderboard should rank highest progress first');
+
+const karnevalsdrukMigrationSql = read(karnevalsdrukMigrationPath);
+assert.match(karnevalsdrukMigrationSql, /add column if not exists challenge_type text not null default 'target'/i, 'challenges should support challenge_type');
+assert.match(karnevalsdrukMigrationSql, /alter column target_value drop not null/i, 'leaderboard challenges should allow null target values');
+assert.match(karnevalsdrukMigrationSql, /challenge_type in \('target', 'leaderboard'\)/i, 'challenge_type should be constrained');
+assert.match(karnevalsdrukMigrationSql, /karnevalsdruk-2026/, 'migration should seed KarnevalsDruk slug');
+assert.match(karnevalsdrukMigrationSql, /KarnevalsDruk/, 'migration should seed KarnevalsDruk title');
+assert.match(karnevalsdrukMigrationSql, /2026-05-23 04:00:00\+00/, 'migration should store May 23 06:00 Copenhagen start in UTC');
+assert.match(karnevalsdrukMigrationSql, /2026-05-24 04:00:00\+00/, 'migration should store May 24 06:00 Copenhagen end in UTC');
+assert.match(karnevalsdrukMigrationSql, /create table if not exists public\.challenge_awards/i, 'migration should create challenge awards table');
+assert.match(karnevalsdrukMigrationSql, /Winner of Karneval 2026/, 'migration should award the requested trophy title');
+assert.match(karnevalsdrukMigrationSql, /create table if not exists public\.official_feed_posts/i, 'migration should create official feed posts table');
+assert.match(karnevalsdrukMigrationSql, /average_abv/, 'winner announcement metadata should include average ABV');
+assert.match(karnevalsdrukMigrationSql, /drink_count/, 'winner announcement metadata should include drink count');
+assert.match(karnevalsdrukMigrationSql, /session_count/, 'winner announcement metadata should include session count');
+assert.match(karnevalsdrukMigrationSql, /progress_value <= 0/i, 'finalizer should not award a zero-progress winner');
+assert.match(karnevalsdrukMigrationSql, /on conflict \(challenge_id, user_id, award_slug\)/i, 'award insertion should be idempotent');
+assert.match(karnevalsdrukMigrationSql, /on conflict \(challenge_id, kind\)/i, 'official post insertion should be idempotent');
+assert.match(karnevalsdrukMigrationSql, /create or replace function public\.finalize_due_challenges/i, 'migration should expose finalization RPC');
+assert.match(karnevalsdrukMigrationSql, /cron\.schedule/i, 'migration should schedule challenge finalization');
+
+const finalizerSource = read(challengeFinalizerPath);
+assert.match(finalizerSource, /finalize_due_challenges/, 'scheduled function should call finalization RPC');
+assert.match(finalizerSource, /CHALLENGE_FINALIZER_CRON_SECRET/, 'scheduled function should require a challenge cron secret');
+assert.match(finalizerSource, /x-beerva-cron-secret/i, 'scheduled function should validate the cron secret header');
 
 const apiSource = read(challengesApiPath);
 assert.match(apiSource, /fetchOfficialChallenges/, 'challenge API should fetch official challenges');
