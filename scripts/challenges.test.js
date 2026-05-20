@@ -37,6 +37,9 @@ const navigatorPath = 'src/navigation/RootNavigator.tsx';
 const migrationPath = 'supabase/migrations/20260514170000_add_official_challenges.sql';
 const karnevalsdrukMigrationPath = 'supabase/migrations/20260520120000_add_karnevalsdruk_challenge.sql';
 const challengeFinalizerPath = 'supabase/functions/finalize-challenges/index.ts';
+const officialFeedPostsPath = 'src/lib/officialFeedPosts.ts';
+const officialFeedPostsApiPath = 'src/lib/officialFeedPostsApi.ts';
+const officialFeedPostCardPath = 'src/components/OfficialFeedPostCard.tsx';
 
 assert.ok(exists(challengesHelperPath), 'challenge helper module should exist');
 assert.ok(exists(challengesApiPath), 'challenge API module should exist');
@@ -44,6 +47,9 @@ assert.ok(exists(detailScreenPath), 'challenge detail screen should exist');
 assert.ok(exists(migrationPath), 'official challenge migration should exist');
 assert.ok(exists(karnevalsdrukMigrationPath), 'KarnevalsDruk migration should exist');
 assert.ok(exists(challengeFinalizerPath), 'challenge finalizer Edge Function should exist');
+assert.ok(exists(officialFeedPostsPath), 'official feed post mapper should exist');
+assert.ok(exists(officialFeedPostsApiPath), 'official feed post API should exist');
+assert.ok(exists(officialFeedPostCardPath), 'official feed post card should exist');
 
 const {
   CHALLENGE_STATUS,
@@ -156,6 +162,36 @@ assert.equal(leaderboardSummary.challengeType, 'leaderboard');
 assert.equal(leaderboardSummary.targetValue, null);
 assert.equal(formatChallengeProgress(leaderboardSummary.currentUserProgress, leaderboardSummary.targetValue, leaderboardSummary.challengeType), '8.4 true pints');
 
+const { mapOfficialFeedPostRow, formatOfficialWinnerStat } = loadTypeScriptModule(officialFeedPostsPath);
+
+const officialPost = mapOfficialFeedPostRow({
+  id: 'official-1',
+  challenge_id: 'challenge-1',
+  kind: 'challenge_winner',
+  title: 'Winner of Karneval 2026',
+  body: 'Mads won KarnevalsDruk with 8.4 true pints.',
+  metadata: {
+    winner_user_id: 'user-1',
+    winner_username: 'Mads',
+    winner_avatar_url: 'https://example.com/avatar.png',
+    true_pints: 8.44,
+    drink_count: 11,
+    average_abv: 5.2,
+    session_count: 3,
+    challenge_slug: 'karnevalsdruk-2026',
+  },
+  published_at: '2026-05-24T04:05:00Z',
+  created_at: '2026-05-24T04:05:00Z',
+});
+
+assert.equal(officialPost.title, 'Winner of Karneval 2026');
+assert.equal(officialPost.winnerUsername, 'Mads');
+assert.equal(officialPost.truePints, 8.44);
+assert.equal(officialPost.drinkCount, 11);
+assert.equal(officialPost.averageAbv, 5.2);
+assert.equal(officialPost.sessionCount, 3);
+assert.equal(formatOfficialWinnerStat('Average ABV', 5.2, '%'), 'Average ABV 5.2%');
+
 const detail = mapChallengeDetailRow({
   ...summaryRow,
   leaderboard: [
@@ -261,6 +297,19 @@ assert.match(feedScreenSource, /fetchJoinedActiveChallengeSummary/, 'Feed should
 assert.match(feedScreenSource, /challengePreviewStrip/, 'Feed should render a compact challenge strip');
 assert.doesNotMatch(feedScreenSource, /challengePreviewCard/, 'Feed should not render a large challenge card');
 assert.match(feedScreenSource, /navigation\.navigate\('ChallengeDetail'/, 'Feed strip should open challenge detail');
+
+const officialFeedApiSource = read(officialFeedPostsApiPath);
+assert.match(officialFeedApiSource, /from\('official_feed_posts'\)/, 'official feed post API should read official_feed_posts');
+assert.match(officialFeedApiSource, /mapOfficialFeedPostRow/, 'official feed post API should map rows');
+
+const officialFeedCardSource = read(officialFeedPostCardPath);
+assert.match(officialFeedCardSource, /Official Beerva/, 'official feed card should mark the post as official');
+assert.match(officialFeedCardSource, /Average ABV/, 'official feed card should show average ABV');
+assert.doesNotMatch(officialFeedCardSource, /onDelete|onToggleCheers|onOpenComments/, 'official feed card should not expose user post controls');
+
+assert.match(feedScreenSource, /fetchOfficialFeedPostsForFeedPage/, 'Feed should fetch official feed posts');
+assert.match(feedScreenSource, /type: 'official_post'/, 'Feed should merge official post items');
+assert.match(feedScreenSource, /OfficialFeedPostCard/, 'Feed should render official feed post cards');
 
 const navigatorSource = read(navigatorPath);
 assert.match(navigatorSource, /ChallengeDetailScreen/, 'navigator should import challenge detail screen');
