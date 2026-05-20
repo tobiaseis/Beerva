@@ -4,7 +4,13 @@ export const CHALLENGE_STATUS = {
   ENDED: 'ended',
 } as const;
 
+export const CHALLENGE_TYPE = {
+  TARGET: 'target',
+  LEADERBOARD: 'leaderboard',
+} as const;
+
 export type ChallengeStatus = typeof CHALLENGE_STATUS[keyof typeof CHALLENGE_STATUS];
+export type ChallengeType = typeof CHALLENGE_TYPE[keyof typeof CHALLENGE_TYPE];
 export type ChallengeMetricType = 'true_pints';
 
 export type ChallengeSummaryRow = {
@@ -13,6 +19,7 @@ export type ChallengeSummaryRow = {
   title?: string | null;
   description?: string | null;
   metric_type?: ChallengeMetricType | string | null;
+  challenge_type?: ChallengeType | string | null;
   target_value?: number | string | null;
   starts_at?: string | null;
   ends_at?: string | null;
@@ -42,7 +49,8 @@ export type ChallengeSummary = {
   title: string;
   description: string;
   metricType: ChallengeMetricType;
-  targetValue: number;
+  challengeType: ChallengeType;
+  targetValue: number | null;
   startsAt: string;
   endsAt: string;
   joinClosesAt: string;
@@ -91,6 +99,19 @@ const toMetricType = (value: string | null | undefined): ChallengeMetricType => 
   value === 'true_pints' ? value : 'true_pints'
 );
 
+const toChallengeType = (value: string | null | undefined): ChallengeType => (
+  value === CHALLENGE_TYPE.LEADERBOARD ? CHALLENGE_TYPE.LEADERBOARD : CHALLENGE_TYPE.TARGET
+);
+
+const toTargetValue = (value: number | string | null | undefined, challengeType: ChallengeType) => {
+  if (challengeType === CHALLENGE_TYPE.LEADERBOARD) return null;
+  return toNumber(value);
+};
+
+export const isLeaderboardChallenge = (challenge: { challengeType?: ChallengeType | string | null }) => (
+  challenge.challengeType === CHALLENGE_TYPE.LEADERBOARD
+);
+
 export const getChallengeStatus = (
   challenge: Pick<ChallengeSummary, 'startsAt' | 'endsAt'> | { startsAt?: string | null; endsAt?: string | null },
   now = new Date()
@@ -117,9 +138,14 @@ export const isChallengeJoinOpen = (
 
 export const formatChallengeProgress = (
   progress: number | string | null | undefined,
-  target: number | string | null | undefined
+  target: number | string | null | undefined,
+  challengeType: ChallengeType = CHALLENGE_TYPE.TARGET
 ) => {
   const progressValue = toNumber(progress).toFixed(1);
+  if (challengeType === CHALLENGE_TYPE.LEADERBOARD) {
+    return `${progressValue} true pints`;
+  }
+
   const targetValue = toNumber(target).toFixed(0);
   return `${progressValue}/${targetValue}`;
 };
@@ -134,14 +160,35 @@ export const formatChallengeStatusLabel = (status: ChallengeStatus) => {
   return 'Active';
 };
 
+export const getChallengePreJoinCopy = (
+  challenge: Pick<ChallengeSummary, 'challengeType' | 'slug'> | { challengeType?: ChallengeType | string | null; slug?: string | null }
+) => (
+  isLeaderboardChallenge(challenge)
+    ? 'Join to count your Karneval drinks from the full 06:00 to 06:00 window.'
+    : 'Join to see your retroactive progress from May 1.'
+);
+
+export const getLeaderboardEntryMeta = (
+  entry: Pick<ChallengeLeaderboardEntry, 'completed' | 'progressValue'> | { completed?: boolean | null; progressValue?: number | string | null },
+  challenge: Pick<ChallengeSummary, 'challengeType'> | { challengeType?: ChallengeType | string | null }
+) => {
+  if (isLeaderboardChallenge(challenge)) {
+    return formatChallengeProgress(entry.progressValue, null, CHALLENGE_TYPE.LEADERBOARD);
+  }
+
+  return entry.completed ? 'Completed' : 'In progress';
+};
+
 export const mapChallengeSummaryRow = (row: ChallengeSummaryRow): ChallengeSummary => {
+  const challengeType = toChallengeType(row.challenge_type);
   const mapped = {
     id: toStringOrNull(row.id) || 'unknown',
     slug: toStringOrNull(row.slug) || 'unknown',
     title: toStringOrNull(row.title) || 'Challenge',
     description: toStringOrNull(row.description) || '',
     metricType: toMetricType(row.metric_type),
-    targetValue: toNumber(row.target_value),
+    challengeType,
+    targetValue: toTargetValue(row.target_value, challengeType),
     startsAt: toStringOrNull(row.starts_at) || '',
     endsAt: toStringOrNull(row.ends_at) || '',
     joinClosesAt: toStringOrNull(row.join_closes_at) || '',

@@ -4,7 +4,13 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Beer, ChevronRight, Crown, MapPin, Trophy, Users } from 'lucide-react-native';
 
 import { EmptyIllustration } from '../components/EmptyIllustration';
-import { ChallengeSummary, formatChallengeProgress, formatChallengeRank, formatChallengeStatusLabel } from '../lib/challenges';
+import {
+  ChallengeSummary,
+  formatChallengeProgress,
+  formatChallengeRank,
+  formatChallengeStatusLabel,
+  isLeaderboardChallenge,
+} from '../lib/challenges';
 import { fetchOfficialChallenges, joinChallenge } from '../lib/challengesApi';
 import { formatTruePints, PubLegend } from '../lib/pubLegends';
 import { fetchPubLegends } from '../lib/pubLegendsApi';
@@ -173,7 +179,11 @@ export const PubLegendsScreen = ({ navigation }: any) => {
     const statusLabel = formatChallengeStatusLabel(item.status);
     const entrantsLabel = `${item.entrantsCount} entered`;
     const progressLabel = item.joined
-      ? ` - ${formatChallengeRank(item.currentUserRank)} - ${formatChallengeProgress(item.currentUserProgress, item.targetValue)}`
+      ? (
+          isLeaderboardChallenge(item)
+            ? ` - ${formatChallengeRank(item.currentUserRank)} - ${formatChallengeProgress(item.currentUserProgress, item.targetValue, item.challengeType)}`
+            : ` - ${formatChallengeRank(item.currentUserRank)} - ${formatChallengeProgress(item.currentUserProgress, item.targetValue, item.challengeType)}`
+        )
       : '';
 
     return (

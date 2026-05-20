@@ -4,7 +4,14 @@ import { useFocusEffect } from '@react-navigation/native';
 import { ArrowLeft, Check, Trophy, Users, X } from 'lucide-react-native';
 
 import { CachedImage } from '../components/CachedImage';
-import { ChallengeDetail, ChallengeLeaderboardEntry, formatChallengeProgress, formatChallengeRank } from '../lib/challenges';
+import {
+  ChallengeDetail,
+  ChallengeLeaderboardEntry,
+  formatChallengeProgress,
+  formatChallengeRank,
+  getChallengePreJoinCopy,
+  getLeaderboardEntryMeta,
+} from '../lib/challenges';
 import { fetchChallengeDetail, joinChallenge } from '../lib/challengesApi';
 import { colors } from '../theme/colors';
 import { radius, shadows, spacing } from '../theme/layout';
@@ -97,11 +104,13 @@ export const ChallengeDetailScreen = ({ navigation, route }: any) => {
       />
       <View style={styles.leaderCopy}>
         <Text style={styles.leaderName} numberOfLines={1}>{item.username || 'Beer Lover'}</Text>
-        <Text style={styles.leaderMeta}>{item.completed ? 'Completed' : 'In progress'}</Text>
+        <Text style={styles.leaderMeta}>{getLeaderboardEntryMeta(item, challenge || { challengeType: 'target' })}</Text>
       </View>
-      <Text style={styles.progressText}>{formatChallengeProgress(item.progressValue, challenge?.targetValue || 15)}</Text>
+      <Text style={styles.progressText}>
+        {formatChallengeProgress(item.progressValue, challenge?.targetValue, challenge?.challengeType)}
+      </Text>
     </View>
-  ), [challenge?.targetValue]);
+  ), [challenge]);
 
   const renderHeader = useCallback(() => (
     <View style={styles.headerBlock}>
@@ -133,8 +142,10 @@ export const ChallengeDetailScreen = ({ navigation, route }: any) => {
           {challenge.joined ? (
             <View style={styles.summaryRow}>
               <View style={styles.summaryPill}>
-                <Text style={styles.summaryLabel}>Your progress</Text>
-                <Text style={styles.summaryValue}>{formatChallengeProgress(challenge.currentUserProgress, challenge.targetValue)}</Text>
+                <Text style={styles.summaryLabel}>{challenge.challengeType === 'leaderboard' ? 'Your total' : 'Your progress'}</Text>
+                <Text style={styles.summaryValue}>
+                  {formatChallengeProgress(challenge.currentUserProgress, challenge.targetValue, challenge.challengeType)}
+                </Text>
               </View>
               <View style={styles.summaryPill}>
                 <Text style={styles.summaryLabel}>Rank</Text>
@@ -151,7 +162,9 @@ export const ChallengeDetailScreen = ({ navigation, route }: any) => {
                 <Text style={styles.summaryLabel}>Entered</Text>
                 <Text style={styles.summaryValue}>{challenge.entrantsCount}</Text>
               </View>
-              <Text style={styles.preJoinText}>Join to see your retroactive progress from May 1.</Text>
+              <Text style={styles.preJoinText}>
+                {getChallengePreJoinCopy(challenge) || 'Join to see your retroactive progress from May 1.'}
+              </Text>
             </View>
           )}
 
