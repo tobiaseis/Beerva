@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Award, Beer, CalendarDays, ChevronDown, ChevronUp, Flame, MapPin, Moon, PartyPopper, Repeat, Sparkles, Sunrise, Trophy, X } from 'lucide-react-native';
 
-import { getTrophies, Stats, TrophyKind } from '../lib/profileStats';
+import { getTrophies, Stats, TrophyDefinition, TrophyKind } from '../lib/profileStats';
 import { PintTimelinePoint } from '../lib/profileStatsApi';
 
 export const renderTrophyIcon = (kind: TrophyKind, earned: boolean, iconSize = 28) => {
@@ -31,6 +31,8 @@ export const renderTrophyIcon = (kind: TrophyKind, earned: boolean, iconSize = 2
       return <Flame color={iconColor} size={iconSize} />;
     case 'sambuca':
       return <Flame color={iconColor} size={iconSize} />;
+    case 'challenge':
+      return <Trophy color={iconColor} size={iconSize} />;
     case 'morning':
       return <Sunrise color={iconColor} size={iconSize} />;
     case 'calendar':
@@ -47,15 +49,16 @@ import { Surface } from './Surface';
 type ProfileStatsPanelProps = {
   stats: Stats;
   pintTimeline?: PintTimelinePoint[];
+  challengeAwards?: TrophyDefinition[];
 };
 
 type InsightKind = 'best-session' | 'longest-streak';
 
-export const ProfileStatsPanel = ({ stats, pintTimeline = [] }: ProfileStatsPanelProps) => {
+export const ProfileStatsPanel = ({ stats, pintTimeline = [], challengeAwards = [] }: ProfileStatsPanelProps) => {
   const [pintsModalVisible, setPintsModalVisible] = useState(false);
   const [insightModal, setInsightModal] = useState<InsightKind | null>(null);
   const [trophyCabinetExpanded, setTrophyCabinetExpanded] = useState(true);
-  const trophies = useMemo(() => getTrophies(stats), [stats]);
+  const trophies = useMemo(() => [...getTrophies(stats), ...challengeAwards], [stats, challengeAwards]);
   const earnedTrophies = useMemo(() => trophies.filter((trophy) => trophy.earned), [trophies]);
   const maxTimelinePints = useMemo(
     () => Math.max(...pintTimeline.map((point) => point.pints), 0),

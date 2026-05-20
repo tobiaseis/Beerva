@@ -8,7 +8,8 @@ import { supabase } from '../lib/supabase';
 import { confirmDestructive, showAlert } from '../lib/dialogs';
 import { deletePublicImageUrl, prepareWebImageFromPickerAsset, SelectedImage, UPLOAD_IMAGE_MAX_WIDTH, uploadImageToBucket } from '../lib/imageUpload';
 import { ProfileStatsPanel } from '../components/ProfileStatsPanel';
-import { emptyStats, getVolumeMl, ProfileSessionStatsRow, Stats } from '../lib/profileStats';
+import { fetchChallengeAwards } from '../lib/challengeAwardsApi';
+import { emptyStats, getVolumeMl, ProfileSessionStatsRow, Stats, TrophyDefinition } from '../lib/profileStats';
 import { fetchPintTimeline, fetchProfileStats, PintTimelinePoint } from '../lib/profileStatsApi';
 import { getBeerLine, getSessionBeerSummary, SessionBeer } from '../lib/sessionBeers';
 import { openMaps } from '../lib/maps';
@@ -98,6 +99,7 @@ export const ProfileScreen = () => {
   const [profile, setProfile] = useState<any>(null);
   const [stats, setStats] = useState<Stats>(emptyStats);
   const [pintTimeline, setPintTimeline] = useState<PintTimelinePoint[]>([]);
+  const [challengeAwards, setChallengeAwards] = useState<TrophyDefinition[]>([]);
   const [sessions, setSessions] = useState<PublicSession[]>([]);
   const [sessionCount, setSessionCount] = useState(0);
   const [followCounts, setFollowCounts] = useState({ followers: 0, following: 0 });
@@ -176,6 +178,7 @@ export const ProfileScreen = () => {
         profileResult,
         profileStats,
         timeline,
+        awards,
         sessionsResult,
         followersResult,
         followingResult,
@@ -187,6 +190,7 @@ export const ProfileScreen = () => {
           .maybeSingle(),
         fetchProfileStats(user.id),
         fetchPintTimeline(user.id),
+        fetchChallengeAwards(user.id),
         supabase
           .from('sessions')
           .select('id, pub_id, pub_name, beer_name, volume, quantity, abv, comment, image_url, status, published_at, created_at', { count: 'exact' })
@@ -257,6 +261,7 @@ export const ProfileScreen = () => {
       setEditAvatar(null);
       setStats(profileStats);
       setPintTimeline(timeline);
+      setChallengeAwards(awards);
       setSessions(sessionsWithBeers);
       setSessionCount(sessionsResult?.count || sessionsResult?.data?.length || 0);
       setFollowCounts({
@@ -482,7 +487,7 @@ export const ProfileScreen = () => {
         </View>
       </View>
 
-      <ProfileStatsPanel stats={stats} pintTimeline={pintTimeline} />
+      <ProfileStatsPanel stats={stats} pintTimeline={pintTimeline} challengeAwards={challengeAwards} />
 
       <View style={styles.recentSection}>
         <View style={styles.sectionHeader}>

@@ -36,7 +36,8 @@ export type TrophyKind =
   | 'calendar'
   | 'rtd'
   | 'jager'
-  | 'sambuca';
+  | 'sambuca'
+  | 'challenge';
 
 export type TrophyDefinition = {
   id: string;
