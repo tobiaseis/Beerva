@@ -254,3 +254,153 @@ $$;
 comment on function public.create_karnevalsdruk_hangover_prompts(uuid) is 'Creates one grouped May 24 11am hangover prompt for each joined KarnevalsDruk user with an event-window post.';
 
 revoke execute on function public.create_karnevalsdruk_hangover_prompts(uuid) from public, anon, authenticated;
+
+create or replace function public.rate_hangover(
+  target_kind text,
+  target_id uuid,
+  target_score integer
+)
+returns table (
+  rated_target_type text,
+  rated_target_id uuid,
+  hangover_score smallint
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  requesting_user_id uuid := auth.uid();
+  target_user_id uuid;
+  target_published_at timestamp with time zone;
+  resolved_timezone text;
+  resolved_drinking_day date;
+  night_start timestamp with time zone;
+  night_end timestamp with time zone;
+  karnevalsdruk_row public.challenges;
+  session_ids uuid[] := array[]::uuid[];
+  pub_crawl_ids uuid[] := array[]::uuid[];
+begin
+  if requesting_user_id is null then
+    raise exception 'Not authenticated';
+  end if;
+
+  if target_score is null or target_score < 1 or target_score > 10 then
+    raise exception 'Hangover score must be between 1 and 10.';
+  end if;
+
+  if target_kind = 'session' then
+    select
+      sessions.user_id,
+      coalesce(sessions.published_at, sessions.ended_at, sessions.created_at),
+      public.resolve_hangover_timezone(sessions.timezone, sessions.user_id)
+    into target_user_id, target_published_at, resolved_timezone
+    from public.sessions as sessions
+    where sessions.id = target_id
+      and sessions.user_id = requesting_user_id
+      and sessions.status = 'published'
+      and coalesce(sessions.hide_from_feed, false) = false;
+  elsif target_kind = 'pub_crawl' then
+    select
+      pub_crawls.user_id,
+      coalesce(pub_crawls.published_at, pub_crawls.ended_at, pub_crawls.created_at),
+      public.resolve_hangover_timezone(pub_crawls.timezone, pub_crawls.user_id)
+    into target_user_id, target_published_at, resolved_timezone
+    from public.pub_crawls as pub_crawls
+    where pub_crawls.id = target_id
+      and pub_crawls.user_id = requesting_user_id
+      and pub_crawls.status = 'published';
+  else
+    raise exception 'Unknown hangover target type.';
+  end if;
+
+  if target_user_id is null then
+    raise exception 'Could not find a published post to rate.';
+  end if;
+
+  select challenges.*
+  into karnevalsdruk_row
+  from public.challenges as challenges
+  join public.challenge_entries as challenge_entries
+    on challenge_entries.challenge_id = challenges.id
+    and challenge_entries.user_id = requesting_user_id
+  where challenges.slug = 'karnevalsdruk-2026'
+    and target_published_at >= challenges.starts_at
+    and target_published_at < challenges.ends_at
+  limit 1;
+
+  if karnevalsdruk_row.id is not null then
+    resolved_drinking_day := timezone('Europe/Copenhagen', karnevalsdruk_row.starts_at)::date;
+    night_start := karnevalsdruk_row.starts_at;
+    night_end := karnevalsdruk_row.ends_at;
+  else
+    select details.drinking_day
+    into resolved_drinking_day
+    from public.calculate_hangover_prompt_details(target_published_at, resolved_timezone) details
+    limit 1;
+
+    if resolved_drinking_day is null then
+      raise exception 'This post is not eligible for a hangover rating.';
+    end if;
+
+    night_start := (resolved_drinking_day + time '21:00') at time zone resolved_timezone;
+    night_end := ((resolved_drinking_day + 1) + time '06:00') at time zone resolved_timezone;
+  end if;
+
+  select coalesce(array_agg(sessions.id), array[]::uuid[])
+  into session_ids
+  from public.sessions as sessions
+  where sessions.user_id = requesting_user_id
+    and sessions.status = 'published'
+    and coalesce(sessions.hide_from_feed, false) = false
+    and coalesce(sessions.published_at, sessions.ended_at, sessions.created_at) >= night_start
+    and coalesce(sessions.published_at, sessions.ended_at, sessions.created_at) < night_end;
+
+  select coalesce(array_agg(pub_crawls.id), array[]::uuid[])
+  into pub_crawl_ids
+  from public.pub_crawls as pub_crawls
+  where pub_crawls.user_id = requesting_user_id
+    and pub_crawls.status = 'published'
+    and coalesce(pub_crawls.published_at, pub_crawls.ended_at, pub_crawls.created_at) >= night_start
+    and coalesce(pub_crawls.published_at, pub_crawls.ended_at, pub_crawls.created_at) < night_end;
+
+  if coalesce(array_length(session_ids, 1), 0) + coalesce(array_length(pub_crawl_ids, 1), 0) = 0 then
+    raise exception 'Could not find published posts for this drinking night.';
+  end if;
+
+  update public.sessions as sessions
+  set hangover_score = target_score::smallint,
+      hangover_rated_at = now()
+  where sessions.id = any(session_ids);
+
+  update public.pub_crawls as pub_crawls
+  set hangover_score = target_score::smallint,
+      hangover_rated_at = now()
+  where pub_crawls.id = any(pub_crawl_ids);
+
+  update public.hangover_prompts as hangover_prompts
+  set completed_at = coalesce(hangover_prompts.completed_at, now())
+  where hangover_prompts.user_id = requesting_user_id
+    and (
+      hangover_prompts.drinking_day = resolved_drinking_day
+      or hangover_prompts.session_id = any(session_ids)
+      or hangover_prompts.pub_crawl_id = any(pub_crawl_ids)
+    );
+
+  return query
+  select 'session'::text, sessions.id, sessions.hangover_score
+  from public.sessions as sessions
+  where sessions.id = any(session_ids)
+  order by sessions.published_at asc nulls last, sessions.created_at asc;
+
+  return query
+  select 'pub_crawl'::text, pub_crawls.id, pub_crawls.hangover_score
+  from public.pub_crawls as pub_crawls
+  where pub_crawls.id = any(pub_crawl_ids)
+  order by pub_crawls.published_at asc nulls last, pub_crawls.created_at asc;
+end;
+$$;
+
+grant execute on function public.rate_hangover(text, uuid, integer) to authenticated;
+
+comment on function public.rate_hangover(text, uuid, integer) is 'Rates normal local drinking nights and the one-off full KarnevalsDruk challenge window for joined event users.';
