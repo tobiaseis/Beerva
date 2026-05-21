@@ -59,6 +59,8 @@ end;
 $$;
 
 drop index if exists public.hangover_prompts_user_drinking_day_unique_idx;
+drop index if exists public.hangover_prompts_session_id_unique_idx;
+drop index if exists public.hangover_prompts_pub_crawl_id_unique_idx;
 
 update public.hangover_prompts as hangover_prompts
 set drinking_day = details.drinking_day
@@ -190,6 +192,271 @@ begin
   return new;
 end;
 $$;
+
+create or replace function public.find_hangover_replacement_session(
+  target_user_id uuid,
+  target_drinking_day date,
+  excluded_session_id uuid default null
+)
+returns table (
+  replacement_session_id uuid
+)
+language sql
+stable
+set search_path = public
+as $$
+  select sessions.id
+  from public.sessions as sessions
+  cross join lateral public.calculate_hangover_prompt_details(
+    coalesce(sessions.published_at, sessions.ended_at, sessions.created_at),
+    public.resolve_hangover_timezone(sessions.timezone, sessions.user_id)
+  ) details
+  where sessions.user_id = target_user_id
+    and sessions.status = 'published'
+    and coalesce(sessions.hide_from_feed, false) = false
+    and details.drinking_day = target_drinking_day
+    and (excluded_session_id is null or sessions.id <> excluded_session_id)
+  order by
+    coalesce(sessions.published_at, sessions.ended_at, sessions.created_at) asc,
+    sessions.created_at asc,
+    sessions.id asc
+  limit 1;
+$$;
+
+create or replace function public.find_hangover_replacement_pub_crawl(
+  target_user_id uuid,
+  target_drinking_day date,
+  excluded_pub_crawl_id uuid default null
+)
+returns table (
+  replacement_pub_crawl_id uuid
+)
+language sql
+stable
+set search_path = public
+as $$
+  select pub_crawls.id
+  from public.pub_crawls as pub_crawls
+  cross join lateral public.calculate_hangover_prompt_details(
+    coalesce(pub_crawls.published_at, pub_crawls.ended_at, pub_crawls.created_at),
+    public.resolve_hangover_timezone(pub_crawls.timezone, pub_crawls.user_id)
+  ) details
+  where pub_crawls.user_id = target_user_id
+    and pub_crawls.status = 'published'
+    and details.drinking_day = target_drinking_day
+    and (excluded_pub_crawl_id is null or pub_crawls.id <> excluded_pub_crawl_id)
+  order by
+    coalesce(pub_crawls.published_at, pub_crawls.ended_at, pub_crawls.created_at) asc,
+    pub_crawls.created_at asc,
+    pub_crawls.id asc
+  limit 1;
+$$;
+
+create or replace function public.reassign_hangover_prompt_from_session()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  prompt_record record;
+  selected_session_id uuid;
+  selected_pub_crawl_id uuid;
+begin
+  if tg_op = 'UPDATE' and new.status = 'published' and coalesce(new.hide_from_feed, false) = false then
+    return new;
+  end if;
+
+  for prompt_record in
+    select
+      hangover_prompts.id,
+      hangover_prompts.user_id,
+      hangover_prompts.drinking_day
+    from public.hangover_prompts as hangover_prompts
+    where hangover_prompts.session_id = old.id
+      and hangover_prompts.drinking_day is not null
+    for update
+  loop
+    select replacements.replacement_session_id
+    into selected_session_id
+    from public.find_hangover_replacement_session(
+      prompt_record.user_id,
+      prompt_record.drinking_day,
+      old.id
+    ) replacements
+    limit 1;
+
+    if selected_session_id is not null then
+      update public.hangover_prompts as hangover_prompts
+      set session_id = selected_session_id,
+          pub_crawl_id = null
+      where hangover_prompts.id = prompt_record.id;
+
+      update public.notifications as notifications
+      set reference_id = selected_session_id,
+          metadata = jsonb_set(
+            coalesce(notifications.metadata, '{}'::jsonb),
+            '{target_type}',
+            to_jsonb('session'::text),
+            true
+          )
+      from public.hangover_prompts as hangover_prompts
+      where notifications.id = hangover_prompts.notification_id
+        and notifications.type = 'hangover_check'
+        and hangover_prompts.id = prompt_record.id;
+    else
+      select replacements.replacement_pub_crawl_id
+      into selected_pub_crawl_id
+      from public.find_hangover_replacement_pub_crawl(
+        prompt_record.user_id,
+        prompt_record.drinking_day,
+        null
+      ) replacements
+      limit 1;
+
+      if selected_pub_crawl_id is not null then
+        update public.hangover_prompts as hangover_prompts
+        set session_id = null,
+            pub_crawl_id = selected_pub_crawl_id
+        where hangover_prompts.id = prompt_record.id;
+
+        update public.notifications as notifications
+        set reference_id = selected_pub_crawl_id,
+            metadata = jsonb_set(
+              coalesce(notifications.metadata, '{}'::jsonb),
+              '{target_type}',
+              to_jsonb('pub_crawl'::text),
+              true
+            )
+        from public.hangover_prompts as hangover_prompts
+        where notifications.id = hangover_prompts.notification_id
+          and notifications.type = 'hangover_check'
+          and hangover_prompts.id = prompt_record.id;
+      elsif tg_op = 'UPDATE' then
+        update public.hangover_prompts as hangover_prompts
+        set completed_at = coalesce(hangover_prompts.completed_at, now()),
+            last_error = 'No eligible hangover prompt representative remains for this drinking night.'
+        where hangover_prompts.id = prompt_record.id;
+      end if;
+    end if;
+  end loop;
+
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists sessions_reassign_hangover_prompt_representative on public.sessions;
+create trigger sessions_reassign_hangover_prompt_representative
+  before delete or update of status, hide_from_feed on public.sessions
+  for each row
+  execute function public.reassign_hangover_prompt_from_session();
+
+create or replace function public.reassign_hangover_prompt_from_pub_crawl()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  prompt_record record;
+  selected_session_id uuid;
+  selected_pub_crawl_id uuid;
+begin
+  if tg_op = 'UPDATE' and new.status = 'published' then
+    return new;
+  end if;
+
+  for prompt_record in
+    select
+      hangover_prompts.id,
+      hangover_prompts.user_id,
+      hangover_prompts.drinking_day
+    from public.hangover_prompts as hangover_prompts
+    where hangover_prompts.pub_crawl_id = old.id
+      and hangover_prompts.drinking_day is not null
+    for update
+  loop
+    select replacements.replacement_session_id
+    into selected_session_id
+    from public.find_hangover_replacement_session(
+      prompt_record.user_id,
+      prompt_record.drinking_day,
+      null
+    ) replacements
+    limit 1;
+
+    if selected_session_id is not null then
+      update public.hangover_prompts as hangover_prompts
+      set session_id = selected_session_id,
+          pub_crawl_id = null
+      where hangover_prompts.id = prompt_record.id;
+
+      update public.notifications as notifications
+      set reference_id = selected_session_id,
+          metadata = jsonb_set(
+            coalesce(notifications.metadata, '{}'::jsonb),
+            '{target_type}',
+            to_jsonb('session'::text),
+            true
+          )
+      from public.hangover_prompts as hangover_prompts
+      where notifications.id = hangover_prompts.notification_id
+        and notifications.type = 'hangover_check'
+        and hangover_prompts.id = prompt_record.id;
+    else
+      select replacements.replacement_pub_crawl_id
+      into selected_pub_crawl_id
+      from public.find_hangover_replacement_pub_crawl(
+        prompt_record.user_id,
+        prompt_record.drinking_day,
+        old.id
+      ) replacements
+      limit 1;
+
+      if selected_pub_crawl_id is not null then
+        update public.hangover_prompts as hangover_prompts
+        set session_id = null,
+            pub_crawl_id = selected_pub_crawl_id
+        where hangover_prompts.id = prompt_record.id;
+
+        update public.notifications as notifications
+        set reference_id = selected_pub_crawl_id,
+            metadata = jsonb_set(
+              coalesce(notifications.metadata, '{}'::jsonb),
+              '{target_type}',
+              to_jsonb('pub_crawl'::text),
+              true
+            )
+        from public.hangover_prompts as hangover_prompts
+        where notifications.id = hangover_prompts.notification_id
+          and notifications.type = 'hangover_check'
+          and hangover_prompts.id = prompt_record.id;
+      elsif tg_op = 'UPDATE' then
+        update public.hangover_prompts as hangover_prompts
+        set completed_at = coalesce(hangover_prompts.completed_at, now()),
+            last_error = 'No eligible hangover prompt representative remains for this drinking night.'
+        where hangover_prompts.id = prompt_record.id;
+      end if;
+    end if;
+  end loop;
+
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists pub_crawls_reassign_hangover_prompt_representative on public.pub_crawls;
+create trigger pub_crawls_reassign_hangover_prompt_representative
+  before delete or update of status on public.pub_crawls
+  for each row
+  execute function public.reassign_hangover_prompt_from_pub_crawl();
 
 create or replace function public.rate_hangover(
   target_kind text,
