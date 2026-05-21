@@ -101,8 +101,68 @@ assert.match(
 );
 assert.match(
   karnevalsdrukHangoverMigrationSql,
+  /create\s+or\s+replace\s+function\s+public\.is_karnevalsdruk_hangover_target[\s\S]*returns\s+boolean[\s\S]*security\s+definer[\s\S]*slug\s*=\s*'karnevalsdruk-2026'/i,
+  'KarnevalsDruk hangover target checks should be owner-scoped and limited to the real one-off challenge'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /create\s+or\s+replace\s+function\s+public\.is_karnevalsdruk_hangover_target[\s\S]*join\s+public\.challenge_entries/i,
+  'KarnevalsDruk hangover target checks should require joined challenge entries'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /create\s+or\s+replace\s+function\s+public\.is_karnevalsdruk_hangover_target[\s\S]*target_published_at\s*>=\s*challenges\.starts_at[\s\S]*target_published_at\s*<\s*challenges\.ends_at/i,
+  'KarnevalsDruk hangover target checks should only match posts inside the official event window'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /create\s+or\s+replace\s+function\s+public\.create_hangover_prompt_for_session(?:(?!\$\$;)[\s\S])*is_karnevalsdruk_hangover_target\(\s*new\.user_id\s*,\s*target_published_at\s*\)(?:(?!\$\$;)[\s\S])*return\s+new(?:(?!\$\$;)[\s\S])*insert\s+into\s+public\.hangover_prompts/i,
+  'normal session prompt creation should skip joined KarnevalsDruk event-window targets before inserting'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /create\s+or\s+replace\s+function\s+public\.create_hangover_prompt_for_pub_crawl(?:(?!\$\$;)[\s\S])*is_karnevalsdruk_hangover_target\(\s*new\.user_id\s*,\s*target_published_at\s*\)(?:(?!\$\$;)[\s\S])*return\s+new(?:(?!\$\$;)[\s\S])*insert\s+into\s+public\.hangover_prompts/i,
+  'normal pub crawl prompt creation should skip joined KarnevalsDruk event-window targets before inserting'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /create\s+or\s+replace\s+function\s+public\.suppress_karnevalsdruk_normal_hangover_prompts/i,
+  'KarnevalsDruk should have a helper to suppress stale normal hangover prompts'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /create\s+or\s+replace\s+function\s+public\.suppress_karnevalsdruk_normal_hangover_prompts(?:(?!\$\$;)[\s\S])*update\s+public\.hangover_prompts(?:(?!\$\$;)[\s\S])*set\s+drinking_day\s*=\s*null(?:(?!\$\$;)[\s\S])*completed_at\s*=\s*coalesce\(hangover_prompts\.completed_at,\s*now\(\)\)/i,
+  'KarnevalsDruk suppression should complete stale normal prompts and clear their drinking_day'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /create\s+or\s+replace\s+function\s+public\.suppress_karnevalsdruk_normal_hangover_prompts(?:(?!\$\$;)[\s\S])*(?:from|join)\s+public\.sessions\s+as\s+sessions(?:(?!\$\$;)[\s\S])*(?:from|join)\s+public\.pub_crawls\s+as\s+pub_crawls/i,
+  'KarnevalsDruk suppression should cover event-window session and pub crawl targets'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /create\s+or\s+replace\s+function\s+public\.suppress_karnevalsdruk_normal_hangover_prompts(?:(?!\$\$;)[\s\S])*timezone\('Europe\/Copenhagen',\s*challenges\.starts_at\)::date\s+as\s+event_drinking_day(?:(?!\$\$;)[\s\S])*time\s+'11:00'(?:(?!\$\$;)[\s\S])*as\s+event_prompt_at(?:(?!\$\$;)[\s\S])*not\s*\(\s*hangover_prompts\.drinking_day\s*=\s*event_targets\.event_drinking_day[\s\S]*hangover_prompts\.prompt_at\s*=\s*event_targets\.event_prompt_at\s*\)/i,
+  'KarnevalsDruk suppression should leave already-correct event prompts idempotently untouched'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /create\s+or\s+replace\s+function\s+public\.create_karnevalsdruk_hangover_prompts(?:(?!\$\$;)[\s\S])*perform\s+public\.suppress_karnevalsdruk_normal_hangover_prompts\(null\)(?:(?!\$\$;)[\s\S])*insert\s+into\s+public\.hangover_prompts/i,
+  'KarnevalsDruk finalizer prompt creation should suppress stale normal prompts before inserting the event prompt'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
   /after\s+update\s+of\s+finalized_at\s+on\s+public\.challenges(?:(?!;)[\s\S])*execute\s+function\s+public\.create_karnevalsdruk_hangover_prompts_after_finalize\(\)/i,
   'KarnevalsDruk prompt creation should run from challenge finalization'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /create\s+or\s+replace\s+function\s+public\.suppress_karnevalsdruk_hangover_prompts_after_join/i,
+  'KarnevalsDruk should suppress stale normal prompts when a user joins after posting'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /after\s+insert\s+on\s+public\.challenge_entries(?:(?!;)[\s\S])*execute\s+function\s+public\.suppress_karnevalsdruk_hangover_prompts_after_join\(\)/i,
+  'joining KarnevalsDruk should trigger suppression of stale normal hangover prompts'
 );
 assert.match(
   karnevalsdrukHangoverMigrationSql,
