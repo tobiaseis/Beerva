@@ -160,11 +160,24 @@ export const enablePushNotifications = async (): Promise<{ ok: boolean; reason?:
       });
     }
 
+    const unsubscribeCurrentSubscription = async () => {
+      if (!subscription) return;
+      try {
+        await subscription.unsubscribe();
+      } catch (unsubscribeError) {
+        console.warn('Could not clean up failed push subscription', unsubscribeError);
+      }
+    };
+
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { ok: false, reason: 'Not signed in.' };
+    if (!user) {
+      await unsubscribeCurrentSubscription();
+      return { ok: false, reason: 'Not signed in.' };
+    }
 
     const json = subscription.toJSON();
     if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) {
+      await unsubscribeCurrentSubscription();
       return { ok: false, reason: 'Subscription missing required keys.' };
     }
 
@@ -179,7 +192,10 @@ export const enablePushNotifications = async (): Promise<{ ok: boolean; reason?:
       { onConflict: 'user_id,endpoint' }
     );
 
-    if (error) return { ok: false, reason: error.message };
+    if (error) {
+      await unsubscribeCurrentSubscription();
+      return { ok: false, reason: error.message };
+    }
     return { ok: true };
   } catch (e: any) {
     console.error('enablePushNotifications failed', e);
@@ -213,6 +229,26 @@ export const isCurrentlySubscribed = async (): Promise<boolean> => {
   if (Notification.permission !== 'granted') return false;
   const registration = await navigator.serviceWorker.getRegistration('/');
   if (!registration) return false;
-  const sub = await registration.pushManager.getSubscription();
-  return !!sub;
+  const subscription = await registration.pushManager.getSubscription();
+  if (!subscription) return false;
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+
+  const json = subscription.toJSON();
+  if (!json.endpoint) return false;
+
+  const { data, error } = await supabase
+    .from('push_subscriptions')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('endpoint', json.endpoint)
+    .maybeSingle();
+
+  if (error) {
+    console.warn('Could not verify stored push subscription', error);
+    return false;
+  }
+
+  return Boolean(data);
 };

@@ -14,7 +14,10 @@ const getExportedAsyncFunctionBody = (source, name) => {
   const start = source.indexOf(marker);
   assert.notEqual(start, -1, `${name} should be exported`);
 
-  const bodyStart = source.indexOf('{', start);
+  const arrowStart = source.indexOf('=>', start);
+  assert.notEqual(arrowStart, -1, `${name} should use an arrow function`);
+
+  const bodyStart = source.indexOf('{', arrowStart);
   assert.notEqual(bodyStart, -1, `${name} should have a function body`);
 
   let depth = 0;
@@ -31,6 +34,8 @@ const getExportedAsyncFunctionBody = (source, name) => {
 };
 
 const registerServiceWorkerBody = getExportedAsyncFunctionBody(pushSource, 'registerServiceWorker');
+const enablePushNotificationsBody = getExportedAsyncFunctionBody(pushSource, 'enablePushNotifications');
+const isCurrentlySubscribedBody = getExportedAsyncFunctionBody(pushSource, 'isCurrentlySubscribed');
 const navigationCacheBlock = serviceWorkerSource.slice(
   serviceWorkerSource.indexOf("if (event.request.mode === 'navigate')"),
   serviceWorkerSource.indexOf('  // Cache-first for static assets')
@@ -108,6 +113,30 @@ assert.match(
   serviceWorkerSource,
   /const CACHE_NAME = 'beerva-cache-v10'/,
   'service worker cache should be bumped when startup caching behavior changes'
+);
+
+assert.match(
+  isCurrentlySubscribedBody,
+  /supabase\.auth\.getUser\(\)/,
+  'push enabled state should verify the signed-in Supabase user, not only browser permission'
+);
+
+assert.match(
+  isCurrentlySubscribedBody,
+  /\.from\('push_subscriptions'\)/,
+  'push enabled state should confirm the backend has a matching push subscription row'
+);
+
+assert.match(
+  isCurrentlySubscribedBody,
+  /\.eq\('endpoint', json\.endpoint\)/,
+  'push enabled state should match the stored subscription by endpoint'
+);
+
+assert.match(
+  enablePushNotificationsBody,
+  /await subscription\.unsubscribe\(\)/,
+  'failed backend registration should clean up the browser subscription so the UI cannot show a false enabled state'
 );
 
 assert.match(
