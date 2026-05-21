@@ -6,7 +6,7 @@
 
 **Architecture:** Keep the existing hangover queue, delivery worker, push deep link, and rating screen. Add one SQL migration that hooks KarnevalsDruk challenge finalization to grouped prompt creation, expands replacement lookup for event-window daytime representatives, and branches `rate_hangover` to use the official KarnevalsDruk challenge window only for joined users rating event-window targets.
 
-> Review amendment: the final migration adds `hangover_prompts.challenge_id` so KarnevalsDruk prompts dedupe by `(user_id, challenge_id)` while normal prompts keep `(user_id, drinking_day)` dedupe only when `challenge_id is null`. This avoids same-date conflicts for non-Copenhagen time zones and keeps representative reassignment scoped to either the event window or the normal drinking night.
+> Review amendment: the final migration adds `hangover_prompts.challenge_id` so KarnevalsDruk prompts dedupe by `(user_id, challenge_id)` while normal prompts keep `(user_id, drinking_day)` dedupe only when `challenge_id is null`. This avoids same-date conflicts for non-Copenhagen time zones and keeps representative reassignment scoped to either the event window or the normal drinking night. Normal ratings/reassignment also exclude joined-user KarnevalsDruk event-window posts when a local normal night overlaps the event.
 
 **Tech Stack:** Supabase Postgres SQL/functions/triggers, existing Supabase scheduled challenge finalizer and hangover worker, Node source-level contract tests, Expo web verification.
 

@@ -429,6 +429,10 @@ as $$
       and sessions.status = 'published'
       and coalesce(sessions.hide_from_feed, false) = false
       and details.drinking_day = target_drinking_day
+      and not public.is_karnevalsdruk_hangover_target(
+        sessions.user_id,
+        coalesce(sessions.published_at, sessions.ended_at, sessions.created_at)
+      )
       and (excluded_session_id is null or sessions.id <> excluded_session_id)
 
     union all
@@ -498,6 +502,10 @@ as $$
       and pub_crawls.user_id = target_user_id
       and pub_crawls.status = 'published'
       and details.drinking_day = target_drinking_day
+      and not public.is_karnevalsdruk_hangover_target(
+        pub_crawls.user_id,
+        coalesce(pub_crawls.published_at, pub_crawls.ended_at, pub_crawls.created_at)
+      )
       and (excluded_pub_crawl_id is null or pub_crawls.id <> excluded_pub_crawl_id)
 
     union all
@@ -840,7 +848,14 @@ begin
     and sessions.status = 'published'
     and coalesce(sessions.hide_from_feed, false) = false
     and coalesce(sessions.published_at, sessions.ended_at, sessions.created_at) >= night_start
-    and coalesce(sessions.published_at, sessions.ended_at, sessions.created_at) < night_end;
+    and coalesce(sessions.published_at, sessions.ended_at, sessions.created_at) < night_end
+    and (
+      karnevalsdruk_row.id is not null
+      or not public.is_karnevalsdruk_hangover_target(
+        sessions.user_id,
+        coalesce(sessions.published_at, sessions.ended_at, sessions.created_at)
+      )
+    );
 
   select coalesce(array_agg(pub_crawls.id), array[]::uuid[])
   into pub_crawl_ids
@@ -848,7 +863,14 @@ begin
   where pub_crawls.user_id = requesting_user_id
     and pub_crawls.status = 'published'
     and coalesce(pub_crawls.published_at, pub_crawls.ended_at, pub_crawls.created_at) >= night_start
-    and coalesce(pub_crawls.published_at, pub_crawls.ended_at, pub_crawls.created_at) < night_end;
+    and coalesce(pub_crawls.published_at, pub_crawls.ended_at, pub_crawls.created_at) < night_end
+    and (
+      karnevalsdruk_row.id is not null
+      or not public.is_karnevalsdruk_hangover_target(
+        pub_crawls.user_id,
+        coalesce(pub_crawls.published_at, pub_crawls.ended_at, pub_crawls.created_at)
+      )
+    );
 
   if coalesce(array_length(session_ids, 1), 0) + coalesce(array_length(pub_crawl_ids, 1), 0) = 0 then
     raise exception 'Could not find published posts for this drinking night.';

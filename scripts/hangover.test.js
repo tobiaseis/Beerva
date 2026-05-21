@@ -191,6 +191,11 @@ assert.match(
 );
 assert.match(
   karnevalsdrukHangoverMigrationSql,
+  /find_hangover_replacement_session[\s\S]*target_challenge_id\s+is\s+null[\s\S]*not\s+public\.is_karnevalsdruk_hangover_target\(\s*sessions\.user_id\s*,\s*coalesce\(sessions\.published_at,\s*sessions\.ended_at,\s*sessions\.created_at\)\s*\)/i,
+  'normal session replacement should exclude joined-user KarnevalsDruk event posts'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
   /find_hangover_replacement_pub_crawl\(\s*target_user_id\s+uuid,\s*target_drinking_day\s+date,\s*target_challenge_id\s+uuid,\s*excluded_pub_crawl_id\s+uuid\s*\)/i,
   'pub crawl representative replacement should receive the prompt challenge scope'
 );
@@ -198,6 +203,11 @@ assert.match(
   karnevalsdrukHangoverMigrationSql,
   /find_hangover_replacement_pub_crawl[\s\S]*target_challenge_id\s+is\s+null[\s\S]*calculate_hangover_prompt_details[\s\S]*target_challenge_id\s+is\s+not\s+null[\s\S]*pub_crawls\.status\s*=\s*'published'[\s\S]*starts_at[\s\S]*ends_at/i,
   'pub crawl replacement should keep normal and KarnevalsDruk candidates in separate scopes'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /find_hangover_replacement_pub_crawl[\s\S]*target_challenge_id\s+is\s+null[\s\S]*not\s+public\.is_karnevalsdruk_hangover_target\(\s*pub_crawls\.user_id\s*,\s*coalesce\(pub_crawls\.published_at,\s*pub_crawls\.ended_at,\s*pub_crawls\.created_at\)\s*\)/i,
+  'normal pub crawl replacement should exclude joined-user KarnevalsDruk event posts'
 );
 assert.match(
   karnevalsdrukHangoverMigrationSql,
@@ -238,6 +248,16 @@ assert.match(
   karnevalsdrukHangoverMigrationSql,
   /else[\s\S]*hangover_prompts\.challenge_id\s+is\s+null[\s\S]*hangover_prompts\.drinking_day\s*=\s*resolved_drinking_day/i,
   'normal rating should complete only normal drinking-day prompts'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /from\s+public\.sessions\s+as\s+sessions[\s\S]*karnevalsdruk_row\.id\s+is\s+not\s+null[\s\S]*not\s+public\.is_karnevalsdruk_hangover_target\(\s*sessions\.user_id\s*,\s*coalesce\(sessions\.published_at,\s*sessions\.ended_at,\s*sessions\.created_at\)\s*\)/i,
+  'normal session rating should exclude joined-user KarnevalsDruk event posts from overlapping local nights'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /from\s+public\.pub_crawls\s+as\s+pub_crawls[\s\S]*karnevalsdruk_row\.id\s+is\s+not\s+null[\s\S]*not\s+public\.is_karnevalsdruk_hangover_target\(\s*pub_crawls\.user_id\s*,\s*coalesce\(pub_crawls\.published_at,\s*pub_crawls\.ended_at,\s*pub_crawls\.created_at\)\s*\)/i,
+  'normal pub crawl rating should exclude joined-user KarnevalsDruk event posts from overlapping local nights'
 );
 assert.match(
   karnevalsdrukHangoverMigrationSql,

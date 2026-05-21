@@ -57,6 +57,7 @@ For all other targets, `rate_hangover` should keep the existing drinking-night r
 - prompt eligibility begins at 21:00 local time
 - after-midnight posts before 06:00 belong to the prior drinking night
 - one score applies only to the resolved 21:00 through 06:00 drinking-night window
+- joined-user KarnevalsDruk event-window posts are excluded from normal ratings and normal representative reassignment, even if a non-Copenhagen local night overlaps the event window
 
 Completing the KarnevalsDruk rating should complete the grouped prompt for that event window so retries do not surface another morning-after prompt for the same user.
 
