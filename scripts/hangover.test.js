@@ -71,7 +71,7 @@ assert.match(
 );
 assert.match(
   karnevalsdrukHangoverMigrationSql,
-  /slug\s*=\s*'karnevalsdruk-2026'/i,
+  /create\s+or\s+replace\s+function\s+public\.create_karnevalsdruk_hangover_prompts(?:(?!\$\$;)[\s\S])*slug\s*=\s*'karnevalsdruk-2026'/i,
   'KarnevalsDruk prompt creation should stay scoped to the real one-off challenge'
 );
 assert.match(
