@@ -36,6 +36,7 @@ const feedScreenPath = 'src/screens/FeedScreen.tsx';
 const navigatorPath = 'src/navigation/RootNavigator.tsx';
 const migrationPath = 'supabase/migrations/20260514170000_add_official_challenges.sql';
 const karnevalsdrukMigrationPath = 'supabase/migrations/20260520120000_add_karnevalsdruk_challenge.sql';
+const challengeLeaderboardWindowFixPath = 'supabase/migrations/20260521100000_fix_challenge_leaderboard_window.sql';
 const challengeFinalizerPath = 'supabase/functions/finalize-challenges/index.ts';
 const officialFeedPostsPath = 'src/lib/officialFeedPosts.ts';
 const officialFeedPostsApiPath = 'src/lib/officialFeedPostsApi.ts';
@@ -46,6 +47,7 @@ assert.ok(exists(challengesApiPath), 'challenge API module should exist');
 assert.ok(exists(detailScreenPath), 'challenge detail screen should exist');
 assert.ok(exists(migrationPath), 'official challenge migration should exist');
 assert.ok(exists(karnevalsdrukMigrationPath), 'KarnevalsDruk migration should exist');
+assert.ok(exists(challengeLeaderboardWindowFixPath), 'challenge leaderboard window fix migration should exist');
 assert.ok(exists(challengeFinalizerPath), 'challenge finalizer Edge Function should exist');
 assert.ok(exists(officialFeedPostsPath), 'official feed post mapper should exist');
 assert.ok(exists(officialFeedPostsApiPath), 'official feed post API should exist');
@@ -258,6 +260,43 @@ assert.match(karnevalsdrukMigrationSql, /on conflict \(challenge_id, user_id, aw
 assert.match(karnevalsdrukMigrationSql, /on conflict \(challenge_id, kind\)/i, 'official post insertion should be idempotent');
 assert.match(karnevalsdrukMigrationSql, /create or replace function public\.finalize_due_challenges/i, 'migration should expose finalization RPC');
 assert.match(karnevalsdrukMigrationSql, /cron\.schedule/i, 'migration should schedule challenge finalization');
+
+const challengeLeaderboardWindowFixSql = read(challengeLeaderboardWindowFixPath);
+assert.match(
+  challengeLeaderboardWindowFixSql,
+  /create or replace function public\.get_challenge_leaderboard/i,
+  'window fix should replace the challenge leaderboard RPC'
+);
+assert.match(
+  challengeLeaderboardWindowFixSql,
+  /join public\.session_beers/i,
+  'beer-row progress should only sum actual session_beers rows'
+);
+assert.doesNotMatch(
+  challengeLeaderboardWindowFixSql,
+  /left join public\.session_beers[\s\S]*greatest\(coalesce\(session_beers\.quantity,\s*1\),\s*0\)/i,
+  'missing out-of-window beer rows must not be counted as one default pint'
+);
+assert.match(
+  challengeLeaderboardWindowFixSql,
+  /not exists\s*\([\s\S]*from public\.session_beers/i,
+  'legacy session fallback should only apply when a session has no session_beers rows'
+);
+assert.match(
+  challengeLeaderboardWindowFixSql,
+  /coalesce\(sessions\.started_at,\s*sessions\.created_at\)\s*>=\s*target_challenge\.starts_at/i,
+  'legacy session fallback should be gated by the challenge start time'
+);
+assert.match(
+  challengeLeaderboardWindowFixSql,
+  /coalesce\(sessions\.started_at,\s*sessions\.created_at\)\s*<\s*target_challenge\.ends_at/i,
+  'legacy session fallback should be gated by the challenge end time'
+);
+assert.match(
+  challengeLeaderboardWindowFixSql,
+  /notify pgrst,\s*'reload schema'/i,
+  'schema cache should be reloaded after challenge RPC changes'
+);
 
 const finalizerSource = read(challengeFinalizerPath);
 assert.match(finalizerSource, /finalize_due_challenges/, 'scheduled function should call finalization RPC');

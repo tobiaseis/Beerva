@@ -6,6 +6,7 @@ const root = path.resolve(__dirname, '..');
 const appSource = fs.readFileSync(path.join(root, 'App.tsx'), 'utf8');
 const pushSource = fs.readFileSync(path.join(root, 'src/lib/pushNotifications.ts'), 'utf8');
 const rootNavigatorSource = fs.readFileSync(path.join(root, 'src/navigation/RootNavigator.tsx'), 'utf8');
+const serviceWorkerSource = fs.readFileSync(path.join(root, 'public/sw.js'), 'utf8');
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'public/manifest.webmanifest'), 'utf8'));
 
 const getExportedAsyncFunctionBody = (source, name) => {
@@ -30,6 +31,10 @@ const getExportedAsyncFunctionBody = (source, name) => {
 };
 
 const registerServiceWorkerBody = getExportedAsyncFunctionBody(pushSource, 'registerServiceWorker');
+const navigationCacheBlock = serviceWorkerSource.slice(
+  serviceWorkerSource.indexOf("if (event.request.mode === 'navigate')"),
+  serviceWorkerSource.indexOf('  // Cache-first for static assets')
+);
 
 assert.match(
   pushSource,
@@ -97,6 +102,24 @@ assert.doesNotMatch(
   appSource,
   /fontsLoaded && splashDone/,
   'RootNavigator should render when fonts are loaded or font loading failed'
+);
+
+assert.match(
+  serviceWorkerSource,
+  /const CACHE_NAME = 'beerva-cache-v10'/,
+  'service worker cache should be bumped when startup caching behavior changes'
+);
+
+assert.match(
+  navigationCacheBlock,
+  /return cachedResponse \|\| networkFetch/,
+  'navigation requests should show the cached app shell first for fast PWA startup'
+);
+
+assert.match(
+  navigationCacheBlock,
+  /cache\.put\('\/', responseClone\)/,
+  'cached-first startup should still refresh the app shell in the background'
 );
 
 const recordShortcut = manifest.shortcuts.find((shortcut) => shortcut.short_name === 'Record');
