@@ -76,17 +76,17 @@ assert.match(
 );
 assert.match(
   karnevalsdrukHangoverMigrationSql,
-  /join\s+public\.challenge_entries/i,
+  /create\s+or\s+replace\s+function\s+public\.create_karnevalsdruk_hangover_prompts(?:(?!\$\$;)[\s\S])*join\s+public\.challenge_entries/i,
   'KarnevalsDruk prompts should only be created for joined users'
 );
 assert.match(
   karnevalsdrukHangoverMigrationSql,
-  /sessions\.status\s*=\s*'published'[\s\S]*coalesce\(sessions\.hide_from_feed,\s*false\)\s*=\s*false/i,
+  /create\s+or\s+replace\s+function\s+public\.create_karnevalsdruk_hangover_prompts(?:(?!\$\$;)[\s\S])*sessions\.status\s*=\s*'published'(?:(?!\$\$;)[\s\S])*coalesce\(sessions\.hide_from_feed,\s*false\)\s*=\s*false/i,
   'KarnevalsDruk session prompt targets should be published and visible'
 );
 assert.match(
   karnevalsdrukHangoverMigrationSql,
-  /pub_crawls\.status\s*=\s*'published'/i,
+  /create\s+or\s+replace\s+function\s+public\.create_karnevalsdruk_hangover_prompts(?:(?!\$\$;)[\s\S])*pub_crawls\.status\s*=\s*'published'/i,
   'KarnevalsDruk pub crawl prompt targets should be published'
 );
 assert.match(
@@ -101,7 +101,7 @@ assert.match(
 );
 assert.match(
   karnevalsdrukHangoverMigrationSql,
-  /after\s+update\s+of\s+finalized_at\s+on\s+public\.challenges/i,
+  /after\s+update\s+of\s+finalized_at\s+on\s+public\.challenges(?:(?!;)[\s\S])*execute\s+function\s+public\.create_karnevalsdruk_hangover_prompts_after_finalize\(\)/i,
   'KarnevalsDruk prompt creation should run from challenge finalization'
 );
 assert.match(
