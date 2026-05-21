@@ -20,6 +20,24 @@ as $$
   );
 $$;
 
+create or replace function public.is_karnevalsdruk_event_window_target(
+  target_published_at timestamp with time zone
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.challenges as challenges
+    where challenges.slug = 'karnevalsdruk-2026'
+      and target_published_at >= challenges.starts_at
+      and target_published_at < challenges.ends_at
+  );
+$$;
+
 create or replace function public.create_hangover_prompt_for_session()
 returns trigger
 language plpgsql
@@ -42,7 +60,7 @@ begin
 
   target_published_at := coalesce(new.published_at, new.ended_at, new.created_at);
 
-  if public.is_karnevalsdruk_hangover_target(new.user_id, target_published_at) then
+  if public.is_karnevalsdruk_event_window_target(target_published_at) then
     return new;
   end if;
 
@@ -90,7 +108,7 @@ begin
 
   target_published_at := coalesce(new.published_at, new.ended_at, new.created_at);
 
-  if public.is_karnevalsdruk_hangover_target(new.user_id, target_published_at) then
+  if public.is_karnevalsdruk_event_window_target(target_published_at) then
     return new;
   end if;
 
@@ -501,8 +519,10 @@ $$;
 
 comment on function public.create_karnevalsdruk_hangover_prompts(uuid) is 'Creates one grouped May 24 11am hangover prompt for each joined KarnevalsDruk user with an event-window post.';
 comment on function public.suppress_karnevalsdruk_normal_hangover_prompts(uuid) is 'Completes unsent normal hangover prompts for joined KarnevalsDruk users when the grouped event prompt owns the event window.';
+comment on function public.is_karnevalsdruk_event_window_target(timestamp with time zone) is 'Checks whether a post timestamp falls inside the official KarnevalsDruk window, independent of challenge entry membership.';
 
 revoke execute on function public.is_karnevalsdruk_hangover_target(uuid, timestamp with time zone) from public, anon, authenticated;
+revoke execute on function public.is_karnevalsdruk_event_window_target(timestamp with time zone) from public, anon, authenticated;
 revoke execute on function public.suppress_karnevalsdruk_normal_hangover_prompts(uuid) from public, anon, authenticated;
 revoke execute on function public.suppress_karnevalsdruk_hangover_prompts_after_join() from public, anon, authenticated;
 revoke execute on function public.create_karnevalsdruk_hangover_prompts(uuid) from public, anon, authenticated;

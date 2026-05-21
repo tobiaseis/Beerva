@@ -116,13 +116,23 @@ assert.match(
 );
 assert.match(
   karnevalsdrukHangoverMigrationSql,
-  /create\s+or\s+replace\s+function\s+public\.create_hangover_prompt_for_session(?:(?!\$\$;)[\s\S])*is_karnevalsdruk_hangover_target\(\s*new\.user_id\s*,\s*target_published_at\s*\)(?:(?!\$\$;)[\s\S])*return\s+new(?:(?!\$\$;)[\s\S])*insert\s+into\s+public\.hangover_prompts/i,
-  'normal session prompt creation should skip joined KarnevalsDruk event-window targets before inserting'
+  /create\s+or\s+replace\s+function\s+public\.is_karnevalsdruk_event_window_target\(\s*target_published_at\s+timestamp\s+with\s+time\s+zone\s*\)[\s\S]*returns\s+boolean[\s\S]*security\s+definer[\s\S]*slug\s*=\s*'karnevalsdruk-2026'[\s\S]*target_published_at\s*>=\s*challenges\.starts_at[\s\S]*target_published_at\s*<\s*challenges\.ends_at/i,
+  'KarnevalsDruk event-window checks should be timestamp-only, boolean, and limited to the official one-off challenge window'
+);
+assert.doesNotMatch(
+  karnevalsdrukHangoverMigrationSql.match(/create\s+or\s+replace\s+function\s+public\.is_karnevalsdruk_event_window_target[\s\S]*?\$\$;/i)?.[0] ?? '',
+  /challenge_entries/i,
+  'KarnevalsDruk event-window checks should not require joined challenge entries'
 );
 assert.match(
   karnevalsdrukHangoverMigrationSql,
-  /create\s+or\s+replace\s+function\s+public\.create_hangover_prompt_for_pub_crawl(?:(?!\$\$;)[\s\S])*is_karnevalsdruk_hangover_target\(\s*new\.user_id\s*,\s*target_published_at\s*\)(?:(?!\$\$;)[\s\S])*return\s+new(?:(?!\$\$;)[\s\S])*insert\s+into\s+public\.hangover_prompts/i,
-  'normal pub crawl prompt creation should skip joined KarnevalsDruk event-window targets before inserting'
+  /create\s+or\s+replace\s+function\s+public\.create_hangover_prompt_for_session(?:(?!\$\$;)[\s\S])*is_karnevalsdruk_event_window_target\(\s*target_published_at\s*\)(?:(?!\$\$;)[\s\S])*return\s+new(?:(?!\$\$;)[\s\S])*insert\s+into\s+public\.hangover_prompts/i,
+  'normal session prompt creation should skip all KarnevalsDruk event-window targets before inserting'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /create\s+or\s+replace\s+function\s+public\.create_hangover_prompt_for_pub_crawl(?:(?!\$\$;)[\s\S])*is_karnevalsdruk_event_window_target\(\s*target_published_at\s*\)(?:(?!\$\$;)[\s\S])*return\s+new(?:(?!\$\$;)[\s\S])*insert\s+into\s+public\.hangover_prompts/i,
+  'normal pub crawl prompt creation should skip all KarnevalsDruk event-window targets before inserting'
 );
 assert.match(
   karnevalsdrukHangoverMigrationSql,
