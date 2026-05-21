@@ -38,6 +38,7 @@ const migrationPath = 'supabase/migrations/20260514170000_add_official_challenge
 const karnevalsdrukMigrationPath = 'supabase/migrations/20260520120000_add_karnevalsdruk_challenge.sql';
 const challengeLeaderboardWindowFixPath = 'supabase/migrations/20260521100000_fix_challenge_leaderboard_window.sql';
 const karnevalTestMigrationPath = 'supabase/migrations/20260521110000_add_karneval_test_challenge.sql';
+const removeKarnevalTestMigrationPath = 'supabase/migrations/20260521120000_remove_karneval_test_challenge.sql';
 const challengeFinalizerPath = 'supabase/functions/finalize-challenges/index.ts';
 const officialFeedPostsPath = 'src/lib/officialFeedPosts.ts';
 const officialFeedPostsApiPath = 'src/lib/officialFeedPostsApi.ts';
@@ -50,6 +51,7 @@ assert.ok(exists(migrationPath), 'official challenge migration should exist');
 assert.ok(exists(karnevalsdrukMigrationPath), 'KarnevalsDruk migration should exist');
 assert.ok(exists(challengeLeaderboardWindowFixPath), 'challenge leaderboard window fix migration should exist');
 assert.ok(exists(karnevalTestMigrationPath), 'Karneval test challenge migration should exist');
+assert.ok(exists(removeKarnevalTestMigrationPath), 'Karneval test cleanup migration should exist');
 assert.ok(exists(challengeFinalizerPath), 'challenge finalizer Edge Function should exist');
 assert.ok(exists(officialFeedPostsPath), 'official feed post mapper should exist');
 assert.ok(exists(officialFeedPostsApiPath), 'official feed post API should exist');
@@ -310,6 +312,12 @@ assert.match(karnevalTestMigrationSql, /2026-05-22 04:00:00\+00/, 'test challeng
 assert.match(karnevalTestMigrationSql, /slug = 'karnevalsdruk-2026'/, 'official finalizer should remain scoped to the real Karneval challenge');
 assert.doesNotMatch(karnevalTestMigrationSql, /winner-of-karneval-2026[\s\S]*karneval-test/i, 'test challenge should not receive the official Karneval trophy');
 assert.match(karnevalTestMigrationSql, /notify pgrst,\s*'reload schema'/i, 'test challenge migration should reload PostgREST schema cache');
+
+const removeKarnevalTestMigrationSql = read(removeKarnevalTestMigrationPath);
+assert.match(removeKarnevalTestMigrationSql, /delete from public\.challenges/i, 'cleanup should delete the test challenge row');
+assert.match(removeKarnevalTestMigrationSql, /slug = 'karneval-test'/, 'cleanup should target only the test challenge slug');
+assert.doesNotMatch(removeKarnevalTestMigrationSql, /karnevalsdruk-2026/, 'cleanup should not touch the real KarnevalsDruk challenge');
+assert.match(removeKarnevalTestMigrationSql, /notify pgrst,\s*'reload schema'/i, 'cleanup should reload PostgREST schema cache');
 
 const finalizerSource = read(challengeFinalizerPath);
 assert.match(finalizerSource, /finalize_due_challenges/, 'scheduled function should call finalization RPC');
