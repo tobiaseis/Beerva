@@ -114,6 +114,31 @@ assert.match(
   /find_hangover_replacement_pub_crawl[\s\S]*karnevalsdruk[\s\S]*pub_crawls\.status\s*=\s*'published'[\s\S]*starts_at[\s\S]*ends_at/i,
   'pub crawl representative replacement should keep daytime KarnevalsDruk event posts eligible'
 );
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /create\s+or\s+replace\s+function\s+public\.rate_hangover/i,
+  'KarnevalsDruk migration should replace rating with the one-off event window branch'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /join\s+public\.challenge_entries[\s\S]*challenge_entries\.user_id\s*=\s*requesting_user_id/i,
+  'KarnevalsDruk rating should require a joined challenge user'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /target_published_at\s*>=\s*challenges\.starts_at[\s\S]*target_published_at\s*<\s*challenges\.ends_at/i,
+  'KarnevalsDruk rating should only branch for targets inside the event window'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /night_start\s*:=\s*karnevalsdruk_row\.starts_at[\s\S]*night_end\s*:=\s*karnevalsdruk_row\.ends_at/i,
+  'KarnevalsDruk rating should score the full official challenge window'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /else[\s\S]*calculate_hangover_prompt_details[\s\S]*time\s+'21:00'[\s\S]*time\s+'06:00'/i,
+  'rating should keep the normal late-night window outside KarnevalsDruk'
+);
 
 const sendPushSource = read('supabase/functions/send-push/index.ts');
 assert.match(sendPushSource, /hangover_check/, 'push delivery should support hangover notifications');
