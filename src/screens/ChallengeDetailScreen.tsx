@@ -5,6 +5,8 @@ import { ArrowLeft, Check, Trophy, Users, X } from 'lucide-react-native';
 
 import { CachedImage } from '../components/CachedImage';
 import {
+  CHALLENGE_STATUS,
+  CHALLENGE_TYPE,
   ChallengeDetail,
   ChallengeLeaderboardEntry,
   formatChallengeProgress,
@@ -21,6 +23,13 @@ type ChallengeDetailRouteParams = {
   challengeSlug?: string;
 };
 
+const CHALLENGE_AUTO_REFRESH_INTERVAL_MS = 20000;
+
+type LoadChallengeOptions = {
+  silent?: boolean;
+  skipIfInFlight?: boolean;
+};
+
 export const ChallengeDetailScreen = ({ navigation, route }: any) => {
   const { challengeSlug } = (route?.params || {}) as ChallengeDetailRouteParams;
   const [challenge, setChallenge] = useState<ChallengeDetail | null>(null);
@@ -30,12 +39,19 @@ export const ChallengeDetailScreen = ({ navigation, route }: any) => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const requestIdRef = useRef(0);
   const hasLoadedOnce = useRef(false);
+  const challengeRef = useRef<ChallengeDetail | null>(null);
+  const requestInFlightRef = useRef(false);
 
-  const loadChallenge = useCallback(async () => {
+  const loadChallenge = useCallback(async (options: LoadChallengeOptions = {}) => {
+    if (options.skipIfInFlight && requestInFlightRef.current) {
+      return;
+    }
+
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
 
     if (!challengeSlug) {
+      challengeRef.current = null;
       setChallenge(null);
       setErrorMessage('This challenge is missing its route.');
       setLoading(false);
@@ -43,21 +59,28 @@ export const ChallengeDetailScreen = ({ navigation, route }: any) => {
       return;
     }
 
+    requestInFlightRef.current = true;
+
     try {
-      if (!hasLoadedOnce.current) {
+      if (!hasLoadedOnce.current && !options.silent) {
         setLoading(true);
       }
-      setErrorMessage(null);
+      if (!options.silent) {
+        setErrorMessage(null);
+      }
       const detail = await fetchChallengeDetail(challengeSlug);
       if (requestId !== requestIdRef.current) return;
+      challengeRef.current = detail;
       setChallenge(detail);
+      setErrorMessage(null);
     } catch (error) {
       console.error('Challenge detail fetch error:', error);
-      if (requestId === requestIdRef.current) {
+      if (requestId === requestIdRef.current && !options.silent) {
         setErrorMessage(error instanceof Error ? error.message : 'Could not load challenge.');
       }
     } finally {
       if (requestId === requestIdRef.current) {
+        requestInFlightRef.current = false;
         hasLoadedOnce.current = true;
         setLoading(false);
         setRefreshing(false);
@@ -68,6 +91,22 @@ export const ChallengeDetailScreen = ({ navigation, route }: any) => {
   useFocusEffect(
     useCallback(() => {
       loadChallenge();
+
+      const refreshInterval = setInterval(() => {
+        const currentChallenge = challengeRef.current;
+        if (
+          currentChallenge?.challengeType === CHALLENGE_TYPE.LEADERBOARD
+          && currentChallenge.status === CHALLENGE_STATUS.ACTIVE
+        ) {
+          loadChallenge({ silent: true, skipIfInFlight: true });
+        }
+      }, CHALLENGE_AUTO_REFRESH_INTERVAL_MS);
+
+      return () => {
+        requestIdRef.current += 1;
+        requestInFlightRef.current = false;
+        clearInterval(refreshInterval);
+      };
     }, [loadChallenge])
   );
 

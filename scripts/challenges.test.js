@@ -37,6 +37,7 @@ const navigatorPath = 'src/navigation/RootNavigator.tsx';
 const migrationPath = 'supabase/migrations/20260514170000_add_official_challenges.sql';
 const karnevalsdrukMigrationPath = 'supabase/migrations/20260520120000_add_karnevalsdruk_challenge.sql';
 const challengeLeaderboardWindowFixPath = 'supabase/migrations/20260521100000_fix_challenge_leaderboard_window.sql';
+const karnevalTestMigrationPath = 'supabase/migrations/20260521110000_add_karneval_test_challenge.sql';
 const challengeFinalizerPath = 'supabase/functions/finalize-challenges/index.ts';
 const officialFeedPostsPath = 'src/lib/officialFeedPosts.ts';
 const officialFeedPostsApiPath = 'src/lib/officialFeedPostsApi.ts';
@@ -48,6 +49,7 @@ assert.ok(exists(detailScreenPath), 'challenge detail screen should exist');
 assert.ok(exists(migrationPath), 'official challenge migration should exist');
 assert.ok(exists(karnevalsdrukMigrationPath), 'KarnevalsDruk migration should exist');
 assert.ok(exists(challengeLeaderboardWindowFixPath), 'challenge leaderboard window fix migration should exist');
+assert.ok(exists(karnevalTestMigrationPath), 'Karneval test challenge migration should exist');
 assert.ok(exists(challengeFinalizerPath), 'challenge finalizer Edge Function should exist');
 assert.ok(exists(officialFeedPostsPath), 'official feed post mapper should exist');
 assert.ok(exists(officialFeedPostsApiPath), 'official feed post API should exist');
@@ -298,6 +300,17 @@ assert.match(
   'schema cache should be reloaded after challenge RPC changes'
 );
 
+const karnevalTestMigrationSql = read(karnevalTestMigrationPath);
+assert.match(karnevalTestMigrationSql, /karneval-test/, 'test challenge should use a stable slug');
+assert.match(karnevalTestMigrationSql, /karneval test/, 'test challenge should use the requested title');
+assert.match(karnevalTestMigrationSql, /'leaderboard'/, 'test challenge should be a leaderboard challenge');
+assert.match(karnevalTestMigrationSql, /'true_pints'/, 'test challenge should use true-pint progress');
+assert.match(karnevalTestMigrationSql, /2026-05-21 04:00:00\+00/, 'test challenge should start today at 06:00 Copenhagen time');
+assert.match(karnevalTestMigrationSql, /2026-05-22 04:00:00\+00/, 'test challenge should end tomorrow at 06:00 Copenhagen time');
+assert.match(karnevalTestMigrationSql, /slug = 'karnevalsdruk-2026'/, 'official finalizer should remain scoped to the real Karneval challenge');
+assert.doesNotMatch(karnevalTestMigrationSql, /winner-of-karneval-2026[\s\S]*karneval-test/i, 'test challenge should not receive the official Karneval trophy');
+assert.match(karnevalTestMigrationSql, /notify pgrst,\s*'reload schema'/i, 'test challenge migration should reload PostgREST schema cache');
+
 const finalizerSource = read(challengeFinalizerPath);
 assert.match(finalizerSource, /finalize_due_challenges/, 'scheduled function should call finalization RPC');
 assert.match(finalizerSource, /CHALLENGE_FINALIZER_CRON_SECRET/, 'scheduled function should require a challenge cron secret');
@@ -330,6 +343,13 @@ assert.match(detailScreenSource, /FlatList/, 'detail screen should render leader
 assert.match(detailScreenSource, /styles\.joinButtonCompact/, 'detail screen should use compact join button styling');
 assert.match(detailScreenSource, /challenge\.joined\s*\?\s*\(/, 'detail screen should gate progress and rank behind joined state');
 assert.match(detailScreenSource, /Join to see your retroactive progress/, 'detail screen should explain retroactive progress before joining');
+assert.match(detailScreenSource, /CHALLENGE_AUTO_REFRESH_INTERVAL_MS\s*=\s*20000/, 'active challenge detail should poll every 20 seconds');
+assert.match(detailScreenSource, /setInterval/, 'active challenge detail should auto-refresh while focused');
+assert.match(detailScreenSource, /clearInterval/, 'active challenge detail should clear its auto-refresh timer on blur');
+assert.match(detailScreenSource, /challengeType\s*===\s*CHALLENGE_TYPE\.LEADERBOARD/, 'auto-refresh should be scoped to leaderboard challenges');
+assert.match(detailScreenSource, /status\s*===\s*CHALLENGE_STATUS\.ACTIVE/, 'auto-refresh should only poll while the challenge is active');
+assert.match(detailScreenSource, /silent:\s*true/, 'auto-refresh should avoid showing manual refresh errors');
+assert.match(detailScreenSource, /skipIfInFlight:\s*true/, 'auto-refresh should not overlap challenge detail requests');
 
 const feedScreenSource = read(feedScreenPath);
 assert.match(feedScreenSource, /fetchJoinedActiveChallengeSummary/, 'Feed should load joined active challenge summary');
