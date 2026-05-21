@@ -6,6 +6,8 @@
 
 **Architecture:** Keep the existing hangover queue, delivery worker, push deep link, and rating screen. Add one SQL migration that hooks KarnevalsDruk challenge finalization to grouped prompt creation, expands replacement lookup for event-window daytime representatives, and branches `rate_hangover` to use the official KarnevalsDruk challenge window only for joined users rating event-window targets.
 
+> Review amendment: the final migration adds `hangover_prompts.challenge_id` so KarnevalsDruk prompts dedupe by `(user_id, challenge_id)` while normal prompts keep `(user_id, drinking_day)` dedupe only when `challenge_id is null`. This avoids same-date conflicts for non-Copenhagen time zones and keeps representative reassignment scoped to either the event window or the normal drinking night.
+
 **Tech Stack:** Supabase Postgres SQL/functions/triggers, existing Supabase scheduled challenge finalizer and hangover worker, Node source-level contract tests, Expo web verification.
 
 ---
@@ -711,7 +713,7 @@ Expected: no uncommitted files from this change. Leave unrelated user edits unto
 - Spec coverage:
   - Joined users with KarnevalsDruk posts receive one May 24 11:00 prompt: Tasks 1-2.
   - Joined users with no event-window target are skipped because prompt creation selects from published sessions and pub crawls only: Task 2.
-  - Normal late-night prompt dedupe stays in control through `(user_id, drinking_day)`: Tasks 1-2.
+  - Normal late-night prompt dedupe stays in control through `(user_id, drinking_day)` for normal prompts, while KarnevalsDruk uses `(user_id, challenge_id)`: Tasks 1-2 plus review amendment.
   - Daytime KarnevalsDruk representative targets remain replaceable: Tasks 1-2.
   - One KarnevalsDruk rating updates the full official challenge window while other ratings keep the 21:00 to 06:00 rule: Tasks 3-4.
   - Existing challenge, notification, hangover, and web build regressions are checked: Task 5.
@@ -719,4 +721,4 @@ Expected: no uncommitted files from this change. Leave unrelated user edits unto
 - Type consistency:
   - The migration preserves the existing `rate_hangover(text, uuid, integer)` RPC signature used by `HangoverRatingScreen`.
   - Prompt delivery still receives one representative `session_id` or `pub_crawl_id` from `hangover_prompts`.
-  - KarnevalsDruk uses the existing challenge slug, challenge window timestamps, `challenge_entries`, and `hangover_prompts.drinking_day`.
+  - KarnevalsDruk uses the existing challenge slug, challenge window timestamps, `challenge_entries`, and `hangover_prompts.challenge_id`.

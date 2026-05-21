@@ -42,7 +42,7 @@ When the official KarnevalsDruk challenge is finalized, it should create one pro
 3. Choose one eligible post as the prompt representative so notification delivery and deep-linking keep a real target id.
 4. Insert a prompt scheduled for May 24, 2026 11:00 Europe/Copenhagen.
 
-The event prompt should use the existing grouped prompt dedupe for the KarnevalsDruk drinking day. A user who also has a normal after-21:00 KarnevalsDruk hangover prompt must still end up with one 11:00 notification, not two.
+The event prompt should carry an explicit KarnevalsDruk challenge scope so it cannot collide with a normal local drinking-night prompt that happens to share the same `drinking_day`. A joined user who also has a normal after-21:00 KarnevalsDruk prompt path must still end up with one event notification, not a normal duplicate.
 
 Prompt creation must be safe to retry. Repeated finalizer runs should not create duplicate hangover prompts or duplicate notifications.
 
@@ -77,7 +77,7 @@ Add a new migration that extends the current grouped hangover behavior without t
 The migration should:
 
 - update trusted KarnevalsDruk finalization to create the event prompts
-- keep prompt insertion idempotent and compatible with the `(user_id, drinking_day)` dedupe
+- keep normal prompt insertion idempotent through `(user_id, drinking_day)` while deduping KarnevalsDruk prompts through `(user_id, challenge_id)`
 - update hangover rating logic to recognize joined KarnevalsDruk targets inside the official challenge window
 - keep KarnevalsDruk prompt representatives replaceable from other eligible event-window posts when the selected target is deleted or made ineligible
 - leave the normal post triggers and normal late-night prompt helper unchanged for non-KarnevalsDruk posts
@@ -90,7 +90,7 @@ Session and pub crawl selection should use the same post timestamp fallback alre
 
 - If a joined user has no published visible session or published pub crawl in the event window, skip prompt creation because there is no rating target.
 - If the representative target disappears before delivery, choose another eligible KarnevalsDruk event-window target when one remains.
-- If finalization is retried, conflict handling should preserve one grouped prompt per user for the KarnevalsDruk drinking day.
+- If finalization is retried, conflict handling should preserve one event-scoped prompt per joined user for the KarnevalsDruk challenge.
 - If a rated target is outside the KarnevalsDruk scope, fall back to normal hangover rating behavior.
 
 ## Testing
@@ -101,7 +101,7 @@ Extend source-level contract tests to verify:
 - Joined users with no KarnevalsDruk posts are excluded.
 - The special prompt targets May 24, 2026 11:00 Europe/Copenhagen.
 - Daytime KarnevalsDruk posts can participate even when they are outside the normal 21:00 rule.
-- Late-night KarnevalsDruk posts still dedupe to one prompt.
+- Late-night KarnevalsDruk posts still dedupe to one challenge-scoped prompt without blocking normal prompts outside the event window.
 - KarnevalsDruk rating uses the full challenge window for sessions and pub crawls.
 - Normal hangover prompt and rating rules remain unchanged outside KarnevalsDruk.
 

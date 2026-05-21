@@ -1,3 +1,17 @@
+alter table public.hangover_prompts
+  add column if not exists challenge_id uuid references public.challenges(id) on delete cascade;
+
+drop index if exists public.hangover_prompts_user_drinking_day_unique_idx;
+
+create unique index if not exists hangover_prompts_user_drinking_day_unique_idx
+  on public.hangover_prompts(user_id, drinking_day)
+  where drinking_day is not null
+    and challenge_id is null;
+
+create unique index if not exists hangover_prompts_user_challenge_unique_idx
+  on public.hangover_prompts(user_id, challenge_id)
+  where challenge_id is not null;
+
 create or replace function public.is_karnevalsdruk_hangover_target(
   target_user_id uuid,
   target_published_at timestamp with time zone
@@ -14,24 +28,6 @@ as $$
     join public.challenge_entries as challenge_entries
       on challenge_entries.challenge_id = challenges.id
       and challenge_entries.user_id = target_user_id
-    where challenges.slug = 'karnevalsdruk-2026'
-      and target_published_at >= challenges.starts_at
-      and target_published_at < challenges.ends_at
-  );
-$$;
-
-create or replace function public.is_karnevalsdruk_event_window_target(
-  target_published_at timestamp with time zone
-)
-returns boolean
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select exists (
-    select 1
-    from public.challenges as challenges
     where challenges.slug = 'karnevalsdruk-2026'
       and target_published_at >= challenges.starts_at
       and target_published_at < challenges.ends_at
@@ -60,7 +56,7 @@ begin
 
   target_published_at := coalesce(new.published_at, new.ended_at, new.created_at);
 
-  if public.is_karnevalsdruk_event_window_target(target_published_at) then
+  if public.is_karnevalsdruk_hangover_target(new.user_id, target_published_at) then
     return new;
   end if;
 
@@ -80,7 +76,10 @@ begin
 
   insert into public.hangover_prompts (user_id, session_id, prompt_at, drinking_day)
   values (new.user_id, new.id, resolved_prompt_at, resolved_drinking_day)
-  on conflict (user_id, drinking_day) where drinking_day is not null do nothing;
+  on conflict (user_id, drinking_day)
+    where drinking_day is not null
+      and challenge_id is null
+    do nothing;
 
   return new;
 end;
@@ -108,7 +107,7 @@ begin
 
   target_published_at := coalesce(new.published_at, new.ended_at, new.created_at);
 
-  if public.is_karnevalsdruk_event_window_target(target_published_at) then
+  if public.is_karnevalsdruk_hangover_target(new.user_id, target_published_at) then
     return new;
   end if;
 
@@ -128,7 +127,10 @@ begin
 
   insert into public.hangover_prompts (user_id, pub_crawl_id, prompt_at, drinking_day)
   values (new.user_id, new.id, resolved_prompt_at, resolved_drinking_day)
-  on conflict (user_id, drinking_day) where drinking_day is not null do nothing;
+  on conflict (user_id, drinking_day)
+    where drinking_day is not null
+      and challenge_id is null
+    do nothing;
 
   return new;
 end;
@@ -150,12 +152,7 @@ begin
     select
       challenges.id,
       challenges.starts_at,
-      challenges.ends_at,
-      timezone('Europe/Copenhagen', challenges.starts_at)::date as event_drinking_day,
-      (
-        timezone('Europe/Copenhagen', challenges.ends_at)::date
-        + time '11:00'
-      ) at time zone 'Europe/Copenhagen' as event_prompt_at
+      challenges.ends_at
     from public.challenges as challenges
     where challenges.slug = 'karnevalsdruk-2026'
     limit 1
@@ -172,9 +169,7 @@ begin
     select
       joined_users.user_id,
       sessions.id as session_id,
-      null::uuid as pub_crawl_id,
-      target_challenge.event_drinking_day,
-      target_challenge.event_prompt_at
+      null::uuid as pub_crawl_id
     from target_challenge
     join joined_users on true
     join public.sessions as sessions
@@ -189,9 +184,7 @@ begin
     select
       joined_users.user_id,
       null::uuid as session_id,
-      pub_crawls.id as pub_crawl_id,
-      target_challenge.event_drinking_day,
-      target_challenge.event_prompt_at
+      pub_crawls.id as pub_crawl_id
     from target_challenge
     join joined_users on true
     join public.pub_crawls as pub_crawls
@@ -207,15 +200,12 @@ begin
         last_error = 'Superseded by KarnevalsDruk grouped hangover prompt.'
     from event_targets
     where hangover_prompts.user_id = event_targets.user_id
+      and hangover_prompts.challenge_id is null
       and hangover_prompts.sent_at is null
       and hangover_prompts.completed_at is null
       and (
         (event_targets.session_id is not null and hangover_prompts.session_id = event_targets.session_id)
         or (event_targets.pub_crawl_id is not null and hangover_prompts.pub_crawl_id = event_targets.pub_crawl_id)
-      )
-      and not (
-        hangover_prompts.drinking_day = event_targets.event_drinking_day
-        and hangover_prompts.prompt_at = event_targets.event_prompt_at
       )
     returning 1
   )
@@ -314,6 +304,7 @@ begin
     user_id,
     session_id,
     pub_crawl_id,
+    challenge_id,
     prompt_at,
     drinking_day
   )
@@ -321,6 +312,7 @@ begin
     representative_targets.user_id,
     representative_targets.session_id,
     representative_targets.pub_crawl_id,
+    target_challenge.id,
     (
       timezone('Europe/Copenhagen', target_challenge.ends_at)::date
       + time '11:00'
@@ -328,7 +320,9 @@ begin
     timezone('Europe/Copenhagen', target_challenge.starts_at)::date
   from representative_targets
   cross join target_challenge
-  on conflict (user_id, drinking_day) where drinking_day is not null do nothing;
+  on conflict (user_id, challenge_id)
+    where challenge_id is not null
+    do nothing;
 
   get diagnostics inserted_prompt_count = row_count;
   return inserted_prompt_count;
@@ -389,10 +383,14 @@ from public.challenges as challenges
 where challenges.slug = 'karnevalsdruk-2026'
   and challenges.finalized_at is not null;
 
+drop function if exists public.find_hangover_replacement_session(uuid, date, uuid);
+drop function if exists public.find_hangover_replacement_pub_crawl(uuid, date, uuid);
+
 create or replace function public.find_hangover_replacement_session(
   target_user_id uuid,
   target_drinking_day date,
-  excluded_session_id uuid default null
+  target_challenge_id uuid,
+  excluded_session_id uuid
 )
 returns table (
   replacement_session_id uuid
@@ -401,7 +399,7 @@ language sql
 stable
 set search_path = public
 as $$
-  with karnevalsdruk as (
+  with target_challenge as (
     select
       challenges.id,
       challenges.starts_at,
@@ -410,7 +408,9 @@ as $$
     join public.challenge_entries as challenge_entries
       on challenge_entries.challenge_id = challenges.id
       and challenge_entries.user_id = target_user_id
-    where challenges.slug = 'karnevalsdruk-2026'
+    where target_challenge_id is not null
+      and challenges.id = target_challenge_id
+      and challenges.slug = 'karnevalsdruk-2026'
       and timezone('Europe/Copenhagen', challenges.starts_at)::date = target_drinking_day
     limit 1
   ),
@@ -424,25 +424,27 @@ as $$
       coalesce(sessions.published_at, sessions.ended_at, sessions.created_at),
       public.resolve_hangover_timezone(sessions.timezone, sessions.user_id)
     ) details
-    where sessions.user_id = target_user_id
+    where target_challenge_id is null
+      and sessions.user_id = target_user_id
       and sessions.status = 'published'
       and coalesce(sessions.hide_from_feed, false) = false
       and details.drinking_day = target_drinking_day
       and (excluded_session_id is null or sessions.id <> excluded_session_id)
 
-    union
+    union all
 
     select
       sessions.id,
       coalesce(sessions.published_at, sessions.ended_at, sessions.created_at) as target_published_at,
       sessions.created_at as target_created_at
     from public.sessions as sessions
-    join karnevalsdruk on true
-    where sessions.user_id = target_user_id
+    join target_challenge on true
+    where target_challenge_id is not null
+      and sessions.user_id = target_user_id
       and sessions.status = 'published'
       and coalesce(sessions.hide_from_feed, false) = false
-      and coalesce(sessions.published_at, sessions.ended_at, sessions.created_at) >= karnevalsdruk.starts_at
-      and coalesce(sessions.published_at, sessions.ended_at, sessions.created_at) < karnevalsdruk.ends_at
+      and coalesce(sessions.published_at, sessions.ended_at, sessions.created_at) >= target_challenge.starts_at
+      and coalesce(sessions.published_at, sessions.ended_at, sessions.created_at) < target_challenge.ends_at
       and (excluded_session_id is null or sessions.id <> excluded_session_id)
   )
   select candidates.id
@@ -457,7 +459,8 @@ $$;
 create or replace function public.find_hangover_replacement_pub_crawl(
   target_user_id uuid,
   target_drinking_day date,
-  excluded_pub_crawl_id uuid default null
+  target_challenge_id uuid,
+  excluded_pub_crawl_id uuid
 )
 returns table (
   replacement_pub_crawl_id uuid
@@ -466,7 +469,7 @@ language sql
 stable
 set search_path = public
 as $$
-  with karnevalsdruk as (
+  with target_challenge as (
     select
       challenges.id,
       challenges.starts_at,
@@ -475,7 +478,9 @@ as $$
     join public.challenge_entries as challenge_entries
       on challenge_entries.challenge_id = challenges.id
       and challenge_entries.user_id = target_user_id
-    where challenges.slug = 'karnevalsdruk-2026'
+    where target_challenge_id is not null
+      and challenges.id = target_challenge_id
+      and challenges.slug = 'karnevalsdruk-2026'
       and timezone('Europe/Copenhagen', challenges.starts_at)::date = target_drinking_day
     limit 1
   ),
@@ -489,23 +494,25 @@ as $$
       coalesce(pub_crawls.published_at, pub_crawls.ended_at, pub_crawls.created_at),
       public.resolve_hangover_timezone(pub_crawls.timezone, pub_crawls.user_id)
     ) details
-    where pub_crawls.user_id = target_user_id
+    where target_challenge_id is null
+      and pub_crawls.user_id = target_user_id
       and pub_crawls.status = 'published'
       and details.drinking_day = target_drinking_day
       and (excluded_pub_crawl_id is null or pub_crawls.id <> excluded_pub_crawl_id)
 
-    union
+    union all
 
     select
       pub_crawls.id,
       coalesce(pub_crawls.published_at, pub_crawls.ended_at, pub_crawls.created_at) as target_published_at,
       pub_crawls.created_at as target_created_at
     from public.pub_crawls as pub_crawls
-    join karnevalsdruk on true
-    where pub_crawls.user_id = target_user_id
+    join target_challenge on true
+    where target_challenge_id is not null
+      and pub_crawls.user_id = target_user_id
       and pub_crawls.status = 'published'
-      and coalesce(pub_crawls.published_at, pub_crawls.ended_at, pub_crawls.created_at) >= karnevalsdruk.starts_at
-      and coalesce(pub_crawls.published_at, pub_crawls.ended_at, pub_crawls.created_at) < karnevalsdruk.ends_at
+      and coalesce(pub_crawls.published_at, pub_crawls.ended_at, pub_crawls.created_at) >= target_challenge.starts_at
+      and coalesce(pub_crawls.published_at, pub_crawls.ended_at, pub_crawls.created_at) < target_challenge.ends_at
       and (excluded_pub_crawl_id is null or pub_crawls.id <> excluded_pub_crawl_id)
   )
   select candidates.id
@@ -517,12 +524,219 @@ as $$
   limit 1;
 $$;
 
+create or replace function public.reassign_hangover_prompt_from_session()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  prompt_record record;
+  selected_session_id uuid;
+  selected_pub_crawl_id uuid;
+begin
+  if tg_op = 'UPDATE' and new.status = 'published' and coalesce(new.hide_from_feed, false) = false then
+    return new;
+  end if;
+
+  for prompt_record in
+    select
+      hangover_prompts.id,
+      hangover_prompts.user_id,
+      hangover_prompts.drinking_day,
+      hangover_prompts.challenge_id
+    from public.hangover_prompts as hangover_prompts
+    where hangover_prompts.session_id = old.id
+      and (
+        hangover_prompts.drinking_day is not null
+        or hangover_prompts.challenge_id is not null
+      )
+    for update
+  loop
+    select replacements.replacement_session_id
+    into selected_session_id
+    from public.find_hangover_replacement_session(
+      prompt_record.user_id,
+      prompt_record.drinking_day,
+      prompt_record.challenge_id,
+      old.id
+    ) replacements
+    limit 1;
+
+    if selected_session_id is not null then
+      update public.hangover_prompts as hangover_prompts
+      set session_id = selected_session_id,
+          pub_crawl_id = null
+      where hangover_prompts.id = prompt_record.id;
+
+      update public.notifications as notifications
+      set reference_id = selected_session_id,
+          metadata = jsonb_set(
+            coalesce(notifications.metadata, '{}'::jsonb),
+            '{target_type}',
+            to_jsonb('session'::text),
+            true
+          )
+      from public.hangover_prompts as hangover_prompts
+      where notifications.id = hangover_prompts.notification_id
+        and notifications.type = 'hangover_check'
+        and hangover_prompts.id = prompt_record.id;
+    else
+      select replacements.replacement_pub_crawl_id
+      into selected_pub_crawl_id
+      from public.find_hangover_replacement_pub_crawl(
+        prompt_record.user_id,
+        prompt_record.drinking_day,
+        prompt_record.challenge_id,
+        null
+      ) replacements
+      limit 1;
+
+      if selected_pub_crawl_id is not null then
+        update public.hangover_prompts as hangover_prompts
+        set session_id = null,
+            pub_crawl_id = selected_pub_crawl_id
+        where hangover_prompts.id = prompt_record.id;
+
+        update public.notifications as notifications
+        set reference_id = selected_pub_crawl_id,
+            metadata = jsonb_set(
+              coalesce(notifications.metadata, '{}'::jsonb),
+              '{target_type}',
+              to_jsonb('pub_crawl'::text),
+              true
+            )
+        from public.hangover_prompts as hangover_prompts
+        where notifications.id = hangover_prompts.notification_id
+          and notifications.type = 'hangover_check'
+          and hangover_prompts.id = prompt_record.id;
+      elsif tg_op = 'UPDATE' then
+        update public.hangover_prompts as hangover_prompts
+        set completed_at = coalesce(hangover_prompts.completed_at, now()),
+            last_error = 'No eligible hangover prompt representative remains for this prompt scope.'
+        where hangover_prompts.id = prompt_record.id;
+      end if;
+    end if;
+  end loop;
+
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+
+  return new;
+end;
+$$;
+
+create or replace function public.reassign_hangover_prompt_from_pub_crawl()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  prompt_record record;
+  selected_session_id uuid;
+  selected_pub_crawl_id uuid;
+begin
+  if tg_op = 'UPDATE' and new.status = 'published' then
+    return new;
+  end if;
+
+  for prompt_record in
+    select
+      hangover_prompts.id,
+      hangover_prompts.user_id,
+      hangover_prompts.drinking_day,
+      hangover_prompts.challenge_id
+    from public.hangover_prompts as hangover_prompts
+    where hangover_prompts.pub_crawl_id = old.id
+      and (
+        hangover_prompts.drinking_day is not null
+        or hangover_prompts.challenge_id is not null
+      )
+    for update
+  loop
+    select replacements.replacement_session_id
+    into selected_session_id
+    from public.find_hangover_replacement_session(
+      prompt_record.user_id,
+      prompt_record.drinking_day,
+      prompt_record.challenge_id,
+      null
+    ) replacements
+    limit 1;
+
+    if selected_session_id is not null then
+      update public.hangover_prompts as hangover_prompts
+      set session_id = selected_session_id,
+          pub_crawl_id = null
+      where hangover_prompts.id = prompt_record.id;
+
+      update public.notifications as notifications
+      set reference_id = selected_session_id,
+          metadata = jsonb_set(
+            coalesce(notifications.metadata, '{}'::jsonb),
+            '{target_type}',
+            to_jsonb('session'::text),
+            true
+          )
+      from public.hangover_prompts as hangover_prompts
+      where notifications.id = hangover_prompts.notification_id
+        and notifications.type = 'hangover_check'
+        and hangover_prompts.id = prompt_record.id;
+    else
+      select replacements.replacement_pub_crawl_id
+      into selected_pub_crawl_id
+      from public.find_hangover_replacement_pub_crawl(
+        prompt_record.user_id,
+        prompt_record.drinking_day,
+        prompt_record.challenge_id,
+        old.id
+      ) replacements
+      limit 1;
+
+      if selected_pub_crawl_id is not null then
+        update public.hangover_prompts as hangover_prompts
+        set session_id = null,
+            pub_crawl_id = selected_pub_crawl_id
+        where hangover_prompts.id = prompt_record.id;
+
+        update public.notifications as notifications
+        set reference_id = selected_pub_crawl_id,
+            metadata = jsonb_set(
+              coalesce(notifications.metadata, '{}'::jsonb),
+              '{target_type}',
+              to_jsonb('pub_crawl'::text),
+              true
+            )
+        from public.hangover_prompts as hangover_prompts
+        where notifications.id = hangover_prompts.notification_id
+          and notifications.type = 'hangover_check'
+          and hangover_prompts.id = prompt_record.id;
+      elsif tg_op = 'UPDATE' then
+        update public.hangover_prompts as hangover_prompts
+        set completed_at = coalesce(hangover_prompts.completed_at, now()),
+            last_error = 'No eligible hangover prompt representative remains for this prompt scope.'
+        where hangover_prompts.id = prompt_record.id;
+      end if;
+    end if;
+  end loop;
+
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+
+  return new;
+end;
+$$;
+
 comment on function public.create_karnevalsdruk_hangover_prompts(uuid) is 'Creates one grouped May 24 11am hangover prompt for each joined KarnevalsDruk user with an event-window post.';
 comment on function public.suppress_karnevalsdruk_normal_hangover_prompts(uuid) is 'Completes unsent normal hangover prompts for joined KarnevalsDruk users when the grouped event prompt owns the event window.';
-comment on function public.is_karnevalsdruk_event_window_target(timestamp with time zone) is 'Checks whether a post timestamp falls inside the official KarnevalsDruk window, independent of challenge entry membership.';
+comment on column public.hangover_prompts.challenge_id is 'Challenge scope for one-off event hangover prompts that must dedupe separately from normal local drinking nights.';
+comment on index public.hangover_prompts_user_drinking_day_unique_idx is 'Ensures one normal hangover prompt per user per local drinking night.';
+comment on index public.hangover_prompts_user_challenge_unique_idx is 'Ensures one event-scoped hangover prompt per user per challenge.';
 
 revoke execute on function public.is_karnevalsdruk_hangover_target(uuid, timestamp with time zone) from public, anon, authenticated;
-revoke execute on function public.is_karnevalsdruk_event_window_target(timestamp with time zone) from public, anon, authenticated;
 revoke execute on function public.suppress_karnevalsdruk_normal_hangover_prompts(uuid) from public, anon, authenticated;
 revoke execute on function public.suppress_karnevalsdruk_hangover_prompts_after_join() from public, anon, authenticated;
 revoke execute on function public.create_karnevalsdruk_hangover_prompts(uuid) from public, anon, authenticated;
@@ -650,14 +864,26 @@ begin
       hangover_rated_at = now()
   where pub_crawls.id = any(pub_crawl_ids);
 
-  update public.hangover_prompts as hangover_prompts
-  set completed_at = coalesce(hangover_prompts.completed_at, now())
-  where hangover_prompts.user_id = requesting_user_id
-    and (
-      hangover_prompts.drinking_day = resolved_drinking_day
-      or hangover_prompts.session_id = any(session_ids)
-      or hangover_prompts.pub_crawl_id = any(pub_crawl_ids)
-    );
+  if karnevalsdruk_row.id is not null then
+    update public.hangover_prompts as hangover_prompts
+    set completed_at = coalesce(hangover_prompts.completed_at, now())
+    where hangover_prompts.user_id = requesting_user_id
+      and (
+        hangover_prompts.challenge_id = karnevalsdruk_row.id
+        or hangover_prompts.session_id = any(session_ids)
+        or hangover_prompts.pub_crawl_id = any(pub_crawl_ids)
+      );
+  else
+    update public.hangover_prompts as hangover_prompts
+    set completed_at = coalesce(hangover_prompts.completed_at, now())
+    where hangover_prompts.user_id = requesting_user_id
+      and hangover_prompts.challenge_id is null
+      and (
+        hangover_prompts.drinking_day = resolved_drinking_day
+        or hangover_prompts.session_id = any(session_ids)
+        or hangover_prompts.pub_crawl_id = any(pub_crawl_ids)
+      );
+  end if;
 
   return query
   select 'session'::text, sessions.id, sessions.hangover_score

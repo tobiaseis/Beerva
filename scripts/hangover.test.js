@@ -96,8 +96,23 @@ assert.match(
 );
 assert.match(
   karnevalsdrukHangoverMigrationSql,
-  /on\s+conflict\s*\(\s*user_id\s*,\s*drinking_day\s*\)\s*where\s+drinking_day\s+is\s+not\s+null\s+do\s+nothing/i,
-  'KarnevalsDruk prompts should reuse grouped drinking-day dedupe'
+  /alter\s+table\s+public\.hangover_prompts[\s\S]*add\s+column\s+if\s+not\s+exists\s+challenge_id\s+uuid/i,
+  'KarnevalsDruk prompts should carry an explicit challenge scope'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /drop\s+index\s+if\s+exists\s+public\.hangover_prompts_user_drinking_day_unique_idx[\s\S]*create\s+unique\s+index[\s\S]*hangover_prompts_user_drinking_day_unique_idx[\s\S]*on\s+public\.hangover_prompts\s*\(\s*user_id\s*,\s*drinking_day\s*\)[\s\S]*where\s+drinking_day\s+is\s+not\s+null\s+and\s+challenge_id\s+is\s+null/i,
+  'normal hangover prompts should keep user drinking-day dedupe without blocking challenge prompts'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /create\s+unique\s+index[\s\S]*hangover_prompts_user_challenge_unique_idx[\s\S]*on\s+public\.hangover_prompts\s*\(\s*user_id\s*,\s*challenge_id\s*\)[\s\S]*where\s+challenge_id\s+is\s+not\s+null/i,
+  'KarnevalsDruk prompts should dedupe by user and challenge instead of drinking_day alone'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /insert\s+into\s+public\.hangover_prompts\s*\([\s\S]*challenge_id[\s\S]*\)[\s\S]*target_challenge\.id[\s\S]*on\s+conflict\s*\(\s*user_id\s*,\s*challenge_id\s*\)\s*where\s+challenge_id\s+is\s+not\s+null\s+do\s+nothing/i,
+  'KarnevalsDruk prompt insertion should use challenge-scoped conflict handling'
 );
 assert.match(
   karnevalsdrukHangoverMigrationSql,
@@ -116,23 +131,13 @@ assert.match(
 );
 assert.match(
   karnevalsdrukHangoverMigrationSql,
-  /create\s+or\s+replace\s+function\s+public\.is_karnevalsdruk_event_window_target\(\s*target_published_at\s+timestamp\s+with\s+time\s+zone\s*\)[\s\S]*returns\s+boolean[\s\S]*security\s+definer[\s\S]*slug\s*=\s*'karnevalsdruk-2026'[\s\S]*target_published_at\s*>=\s*challenges\.starts_at[\s\S]*target_published_at\s*<\s*challenges\.ends_at/i,
-  'KarnevalsDruk event-window checks should be timestamp-only, boolean, and limited to the official one-off challenge window'
-);
-assert.doesNotMatch(
-  karnevalsdrukHangoverMigrationSql.match(/create\s+or\s+replace\s+function\s+public\.is_karnevalsdruk_event_window_target[\s\S]*?\$\$;/i)?.[0] ?? '',
-  /challenge_entries/i,
-  'KarnevalsDruk event-window checks should not require joined challenge entries'
+  /create\s+or\s+replace\s+function\s+public\.create_hangover_prompt_for_session(?:(?!\$\$;)[\s\S])*is_karnevalsdruk_hangover_target\(\s*new\.user_id\s*,\s*target_published_at\s*\)(?:(?!\$\$;)[\s\S])*return\s+new(?:(?!\$\$;)[\s\S])*insert\s+into\s+public\.hangover_prompts/i,
+  'normal session prompt creation should skip joined-user KarnevalsDruk targets before inserting'
 );
 assert.match(
   karnevalsdrukHangoverMigrationSql,
-  /create\s+or\s+replace\s+function\s+public\.create_hangover_prompt_for_session(?:(?!\$\$;)[\s\S])*is_karnevalsdruk_event_window_target\(\s*target_published_at\s*\)(?:(?!\$\$;)[\s\S])*return\s+new(?:(?!\$\$;)[\s\S])*insert\s+into\s+public\.hangover_prompts/i,
-  'normal session prompt creation should skip all KarnevalsDruk event-window targets before inserting'
-);
-assert.match(
-  karnevalsdrukHangoverMigrationSql,
-  /create\s+or\s+replace\s+function\s+public\.create_hangover_prompt_for_pub_crawl(?:(?!\$\$;)[\s\S])*is_karnevalsdruk_event_window_target\(\s*target_published_at\s*\)(?:(?!\$\$;)[\s\S])*return\s+new(?:(?!\$\$;)[\s\S])*insert\s+into\s+public\.hangover_prompts/i,
-  'normal pub crawl prompt creation should skip all KarnevalsDruk event-window targets before inserting'
+  /create\s+or\s+replace\s+function\s+public\.create_hangover_prompt_for_pub_crawl(?:(?!\$\$;)[\s\S])*is_karnevalsdruk_hangover_target\(\s*new\.user_id\s*,\s*target_published_at\s*\)(?:(?!\$\$;)[\s\S])*return\s+new(?:(?!\$\$;)[\s\S])*insert\s+into\s+public\.hangover_prompts/i,
+  'normal pub crawl prompt creation should skip joined-user KarnevalsDruk targets before inserting'
 );
 assert.match(
   karnevalsdrukHangoverMigrationSql,
@@ -151,8 +156,8 @@ assert.match(
 );
 assert.match(
   karnevalsdrukHangoverMigrationSql,
-  /create\s+or\s+replace\s+function\s+public\.suppress_karnevalsdruk_normal_hangover_prompts(?:(?!\$\$;)[\s\S])*timezone\('Europe\/Copenhagen',\s*challenges\.starts_at\)::date\s+as\s+event_drinking_day(?:(?!\$\$;)[\s\S])*time\s+'11:00'(?:(?!\$\$;)[\s\S])*as\s+event_prompt_at(?:(?!\$\$;)[\s\S])*not\s*\(\s*hangover_prompts\.drinking_day\s*=\s*event_targets\.event_drinking_day[\s\S]*hangover_prompts\.prompt_at\s*=\s*event_targets\.event_prompt_at\s*\)/i,
-  'KarnevalsDruk suppression should leave already-correct event prompts idempotently untouched'
+  /create\s+or\s+replace\s+function\s+public\.suppress_karnevalsdruk_normal_hangover_prompts(?:(?!\$\$;)[\s\S])*hangover_prompts\.challenge_id\s+is\s+null/i,
+  'KarnevalsDruk suppression should only complete stale normal prompts'
 );
 assert.match(
   karnevalsdrukHangoverMigrationSql,
@@ -176,13 +181,33 @@ assert.match(
 );
 assert.match(
   karnevalsdrukHangoverMigrationSql,
-  /find_hangover_replacement_session[\s\S]*karnevalsdruk[\s\S]*sessions\.status\s*=\s*'published'[\s\S]*starts_at[\s\S]*ends_at/i,
-  'session representative replacement should keep daytime KarnevalsDruk event posts eligible'
+  /find_hangover_replacement_session\(\s*target_user_id\s+uuid,\s*target_drinking_day\s+date,\s*target_challenge_id\s+uuid,\s*excluded_session_id\s+uuid\s*\)/i,
+  'session representative replacement should receive the prompt challenge scope'
 );
 assert.match(
   karnevalsdrukHangoverMigrationSql,
-  /find_hangover_replacement_pub_crawl[\s\S]*karnevalsdruk[\s\S]*pub_crawls\.status\s*=\s*'published'[\s\S]*starts_at[\s\S]*ends_at/i,
-  'pub crawl representative replacement should keep daytime KarnevalsDruk event posts eligible'
+  /find_hangover_replacement_session[\s\S]*target_challenge_id\s+is\s+null[\s\S]*calculate_hangover_prompt_details[\s\S]*target_challenge_id\s+is\s+not\s+null[\s\S]*sessions\.status\s*=\s*'published'[\s\S]*starts_at[\s\S]*ends_at/i,
+  'session replacement should keep normal and KarnevalsDruk candidates in separate scopes'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /find_hangover_replacement_pub_crawl\(\s*target_user_id\s+uuid,\s*target_drinking_day\s+date,\s*target_challenge_id\s+uuid,\s*excluded_pub_crawl_id\s+uuid\s*\)/i,
+  'pub crawl representative replacement should receive the prompt challenge scope'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /find_hangover_replacement_pub_crawl[\s\S]*target_challenge_id\s+is\s+null[\s\S]*calculate_hangover_prompt_details[\s\S]*target_challenge_id\s+is\s+not\s+null[\s\S]*pub_crawls\.status\s*=\s*'published'[\s\S]*starts_at[\s\S]*ends_at/i,
+  'pub crawl replacement should keep normal and KarnevalsDruk candidates in separate scopes'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /create\s+or\s+replace\s+function\s+public\.reassign_hangover_prompt_from_session[\s\S]*hangover_prompts\.challenge_id[\s\S]*find_hangover_replacement_session\(\s*prompt_record\.user_id,\s*prompt_record\.drinking_day,\s*prompt_record\.challenge_id,\s*old\.id\s*\)/i,
+  'session reassignment should pass the prompt challenge scope into replacement lookup'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /create\s+or\s+replace\s+function\s+public\.reassign_hangover_prompt_from_pub_crawl[\s\S]*hangover_prompts\.challenge_id[\s\S]*find_hangover_replacement_pub_crawl\(\s*prompt_record\.user_id,\s*prompt_record\.drinking_day,\s*prompt_record\.challenge_id,\s*old\.id\s*\)/i,
+  'pub crawl reassignment should pass the prompt challenge scope into replacement lookup'
 );
 assert.match(
   karnevalsdrukHangoverMigrationSql,
@@ -203,6 +228,16 @@ assert.match(
   karnevalsdrukHangoverMigrationSql,
   /create\s+or\s+replace\s+function\s+public\.rate_hangover(?:(?!\$\$;)[\s\S])*night_start\s*:=\s*karnevalsdruk_row\.starts_at(?:(?!\$\$;)[\s\S])*night_end\s*:=\s*karnevalsdruk_row\.ends_at/i,
   'KarnevalsDruk rating should score the full official challenge window'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /karnevalsdruk_row\.id\s+is\s+not\s+null[\s\S]*hangover_prompts\.challenge_id\s*=\s*karnevalsdruk_row\.id/i,
+  'KarnevalsDruk rating should complete the challenge-scoped prompt'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /else[\s\S]*hangover_prompts\.challenge_id\s+is\s+null[\s\S]*hangover_prompts\.drinking_day\s*=\s*resolved_drinking_day/i,
+  'normal rating should complete only normal drinking-day prompts'
 );
 assert.match(
   karnevalsdrukHangoverMigrationSql,
