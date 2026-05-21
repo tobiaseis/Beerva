@@ -92,6 +92,7 @@ Session and pub crawl selection should use the same post timestamp fallback alre
 - If a joined user has no published visible session or published pub crawl in the event window, skip prompt creation because there is no rating target.
 - If the representative target disappears before delivery, choose another eligible KarnevalsDruk event-window target when one remains.
 - If finalization is retried, conflict handling should preserve one event-scoped prompt per joined user for the KarnevalsDruk challenge.
+- If a post-before-join normal event-window prompt was already sent or completed, treat that normal prompt as the user's one hangover prompt and do not insert a second KarnevalsDruk prompt.
 - If a rated target is outside the KarnevalsDruk scope, fall back to normal hangover rating behavior.
 
 ## Testing

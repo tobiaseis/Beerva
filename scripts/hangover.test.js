@@ -166,6 +166,21 @@ assert.match(
 );
 assert.match(
   karnevalsdrukHangoverMigrationSql,
+  /create\s+or\s+replace\s+function\s+public\.create_karnevalsdruk_hangover_prompts(?:(?!\$\$;)[\s\S])*already_handled_users(?:(?!\$\$;)[\s\S])*hangover_prompts\.challenge_id\s+is\s+null(?:(?!\$\$;)[\s\S])*hangover_prompts\.sent_at\s+is\s+not\s+null/i,
+  'KarnevalsDruk finalizer should treat already-sent normal event prompts as handled'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /create\s+or\s+replace\s+function\s+public\.create_karnevalsdruk_hangover_prompts(?:(?!\$\$;)[\s\S])*already_handled_users(?:(?!\$\$;)[\s\S])*hangover_prompts\.completed_at\s+is\s+not\s+null(?:(?!\$\$;)[\s\S])*hangover_prompts\.last_error\s+is\s+distinct\s+from\s+'Superseded by KarnevalsDruk grouped hangover prompt\.'/i,
+  'KarnevalsDruk finalizer should not treat freshly suppressed unsent normal prompts as already handled'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /representative_targets\s+as\s*\([\s\S]*from\s+eligible_targets[\s\S]*where\s+not\s+exists\s*\([\s\S]*from\s+already_handled_users/i,
+  'KarnevalsDruk finalizer should skip inserting a second prompt for already-handled event users'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
   /after\s+update\s+of\s+finalized_at\s+on\s+public\.challenges(?:(?!;)[\s\S])*execute\s+function\s+public\.create_karnevalsdruk_hangover_prompts_after_finalize\(\)/i,
   'KarnevalsDruk prompt creation should run from challenge finalization'
 );
@@ -218,6 +233,16 @@ assert.match(
   karnevalsdrukHangoverMigrationSql,
   /create\s+or\s+replace\s+function\s+public\.reassign_hangover_prompt_from_pub_crawl[\s\S]*hangover_prompts\.challenge_id[\s\S]*find_hangover_replacement_pub_crawl\(\s*prompt_record\.user_id,\s*prompt_record\.drinking_day,\s*prompt_record\.challenge_id,\s*old\.id\s*\)/i,
   'pub crawl reassignment should pass the prompt challenge scope into replacement lookup'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /revoke\s+execute\s+on\s+function\s+public\.find_hangover_replacement_session\(uuid,\s*date,\s*uuid,\s*uuid\)\s+from\s+public,\s*anon,\s*authenticated/i,
+  'internal session replacement helper should not be directly executable by app roles'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /revoke\s+execute\s+on\s+function\s+public\.find_hangover_replacement_pub_crawl\(uuid,\s*date,\s*uuid,\s*uuid\)\s+from\s+public,\s*anon,\s*authenticated/i,
+  'internal pub crawl replacement helper should not be directly executable by app roles'
 );
 assert.match(
   karnevalsdrukHangoverMigrationSql,

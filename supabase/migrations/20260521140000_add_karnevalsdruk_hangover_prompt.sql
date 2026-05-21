@@ -287,12 +287,33 @@ begin
       and coalesce(pub_crawls.published_at, pub_crawls.ended_at, pub_crawls.created_at) >= target_challenge.starts_at
       and coalesce(pub_crawls.published_at, pub_crawls.ended_at, pub_crawls.created_at) < target_challenge.ends_at
   ),
+  already_handled_users as (
+    select distinct eligible_targets.user_id
+    from eligible_targets
+    join public.hangover_prompts as hangover_prompts
+      on hangover_prompts.user_id = eligible_targets.user_id
+      and hangover_prompts.challenge_id is null
+      and (
+        (eligible_targets.session_id is not null and hangover_prompts.session_id = eligible_targets.session_id)
+        or (eligible_targets.pub_crawl_id is not null and hangover_prompts.pub_crawl_id = eligible_targets.pub_crawl_id)
+      )
+    where hangover_prompts.sent_at is not null
+      or (
+        hangover_prompts.completed_at is not null
+        and hangover_prompts.last_error is distinct from 'Superseded by KarnevalsDruk grouped hangover prompt.'
+      )
+  ),
   representative_targets as (
     select distinct on (eligible_targets.user_id)
       eligible_targets.user_id,
       eligible_targets.session_id,
       eligible_targets.pub_crawl_id
     from eligible_targets
+    where not exists (
+      select 1
+      from already_handled_users
+      where already_handled_users.user_id = eligible_targets.user_id
+    )
     order by
       eligible_targets.user_id,
       eligible_targets.target_published_at asc,
@@ -748,6 +769,8 @@ revoke execute on function public.is_karnevalsdruk_hangover_target(uuid, timesta
 revoke execute on function public.suppress_karnevalsdruk_normal_hangover_prompts(uuid) from public, anon, authenticated;
 revoke execute on function public.suppress_karnevalsdruk_hangover_prompts_after_join() from public, anon, authenticated;
 revoke execute on function public.create_karnevalsdruk_hangover_prompts(uuid) from public, anon, authenticated;
+revoke execute on function public.find_hangover_replacement_session(uuid, date, uuid, uuid) from public, anon, authenticated;
+revoke execute on function public.find_hangover_replacement_pub_crawl(uuid, date, uuid, uuid) from public, anon, authenticated;
 
 create or replace function public.rate_hangover(
   target_kind text,
