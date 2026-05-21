@@ -12,6 +12,7 @@ const allMigrationSql = fs.readdirSync(path.join(root, 'supabase/migrations'))
 
 const migrationSql = read('supabase/migrations/20260512170000_add_hangover_prompts.sql');
 const nightDedupeMigrationPath = 'supabase/migrations/20260521130000_group_hangover_prompts_by_drinking_night.sql';
+const karnevalsdrukHangoverMigrationPath = 'supabase/migrations/20260521140000_add_karnevalsdruk_hangover_prompt.sql';
 
 assert.match(migrationSql, /add column if not exists timezone text/i, 'sessions and pub crawls should snapshot a timezone');
 assert.match(migrationSql, /add column if not exists hangover_score smallint/i, 'posts should store a hangover score');
@@ -59,6 +60,60 @@ assert.match(nightDedupeMigrationSql, /coalesce\(pub_crawls\.published_at, pub_c
 assert.match(nightDedupeMigrationSql, /session_id = any\(session_ids\)/i, 'rating should complete legacy session prompt rows in the group');
 assert.match(nightDedupeMigrationSql, /pub_crawl_id = any\(pub_crawl_ids\)/i, 'rating should complete legacy pub crawl prompt rows in the group');
 assert.match(nightDedupeMigrationSql, /drinking_day = resolved_drinking_day/i, 'rating should complete grouped prompt rows for the resolved night');
+
+assert.ok(exists(karnevalsdrukHangoverMigrationPath), 'KarnevalsDruk hangover migration should exist');
+const karnevalsdrukHangoverMigrationSql = read(karnevalsdrukHangoverMigrationPath);
+
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /create\s+or\s+replace\s+function\s+public\.create_karnevalsdruk_hangover_prompts/i,
+  'KarnevalsDruk should have an idempotent prompt creation function'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /slug\s*=\s*'karnevalsdruk-2026'/i,
+  'KarnevalsDruk prompt creation should stay scoped to the real one-off challenge'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /join\s+public\.challenge_entries/i,
+  'KarnevalsDruk prompts should only be created for joined users'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /sessions\.status\s*=\s*'published'[\s\S]*coalesce\(sessions\.hide_from_feed,\s*false\)\s*=\s*false/i,
+  'KarnevalsDruk session prompt targets should be published and visible'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /pub_crawls\.status\s*=\s*'published'/i,
+  'KarnevalsDruk pub crawl prompt targets should be published'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /time\s+'11:00'[\s\S]*Europe\/Copenhagen/i,
+  'KarnevalsDruk prompts should target May 24 11am Copenhagen time'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /on\s+conflict\s*\(\s*user_id\s*,\s*drinking_day\s*\)\s*where\s+drinking_day\s+is\s+not\s+null\s+do\s+nothing/i,
+  'KarnevalsDruk prompts should reuse grouped drinking-day dedupe'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /after\s+update\s+of\s+finalized_at\s+on\s+public\.challenges/i,
+  'KarnevalsDruk prompt creation should run from challenge finalization'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /find_hangover_replacement_session[\s\S]*karnevalsdruk[\s\S]*sessions\.status\s*=\s*'published'[\s\S]*starts_at[\s\S]*ends_at/i,
+  'session representative replacement should keep daytime KarnevalsDruk event posts eligible'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /find_hangover_replacement_pub_crawl[\s\S]*karnevalsdruk[\s\S]*pub_crawls\.status\s*=\s*'published'[\s\S]*starts_at[\s\S]*ends_at/i,
+  'pub crawl representative replacement should keep daytime KarnevalsDruk event posts eligible'
+);
 
 const sendPushSource = read('supabase/functions/send-push/index.ts');
 assert.match(sendPushSource, /hangover_check/, 'push delivery should support hangover notifications');
