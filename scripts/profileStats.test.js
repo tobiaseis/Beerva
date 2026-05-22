@@ -387,6 +387,39 @@ assert.equal(awardTrophy.title, 'Winner of Karneval 2026');
 assert.equal(awardTrophy.kind, 'challenge');
 assert.equal(awardTrophy.earned, true);
 
+const karnevalPintTrophy = mapChallengeAwardRow({
+  id: 'award-pints',
+  challenge_id: 'challenge-1',
+  user_id: 'user-1',
+  award_slug: 'king-of-karneval-pints',
+  title: 'King of Karneval',
+  description: 'Congrats, you outperformed everyone else by being an absolute legend.',
+  rank: 1,
+  progress_value: 12.4,
+  metadata: { award_category: 'pints' },
+  awarded_at: '2026-05-24T04:05:00Z',
+});
+
+const karnevalAbvTrophy = mapChallengeAwardRow({
+  id: 'award-abv',
+  challenge_id: 'challenge-1',
+  user_id: 'user-2',
+  award_slug: 'king-of-karneval-abv',
+  title: 'King of Karneval',
+  description: 'Are you ok? You had the highest ABV-average',
+  rank: 1,
+  progress_value: 8.8,
+  metadata: { award_category: 'average_abv' },
+  awarded_at: '2026-05-24T04:05:00Z',
+});
+
+assert.equal(karnevalPintTrophy.id, 'challenge-award-king-of-karneval-pints');
+assert.equal(karnevalPintTrophy.title, 'King of Karneval');
+assert.equal(karnevalPintTrophy.description, 'Congrats, you outperformed everyone else by being an absolute legend.');
+assert.equal(karnevalAbvTrophy.id, 'challenge-award-king-of-karneval-abv');
+assert.equal(karnevalAbvTrophy.title, 'King of Karneval');
+assert.equal(karnevalAbvTrophy.description, 'Are you ok? You had the highest ABV-average');
+
 const profileStatsSource = readSource('src/lib/profileStats.ts');
 assert.match(profileStatsSource, /\| 'challenge'/, 'TrophyKind should include challenge awards');
 

@@ -39,6 +39,7 @@ const karnevalsdrukMigrationPath = 'supabase/migrations/20260520120000_add_karne
 const challengeLeaderboardWindowFixPath = 'supabase/migrations/20260521100000_fix_challenge_leaderboard_window.sql';
 const karnevalTestMigrationPath = 'supabase/migrations/20260521110000_add_karneval_test_challenge.sql';
 const removeKarnevalTestMigrationPath = 'supabase/migrations/20260521120000_remove_karneval_test_challenge.sql';
+const karnevalsdrukDualAwardsMigrationPath = 'supabase/migrations/20260522110000_add_karnevalsdruk_dual_awards.sql';
 const challengeFinalizerPath = 'supabase/functions/finalize-challenges/index.ts';
 const officialFeedPostsPath = 'src/lib/officialFeedPosts.ts';
 const officialFeedPostsApiPath = 'src/lib/officialFeedPostsApi.ts';
@@ -52,6 +53,7 @@ assert.ok(exists(karnevalsdrukMigrationPath), 'KarnevalsDruk migration should ex
 assert.ok(exists(challengeLeaderboardWindowFixPath), 'challenge leaderboard window fix migration should exist');
 assert.ok(exists(karnevalTestMigrationPath), 'Karneval test challenge migration should exist');
 assert.ok(exists(removeKarnevalTestMigrationPath), 'Karneval test cleanup migration should exist');
+assert.ok(exists(karnevalsdrukDualAwardsMigrationPath), 'KarnevalsDruk dual awards migration should exist');
 assert.ok(exists(challengeFinalizerPath), 'challenge finalizer Edge Function should exist');
 assert.ok(exists(officialFeedPostsPath), 'official feed post mapper should exist');
 assert.ok(exists(officialFeedPostsApiPath), 'official feed post API should exist');
@@ -318,6 +320,26 @@ assert.match(removeKarnevalTestMigrationSql, /delete from public\.challenges/i, 
 assert.match(removeKarnevalTestMigrationSql, /slug = 'karneval-test'/, 'cleanup should target only the test challenge slug');
 assert.doesNotMatch(removeKarnevalTestMigrationSql, /karnevalsdruk-2026/, 'cleanup should not touch the real KarnevalsDruk challenge');
 assert.match(removeKarnevalTestMigrationSql, /notify pgrst,\s*'reload schema'/i, 'cleanup should reload PostgREST schema cache');
+
+const karnevalsdrukDualAwardsMigrationSql = read(karnevalsdrukDualAwardsMigrationPath);
+assert.match(karnevalsdrukDualAwardsMigrationSql, /create or replace function public\.finalize_due_challenges/i, 'dual awards migration should replace finalization RPC');
+assert.match(karnevalsdrukDualAwardsMigrationSql, /king-of-karneval-pints/, 'pint winner should receive a distinct award slug');
+assert.match(karnevalsdrukDualAwardsMigrationSql, /king-of-karneval-abv/, 'ABV winner should receive a distinct award slug');
+assert.match(karnevalsdrukDualAwardsMigrationSql, /King of Karneval/g, 'both trophies should use the requested title');
+assert.match(
+  karnevalsdrukDualAwardsMigrationSql,
+  /Congrats, you outperformed everyone else by being an absolute legend\./,
+  'pint trophy should use the requested subtitle'
+);
+assert.match(
+  karnevalsdrukDualAwardsMigrationSql,
+  /Are you ok\? You had the highest ABV-average/,
+  'ABV trophy should use the requested subtitle'
+);
+assert.match(karnevalsdrukDualAwardsMigrationSql, /average_abv\s+desc/i, 'ABV winner should be ranked by highest average ABV');
+assert.match(karnevalsdrukDualAwardsMigrationSql, /pint_user_id/, 'finalizer should track the pint winner separately');
+assert.match(karnevalsdrukDualAwardsMigrationSql, /abv_user_id/, 'finalizer should track the ABV winner separately');
+assert.match(karnevalsdrukDualAwardsMigrationSql, /on conflict \(challenge_id, user_id, award_slug\)/i, 'both challenge awards should remain idempotent');
 
 const finalizerSource = read(challengeFinalizerPath);
 assert.match(finalizerSource, /finalize_due_challenges/, 'scheduled function should call finalization RPC');
