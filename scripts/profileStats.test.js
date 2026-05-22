@@ -9,6 +9,7 @@ const challengeAwardsApiPath = 'src/lib/challengeAwardsApi.ts';
 const profileStatsPanelPath = 'src/components/ProfileStatsPanel.tsx';
 const profileScreenPath = 'src/screens/ProfileScreen.tsx';
 const userProfileScreenPath = 'src/screens/UserProfileScreen.tsx';
+const specialMixedDrinksMigrationPath = 'supabase/migrations/20260522100000_add_special_mixed_drinks.sql';
 
 const exists = (relativePath) => fs.existsSync(path.resolve(__dirname, '..', relativePath));
 const readSource = (relativePath) => fs.readFileSync(path.resolve(__dirname, '..', relativePath), 'utf8');
@@ -41,6 +42,7 @@ const {
   getBeverageOptionSearchText,
   getBeerLine,
   getSessionBeerSummary,
+  VOLUMES,
 } = loadTypeScriptModule('src/lib/sessionBeers.ts');
 
 const baseRow = (overrides = {}) => ({
@@ -226,6 +228,28 @@ assert.equal(
   'average ABV should be volume-weighted so small strong shots do not dominate full pints'
 );
 
+const specialMixedDrinkStats = calculateStats([
+  baseRow({ session_id: 'pint', beer_name: 'Pint Beer', volume: 'Pint', abv: 5 }),
+  baseRow({ session_id: 'vodka-orange', beer_name: 'Vodka Orange Juice', volume: '2cl', abv: 37 }),
+  baseRow({ session_id: 'coffee-bailey', beer_name: 'Coffee Bailey', volume: '4cl', abv: 17 }),
+]);
+
+assert.equal(
+  specialMixedDrinkStats.totalPints,
+  1.1,
+  'Vodka Orange Juice and Coffee Bailey should count only their special mixed-drink serving volumes toward true pints'
+);
+assert.equal(
+  specialMixedDrinkStats.avgAbv,
+  6.8,
+  'Vodka Orange Juice and Coffee Bailey should use their counted serving volumes for weighted average ABV'
+);
+assert.equal(
+  specialMixedDrinkStats.strongestAbv,
+  5,
+  'Vodka Orange Juice and Coffee Bailey should not count toward beer-only strongest ABV trophies'
+);
+
 const newBeverageStats = calculateStats([
   baseRow({ session_id: 'rtd-1', beer_name: 'Breezer Mango', volume: '27.5cl', quantity: 2, abv: 4 }),
   baseRow({ session_id: 'rtd-2', beer_name: 'Shaker Sport', volume: '33cl', quantity: 1, abv: 4 }),
@@ -404,6 +428,40 @@ assert.deepEqual(
   'Jägerbomb should only count the 2cl Jägermeister shot at 35% ABV'
 );
 
+assert.deepEqual(
+  beerDraftToPayload({ beerName: 'Vodka Orange Juice', volume: 'Pint', quantity: 1 }),
+  {
+    beer_name: 'Vodka Orange Juice',
+    volume: '2cl',
+    quantity: 1,
+    abv: 37,
+  },
+  'Vodka Orange Juice should use the same counted serving logic as Vodka Red Bull'
+);
+
+assert.deepEqual(
+  beerDraftToPayload({ beerName: 'Coffee Bailey', volume: 'Pint', quantity: 1 }),
+  {
+    beer_name: 'Coffee Bailey',
+    volume: '4cl',
+    quantity: 1,
+    abv: 17,
+  },
+  'Coffee Bailey should count only 4cl at 17% ABV'
+);
+
+assert.equal(
+  getBeverageDefaultVolume('Coffee Bailey'),
+  '4cl',
+  'Coffee Bailey should lock to the counted 4cl serving'
+);
+
+assert.equal(
+  VOLUMES.includes('4cl'),
+  true,
+  'locked Coffee Bailey servings should have a visible 4cl size option'
+);
+
 assert.equal(
   getBeverageCatalogItem('Jaegerbomb')?.name,
   'Jägerbomb',
@@ -438,6 +496,35 @@ assert.equal(
   getSessionBeerSummary([{ beer_name: 'Sambuca Shot', volume: '2cl', quantity: 4, abv: 38 }]),
   '4 x Sambuca Shot',
   'Sambuca summaries should use the same spaced quantity format as other drinks'
+);
+
+assert.equal(
+  getBeerLine({ beer_name: 'Coffee Bailey', volume: '4cl', quantity: 1 }),
+  '1 x Coffee Bailey',
+  'Coffee Bailey post text should use the special mixed-drink quantity format'
+);
+
+assert.ok(exists(specialMixedDrinksMigrationPath), 'special mixed drinks migration should exist');
+const specialMixedDrinksMigration = readSource(specialMixedDrinksMigrationPath);
+assert.match(
+  specialMixedDrinksMigration,
+  /beer_name = 'Vodka Orange Juice'[\s\S]*volume = '2cl'[\s\S]*abv = 37/,
+  'migration should normalize Vodka Orange Juice to the Vodka Red Bull counted serving'
+);
+assert.match(
+  specialMixedDrinksMigration,
+  /beer_name = 'Coffee Bailey'[\s\S]*volume = '4cl'[\s\S]*abv = 17/,
+  'migration should normalize Coffee Bailey to 4cl at 17% ABV'
+);
+assert.match(
+  specialMixedDrinksMigration,
+  /'vodka orange juice'/,
+  'migration profile stats should classify Vodka Orange Juice as a special mixed drink'
+);
+assert.match(
+  specialMixedDrinksMigration,
+  /'coffee bailey'/,
+  'migration profile stats should classify Coffee Bailey as a special mixed drink'
 );
 
 assert.equal(

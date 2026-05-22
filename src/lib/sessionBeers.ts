@@ -247,6 +247,14 @@ export const BEER_CATALOG: BeerCatalogItem[] = [
     aliases: ['Vodka Redbull', 'Vodka RedBull'],
   },
   {
+    name: 'Vodka Orange Juice',
+    abv: 37.0,
+    kind: 'mixed',
+    defaultVolume: '2cl',
+    countedVolume: '2cl',
+    aliases: ['Vodka Orange'],
+  },
+  {
     name: 'Jägerbomb',
     abv: 35.0,
     kind: 'mixed',
@@ -262,11 +270,19 @@ export const BEER_CATALOG: BeerCatalogItem[] = [
     countedVolume: '2cl',
     aliases: ['Sambuca', 'Sambuca Shots', 'Black Sambuca', 'Sambucca', 'Sambucca Shot'],
   },
+  {
+    name: 'Coffee Bailey',
+    abv: 17.0,
+    kind: 'mixed',
+    defaultVolume: '4cl',
+    countedVolume: '4cl',
+    aliases: ['Coffee Baileys', "Coffee Bailey's", "Coffee Baileys'"],
+  },
 ];
 
 export const BEER_OPTIONS = BEER_CATALOG.map((beer) => beer.name);
 
-export const VOLUMES = ['2cl', '25cl', '27.5cl', '33cl', '40cl', '44cl', '50cl', 'Pint', '1L'];
+export const VOLUMES = ['2cl', '4cl', '25cl', '27.5cl', '33cl', '40cl', '44cl', '50cl', 'Pint', '1L'];
 
 export const createEmptyBeerDraft = (): BeerDraft => ({
   beerName: '',

@@ -265,7 +265,16 @@ const RTD_BEVERAGE_KEYS = new Set([
 
 const JAGERBOMB_KEYS = new Set(['jagerbomb', 'jager bomb', 'jaegerbomb', 'jaeger bomb']);
 const SAMBUCA_KEYS = new Set(['sambuca shot', 'sambuca', 'sambuca shots', 'black sambuca', 'sambucca', 'sambucca shot']);
-const VODKA_REDBULL_KEYS = new Set(['vodkaredbull', 'vodka red bull', 'vodka redbull']);
+const SPECIAL_MIXED_DRINK_KEYS = new Set([
+  'vodkaredbull',
+  'vodka red bull',
+  'vodka redbull',
+  'vodka orange juice',
+  'vodka orange',
+  'coffee bailey',
+  'coffee baileys',
+  'coffee bailey s',
+]);
 
 const isRtdBeverage = (beerName?: string | null) => {
   const key = getBeverageStatKey(beerName);
@@ -282,9 +291,9 @@ const isSambuca = (beerName?: string | null) => {
   return key ? SAMBUCA_KEYS.has(key) : false;
 };
 
-const isVodkaRedBull = (beerName?: string | null) => {
+const isSpecialMixedDrink = (beerName?: string | null) => {
   const key = getBeverageStatKey(beerName);
-  return key ? VODKA_REDBULL_KEYS.has(key) : false;
+  return key ? SPECIAL_MIXED_DRINK_KEYS.has(key) : false;
 };
 
 const getSessionCreatedAt = (session: ProfileSessionStatsRow) => (
@@ -334,7 +343,7 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
     const isRtd = isRtdBeverage(session.beer_name);
     const isJager = isJagerbomb(session.beer_name);
     const isSambu = isSambuca(session.beer_name);
-    const isVrb = isVodkaRedBull(session.beer_name);
+    const isSpecialMixed = isSpecialMixedDrink(session.beer_name);
 
     totalMl += sessionVolumeMl;
     weightedAbvSum += sessionVolumeMl * abv;
@@ -343,7 +352,7 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
     if (weekKey) {
       pintsPerWeek.set(weekKey, (pintsPerWeek.get(weekKey) || 0) + sessionPints);
     }
-    if (!isRtd && !isJager && !isSambu && !isVrb) {
+    if (!isRtd && !isJager && !isSambu && !isSpecialMixed) {
       strongestAbv = Math.max(strongestAbv, abv);
     }
     hasLateNightSession = hasLateNightSession || isLateNightSession(sessionCreatedAt);
