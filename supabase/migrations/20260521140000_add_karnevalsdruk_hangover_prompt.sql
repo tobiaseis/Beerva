@@ -287,6 +287,62 @@ begin
       and coalesce(pub_crawls.published_at, pub_crawls.ended_at, pub_crawls.created_at) >= target_challenge.starts_at
       and coalesce(pub_crawls.published_at, pub_crawls.ended_at, pub_crawls.created_at) < target_challenge.ends_at
   ),
+  completed_normal_ratings as (
+    select distinct on (eligible_targets.user_id)
+      eligible_targets.user_id,
+      coalesce(session_scores.hangover_score, pub_crawl_scores.hangover_score) as hangover_score,
+      coalesce(
+        session_scores.hangover_rated_at,
+        pub_crawl_scores.hangover_rated_at,
+        hangover_prompts.completed_at,
+        now()
+      ) as hangover_rated_at
+    from eligible_targets
+    join public.hangover_prompts as hangover_prompts
+      on hangover_prompts.user_id = eligible_targets.user_id
+      and hangover_prompts.challenge_id is null
+      and (
+        (eligible_targets.session_id is not null and hangover_prompts.session_id = eligible_targets.session_id)
+        or (eligible_targets.pub_crawl_id is not null and hangover_prompts.pub_crawl_id = eligible_targets.pub_crawl_id)
+      )
+    left join public.sessions as session_scores
+      on session_scores.id = eligible_targets.session_id
+    left join public.pub_crawls as pub_crawl_scores
+      on pub_crawl_scores.id = eligible_targets.pub_crawl_id
+    where hangover_prompts.completed_at is not null
+      and hangover_prompts.last_error is distinct from 'Superseded by KarnevalsDruk grouped hangover prompt.'
+      and coalesce(session_scores.hangover_score, pub_crawl_scores.hangover_score) is not null
+    order by
+      eligible_targets.user_id,
+      hangover_prompts.completed_at desc,
+      eligible_targets.target_published_at asc,
+      eligible_targets.target_created_at asc,
+      eligible_targets.target_kind asc,
+      eligible_targets.target_id asc
+  ),
+  propagated_completed_rating_sessions as (
+    update public.sessions as sessions
+    set hangover_score = completed_normal_ratings.hangover_score,
+        hangover_rated_at = coalesce(completed_normal_ratings.hangover_rated_at, now())
+    from target_challenge, completed_normal_ratings
+    where sessions.user_id = completed_normal_ratings.user_id
+      and sessions.status = 'published'
+      and coalesce(sessions.hide_from_feed, false) = false
+      and coalesce(sessions.published_at, sessions.ended_at, sessions.created_at) >= target_challenge.starts_at
+      and coalesce(sessions.published_at, sessions.ended_at, sessions.created_at) < target_challenge.ends_at
+    returning sessions.id
+  ),
+  propagated_completed_rating_pub_crawls as (
+    update public.pub_crawls as pub_crawls
+    set hangover_score = completed_normal_ratings.hangover_score,
+        hangover_rated_at = coalesce(completed_normal_ratings.hangover_rated_at, now())
+    from target_challenge, completed_normal_ratings
+    where pub_crawls.user_id = completed_normal_ratings.user_id
+      and pub_crawls.status = 'published'
+      and coalesce(pub_crawls.published_at, pub_crawls.ended_at, pub_crawls.created_at) >= target_challenge.starts_at
+      and coalesce(pub_crawls.published_at, pub_crawls.ended_at, pub_crawls.created_at) < target_challenge.ends_at
+    returning pub_crawls.id
+  ),
   already_handled_users as (
     select distinct eligible_targets.user_id
     from eligible_targets
@@ -297,11 +353,12 @@ begin
         (eligible_targets.session_id is not null and hangover_prompts.session_id = eligible_targets.session_id)
         or (eligible_targets.pub_crawl_id is not null and hangover_prompts.pub_crawl_id = eligible_targets.pub_crawl_id)
       )
+
     where hangover_prompts.sent_at is not null
-      or (
-        hangover_prompts.completed_at is not null
-        and hangover_prompts.last_error is distinct from 'Superseded by KarnevalsDruk grouped hangover prompt.'
-      )
+
+    union
+
+    select completed_normal_ratings.user_id from completed_normal_ratings
   ),
   representative_targets as (
     select distinct on (eligible_targets.user_id)

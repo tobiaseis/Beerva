@@ -171,8 +171,23 @@ assert.match(
 );
 assert.match(
   karnevalsdrukHangoverMigrationSql,
-  /create\s+or\s+replace\s+function\s+public\.create_karnevalsdruk_hangover_prompts(?:(?!\$\$;)[\s\S])*already_handled_users(?:(?!\$\$;)[\s\S])*hangover_prompts\.completed_at\s+is\s+not\s+null(?:(?!\$\$;)[\s\S])*hangover_prompts\.last_error\s+is\s+distinct\s+from\s+'Superseded by KarnevalsDruk grouped hangover prompt\.'/i,
-  'KarnevalsDruk finalizer should not treat freshly suppressed unsent normal prompts as already handled'
+  /create\s+or\s+replace\s+function\s+public\.create_karnevalsdruk_hangover_prompts(?:(?!\$\$;)[\s\S])*completed_normal_ratings(?:(?!\$\$;)[\s\S])*coalesce\(session_scores\.hangover_score,\s*pub_crawl_scores\.hangover_score\)\s+is\s+not\s+null/i,
+  'KarnevalsDruk finalizer should only treat completed normal prompts as handled when a score exists'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /create\s+or\s+replace\s+function\s+public\.create_karnevalsdruk_hangover_prompts(?:(?!\$\$;)[\s\S])*update\s+public\.sessions\s+as\s+sessions(?:(?!\$\$;)[\s\S])*hangover_score\s*=\s*completed_normal_ratings\.hangover_score(?:(?!\$\$;)[\s\S])*from\s+target_challenge,\s*completed_normal_ratings/i,
+  'KarnevalsDruk finalizer should propagate completed pre-join normal session ratings across event sessions'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /create\s+or\s+replace\s+function\s+public\.create_karnevalsdruk_hangover_prompts(?:(?!\$\$;)[\s\S])*update\s+public\.pub_crawls\s+as\s+pub_crawls(?:(?!\$\$;)[\s\S])*hangover_score\s*=\s*completed_normal_ratings\.hangover_score(?:(?!\$\$;)[\s\S])*from\s+target_challenge,\s*completed_normal_ratings/i,
+  'KarnevalsDruk finalizer should propagate completed pre-join normal pub crawl ratings across event pub crawls'
+);
+assert.match(
+  karnevalsdrukHangoverMigrationSql,
+  /already_handled_users\s+as\s*\([\s\S]*select\s+completed_normal_ratings\.user_id\s+from\s+completed_normal_ratings/i,
+  'KarnevalsDruk finalizer should skip a second prompt after propagating a completed normal rating'
 );
 assert.match(
   karnevalsdrukHangoverMigrationSql,
