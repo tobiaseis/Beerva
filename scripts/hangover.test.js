@@ -13,6 +13,7 @@ const allMigrationSql = fs.readdirSync(path.join(root, 'supabase/migrations'))
 const migrationSql = read('supabase/migrations/20260512170000_add_hangover_prompts.sql');
 const nightDedupeMigrationPath = 'supabase/migrations/20260521130000_group_hangover_prompts_by_drinking_night.sql';
 const karnevalsdrukHangoverMigrationPath = 'supabase/migrations/20260521140000_add_karnevalsdruk_hangover_prompt.sql';
+const karnevalsdrukJoinResilienceMigrationPath = 'supabase/migrations/20260522120000_make_karnevalsdruk_join_resilient.sql';
 
 assert.match(migrationSql, /add column if not exists timezone text/i, 'sessions and pub crawls should snapshot a timezone');
 assert.match(migrationSql, /add column if not exists hangover_score smallint/i, 'posts should store a hangover score');
@@ -208,6 +209,24 @@ assert.match(
   karnevalsdrukHangoverMigrationSql,
   /after\s+insert\s+on\s+public\.challenge_entries(?:(?!;)[\s\S])*execute\s+function\s+public\.suppress_karnevalsdruk_hangover_prompts_after_join\(\)/i,
   'joining KarnevalsDruk should trigger suppression of stale normal hangover prompts'
+);
+assert.ok(exists(karnevalsdrukJoinResilienceMigrationPath), 'KarnevalsDruk join resilience migration should exist');
+const karnevalsdrukJoinResilienceMigrationSql = read(karnevalsdrukJoinResilienceMigrationPath);
+
+assert.match(
+  karnevalsdrukJoinResilienceMigrationSql,
+  /create\s+or\s+replace\s+function\s+public\.suppress_karnevalsdruk_hangover_prompts_after_join/i,
+  'KarnevalsDruk join resilience migration should replace the after-join trigger function'
+);
+assert.match(
+  karnevalsdrukJoinResilienceMigrationSql,
+  /exception\s+when\s+others\s+then[\s\S]*raise\s+warning/i,
+  'KarnevalsDruk after-join cleanup failures should be logged instead of aborting challenge entry inserts'
+);
+assert.match(
+  karnevalsdrukJoinResilienceMigrationSql,
+  /exception\s+when\s+others\s+then[\s\S]*return\s+new/i,
+  'KarnevalsDruk after-join cleanup failures should still allow the joined challenge entry'
 );
 assert.match(
   karnevalsdrukHangoverMigrationSql,
