@@ -258,8 +258,23 @@ export const FakeBeerScreen = () => {
     };
   }, [handleMotionReading]);
 
-  const handleScreenPress = useCallback(() => {
+  const handleScreenPress = useCallback(async () => {
     if (Platform.OS === 'web') {
+      try {
+        // On modern mobile browsers, motion sensors require a direct user gesture to activate.
+        // Tapping the screen provides this gesture.
+        if (typeof (DeviceMotionEvent as any) !== 'undefined' && typeof (DeviceMotionEvent as any).requestPermission === 'function') {
+          await (DeviceMotionEvent as any).requestPermission();
+        }
+        if (Accelerometer.requestPermissionsAsync) {
+          await Accelerometer.requestPermissionsAsync();
+        }
+        if (DeviceMotion.requestPermissionsAsync) {
+          await DeviceMotion.requestPermissionsAsync();
+        }
+      } catch (err) {
+        // Ignore permission errors
+      }
       sipBeer(0.08);
     }
 
