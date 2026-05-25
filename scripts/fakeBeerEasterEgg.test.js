@@ -30,6 +30,7 @@ const loadTypeScriptModule = (relativePath) => {
 
 const packageJson = JSON.parse(readSource('package.json'));
 const appJson = JSON.parse(readSource('app.json'));
+const vercelJson = JSON.parse(readSource('vercel.json'));
 const rootNavigatorSource = readSource('src/navigation/RootNavigator.tsx');
 const feedScreenSource = readSource('src/screens/FeedScreen.tsx');
 const fakeBeerMotionPath = path.resolve(__dirname, '..', 'src/lib/fakeBeerMotion.ts');
@@ -43,6 +44,22 @@ assert.match(
   appJson.expo?.ios?.infoPlist?.NSMotionUsageDescription || '',
   /tilt/i,
   'iOS config should explain why Beerva uses motion access for the fake beer tilt'
+);
+
+const vercelPermissionsPolicy = (vercelJson.headers || [])
+  .flatMap((entry) => entry.headers || [])
+  .find((header) => header.key === 'Permissions-Policy')?.value || '';
+
+assert.match(
+  vercelPermissionsPolicy,
+  /accelerometer=\(self\)/,
+  'Vercel should explicitly allow accelerometer access for the installed web app'
+);
+
+assert.match(
+  vercelPermissionsPolicy,
+  /gyroscope=\(self\)/,
+  'Vercel should explicitly allow gyroscope access for the installed web app'
 );
 
 assert.match(
@@ -127,6 +144,18 @@ assert.match(
   fakeBeerScreenSource,
   /DeviceMotion\.addListener/,
   'FakeBeerScreen should subscribe to real phone motion'
+);
+
+assert.doesNotMatch(
+  fakeBeerScreenSource,
+  /if \(!hasRotation\)[\s\S]*?return;/,
+  'FakeBeerScreen must not discard web DeviceMotion readings just because Expo web does not provide rotation'
+);
+
+assert.match(
+  fakeBeerScreenSource,
+  /motion\.accelerationIncludingGravity/,
+  'FakeBeerScreen should accept web DeviceMotion accelerationIncludingGravity as the drinking signal'
 );
 
 assert.match(

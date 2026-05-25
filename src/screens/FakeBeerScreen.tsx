@@ -206,12 +206,15 @@ export const FakeBeerScreen = () => {
     try {
       let deviceMotionReadingCount = 0;
       motionSubscription = DeviceMotion.addListener((motion) => {
+        const hasGravity = motion.accelerationIncludingGravity &&
+                           typeof motion.accelerationIncludingGravity.x === 'number' &&
+                           typeof motion.accelerationIncludingGravity.y === 'number' &&
+                           typeof motion.accelerationIncludingGravity.z === 'number';
         const hasRotation = motion.rotation &&
                             typeof motion.rotation.beta === 'number' &&
                             typeof motion.rotation.gamma === 'number';
 
-        if (!hasRotation) {
-          // DO NOT remove DeviceMotion on Android! Removing it silently kills Accelerometer due to an Expo bug.
+        if (!hasGravity && !hasRotation) {
           return;
         }
 
