@@ -341,9 +341,63 @@ assert.match(
 assert.match(karnevalsdrukDualAwardsMigrationSql, /average_abv\s+desc/i, 'ABV winner should be ranked by highest average ABV');
 assert.match(karnevalsdrukDualAwardsMigrationSql, /pint_user_id/, 'finalizer should track the pint winner separately');
 assert.match(karnevalsdrukDualAwardsMigrationSql, /abv_user_id/, 'finalizer should track the ABV winner separately');
-assert.match(karnevalsdrukDualAwardsMigrationSql, /on conflict \(challenge_id, user_id, award_slug\)/i, 'both challenge awards should remain idempotent');
+assert.match(
+  karnevalsdrukDualAwardsMigrationSql,
+  /on conflict on constraint challenge_awards_challenge_id_user_id_award_slug_key/i,
+  'both challenge awards should remain idempotent without ambiguous conflict columns'
+);
+assert.match(
+  karnevalsdrukDualAwardsMigrationSql,
+  /on conflict on constraint official_feed_posts_challenge_id_kind_key/i,
+  'official winner posts should remain idempotent without ambiguous conflict columns'
+);
+assert.doesNotMatch(
+  karnevalsdrukDualAwardsMigrationSql,
+  /on conflict \(challenge_id/i,
+  'dual awards finalizer must not use bare challenge_id conflict targets'
+);
+assert.match(
+  karnevalsdrukDualAwardsMigrationSql,
+  /where challenges\.challenge_type = 'leaderboard'[\s\S]*and challenges\.finalized_at is null/i,
+  'dual awards finalizer should qualify challenge columns to avoid PL/pgSQL output-variable ambiguity'
+);
+assert.doesNotMatch(
+  karnevalsdrukDualAwardsMigrationSql,
+  /\sand finalized_at is null/i,
+  'dual awards finalizer must not use an unqualified finalized_at predicate'
+);
 
 const karnevalsdrukFinalizationRecoverySql = read(karnevalsdrukFinalizationRecoveryPath);
+assert.match(
+  karnevalsdrukFinalizationRecoverySql,
+  /create or replace function public\.finalize_due_challenges\(batch_size integer default 10\)/i,
+  'recovery should replace the broken finalization RPC before invoking it'
+);
+assert.match(
+  karnevalsdrukFinalizationRecoverySql,
+  /where challenges\.challenge_type = 'leaderboard'[\s\S]*and challenges\.finalized_at is null/i,
+  'recovery finalizer should qualify challenge columns so finalized_at is not ambiguous with output variables'
+);
+assert.doesNotMatch(
+  karnevalsdrukFinalizationRecoverySql,
+  /\sand finalized_at is null/i,
+  'recovery finalizer must not use an unqualified finalized_at predicate'
+);
+assert.match(
+  karnevalsdrukFinalizationRecoverySql,
+  /on conflict on constraint challenge_awards_challenge_id_user_id_award_slug_key/i,
+  'recovery awards should remain idempotent without ambiguous conflict columns'
+);
+assert.match(
+  karnevalsdrukFinalizationRecoverySql,
+  /on conflict on constraint official_feed_posts_challenge_id_kind_key/i,
+  'recovery official post should remain idempotent without ambiguous conflict columns'
+);
+assert.doesNotMatch(
+  karnevalsdrukFinalizationRecoverySql,
+  /on conflict \(challenge_id/i,
+  'recovery finalizer must not use bare challenge_id conflict targets'
+);
 assert.match(
   karnevalsdrukFinalizationRecoverySql,
   /create or replace function public\.invoke_challenge_finalizer\(\)[\s\S]*from public\.finalize_due_challenges\(10\)/i,

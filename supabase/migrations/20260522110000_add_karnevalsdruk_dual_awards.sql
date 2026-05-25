@@ -34,13 +34,13 @@ declare
   final_time timestamp with time zone;
 begin
   for challenge_row in
-    select *
-    from public.challenges
-    where challenge_type = 'leaderboard'
-      and slug = 'karnevalsdruk-2026'
-      and ends_at <= now()
-      and finalized_at is null
-    order by ends_at asc
+    select challenges.*
+    from public.challenges as challenges
+    where challenges.challenge_type = 'leaderboard'
+      and challenges.slug = 'karnevalsdruk-2026'
+      and challenges.ends_at <= now()
+      and challenges.finalized_at is null
+    order by challenges.ends_at asc
     limit least(greatest(coalesce(batch_size, 10), 1), 50)
   loop
     final_time := now();
@@ -231,7 +231,7 @@ begin
       ),
       final_time
     )
-    on conflict (challenge_id, user_id, award_slug) do update set
+    on conflict on constraint challenge_awards_challenge_id_user_id_award_slug_key do update set
       title = excluded.title,
       description = excluded.description,
       rank = excluded.rank,
@@ -269,7 +269,7 @@ begin
         ),
         final_time
       )
-      on conflict (challenge_id, user_id, award_slug) do update set
+      on conflict on constraint challenge_awards_challenge_id_user_id_award_slug_key do update set
         title = excluded.title,
         description = excluded.description,
         rank = excluded.rank,
@@ -328,7 +328,7 @@ begin
       ),
       final_time
     )
-    on conflict (challenge_id, kind) do update set
+    on conflict on constraint official_feed_posts_challenge_id_kind_key do update set
       title = excluded.title,
       body = excluded.body,
       metadata = excluded.metadata,
