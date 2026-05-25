@@ -6,6 +6,7 @@ const ts = require('typescript');
 
 const challengeAwardsPath = 'src/lib/challengeAwards.ts';
 const challengeAwardsApiPath = 'src/lib/challengeAwardsApi.ts';
+const profileStatsApiPath = 'src/lib/profileStatsApi.ts';
 const profileStatsPanelPath = 'src/components/ProfileStatsPanel.tsx';
 const profileScreenPath = 'src/screens/ProfileScreen.tsx';
 const userProfileScreenPath = 'src/screens/UserProfileScreen.tsx';
@@ -33,7 +34,7 @@ const loadTypeScriptModule = (relativePath) => {
   return compiledModule.exports;
 };
 
-const { calculateStats, emptyStats, getTrophies, getVolumeMl } = loadTypeScriptModule('src/lib/profileStats.ts');
+const { calculateStats, calculateTopPubVisits, emptyStats, getTrophies, getVolumeMl } = loadTypeScriptModule('src/lib/profileStats.ts');
 const {
   BEER_CATALOG,
   beerDraftToPayload,
@@ -131,6 +132,27 @@ assert.equal(
   calculateStats([...crossYearMonths, monthRow('december-2026', '2026-12-15T12:00:00.000Z')]).monthsLogged,
   12,
   'months logged should reach 12 when one calendar year has all months'
+);
+
+const topPubVisits = calculateTopPubVisits([
+  baseRow({ session_id: 'alpha-1', pub_id: 'pub-alpha', pub_name: 'Alpha Bar' }),
+  baseRow({ session_id: 'alpha-1', pub_id: 'pub-alpha', pub_name: 'Alpha Bar', beer_name: 'Second beer' }),
+  baseRow({ session_id: 'alpha-2', pub_id: 'pub-alpha', pub_name: 'Alpha Bar' }),
+  baseRow({ session_id: 'alpha-3', pub_id: 'pub-alpha', pub_name: 'Alpha Bar' }),
+  baseRow({ session_id: 'bravo-1', pub_id: 'pub-bravo', pub_name: 'Bravo Pub' }),
+  baseRow({ session_id: 'bravo-2', pub_id: 'pub-bravo', pub_name: 'Bravo Pub' }),
+  baseRow({ session_id: 'charlie-1', pub_id: 'pub-charlie', pub_name: 'Charlie Tap' }),
+  baseRow({ session_id: 'charlie-2', pub_id: 'pub-charlie', pub_name: 'Charlie Tap' }),
+  baseRow({ session_id: 'delta-1', pub_id: 'pub-delta', pub_name: 'Delta Arms' }),
+  baseRow({ session_id: 'echo-1', pub_id: 'pub-echo', pub_name: 'Echo House' }),
+  baseRow({ session_id: 'foxtrot-1', pub_id: 'pub-foxtrot', pub_name: 'Foxtrot Inn' }),
+  baseRow({ session_id: 'missing-pub', pub_id: null, pub_name: null }),
+]);
+
+assert.deepEqual(
+  topPubVisits.map((pub) => `${pub.name}:${pub.visitCount}`),
+  ['Alpha Bar:3', 'Bravo Pub:2', 'Charlie Tap:2', 'Delta Arms:1', 'Echo House:1'],
+  'top pub visits should rank by distinct published sessions, tie by name, and keep the top five'
 );
 
 assert.equal(
@@ -438,6 +460,13 @@ assert.match(profileScreenSource, /challengeAwards=\{challengeAwards\}/, 'Profil
 const userProfileScreenSource = readSource(userProfileScreenPath);
 assert.match(userProfileScreenSource, /fetchChallengeAwards/, 'UserProfileScreen should fetch viewed user challenge awards');
 assert.match(userProfileScreenSource, /challengeAwards=\{challengeAwards\}/, 'UserProfileScreen should pass challenge awards to stats panel');
+
+const profileStatsApiSource = readSource(profileStatsApiPath);
+assert.match(profileStatsApiSource, /fetchTopPubVisits/, 'profile stats API should expose top pub visit fetching');
+assert.match(profileScreenSource, /fetchTopPubVisits/, 'ProfileScreen should fetch current user top pub visits');
+assert.match(profileScreenSource, /topPubVisits=\{topPubVisits\}/, 'ProfileScreen should pass top pub visits to stats panel');
+assert.match(userProfileScreenSource, /fetchTopPubVisits/, 'UserProfileScreen should fetch viewed user top pub visits');
+assert.match(userProfileScreenSource, /topPubVisits=\{topPubVisits\}/, 'UserProfileScreen should pass top pub visits to stats panel');
 
 assert.equal(getVolumeMl('2cl'), 20, '2cl servings should count as 20ml');
 assert.equal(getVolumeMl('4cl'), 40, '4cl servings should count as 40ml');

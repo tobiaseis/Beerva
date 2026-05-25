@@ -27,6 +27,24 @@ assert.match(
 
 assert.match(
   source,
+  /const \[pubsModalVisible, setPubsModalVisible\] = useState\(false\)/,
+  'profile stats panel should track whether the unique pubs details are visible'
+);
+
+assert.match(
+  source,
+  /onPress=\{\(\) => setPubsModalVisible\(true\)\}[\s\S]*accessibilityLabel="Show unique pub details"/,
+  'unique pubs stat should open the top pub visits details'
+);
+
+assert.match(
+  source,
+  /topPubVisits\.length > 0[\s\S]*topPubVisits\.map/,
+  'unique pubs details should render the top pub visits list when available'
+);
+
+assert.match(
+  source,
   /accessibilityRole="button"[\s\S]*accessibilityState=\{\{ expanded: trophyCabinetExpanded \}\}/,
   'trophy cabinet header should expose button and expanded accessibility state'
 );
@@ -69,8 +87,8 @@ assert.match(
 
 assert.match(
   source,
-  /highScoreValue: \{[\s\S]*fontSize: 30,[\s\S]*lineHeight: 36,/,
-  'high-score values should be larger than the smallest version but smaller than the original'
+  /highScoreValue: \{[\s\S]*fontSize: 26,[\s\S]*lineHeight: 32,[\s\S]*flexShrink: 1,/,
+  'high-score values should use smaller shrinkable type so double-digit pints fit'
 );
 
 console.log('profile stats panel checks passed');

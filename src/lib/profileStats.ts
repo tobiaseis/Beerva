@@ -59,6 +59,12 @@ export type ProfileSessionStatsRow = {
   session_started_at?: string | null;
 };
 
+export type TopPubVisit = {
+  id: string;
+  name: string;
+  visitCount: number;
+};
+
 export const emptyStats: Stats = {
   totalPints: 0,
   uniquePubs: 0,
@@ -299,6 +305,50 @@ const isSpecialMixedDrink = (beerName?: string | null) => {
 const getSessionCreatedAt = (session: ProfileSessionStatsRow) => (
   session.session_started_at || session.created_at
 );
+
+export const calculateTopPubVisits = (
+  sessions: ProfileSessionStatsRow[] = [],
+  limit = 5
+): TopPubVisit[] => {
+  const pubVisits = new Map<string, { id: string; name: string; sessionIds: Set<string> }>();
+
+  sessions.forEach((session, index) => {
+    const pubKey = getPubKey(session);
+    if (!pubKey) return;
+
+    const sessionKey = session.session_id || `row-${index}`;
+    const pubName = session.pub_name?.trim() || 'Unknown pub';
+    const pubId = session.pub_id || pubKey;
+    const existing = pubVisits.get(pubKey);
+
+    if (existing) {
+      existing.sessionIds.add(sessionKey);
+      if (existing.name === 'Unknown pub' && pubName !== 'Unknown pub') {
+        existing.name = pubName;
+      }
+      return;
+    }
+
+    pubVisits.set(pubKey, {
+      id: pubId,
+      name: pubName,
+      sessionIds: new Set([sessionKey]),
+    });
+  });
+
+  return Array.from(pubVisits.values())
+    .map((pub) => ({
+      id: pub.id,
+      name: pub.name,
+      visitCount: pub.sessionIds.size,
+    }))
+    .sort((a, b) => (
+      b.visitCount - a.visitCount
+      || a.name.localeCompare(b.name)
+      || a.id.localeCompare(b.id)
+    ))
+    .slice(0, Math.max(0, limit));
+};
 
 export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats => {
   if (sessions.length === 0) {

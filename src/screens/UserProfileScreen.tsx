@@ -6,8 +6,8 @@ import { ArrowLeft, Beer, CalendarDays, MapPin, UserCheck, UserPlus } from 'luci
 import { CachedImage } from '../components/CachedImage';
 import { ProfileStatsPanel } from '../components/ProfileStatsPanel';
 import { fetchChallengeAwards } from '../lib/challengeAwardsApi';
-import { emptyStats, getVolumeMl, ProfileSessionStatsRow, Stats, TrophyDefinition } from '../lib/profileStats';
-import { fetchPintTimeline, fetchProfileStats, PintTimelinePoint } from '../lib/profileStatsApi';
+import { emptyStats, getVolumeMl, ProfileSessionStatsRow, Stats, TopPubVisit, TrophyDefinition } from '../lib/profileStats';
+import { fetchPintTimeline, fetchProfileStats, fetchTopPubVisits, PintTimelinePoint } from '../lib/profileStatsApi';
 import { getBeerLine, getSessionBeerSummary, SessionBeer } from '../lib/sessionBeers';
 import { supabase } from '../lib/supabase';
 import { showAlert } from '../lib/dialogs';
@@ -131,6 +131,7 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [stats, setStats] = useState<Stats>(emptyStats);
   const [pintTimeline, setPintTimeline] = useState<PintTimelinePoint[]>([]);
+  const [topPubVisits, setTopPubVisits] = useState<TopPubVisit[]>([]);
   const [challengeAwards, setChallengeAwards] = useState<TrophyDefinition[]>([]);
   const [sessions, setSessions] = useState<PublicSession[]>([]);
   const [sessionCount, setSessionCount] = useState(0);
@@ -155,6 +156,7 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
         profileStats,
         timeline,
         awards,
+        topPubs,
         followersResult,
         followingResult,
       ] = await Promise.all([
@@ -174,6 +176,7 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
         fetchProfileStats(profileId),
         fetchPintTimeline(profileId),
         fetchChallengeAwards(profileId),
+        fetchTopPubVisits(profileId),
         supabase
           .from('follows')
           .select('*', { count: 'exact', head: true })
@@ -231,6 +234,7 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
       setSessionCount(sessionsResult.count || sessionsResult.data?.length || 0);
       setStats(profileStats);
       setPintTimeline(timeline);
+      setTopPubVisits(topPubs);
       setChallengeAwards(awards);
       setFollowCounts({
         followers: followersResult.count || 0,
@@ -452,7 +456,7 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
         )}
       </View>
 
-      <ProfileStatsPanel stats={stats} pintTimeline={pintTimeline} challengeAwards={challengeAwards} />
+      <ProfileStatsPanel stats={stats} pintTimeline={pintTimeline} topPubVisits={topPubVisits} challengeAwards={challengeAwards} />
 
       <View style={styles.recentSection}>
         <View style={styles.sectionHeader}>

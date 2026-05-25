@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { calculateStats, emptyStats, getVolumeMl, ProfileSessionStatsRow, Stats } from './profileStats';
+import { calculateStats, calculateTopPubVisits, emptyStats, getVolumeMl, ProfileSessionStatsRow, Stats, TopPubVisit } from './profileStats';
 
 type ProfileStatsRpcRow = {
   total_pints?: number | null;
@@ -198,4 +198,25 @@ export const fetchPintTimeline = async (userId: string): Promise<PintTimelinePoi
       label: getMonthLabel(key),
       pints: Math.round(pints * 10) / 10,
     }));
+};
+
+export const fetchTopPubVisits = async (userId: string): Promise<TopPubVisit[]> => {
+  const { data, error } = await supabase
+    .from('sessions')
+    .select('id, pub_id, pub_name, created_at')
+    .eq('user_id', userId)
+    .eq('status', 'published')
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.warn('Top pub visits unavailable:', error.message);
+    return [];
+  }
+
+  return calculateTopPubVisits(((data || []) as any[]).map((session) => ({
+    session_id: session.id,
+    pub_id: session.pub_id,
+    pub_name: session.pub_name,
+    created_at: session.created_at,
+  })) as ProfileSessionStatsRow[]);
 };

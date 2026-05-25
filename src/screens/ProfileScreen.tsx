@@ -9,8 +9,8 @@ import { confirmDestructive, showAlert } from '../lib/dialogs';
 import { deletePublicImageUrl, prepareWebImageFromPickerAsset, SelectedImage, UPLOAD_IMAGE_MAX_WIDTH, uploadImageToBucket } from '../lib/imageUpload';
 import { ProfileStatsPanel } from '../components/ProfileStatsPanel';
 import { fetchChallengeAwards } from '../lib/challengeAwardsApi';
-import { emptyStats, getVolumeMl, ProfileSessionStatsRow, Stats, TrophyDefinition } from '../lib/profileStats';
-import { fetchPintTimeline, fetchProfileStats, PintTimelinePoint } from '../lib/profileStatsApi';
+import { emptyStats, getVolumeMl, ProfileSessionStatsRow, Stats, TopPubVisit, TrophyDefinition } from '../lib/profileStats';
+import { fetchPintTimeline, fetchProfileStats, fetchTopPubVisits, PintTimelinePoint } from '../lib/profileStatsApi';
 import { getBeerLine, getSessionBeerSummary, SessionBeer } from '../lib/sessionBeers';
 import { openMaps } from '../lib/maps';
 import { CachedImage } from '../components/CachedImage';
@@ -99,6 +99,7 @@ export const ProfileScreen = () => {
   const [profile, setProfile] = useState<any>(null);
   const [stats, setStats] = useState<Stats>(emptyStats);
   const [pintTimeline, setPintTimeline] = useState<PintTimelinePoint[]>([]);
+  const [topPubVisits, setTopPubVisits] = useState<TopPubVisit[]>([]);
   const [challengeAwards, setChallengeAwards] = useState<TrophyDefinition[]>([]);
   const [sessions, setSessions] = useState<PublicSession[]>([]);
   const [sessionCount, setSessionCount] = useState(0);
@@ -179,6 +180,7 @@ export const ProfileScreen = () => {
         profileStats,
         timeline,
         awards,
+        topPubs,
         sessionsResult,
         followersResult,
         followingResult,
@@ -191,6 +193,7 @@ export const ProfileScreen = () => {
         fetchProfileStats(user.id),
         fetchPintTimeline(user.id),
         fetchChallengeAwards(user.id),
+        fetchTopPubVisits(user.id),
         supabase
           .from('sessions')
           .select('id, pub_id, pub_name, beer_name, volume, quantity, abv, comment, image_url, status, published_at, created_at', { count: 'exact' })
@@ -261,6 +264,7 @@ export const ProfileScreen = () => {
       setEditAvatar(null);
       setStats(profileStats);
       setPintTimeline(timeline);
+      setTopPubVisits(topPubs);
       setChallengeAwards(awards);
       setSessions(sessionsWithBeers);
       setSessionCount(sessionsResult?.count || sessionsResult?.data?.length || 0);
@@ -487,7 +491,7 @@ export const ProfileScreen = () => {
         </View>
       </View>
 
-      <ProfileStatsPanel stats={stats} pintTimeline={pintTimeline} challengeAwards={challengeAwards} />
+      <ProfileStatsPanel stats={stats} pintTimeline={pintTimeline} topPubVisits={topPubVisits} challengeAwards={challengeAwards} />
 
       <View style={styles.recentSection}>
         <View style={styles.sectionHeader}>

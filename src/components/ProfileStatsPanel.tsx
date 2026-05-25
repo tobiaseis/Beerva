@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Award, Beer, CalendarDays, ChevronDown, ChevronUp, Flame, MapPin, Moon, PartyPopper, Repeat, Sparkles, Sunrise, Trophy, X } from 'lucide-react-native';
 
-import { getTrophies, Stats, TrophyDefinition, TrophyKind } from '../lib/profileStats';
+import { getTrophies, Stats, TopPubVisit, TrophyDefinition, TrophyKind } from '../lib/profileStats';
 import { PintTimelinePoint } from '../lib/profileStatsApi';
 
 export const renderTrophyIcon = (kind: TrophyKind, earned: boolean, iconSize = 28) => {
@@ -49,13 +49,15 @@ import { Surface } from './Surface';
 type ProfileStatsPanelProps = {
   stats: Stats;
   pintTimeline?: PintTimelinePoint[];
+  topPubVisits?: TopPubVisit[];
   challengeAwards?: TrophyDefinition[];
 };
 
 type InsightKind = 'best-session' | 'longest-streak';
 
-export const ProfileStatsPanel = ({ stats, pintTimeline = [], challengeAwards = [] }: ProfileStatsPanelProps) => {
+export const ProfileStatsPanel = ({ stats, pintTimeline = [], topPubVisits = [], challengeAwards = [] }: ProfileStatsPanelProps) => {
   const [pintsModalVisible, setPintsModalVisible] = useState(false);
+  const [pubsModalVisible, setPubsModalVisible] = useState(false);
   const [insightModal, setInsightModal] = useState<InsightKind | null>(null);
   const [trophyCabinetExpanded, setTrophyCabinetExpanded] = useState(true);
   const trophies = useMemo(() => [...getTrophies(stats), ...challengeAwards], [stats, challengeAwards]);
@@ -107,12 +109,17 @@ export const ProfileStatsPanel = ({ stats, pintTimeline = [], challengeAwards = 
           <Text style={styles.statLabel} numberOfLines={1}>True Pints</Text>
         </Pressable>
         <View style={styles.divider} />
-        <View style={styles.statBox}>
+        <Pressable
+          style={styles.statBox}
+          onPress={() => setPubsModalVisible(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Show unique pub details"
+        >
           <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
             {stats.uniquePubs}
           </Text>
           <Text style={styles.statLabel} numberOfLines={1}>Unique Pubs</Text>
-        </View>
+        </Pressable>
         <View style={styles.divider} />
         <View style={styles.statBox}>
           <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
@@ -324,6 +331,55 @@ export const ProfileStatsPanel = ({ stats, pintTimeline = [], challengeAwards = 
           </View>
         </View>
       </Modal>
+
+      <Modal
+        visible={pubsModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPubsModalVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderCopy}>
+                <Text style={styles.modalTitle}>Unique Pubs</Text>
+                <Text style={styles.modalSubtitle}>{stats.uniquePubs} visited all time</Text>
+              </View>
+              <Pressable
+                style={styles.modalCloseButton}
+                onPress={() => setPubsModalVisible(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Close unique pub details"
+              >
+                <X color={colors.text} size={20} />
+              </Pressable>
+            </View>
+
+            {topPubVisits.length > 0 ? (
+              <View style={styles.topPubList}>
+                {topPubVisits.map((pub, index) => (
+                  <View key={pub.id} style={styles.topPubRow}>
+                    <View style={styles.topPubRank}>
+                      <Text style={styles.topPubRankText}>{index + 1}</Text>
+                    </View>
+                    <View style={styles.topPubCopy}>
+                      <Text style={styles.topPubName} numberOfLines={1}>{pub.name}</Text>
+                      <Text style={styles.topPubMeta} numberOfLines={1}>
+                        {pub.visitCount === 1 ? '1 visit' : `${pub.visitCount} visits`}
+                      </Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <View style={styles.topPubEmpty}>
+                <MapPin color={colors.textMuted} size={24} />
+                <Text style={styles.graphEmptyText}>No pub visits yet.</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </>
   );
 };
@@ -403,11 +459,12 @@ const styles = StyleSheet.create({
   },
   highScoreValue: {
     fontFamily: 'Righteous_400Regular',
-    fontSize: 30,
-    lineHeight: 36,
+    fontSize: 26,
+    lineHeight: 32,
     color: colors.primary,
     minWidth: 46,
     maxWidth: '100%',
+    flexShrink: 1,
     textAlign: 'center',
     fontVariant: ['tabular-nums'],
   },
@@ -650,5 +707,55 @@ const styles = StyleSheet.create({
   graphEmptyText: {
     ...typography.bodyMuted,
     textAlign: 'center',
+  },
+  topPubList: {
+    gap: 10,
+  },
+  topPubRow: {
+    minHeight: 58,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.surface,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  topPubRank: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primarySoft,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+  },
+  topPubRankText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: '900',
+    fontVariant: ['tabular-nums'],
+  },
+  topPubCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  topPubName: {
+    ...typography.body,
+    color: colors.text,
+    fontWeight: '900',
+  },
+  topPubMeta: {
+    ...typography.caption,
+    marginTop: 2,
+    color: colors.textMuted,
+  },
+  topPubEmpty: {
+    minHeight: 132,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
 });
