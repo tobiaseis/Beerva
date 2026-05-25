@@ -1655,17 +1655,20 @@ export const FeedScreen = ({ route }: any) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.logoContainer}
-          onLongPress={startFakeBeerUnlock}
-          delayLongPress={FAKE_BEER_LONG_PRESS_MS}
-          activeOpacity={0.86}
-          accessibilityRole="button"
-          accessibilityLabel="Beerva"
-        >
+        <View style={styles.logoContainer}>
           <Image source={beervaLogo} style={styles.logoImage} />
-          <Text style={styles.logoText}>Beerva</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.logoTextTrigger}
+            onLongPress={startFakeBeerUnlock}
+            delayLongPress={FAKE_BEER_LONG_PRESS_MS}
+            activeOpacity={0.7}
+            hitSlop={{ top: 10, right: 10, bottom: 10, left: 6 }}
+            accessibilityRole="button"
+            accessibilityLabel="Open fake beer"
+          >
+            <Text style={styles.logoText}>Beerva</Text>
+          </TouchableOpacity>
+        </View>
         <TouchableOpacity
           style={styles.bellButton}
           onPress={() => navigation.navigate('Notifications')}
@@ -1977,6 +1980,10 @@ const styles = StyleSheet.create({
   logoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  logoTextTrigger: {
+    minHeight: 44,
+    justifyContent: 'center',
   },
   logoImage: {
     width: 44,

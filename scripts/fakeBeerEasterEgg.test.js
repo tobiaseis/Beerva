@@ -49,14 +49,34 @@ assert.match(
 
 assert.match(
   feedScreenSource,
-  /onLongPress=\{startFakeBeerUnlock\}/,
-  'Feed header logo should start the easter egg on long press'
+  /<View style=\{styles\.logoContainer\}>\s*<Image source=\{beervaLogo\} style=\{styles\.logoImage\} \/>\s*<TouchableOpacity[\s\S]*?onLongPress=\{startFakeBeerUnlock\}[\s\S]*?<Text style=\{styles\.logoText\}>Beerva<\/Text>[\s\S]*?<\/TouchableOpacity>\s*<\/View>/,
+  'Feed header should keep the logo visual while putting the hidden long press only on the Beerva text'
 );
 
 assert.match(
   feedScreenSource,
   /delayLongPress=\{FAKE_BEER_LONG_PRESS_MS\}/,
-  'Feed header logo should use the shared 2 second long press delay'
+  'Feed header text should use the shared 2 second long press delay'
+);
+
+const longPressIndex = feedScreenSource.indexOf('onLongPress={startFakeBeerUnlock}');
+const longPressTriggerStart = feedScreenSource.lastIndexOf('<TouchableOpacity', longPressIndex);
+const longPressTriggerEnd = feedScreenSource.indexOf('</TouchableOpacity>', longPressIndex);
+const longPressTriggerBlock = feedScreenSource.slice(
+  longPressTriggerStart,
+  longPressTriggerEnd + '</TouchableOpacity>'.length
+);
+
+assert.doesNotMatch(
+  longPressTriggerBlock,
+  /<Image source=\{beervaLogo\}/,
+  'The fake beer easter egg should not trigger from pressing the Beerva logo image'
+);
+
+assert.match(
+  longPressTriggerBlock,
+  /accessibilityLabel="Open fake beer"/,
+  'The hidden Beerva text trigger should still have an explicit accessibility label'
 );
 
 assert.match(
@@ -89,6 +109,30 @@ assert.match(
 
 assert.match(
   fakeBeerScreenSource,
+  /const targetTiltDegreesRef = useRef\(0\);/,
+  'FakeBeerScreen should keep raw device tilt separate from the lagged liquid tilt'
+);
+
+assert.match(
+  fakeBeerScreenSource,
+  /setLiquidTiltDegrees/,
+  'FakeBeerScreen should animate a delayed liquid tilt for slosh instead of snapping the beer surface'
+);
+
+assert.match(
+  fakeBeerScreenSource,
+  /setSloshOffset/,
+  'FakeBeerScreen should compute a slosh offset from tilt momentum'
+);
+
+assert.match(
+  fakeBeerScreenSource,
+  /sloshOffset=\{sloshOffset\}/,
+  'FakeBeerScreen should pass slosh momentum into the beer visual'
+);
+
+assert.match(
+  fakeBeerScreenSource,
   /const DRINK_TILT_THRESHOLD = 0\.72;/,
   'FakeBeerScreen should define a deliberate drinking tilt threshold'
 );
@@ -109,6 +153,36 @@ assert.match(
   fakeBeerVisualSource,
   /const BUBBLES = \[/,
   'FakeBeerVisual should render persistent beer bubbles'
+);
+
+assert.match(
+  fakeBeerVisualSource,
+  /sloshOffset\?: number;/,
+  'FakeBeerVisual should accept sloshOffset to make the liquid move like a surface with momentum'
+);
+
+assert.match(
+  fakeBeerVisualSource,
+  /styles\.liquidSurface/,
+  'FakeBeerVisual should render a visible moving liquid surface, not just a flat fill'
+);
+
+assert.match(
+  fakeBeerVisualSource,
+  /styles\.foamSurface/,
+  'FakeBeerVisual should attach foam to the moving liquid surface'
+);
+
+assert.match(
+  fakeBeerVisualSource,
+  /const waveProgress = useRef\(new Animated\.Value\(0\)\)\.current;/,
+  'FakeBeerVisual should animate subtle wave motion across the beer'
+);
+
+assert.match(
+  fakeBeerVisualSource,
+  /styles\.deepAmberLayer/,
+  'FakeBeerVisual should include darker amber depth layers so it reads as beer'
 );
 
 assert.match(

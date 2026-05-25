@@ -11,6 +11,9 @@ import { radius } from '../theme/layout';
 
 const DRINK_TILT_THRESHOLD = 0.72;
 const SENSOR_UPDATE_MS = 80;
+const LIQUID_RESPONSE_MS = 50;
+const LIQUID_TILT_EASE = 0.16;
+const MAX_SLOSH_OFFSET = 18;
 const REFILL_MS = 900;
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
@@ -18,9 +21,14 @@ const clamp = (value: number, min: number, max: number) => Math.max(min, Math.mi
 export const FakeBeerScreen = () => {
   const navigation = useNavigation<any>();
   const [fillLevel, setFillLevel] = useState(1);
-  const [tiltDegrees, setTiltDegrees] = useState(0);
+  const [liquidTiltDegrees, setLiquidTiltDegrees] = useState(0);
+  const [sloshOffset, setSloshOffset] = useState(0);
   const [showHint, setShowHint] = useState(true);
   const refillAnimation = useRef(new Animated.Value(1)).current;
+  const targetTiltDegreesRef = useRef(0);
+  const liquidTiltDegreesRef = useRef(0);
+  const renderedLiquidTiltRef = useRef(0);
+  const renderedSloshOffsetRef = useRef(0);
   const refillingRef = useRef(false);
   const fallbackIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -74,13 +82,38 @@ export const FakeBeerScreen = () => {
   }, [triggerRefill]);
 
   useEffect(() => {
+    const interval = setInterval(() => {
+      const targetTilt = targetTiltDegreesRef.current;
+      const currentTilt = liquidTiltDegreesRef.current;
+      const nextTilt = currentTilt + (targetTilt - currentTilt) * LIQUID_TILT_EASE;
+      const nextSloshOffset = clamp((targetTilt - nextTilt) * 0.95, -MAX_SLOSH_OFFSET, MAX_SLOSH_OFFSET);
+      const roundedTilt = Math.round(nextTilt * 10) / 10;
+      const roundedSlosh = Math.round(nextSloshOffset * 10) / 10;
+
+      liquidTiltDegreesRef.current = Math.abs(nextTilt) < 0.04 ? 0 : nextTilt;
+
+      if (Math.abs(renderedLiquidTiltRef.current - roundedTilt) > 0.05) {
+        renderedLiquidTiltRef.current = roundedTilt;
+        setLiquidTiltDegrees(roundedTilt);
+      }
+
+      if (Math.abs(renderedSloshOffsetRef.current - roundedSlosh) > 0.05) {
+        renderedSloshOffsetRef.current = roundedSlosh;
+        setSloshOffset(roundedSlosh);
+      }
+    }, LIQUID_RESPONSE_MS);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
     let active = true;
     let motionSubscription: { remove: () => void } | null = null;
 
     const startFallbackMotion = () => {
       if (fallbackIntervalRef.current) return;
       fallbackIntervalRef.current = setInterval(() => {
-        setTiltDegrees(Math.sin(Date.now() / 420) * 8);
+        targetTiltDegreesRef.current = Math.sin(Date.now() / 420) * 10;
       }, SENSOR_UPDATE_MS);
     };
 
@@ -100,7 +133,7 @@ export const FakeBeerScreen = () => {
           const nextTilt = clamp(gamma * 34, -22, 22);
           const drinkPressure = Math.max(0, Math.abs(beta) - DRINK_TILT_THRESHOLD);
 
-          setTiltDegrees(nextTilt);
+          targetTiltDegreesRef.current = nextTilt;
 
           if (drinkPressure > 0) {
             sipBeer(Math.min(0.035, drinkPressure * 0.018));
@@ -131,7 +164,12 @@ export const FakeBeerScreen = () => {
 
   return (
     <Pressable style={styles.container} onPress={handleFallbackSip}>
-      <FakeBeerVisual fillLevel={fillLevel} tiltDegrees={tiltDegrees} showHint={showHint} />
+      <FakeBeerVisual
+        fillLevel={fillLevel}
+        tiltDegrees={liquidTiltDegrees}
+        sloshOffset={sloshOffset}
+        showHint={showHint}
+      />
       <Pressable
         style={styles.closeButton}
         onPress={() => navigation.goBack()}
