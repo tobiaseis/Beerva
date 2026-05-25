@@ -29,6 +29,7 @@ import { fetchJoinedActiveChallengeSummary } from '../lib/challengesApi';
 import { OfficialFeedPost } from '../lib/officialFeedPosts';
 import { fetchOfficialFeedPostsForFeedPage } from '../lib/officialFeedPostsApi';
 import { OfficialFeedPostCard } from '../components/OfficialFeedPostCard';
+import { FakeBeerUnlockOverlay } from '../components/FakeBeerUnlockOverlay';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
 const cheersLogoSource = beervaLogo;
@@ -106,6 +107,7 @@ const PULL_REFRESH_THRESHOLD = 65;
 const PULL_MAX_DISTANCE = 110;
 const FEED_PAGE_SIZE = 20;
 const FEED_REQUEST_TIMEOUT_MS = 15000;
+const FAKE_BEER_LONG_PRESS_MS = 2000;
 
 type PullIndicatorProps = {
   pullDistance: number;
@@ -667,6 +669,7 @@ export const FeedScreen = ({ route }: any) => {
   const { unreadCount } = useNotifications();
   const [pullDistance, setPullDistance] = useState(0);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [fakeBeerUnlocking, setFakeBeerUnlocking] = useState(false);
   const sessionsRef = useRef<FeedItem[]>([]);
   const loadedSessionCountRef = useRef(0);
   const loadedCrawlCountRef = useRef(0);
@@ -1597,6 +1600,17 @@ export const FeedScreen = ({ route }: any) => {
     }
   }, [currentUserId]);
 
+  const startFakeBeerUnlock = useCallback(() => {
+    if (fakeBeerUnlocking) return;
+    hapticMedium();
+    setFakeBeerUnlocking(true);
+  }, [fakeBeerUnlocking]);
+
+  const openFakeBeer = useCallback(() => {
+    setFakeBeerUnlocking(false);
+    navigation.navigate('FakeBeer');
+  }, [navigation]);
+
   const renderSession = useCallback(({ item }: { item: FeedItem }) => {
     if (item.type === 'official_post') {
       return (
@@ -1641,10 +1655,17 @@ export const FeedScreen = ({ route }: any) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <View style={styles.logoContainer}>
+        <TouchableOpacity
+          style={styles.logoContainer}
+          onLongPress={startFakeBeerUnlock}
+          delayLongPress={FAKE_BEER_LONG_PRESS_MS}
+          activeOpacity={0.86}
+          accessibilityRole="button"
+          accessibilityLabel="Beerva"
+        >
           <Image source={beervaLogo} style={styles.logoImage} />
           <Text style={styles.logoText}>Beerva</Text>
-        </View>
+        </TouchableOpacity>
         <TouchableOpacity
           style={styles.bellButton}
           onPress={() => navigation.navigate('Notifications')}
@@ -1899,6 +1920,8 @@ export const FeedScreen = ({ route }: any) => {
           </Modal>
         );
       })()}
+
+      <FakeBeerUnlockOverlay visible={fakeBeerUnlocking} onFilled={openFakeBeer} />
     </View>
   );
 };

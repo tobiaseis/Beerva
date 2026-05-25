@@ -21,6 +21,7 @@ import { ProfileSetupScreen } from '../screens/ProfileSetupScreen';
 import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { EditSessionScreen } from '../screens/EditSessionScreen';
 import { HangoverRatingScreen } from '../screens/HangoverRatingScreen';
+import { FakeBeerScreen } from '../screens/FakeBeerScreen';
 import { colors } from '../theme/colors';
 import { floatingTabBarMetrics, radius, shadows } from '../theme/layout';
 import { NotificationsProvider, useNotifications } from '../lib/notificationsContext';
@@ -423,6 +424,7 @@ export const RootNavigator = () => {
               <Stack.Screen name="Notifications" component={NotificationsScreen} />
               <Stack.Screen name="EditSession" component={EditSessionScreen} />
               <Stack.Screen name="HangoverRating" component={HangoverRatingScreen} />
+              <Stack.Screen name="FakeBeer" component={FakeBeerScreen} options={{ animation: 'none' }} />
             </Stack.Navigator>
           </NotificationsProvider>
         )
