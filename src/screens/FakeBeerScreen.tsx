@@ -184,42 +184,38 @@ export const FakeBeerScreen = () => {
         });
     };
 
-    if (Platform.OS === 'android') {
-      startAccelerometerMotion();
-    } else {
-      startAccelerometerMotion();
-      DeviceMotion.setUpdateInterval(SENSOR_UPDATE_MS);
-      DeviceMotion.isAvailableAsync()
-        .then((available) => {
-          if (!active) return;
-          if (!available) return;
+    startAccelerometerMotion();
+    DeviceMotion.setUpdateInterval(SENSOR_UPDATE_MS);
+    DeviceMotion.isAvailableAsync()
+      .then((available) => {
+        if (!active) return;
+        if (!available) return;
 
-          motionSubscription = DeviceMotion.addListener((motion) => {
-            hasDeviceMotionReading = true;
-            clearDeviceMotionWatchdog();
+        motionSubscription = DeviceMotion.addListener((motion) => {
+          hasDeviceMotionReading = true;
+          clearDeviceMotionWatchdog();
 
-            if (accelerometerSubscription) {
-              accelerometerSubscription.remove();
-              accelerometerSubscription = null;
-              hasAccelerometerReadingRef.current = false;
-            }
+          if (accelerometerSubscription) {
+            accelerometerSubscription.remove();
+            accelerometerSubscription = null;
+            hasAccelerometerReadingRef.current = false;
+          }
 
-            handleMotionReading(
-              motion,
-              deviceMotionBaselineRef,
-              true
-            );
-          });
+          handleMotionReading(
+            motion,
+            deviceMotionBaselineRef,
+            true
+          );
+        });
 
-          deviceMotionWatchdogTimeout = setTimeout(() => {
-            if (!active || hasDeviceMotionReading) return;
+        deviceMotionWatchdogTimeout = setTimeout(() => {
+          if (!active || hasDeviceMotionReading) return;
 
-            motionSubscription?.remove();
-            motionSubscription = null;
-          }, DEVICE_MOTION_WATCHDOG_MS);
-        })
-        .catch(() => {});
-    }
+          motionSubscription?.remove();
+          motionSubscription = null;
+        }, DEVICE_MOTION_WATCHDOG_MS);
+      })
+      .catch(() => {});
 
     return () => {
       active = false;
