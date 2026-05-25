@@ -30,6 +30,7 @@ import { OfficialFeedPost } from '../lib/officialFeedPosts';
 import { fetchOfficialFeedPostsForFeedPage } from '../lib/officialFeedPostsApi';
 import { OfficialFeedPostCard } from '../components/OfficialFeedPostCard';
 import { FakeBeerUnlockOverlay } from '../components/FakeBeerUnlockOverlay';
+import { requestWebMotionPermission } from '../lib/webMotionPermission';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
 const cheersLogoSource = beervaLogo;
@@ -1600,8 +1601,13 @@ export const FeedScreen = ({ route }: any) => {
     }
   }, [currentUserId]);
 
+  const prepareFakeBeerMotion = useCallback(() => {
+    void requestWebMotionPermission();
+  }, []);
+
   const startFakeBeerUnlock = useCallback(() => {
     if (fakeBeerUnlocking) return;
+    void requestWebMotionPermission();
     hapticMedium();
     setFakeBeerUnlocking(true);
   }, [fakeBeerUnlocking]);
@@ -1659,6 +1665,7 @@ export const FeedScreen = ({ route }: any) => {
           <Image source={beervaLogo} style={styles.logoImage} />
           <TouchableOpacity
             style={styles.logoTextTrigger}
+            onPressIn={prepareFakeBeerMotion}
             onLongPress={startFakeBeerUnlock}
             delayLongPress={FAKE_BEER_LONG_PRESS_MS}
             activeOpacity={0.7}

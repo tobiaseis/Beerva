@@ -12,6 +12,7 @@ import {
   type FakeBeerMotionReading,
 } from '../lib/fakeBeerMotion';
 import { hapticLight } from '../lib/haptics';
+import { requestWebMotionPermission } from '../lib/webMotionPermission';
 import { colors } from '../theme/colors';
 import { radius } from '../theme/layout';
 
@@ -25,6 +26,26 @@ const MAX_SIP_AMOUNT = 0.04;
 const SIP_MULTIPLIER = 0.024;
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+const sensorDegreesToRadians = (value: number) => value * Math.PI / 180;
+const isFiniteSensorNumber = (value: unknown): value is number => (
+  typeof value === 'number' && Number.isFinite(value)
+);
+const getBrowserGravityVector = (gravity: any) => {
+  if (
+    !gravity
+    || !isFiniteSensorNumber(gravity.x)
+    || !isFiniteSensorNumber(gravity.y)
+    || !isFiniteSensorNumber(gravity.z)
+  ) {
+    return null;
+  }
+
+  return {
+    x: gravity.x,
+    y: gravity.y,
+    z: gravity.z,
+  };
+};
 
 export const FakeBeerScreen = () => {
   const navigation = useNavigation<any>();
@@ -43,6 +64,7 @@ export const FakeBeerScreen = () => {
   const renderedSloshOffsetRef = useRef(0);
   const deviceMotionBaselineRef = useRef<FakeBeerMotionBaseline | null>(null);
   const accelerometerBaselineRef = useRef<FakeBeerMotionBaseline | null>(null);
+  const browserOrientationBaselineRef = useRef<FakeBeerMotionBaseline | null>(null);
   const hasAccelerometerReadingRef = useRef(false);
   const hasDeviceMotionReadingRef = useRef(false);
   const refillingRef = useRef(false);
@@ -146,6 +168,9 @@ export const FakeBeerScreen = () => {
     let accelerometerSubscription: { remove: () => void } | null = null;
     let deviceMotionWatchdogTimeout: ReturnType<typeof setTimeout> | null = null;
     let accelerometerWatchdogTimeout: ReturnType<typeof setTimeout> | null = null;
+    let browserDeviceMotionListener: ((event: DeviceMotionEvent) => void) | null = null;
+    let browserDeviceOrientationListener: ((event: DeviceOrientationEvent) => void) | null = null;
+    let browserGravityReadingCount = 0;
 
     const clearDeviceMotionWatchdog = () => {
       if (deviceMotionWatchdogTimeout) {
@@ -175,6 +200,19 @@ export const FakeBeerScreen = () => {
       }, SENSOR_UPDATE_MS);
     };
 
+    const markDeviceMotionActive = () => {
+      hasDeviceMotionReadingRef.current = true;
+      clearDeviceMotionWatchdog();
+      clearFallbackMotion();
+
+      if (accelerometerSubscription) {
+        accelerometerSubscription.remove();
+        accelerometerSubscription = null;
+        hasAccelerometerReadingRef.current = false;
+        clearAccelerometerWatchdog();
+      }
+    };
+
     const startAccelerometerMotion = () => {
       if (accelerometerSubscription) return;
 
@@ -200,58 +238,91 @@ export const FakeBeerScreen = () => {
       }
     };
 
-    startAccelerometerMotion();
-    DeviceMotion.setUpdateInterval(SENSOR_UPDATE_MS);
+    if (Platform.OS !== 'web') {
+      startAccelerometerMotion();
+      DeviceMotion.setUpdateInterval(SENSOR_UPDATE_MS);
 
-    try {
-      let deviceMotionReadingCount = 0;
-      motionSubscription = DeviceMotion.addListener((motion) => {
-        const hasGravity = motion.accelerationIncludingGravity &&
-                           typeof motion.accelerationIncludingGravity.x === 'number' &&
-                           typeof motion.accelerationIncludingGravity.y === 'number' &&
-                           typeof motion.accelerationIncludingGravity.z === 'number';
-        const hasRotation = motion.rotation &&
-                            typeof motion.rotation.beta === 'number' &&
-                            typeof motion.rotation.gamma === 'number';
+      try {
+        let deviceMotionReadingCount = 0;
+        motionSubscription = DeviceMotion.addListener((motion) => {
+          const hasGravity = motion.accelerationIncludingGravity &&
+                             typeof motion.accelerationIncludingGravity.x === 'number' &&
+                             typeof motion.accelerationIncludingGravity.y === 'number' &&
+                             typeof motion.accelerationIncludingGravity.z === 'number';
+          const hasRotation = motion.rotation &&
+                              typeof motion.rotation.beta === 'number' &&
+                              typeof motion.rotation.gamma === 'number';
 
-        if (!hasGravity && !hasRotation) {
-          return;
-        }
-
-        deviceMotionReadingCount++;
-        if (deviceMotionReadingCount >= 3) {
-          hasDeviceMotionReadingRef.current = true;
-          clearDeviceMotionWatchdog();
-          clearFallbackMotion();
-
-          if (accelerometerSubscription) {
-            accelerometerSubscription.remove();
-            accelerometerSubscription = null;
-            hasAccelerometerReadingRef.current = false;
-            clearAccelerometerWatchdog();
+          if (!hasGravity && !hasRotation) {
+            return;
           }
-        }
 
+          deviceMotionReadingCount++;
+          if (deviceMotionReadingCount >= 3) {
+            markDeviceMotionActive();
+          }
+
+          handleMotionReading(
+            motion,
+            deviceMotionBaselineRef,
+            true
+          );
+        });
+
+        deviceMotionWatchdogTimeout = setTimeout(() => {
+          if (!active || hasDeviceMotionReadingRef.current) return;
+
+          // Do not remove the subscription as it might kill Accelerometer on Android
+        }, DEVICE_MOTION_WATCHDOG_MS);
+      } catch (err) {
+        // DeviceMotion not supported
+      }
+    }
+
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      browserDeviceMotionListener = (event: DeviceMotionEvent) => {
+        const gravity = getBrowserGravityVector(event.accelerationIncludingGravity);
+        if (!gravity) return;
+
+        browserGravityReadingCount++;
+        markDeviceMotionActive();
         handleMotionReading(
-          motion,
+          { accelerationIncludingGravity: gravity },
           deviceMotionBaselineRef,
           true
         );
-      });
+      };
 
-      deviceMotionWatchdogTimeout = setTimeout(() => {
-        if (!active || hasDeviceMotionReadingRef.current) return;
+      browserDeviceOrientationListener = (event: DeviceOrientationEvent) => {
+        if (!isFiniteSensorNumber(event.beta) || !isFiniteSensorNumber(event.gamma)) return;
 
-        // Do not remove the subscription as it might kill Accelerometer on Android
-      }, DEVICE_MOTION_WATCHDOG_MS);
-    } catch (err) {
-      // DeviceMotion not supported
+        markDeviceMotionActive();
+        handleMotionReading(
+          {
+            rotation: {
+              beta: sensorDegreesToRadians(event.beta),
+              gamma: sensorDegreesToRadians(event.gamma),
+            },
+          },
+          browserOrientationBaselineRef,
+          browserGravityReadingCount === 0
+        );
+      };
+
+      window.addEventListener('devicemotion', browserDeviceMotionListener);
+      window.addEventListener('deviceorientation', browserDeviceOrientationListener);
     }
 
     return () => {
       active = false;
       clearDeviceMotionWatchdog();
       clearAccelerometerWatchdog();
+      if (browserDeviceMotionListener && typeof window !== 'undefined') {
+        window.removeEventListener('devicemotion', browserDeviceMotionListener);
+      }
+      if (browserDeviceOrientationListener && typeof window !== 'undefined') {
+        window.removeEventListener('deviceorientation', browserDeviceOrientationListener);
+      }
       motionSubscription?.remove();
       accelerometerSubscription?.remove();
       if (fallbackIntervalRef.current) {
@@ -263,21 +334,7 @@ export const FakeBeerScreen = () => {
 
   const handleScreenPress = useCallback(async () => {
     if (Platform.OS === 'web') {
-      try {
-        // On modern mobile browsers, motion sensors require a direct user gesture to activate.
-        // Tapping the screen provides this gesture.
-        if (typeof (DeviceMotionEvent as any) !== 'undefined' && typeof (DeviceMotionEvent as any).requestPermission === 'function') {
-          await (DeviceMotionEvent as any).requestPermission();
-        }
-        if (Accelerometer.requestPermissionsAsync) {
-          await Accelerometer.requestPermissionsAsync();
-        }
-        if (DeviceMotion.requestPermissionsAsync) {
-          await DeviceMotion.requestPermissionsAsync();
-        }
-      } catch (err) {
-        // Ignore permission errors
-      }
+      await requestWebMotionPermission();
       sipBeer(0.08);
     }
 

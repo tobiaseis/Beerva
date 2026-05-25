@@ -34,6 +34,7 @@ const vercelJson = JSON.parse(readSource('vercel.json'));
 const rootNavigatorSource = readSource('src/navigation/RootNavigator.tsx');
 const feedScreenSource = readSource('src/screens/FeedScreen.tsx');
 const fakeBeerMotionPath = path.resolve(__dirname, '..', 'src/lib/fakeBeerMotion.ts');
+const webMotionPermissionPath = path.resolve(__dirname, '..', 'src/lib/webMotionPermission.ts');
 
 assert.ok(
   packageJson.dependencies['expo-sensors'],
@@ -82,8 +83,32 @@ assert.match(
 
 assert.match(
   feedScreenSource,
+  /import \{ requestWebMotionPermission \} from '\.\.\/lib\/webMotionPermission';/,
+  'FeedScreen should import the web motion permission helper'
+);
+
+assert.match(
+  feedScreenSource,
   /const FAKE_BEER_LONG_PRESS_MS = 2000;/,
   'FeedScreen should require a 2 second logo hold'
+);
+
+assert.match(
+  feedScreenSource,
+  /const prepareFakeBeerMotion = useCallback\(\(\) => \{\s*void requestWebMotionPermission\(\);\s*\}, \[\]\);/,
+  'FeedScreen should request web motion permission on press-in so browsers see a direct touch gesture'
+);
+
+assert.match(
+  feedScreenSource,
+  /const startFakeBeerUnlock = useCallback\(\(\) => \{\s*if \(fakeBeerUnlocking\) return;\s*void requestWebMotionPermission\(\);/,
+  'FeedScreen should also request web motion permission inside the Beerva text long-press unlock'
+);
+
+assert.match(
+  feedScreenSource,
+  /onPressIn=\{prepareFakeBeerMotion\}/,
+  'Feed header text should prepare web motion sensors as soon as the hidden trigger is pressed'
 );
 
 assert.match(
@@ -142,6 +167,12 @@ assert.match(
 
 assert.match(
   fakeBeerScreenSource,
+  /import \{ requestWebMotionPermission \} from '\.\.\/lib\/webMotionPermission';/,
+  'FakeBeerScreen should reuse the web motion permission helper for manual taps'
+);
+
+assert.match(
+  fakeBeerScreenSource,
   /DeviceMotion\.addListener/,
   'FakeBeerScreen should subscribe to real phone motion'
 );
@@ -156,6 +187,24 @@ assert.match(
   fakeBeerScreenSource,
   /motion\.accelerationIncludingGravity/,
   'FakeBeerScreen should accept web DeviceMotion accelerationIncludingGravity as the drinking signal'
+);
+
+assert.match(
+  fakeBeerScreenSource,
+  /window\.addEventListener\('devicemotion'/,
+  'FakeBeerScreen should listen directly to browser devicemotion events in the web PWA'
+);
+
+assert.match(
+  fakeBeerScreenSource,
+  /window\.addEventListener\('deviceorientation'/,
+  'FakeBeerScreen should listen directly to browser deviceorientation events in the web PWA'
+);
+
+assert.match(
+  fakeBeerScreenSource,
+  /sensorDegreesToRadians\(event\.beta\)/,
+  'FakeBeerScreen should convert browser orientation degrees to radians before using the shared motion helper'
 );
 
 assert.match(
@@ -281,6 +330,31 @@ assert.match(
 assert.ok(
   fs.existsSync(fakeBeerMotionPath),
   'Android drinking should be handled by a reusable fakeBeerMotion helper'
+);
+
+assert.ok(
+  fs.existsSync(webMotionPermissionPath),
+  'Web motion permission should be handled by a reusable helper'
+);
+
+const webMotionPermissionSource = readSource('src/lib/webMotionPermission.ts');
+
+assert.match(
+  webMotionPermissionSource,
+  /DeviceMotionEvent/,
+  'Web motion permission helper should request DeviceMotionEvent permission when browsers expose it'
+);
+
+assert.match(
+  webMotionPermissionSource,
+  /DeviceOrientationEvent/,
+  'Web motion permission helper should request DeviceOrientationEvent permission when browsers expose it'
+);
+
+assert.match(
+  webMotionPermissionSource,
+  /Promise\.all/,
+  'Web motion permission helper should start motion and orientation permission requests within the same user gesture'
 );
 
 const {
