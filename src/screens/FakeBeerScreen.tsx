@@ -145,11 +145,19 @@ export const FakeBeerScreen = () => {
     let motionSubscription: { remove: () => void } | null = null;
     let accelerometerSubscription: { remove: () => void } | null = null;
     let deviceMotionWatchdogTimeout: ReturnType<typeof setTimeout> | null = null;
+    let accelerometerWatchdogTimeout: ReturnType<typeof setTimeout> | null = null;
 
     const clearDeviceMotionWatchdog = () => {
       if (deviceMotionWatchdogTimeout) {
         clearTimeout(deviceMotionWatchdogTimeout);
         deviceMotionWatchdogTimeout = null;
+      }
+    };
+
+    const clearAccelerometerWatchdog = () => {
+      if (accelerometerWatchdogTimeout) {
+        clearTimeout(accelerometerWatchdogTimeout);
+        accelerometerWatchdogTimeout = null;
       }
     };
 
@@ -163,82 +171,77 @@ export const FakeBeerScreen = () => {
     const startAccelerometerMotion = () => {
       if (accelerometerSubscription) return;
 
-      Accelerometer.setUpdateInterval(SENSOR_UPDATE_MS);
-      Accelerometer.isAvailableAsync()
-        .then((available) => {
-          if (!active) return;
-
-          if (!available) {
-            startFallbackMotion();
-            return;
-          }
-
-          accelerometerSubscription = Accelerometer.addListener((gravity) => {
-            hasAccelerometerReadingRef.current = true;
-            handleMotionReading(
-              { accelerationIncludingGravity: gravity },
-              accelerometerBaselineRef,
-              true
-            );
-          });
-        })
-        .catch(() => {
-          if (active) {
-            startFallbackMotion();
-          }
-        });
-    };
-
-    startAccelerometerMotion();
-    DeviceMotion.setUpdateInterval(SENSOR_UPDATE_MS);
-    DeviceMotion.isAvailableAsync()
-      .then((available) => {
-        if (!active) return;
-        if (!available) return;
-
-        let deviceMotionReadingCount = 0;
-        motionSubscription = DeviceMotion.addListener((motion) => {
-          const hasRotation = motion.rotation &&
-                              typeof motion.rotation.beta === 'number' &&
-                              typeof motion.rotation.gamma === 'number';
-
-          if (!hasRotation) {
-            motionSubscription?.remove();
-            motionSubscription = null;
-            return;
-          }
-
-          deviceMotionReadingCount++;
-          if (deviceMotionReadingCount >= 3) {
-            hasDeviceMotionReadingRef.current = true;
-            clearDeviceMotionWatchdog();
-
-            if (accelerometerSubscription) {
-              accelerometerSubscription.remove();
-              accelerometerSubscription = null;
-              hasAccelerometerReadingRef.current = false;
-            }
-          }
-
+      try {
+        Accelerometer.setUpdateInterval(SENSOR_UPDATE_MS);
+        accelerometerSubscription = Accelerometer.addListener((gravity) => {
+          clearAccelerometerWatchdog();
+          hasAccelerometerReadingRef.current = true;
           handleMotionReading(
-            motion,
-            deviceMotionBaselineRef,
+            { accelerationIncludingGravity: gravity },
+            accelerometerBaselineRef,
             true
           );
         });
 
-        deviceMotionWatchdogTimeout = setTimeout(() => {
-          if (!active || hasDeviceMotionReadingRef.current) return;
+        accelerometerWatchdogTimeout = setTimeout(() => {
+          if (!active || hasAccelerometerReadingRef.current) return;
+          startFallbackMotion();
+        }, 1000);
+      } catch (err) {
+        startFallbackMotion();
+      }
+    };
 
+    startAccelerometerMotion();
+    DeviceMotion.setUpdateInterval(SENSOR_UPDATE_MS);
+
+    try {
+      let deviceMotionReadingCount = 0;
+      motionSubscription = DeviceMotion.addListener((motion) => {
+        const hasRotation = motion.rotation &&
+                            typeof motion.rotation.beta === 'number' &&
+                            typeof motion.rotation.gamma === 'number';
+
+        if (!hasRotation) {
           motionSubscription?.remove();
           motionSubscription = null;
-        }, DEVICE_MOTION_WATCHDOG_MS);
-      })
-      .catch(() => {});
+          return;
+        }
+
+        deviceMotionReadingCount++;
+        if (deviceMotionReadingCount >= 3) {
+          hasDeviceMotionReadingRef.current = true;
+          clearDeviceMotionWatchdog();
+
+          if (accelerometerSubscription) {
+            accelerometerSubscription.remove();
+            accelerometerSubscription = null;
+            hasAccelerometerReadingRef.current = false;
+            clearAccelerometerWatchdog();
+          }
+        }
+
+        handleMotionReading(
+          motion,
+          deviceMotionBaselineRef,
+          true
+        );
+      });
+
+      deviceMotionWatchdogTimeout = setTimeout(() => {
+        if (!active || hasDeviceMotionReadingRef.current) return;
+
+        motionSubscription?.remove();
+        motionSubscription = null;
+      }, DEVICE_MOTION_WATCHDOG_MS);
+    } catch (err) {
+      // DeviceMotion not supported
+    }
 
     return () => {
       active = false;
       clearDeviceMotionWatchdog();
+      clearAccelerometerWatchdog();
       motionSubscription?.remove();
       accelerometerSubscription?.remove();
       if (fallbackIntervalRef.current) {
@@ -281,7 +284,7 @@ export const FakeBeerScreen = () => {
         <View style={styles.debugPanel} pointerEvents="none">
           <Text style={styles.debugText}>OS: {Platform.OS}</Text>
           <Text style={styles.debugText}>
-            Sensor: {hasDeviceMotionReadingRef.current ? 'DeviceMotion' : 'Accelerometer'}
+            Sensor: {hasDeviceMotionReadingRef.current ? 'DeviceMotion' : hasAccelerometerReadingRef.current ? 'Accelerometer' : 'Fallback (Sine Wave)'}
           </Text>
           <Text style={styles.debugText}>
             Fill Level: {(fillLevel * 100).toFixed(1)}%
