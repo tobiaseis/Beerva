@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Platform, Pressable, StyleSheet } from 'react-native';
+import { Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { X } from 'lucide-react-native';
 import { Accelerometer, DeviceMotion } from 'expo-sensors';
@@ -32,6 +32,10 @@ export const FakeBeerScreen = () => {
   const [liquidTiltDegrees, setLiquidTiltDegrees] = useState(0);
   const [sloshOffset, setSloshOffset] = useState(0);
   const [showHint, setShowHint] = useState(true);
+  const [showDebug, setShowDebug] = useState(false);
+  const [tapCount, setTapCount] = useState(0);
+  const lastTapTimeRef = useRef<number>(0);
+  const lastReadingRef = useRef<FakeBeerMotionReading | null>(null);
   const refillAnimation = useRef(new Animated.Value(1)).current;
   const targetTiltDegreesRef = useRef(0);
   const liquidTiltDegreesRef = useRef(0);
@@ -40,6 +44,7 @@ export const FakeBeerScreen = () => {
   const deviceMotionBaselineRef = useRef<FakeBeerMotionBaseline | null>(null);
   const accelerometerBaselineRef = useRef<FakeBeerMotionBaseline | null>(null);
   const hasAccelerometerReadingRef = useRef(false);
+  const hasDeviceMotionReadingRef = useRef(false);
   const refillingRef = useRef(false);
   const fallbackIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -97,6 +102,7 @@ export const FakeBeerScreen = () => {
     baselineRef: React.MutableRefObject<FakeBeerMotionBaseline | null>,
     allowsDrinking: boolean
   ) => {
+    lastReadingRef.current = reading;
     if (!baselineRef.current) {
       baselineRef.current = createFakeBeerMotionBaseline(reading);
     }
@@ -136,7 +142,6 @@ export const FakeBeerScreen = () => {
 
   useEffect(() => {
     let active = true;
-    let hasDeviceMotionReading = false;
     let motionSubscription: { remove: () => void } | null = null;
     let accelerometerSubscription: { remove: () => void } | null = null;
     let deviceMotionWatchdogTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -191,14 +196,28 @@ export const FakeBeerScreen = () => {
         if (!active) return;
         if (!available) return;
 
+        let deviceMotionReadingCount = 0;
         motionSubscription = DeviceMotion.addListener((motion) => {
-          hasDeviceMotionReading = true;
-          clearDeviceMotionWatchdog();
+          const hasRotation = motion.rotation &&
+                              typeof motion.rotation.beta === 'number' &&
+                              typeof motion.rotation.gamma === 'number';
 
-          if (accelerometerSubscription) {
-            accelerometerSubscription.remove();
-            accelerometerSubscription = null;
-            hasAccelerometerReadingRef.current = false;
+          if (!hasRotation) {
+            motionSubscription?.remove();
+            motionSubscription = null;
+            return;
+          }
+
+          deviceMotionReadingCount++;
+          if (deviceMotionReadingCount >= 3) {
+            hasDeviceMotionReadingRef.current = true;
+            clearDeviceMotionWatchdog();
+
+            if (accelerometerSubscription) {
+              accelerometerSubscription.remove();
+              accelerometerSubscription = null;
+              hasAccelerometerReadingRef.current = false;
+            }
           }
 
           handleMotionReading(
@@ -209,7 +228,7 @@ export const FakeBeerScreen = () => {
         });
 
         deviceMotionWatchdogTimeout = setTimeout(() => {
-          if (!active || hasDeviceMotionReading) return;
+          if (!active || hasDeviceMotionReadingRef.current) return;
 
           motionSubscription?.remove();
           motionSubscription = null;
@@ -229,20 +248,69 @@ export const FakeBeerScreen = () => {
     };
   }, [handleMotionReading]);
 
-  const handleFallbackSip = useCallback(() => {
+  const handleScreenPress = useCallback(() => {
     if (Platform.OS === 'web') {
       sipBeer(0.08);
     }
-  }, [sipBeer]);
+
+    const now = Date.now();
+    if (now - lastTapTimeRef.current > 2000) {
+      setTapCount(1);
+    } else {
+      const nextCount = tapCount + 1;
+      if (nextCount >= 5) {
+        setShowDebug((prev) => !prev);
+        setTapCount(0);
+      } else {
+        setTapCount(nextCount);
+      }
+    }
+    lastTapTimeRef.current = now;
+  }, [sipBeer, tapCount]);
 
   return (
-    <Pressable style={styles.container} onPress={handleFallbackSip}>
+    <Pressable style={styles.container} onPress={handleScreenPress}>
       <FakeBeerVisual
         fillLevel={fillLevel}
         tiltDegrees={liquidTiltDegrees}
         sloshOffset={sloshOffset}
         showHint={showHint}
       />
+
+      {showDebug && (
+        <View style={styles.debugPanel} pointerEvents="none">
+          <Text style={styles.debugText}>OS: {Platform.OS}</Text>
+          <Text style={styles.debugText}>
+            Sensor: {hasDeviceMotionReadingRef.current ? 'DeviceMotion' : 'Accelerometer'}
+          </Text>
+          <Text style={styles.debugText}>
+            Fill Level: {(fillLevel * 100).toFixed(1)}%
+          </Text>
+          <Text style={styles.debugText}>
+            Tilt: {targetTiltDegreesRef.current.toFixed(1)}° (liq: {liquidTiltDegrees.toFixed(1)}°)
+          </Text>
+          {lastReadingRef.current?.rotation && (
+            <Text style={styles.debugText}>
+              Rot Beta: {lastReadingRef.current.rotation.beta?.toFixed(3)} (Base: {deviceMotionBaselineRef.current?.betaRadians?.toFixed(3)})
+            </Text>
+          )}
+          {lastReadingRef.current?.accelerationIncludingGravity && (
+            <Text style={styles.debugText}>
+              Accel Y/Z: {lastReadingRef.current.accelerationIncludingGravity.y?.toFixed(2)} / {lastReadingRef.current.accelerationIncludingGravity.z?.toFixed(2)} (Base Y/Z: {accelerometerBaselineRef.current?.gravityPitchRadians?.toFixed(3)})
+            </Text>
+          )}
+          <Text style={styles.debugText}>
+            Drink Delta: {(() => {
+              const signal = getFakeBeerMotionSignal(
+                lastReadingRef.current || {},
+                hasDeviceMotionReadingRef.current ? deviceMotionBaselineRef.current : accelerometerBaselineRef.current
+              );
+              return signal.drinkPressure.toFixed(3);
+            })()}
+          </Text>
+        </View>
+      )}
+
       <Pressable
         style={styles.closeButton}
         onPress={() => navigation.goBack()}
@@ -273,5 +341,23 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(13, 18, 26, 0.42)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.22)',
+  },
+  debugPanel: {
+    position: 'absolute',
+    top: 100,
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    zIndex: 9999,
+  },
+  debugText: {
+    color: '#fff',
+    fontSize: 12,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    marginBottom: 4,
   },
 });
