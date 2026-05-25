@@ -1,6 +1,12 @@
 import { Platform } from 'react-native';
 
 type WebMotionPermissionState = 'granted' | 'denied' | 'prompt' | 'unsupported';
+type WebPermissionDiagnostic = PermissionState | 'unsupported' | 'unknown';
+
+export type WebMotionPermissionDiagnostics = {
+  accelerometer: WebPermissionDiagnostic;
+  gyroscope: WebPermissionDiagnostic;
+};
 
 const requestSensorPermission = (eventName: 'DeviceMotionEvent' | 'DeviceOrientationEvent') => {
   if (Platform.OS !== 'web' || typeof globalThis === 'undefined') {
@@ -34,4 +40,37 @@ export const requestWebMotionPermission = async () => {
   if (results.includes('prompt')) return 'prompt';
   if (results.includes('denied')) return 'denied';
   return 'unsupported';
+};
+
+const queryBrowserPermission = async (name: 'accelerometer' | 'gyroscope') => {
+  if (
+    Platform.OS !== 'web'
+    || typeof navigator === 'undefined'
+    || !navigator.permissions?.query
+  ) {
+    return 'unsupported' as const;
+  }
+
+  try {
+    const result = await navigator.permissions.query({ name } as unknown as PermissionDescriptor);
+    return result.state;
+  } catch {
+    return 'unknown' as const;
+  }
+};
+
+export const queryWebMotionPermissionState = async (): Promise<WebMotionPermissionDiagnostics> => {
+  if (Platform.OS !== 'web') {
+    return {
+      accelerometer: 'unsupported',
+      gyroscope: 'unsupported',
+    };
+  }
+
+  const [accelerometer, gyroscope] = await Promise.all([
+    queryBrowserPermission('accelerometer'),
+    queryBrowserPermission('gyroscope'),
+  ]);
+
+  return { accelerometer, gyroscope };
 };

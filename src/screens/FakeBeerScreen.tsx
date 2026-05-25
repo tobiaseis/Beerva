@@ -12,7 +12,7 @@ import {
   type FakeBeerMotionReading,
 } from '../lib/fakeBeerMotion';
 import { hapticLight } from '../lib/haptics';
-import { requestWebMotionPermission } from '../lib/webMotionPermission';
+import { queryWebMotionPermissionState, requestWebMotionPermission } from '../lib/webMotionPermission';
 import { colors } from '../theme/colors';
 import { radius } from '../theme/layout';
 
@@ -47,6 +47,43 @@ const getBrowserGravityVector = (gravity: any) => {
   };
 };
 
+type WebSensorDebugState = {
+  secureContext: string;
+  motionApi: string;
+  orientationApi: string;
+  genericApi: string;
+  permissionRequest: string;
+  accelerometerPermission: string;
+  gyroscopePermission: string;
+  motionEvents: number;
+  orientationEvents: number;
+  genericEvents: number;
+  genericError: string | null;
+};
+
+const getInitialWebSensorDebug = (): WebSensorDebugState => ({
+  secureContext: 'unknown',
+  motionApi: 'unknown',
+  orientationApi: 'unknown',
+  genericApi: 'unknown',
+  permissionRequest: 'unknown',
+  accelerometerPermission: 'unknown',
+  gyroscopePermission: 'unknown',
+  motionEvents: 0,
+  orientationEvents: 0,
+  genericEvents: 0,
+  genericError: null,
+});
+
+const getErrorMessage = (error: unknown) => {
+  if (!error) return 'Unknown error';
+  if (error instanceof Error) return error.message || error.name;
+  if (typeof error === 'object' && 'message' in error) {
+    return String((error as { message?: unknown }).message);
+  }
+  return String(error);
+};
+
 export const FakeBeerScreen = () => {
   const navigation = useNavigation<any>();
   const [fillLevel, setFillLevel] = useState(1);
@@ -55,6 +92,8 @@ export const FakeBeerScreen = () => {
   const [showHint, setShowHint] = useState(true);
   const [showDebug, setShowDebug] = useState(false);
   const [tapCount, setTapCount] = useState(0);
+  const [sensorSource, setSensorSource] = useState('Fallback (Sine Wave)');
+  const [webSensorDebug, setWebSensorDebug] = useState<WebSensorDebugState>(getInitialWebSensorDebug);
   const lastTapTimeRef = useRef<number>(0);
   const lastReadingRef = useRef<FakeBeerMotionReading | null>(null);
   const refillAnimation = useRef(new Animated.Value(1)).current;
@@ -65,6 +104,7 @@ export const FakeBeerScreen = () => {
   const deviceMotionBaselineRef = useRef<FakeBeerMotionBaseline | null>(null);
   const accelerometerBaselineRef = useRef<FakeBeerMotionBaseline | null>(null);
   const browserOrientationBaselineRef = useRef<FakeBeerMotionBaseline | null>(null);
+  const genericSensorBaselineRef = useRef<FakeBeerMotionBaseline | null>(null);
   const hasAccelerometerReadingRef = useRef(false);
   const hasDeviceMotionReadingRef = useRef(false);
   const refillingRef = useRef(false);
@@ -170,6 +210,13 @@ export const FakeBeerScreen = () => {
     let accelerometerWatchdogTimeout: ReturnType<typeof setTimeout> | null = null;
     let browserDeviceMotionListener: ((event: DeviceMotionEvent) => void) | null = null;
     let browserDeviceOrientationListener: ((event: DeviceOrientationEvent) => void) | null = null;
+    let webSensorWatchdogTimeout: ReturnType<typeof setTimeout> | null = null;
+    let genericSensor: any = null;
+    let genericSensorReadingListener: (() => void) | null = null;
+    let genericSensorErrorListener: ((event: any) => void) | null = null;
+    let browserMotionEventCount = 0;
+    let browserOrientationEventCount = 0;
+    let genericSensorEventCount = 0;
     let browserGravityReadingCount = 0;
 
     const clearDeviceMotionWatchdog = () => {
@@ -186,6 +233,13 @@ export const FakeBeerScreen = () => {
       }
     };
 
+    const clearWebSensorWatchdog = () => {
+      if (webSensorWatchdogTimeout) {
+        clearTimeout(webSensorWatchdogTimeout);
+        webSensorWatchdogTimeout = null;
+      }
+    };
+
     const clearFallbackMotion = () => {
       if (fallbackIntervalRef.current) {
         clearInterval(fallbackIntervalRef.current);
@@ -195,21 +249,33 @@ export const FakeBeerScreen = () => {
 
     const startFallbackMotion = () => {
       if (fallbackIntervalRef.current) return;
+      setSensorSource('Fallback (Sine Wave)');
       fallbackIntervalRef.current = setInterval(() => {
         targetTiltDegreesRef.current = Math.sin(Date.now() / 420) * 10;
       }, SENSOR_UPDATE_MS);
     };
 
-    const markDeviceMotionActive = () => {
+    const markDeviceMotionActive = (source: string) => {
       hasDeviceMotionReadingRef.current = true;
       clearDeviceMotionWatchdog();
+      clearWebSensorWatchdog();
       clearFallbackMotion();
+      setSensorSource((current) => current === source ? current : source);
 
       if (accelerometerSubscription) {
         accelerometerSubscription.remove();
         accelerometerSubscription = null;
         hasAccelerometerReadingRef.current = false;
         clearAccelerometerWatchdog();
+      }
+    };
+
+    const updateWebEventCount = (
+      key: 'motionEvents' | 'orientationEvents' | 'genericEvents',
+      value: number
+    ) => {
+      if (value <= 3 || value % 20 === 0) {
+        setWebSensorDebug((current) => ({ ...current, [key]: value }));
       }
     };
 
@@ -259,7 +325,7 @@ export const FakeBeerScreen = () => {
 
           deviceMotionReadingCount++;
           if (deviceMotionReadingCount >= 3) {
-            markDeviceMotionActive();
+            markDeviceMotionActive('Expo DeviceMotion');
           }
 
           handleMotionReading(
@@ -280,12 +346,88 @@ export const FakeBeerScreen = () => {
     }
 
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const globalSensors = globalThis as Record<string, any>;
+      const GenericSensorConstructor = globalSensors.GravitySensor || globalSensors.Accelerometer;
+      const genericApi = globalSensors.GravitySensor
+        ? 'GravitySensor'
+        : globalSensors.Accelerometer
+          ? 'Accelerometer'
+          : 'missing';
+
+      setWebSensorDebug((current) => ({
+        ...current,
+        secureContext: String(window.isSecureContext),
+        motionApi: String(typeof DeviceMotionEvent !== 'undefined'),
+        orientationApi: String(typeof DeviceOrientationEvent !== 'undefined'),
+        genericApi,
+      }));
+
+      queryWebMotionPermissionState()
+        .then(({ accelerometer, gyroscope }) => {
+          if (!active) return;
+          setWebSensorDebug((current) => ({
+            ...current,
+            accelerometerPermission: accelerometer,
+            gyroscopePermission: gyroscope,
+          }));
+        })
+        .catch((error) => {
+          if (!active) return;
+          setWebSensorDebug((current) => ({
+            ...current,
+            genericError: getErrorMessage(error),
+          }));
+        });
+
+      if (GenericSensorConstructor) {
+        try {
+          genericSensor = new GenericSensorConstructor({
+            frequency: Math.max(1, Math.round(1000 / SENSOR_UPDATE_MS)),
+          });
+
+          genericSensorReadingListener = () => {
+            if (!active || !genericSensor) return;
+
+            const gravity = getBrowserGravityVector(genericSensor);
+            if (!gravity) return;
+
+            genericSensorEventCount++;
+            updateWebEventCount('genericEvents', genericSensorEventCount);
+            markDeviceMotionActive(`Generic ${genericApi}`);
+            handleMotionReading(
+              { accelerationIncludingGravity: gravity },
+              genericSensorBaselineRef,
+              browserGravityReadingCount === 0
+            );
+          };
+
+          genericSensorErrorListener = (event: any) => {
+            if (!active) return;
+            setWebSensorDebug((current) => ({
+              ...current,
+              genericError: getErrorMessage(event?.error ?? event),
+            }));
+          };
+
+          genericSensor.addEventListener('reading', genericSensorReadingListener);
+          genericSensor.addEventListener('error', genericSensorErrorListener);
+          genericSensor.start();
+        } catch (error) {
+          setWebSensorDebug((current) => ({
+            ...current,
+            genericError: getErrorMessage(error),
+          }));
+        }
+      }
+
       browserDeviceMotionListener = (event: DeviceMotionEvent) => {
         const gravity = getBrowserGravityVector(event.accelerationIncludingGravity);
         if (!gravity) return;
 
+        browserMotionEventCount++;
         browserGravityReadingCount++;
-        markDeviceMotionActive();
+        updateWebEventCount('motionEvents', browserMotionEventCount);
+        markDeviceMotionActive('Browser DeviceMotion');
         handleMotionReading(
           { accelerationIncludingGravity: gravity },
           deviceMotionBaselineRef,
@@ -296,7 +438,9 @@ export const FakeBeerScreen = () => {
       browserDeviceOrientationListener = (event: DeviceOrientationEvent) => {
         if (!isFiniteSensorNumber(event.beta) || !isFiniteSensorNumber(event.gamma)) return;
 
-        markDeviceMotionActive();
+        browserOrientationEventCount++;
+        updateWebEventCount('orientationEvents', browserOrientationEventCount);
+        markDeviceMotionActive('Browser DeviceOrientation');
         handleMotionReading(
           {
             rotation: {
@@ -311,12 +455,27 @@ export const FakeBeerScreen = () => {
 
       window.addEventListener('devicemotion', browserDeviceMotionListener);
       window.addEventListener('deviceorientation', browserDeviceOrientationListener);
+
+      webSensorWatchdogTimeout = setTimeout(() => {
+        if (!active || hasDeviceMotionReadingRef.current) return;
+        startFallbackMotion();
+      }, 1400);
     }
 
     return () => {
       active = false;
       clearDeviceMotionWatchdog();
       clearAccelerometerWatchdog();
+      clearWebSensorWatchdog();
+      if (genericSensor) {
+        if (genericSensorReadingListener) {
+          genericSensor.removeEventListener('reading', genericSensorReadingListener);
+        }
+        if (genericSensorErrorListener) {
+          genericSensor.removeEventListener('error', genericSensorErrorListener);
+        }
+        genericSensor.stop?.();
+      }
       if (browserDeviceMotionListener && typeof window !== 'undefined') {
         window.removeEventListener('devicemotion', browserDeviceMotionListener);
       }
@@ -334,7 +493,14 @@ export const FakeBeerScreen = () => {
 
   const handleScreenPress = useCallback(async () => {
     if (Platform.OS === 'web') {
-      await requestWebMotionPermission();
+      const permissionRequest = await requestWebMotionPermission();
+      const { accelerometer, gyroscope } = await queryWebMotionPermissionState();
+      setWebSensorDebug((current) => ({
+        ...current,
+        permissionRequest,
+        accelerometerPermission: accelerometer,
+        gyroscopePermission: gyroscope,
+      }));
       sipBeer(0.08);
     }
 
@@ -366,8 +532,24 @@ export const FakeBeerScreen = () => {
         <View style={styles.debugPanel} pointerEvents="none">
           <Text style={styles.debugText}>OS: {Platform.OS}</Text>
           <Text style={styles.debugText}>
-            Sensor: {hasDeviceMotionReadingRef.current ? 'DeviceMotion' : hasAccelerometerReadingRef.current ? 'Accelerometer' : 'Fallback (Sine Wave)'}
+            Sensor Source: {sensorSource}
           </Text>
+          {Platform.OS === 'web' && (
+            <>
+              <Text style={styles.debugText}>
+                Permission: req {webSensorDebug.permissionRequest} / acc {webSensorDebug.accelerometerPermission} / gyro {webSensorDebug.gyroscopePermission}
+              </Text>
+              <Text style={styles.debugText}>
+                APIs: https {webSensorDebug.secureContext} / motion {webSensorDebug.motionApi} / orient {webSensorDebug.orientationApi} / generic {webSensorDebug.genericApi}
+              </Text>
+              <Text style={styles.debugText}>
+                Events: motion {webSensorDebug.motionEvents} / orient {webSensorDebug.orientationEvents} / generic {webSensorDebug.genericEvents}
+              </Text>
+              <Text style={styles.debugText}>
+                Generic Error: {webSensorDebug.genericError || 'none'}
+              </Text>
+            </>
+          )}
           <Text style={styles.debugText}>
             Fill Level: {(fillLevel * 100).toFixed(1)}%
           </Text>

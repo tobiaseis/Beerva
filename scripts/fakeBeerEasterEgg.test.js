@@ -167,7 +167,7 @@ assert.match(
 
 assert.match(
   fakeBeerScreenSource,
-  /import \{ requestWebMotionPermission \} from '\.\.\/lib\/webMotionPermission';/,
+  /import \{ queryWebMotionPermissionState, requestWebMotionPermission \} from '\.\.\/lib\/webMotionPermission';/,
   'FakeBeerScreen should reuse the web motion permission helper for manual taps'
 );
 
@@ -199,6 +199,42 @@ assert.match(
   fakeBeerScreenSource,
   /window\.addEventListener\('deviceorientation'/,
   'FakeBeerScreen should listen directly to browser deviceorientation events in the web PWA'
+);
+
+assert.match(
+  fakeBeerScreenSource,
+  /GravitySensor/,
+  'FakeBeerScreen should try the browser Generic Sensor API GravitySensor when DOM motion events are silent'
+);
+
+assert.match(
+  fakeBeerScreenSource,
+  /genericSensor\.addEventListener\('reading'/,
+  'FakeBeerScreen should consume Generic Sensor API readings in the web PWA'
+);
+
+assert.match(
+  fakeBeerScreenSource,
+  /genericSensorBaselineRef/,
+  'FakeBeerScreen should calibrate Generic Sensor readings separately'
+);
+
+assert.match(
+  fakeBeerScreenSource,
+  /Sensor Source:/,
+  'FakeBeerScreen debug panel should show the active sensor source'
+);
+
+assert.match(
+  fakeBeerScreenSource,
+  /Events:/,
+  'FakeBeerScreen debug panel should show event counts for browser sensor diagnosis'
+);
+
+assert.match(
+  fakeBeerScreenSource,
+  /Generic Error:/,
+  'FakeBeerScreen debug panel should show Generic Sensor errors when Android blocks construction or start'
 );
 
 assert.match(
@@ -355,6 +391,18 @@ assert.match(
   webMotionPermissionSource,
   /Promise\.all/,
   'Web motion permission helper should start motion and orientation permission requests within the same user gesture'
+);
+
+assert.match(
+  webMotionPermissionSource,
+  /queryWebMotionPermissionState/,
+  'Web motion permission helper should expose diagnostics for browser sensor permission state'
+);
+
+assert.match(
+  webMotionPermissionSource,
+  /navigator\.permissions\.query/,
+  'Web motion permission helper should query accelerometer and gyroscope permissions when supported'
 );
 
 const {
