@@ -14,6 +14,7 @@ const migrationSql = read('supabase/migrations/20260512170000_add_hangover_promp
 const nightDedupeMigrationPath = 'supabase/migrations/20260521130000_group_hangover_prompts_by_drinking_night.sql';
 const karnevalsdrukHangoverMigrationPath = 'supabase/migrations/20260521140000_add_karnevalsdruk_hangover_prompt.sql';
 const karnevalsdrukJoinResilienceMigrationPath = 'supabase/migrations/20260522120000_make_karnevalsdruk_join_resilient.sql';
+const karnevalsdrukFinalizationRecoveryPath = 'supabase/migrations/20260525100000_recover_karnevalsdruk_finalization.sql';
 
 assert.match(migrationSql, /add column if not exists timezone text/i, 'sessions and pub crawls should snapshot a timezone');
 assert.match(migrationSql, /add column if not exists hangover_score smallint/i, 'posts should store a hangover score');
@@ -212,6 +213,8 @@ assert.match(
 );
 assert.ok(exists(karnevalsdrukJoinResilienceMigrationPath), 'KarnevalsDruk join resilience migration should exist');
 const karnevalsdrukJoinResilienceMigrationSql = read(karnevalsdrukJoinResilienceMigrationPath);
+assert.ok(exists(karnevalsdrukFinalizationRecoveryPath), 'KarnevalsDruk finalization recovery migration should exist');
+const karnevalsdrukFinalizationRecoverySql = read(karnevalsdrukFinalizationRecoveryPath);
 
 assert.match(
   karnevalsdrukJoinResilienceMigrationSql,
@@ -227,6 +230,16 @@ assert.match(
   karnevalsdrukJoinResilienceMigrationSql,
   /exception\s+when\s+others\s+then[\s\S]*return\s+new/i,
   'KarnevalsDruk after-join cleanup failures should still allow the joined challenge entry'
+);
+assert.match(
+  karnevalsdrukFinalizationRecoverySql,
+  /drop\s+trigger\s+if\s+exists\s+challenges_create_karnevalsdruk_hangover_prompts_after_finalize/i,
+  'KarnevalsDruk recovery should disable the finalized hangover prompt trigger after the event'
+);
+assert.doesNotMatch(
+  karnevalsdrukFinalizationRecoverySql,
+  /perform\s+public\.create_karnevalsdruk_hangover_prompts|create\s+trigger\s+challenges_create_karnevalsdruk_hangover_prompts_after_finalize/i,
+  'KarnevalsDruk recovery should not create late challenge hangover prompts'
 );
 assert.match(
   karnevalsdrukHangoverMigrationSql,

@@ -40,6 +40,7 @@ const challengeLeaderboardWindowFixPath = 'supabase/migrations/20260521100000_fi
 const karnevalTestMigrationPath = 'supabase/migrations/20260521110000_add_karneval_test_challenge.sql';
 const removeKarnevalTestMigrationPath = 'supabase/migrations/20260521120000_remove_karneval_test_challenge.sql';
 const karnevalsdrukDualAwardsMigrationPath = 'supabase/migrations/20260522110000_add_karnevalsdruk_dual_awards.sql';
+const karnevalsdrukFinalizationRecoveryPath = 'supabase/migrations/20260525100000_recover_karnevalsdruk_finalization.sql';
 const challengeFinalizerPath = 'supabase/functions/finalize-challenges/index.ts';
 const officialFeedPostsPath = 'src/lib/officialFeedPosts.ts';
 const officialFeedPostsApiPath = 'src/lib/officialFeedPostsApi.ts';
@@ -54,6 +55,7 @@ assert.ok(exists(challengeLeaderboardWindowFixPath), 'challenge leaderboard wind
 assert.ok(exists(karnevalTestMigrationPath), 'Karneval test challenge migration should exist');
 assert.ok(exists(removeKarnevalTestMigrationPath), 'Karneval test cleanup migration should exist');
 assert.ok(exists(karnevalsdrukDualAwardsMigrationPath), 'KarnevalsDruk dual awards migration should exist');
+assert.ok(exists(karnevalsdrukFinalizationRecoveryPath), 'KarnevalsDruk finalization recovery migration should exist');
 assert.ok(exists(challengeFinalizerPath), 'challenge finalizer Edge Function should exist');
 assert.ok(exists(officialFeedPostsPath), 'official feed post mapper should exist');
 assert.ok(exists(officialFeedPostsApiPath), 'official feed post API should exist');
@@ -341,10 +343,49 @@ assert.match(karnevalsdrukDualAwardsMigrationSql, /pint_user_id/, 'finalizer sho
 assert.match(karnevalsdrukDualAwardsMigrationSql, /abv_user_id/, 'finalizer should track the ABV winner separately');
 assert.match(karnevalsdrukDualAwardsMigrationSql, /on conflict \(challenge_id, user_id, award_slug\)/i, 'both challenge awards should remain idempotent');
 
+const karnevalsdrukFinalizationRecoverySql = read(karnevalsdrukFinalizationRecoveryPath);
+assert.match(
+  karnevalsdrukFinalizationRecoverySql,
+  /create or replace function public\.invoke_challenge_finalizer\(\)[\s\S]*from public\.finalize_due_challenges\(10\)/i,
+  'challenge cron should finalize directly in the database instead of depending on an Edge gateway call'
+);
+assert.match(
+  karnevalsdrukFinalizationRecoverySql,
+  /king-of-karneval-pints[\s\S]*official_feed_posts[\s\S]*finalized_at\s*=\s*null/i,
+  'recovery should reopen an ended KarnevalsDruk row when finalization side effects are missing'
+);
+assert.match(
+  karnevalsdrukFinalizationRecoverySql,
+  /king-of-karneval-abv[\s\S]*finalized_at\s*=\s*null/i,
+  'recovery should also reopen KarnevalsDruk when the ABV winner trophy is missing'
+);
+assert.match(
+  karnevalsdrukFinalizationRecoverySql,
+  /from public\.finalize_due_challenges\(10\)/i,
+  'recovery should run the finalizer after repairing the finalization state'
+);
+assert.match(
+  karnevalsdrukFinalizationRecoverySql,
+  /drop trigger if exists challenges_create_karnevalsdruk_hangover_prompts_after_finalize/i,
+  'recovery should disable late KarnevalsDruk hangover prompt creation before rerunning finalization'
+);
+assert.doesNotMatch(
+  karnevalsdrukFinalizationRecoverySql,
+  /perform public\.create_karnevalsdruk_hangover_prompts|create trigger challenges_create_karnevalsdruk_hangover_prompts_after_finalize/i,
+  'recovery should not queue late KarnevalsDruk hangover prompts'
+);
+
 const finalizerSource = read(challengeFinalizerPath);
 assert.match(finalizerSource, /finalize_due_challenges/, 'scheduled function should call finalization RPC');
 assert.match(finalizerSource, /CHALLENGE_FINALIZER_CRON_SECRET/, 'scheduled function should require a challenge cron secret');
 assert.match(finalizerSource, /x-beerva-cron-secret/i, 'scheduled function should validate the cron secret header');
+
+const supabaseConfig = read('supabase/config.toml');
+assert.match(
+  supabaseConfig,
+  /\[functions\.finalize-challenges\][\s\S]*?verify_jwt\s*=\s*false/,
+  'finalize-challenges should disable gateway JWT verification and rely on its cron secret'
+);
 
 const apiSource = read(challengesApiPath);
 assert.match(apiSource, /fetchOfficialChallenges/, 'challenge API should fetch official challenges');
