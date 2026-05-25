@@ -161,6 +161,13 @@ export const FakeBeerScreen = () => {
       }
     };
 
+    const clearFallbackMotion = () => {
+      if (fallbackIntervalRef.current) {
+        clearInterval(fallbackIntervalRef.current);
+        fallbackIntervalRef.current = null;
+      }
+    };
+
     const startFallbackMotion = () => {
       if (fallbackIntervalRef.current) return;
       fallbackIntervalRef.current = setInterval(() => {
@@ -175,6 +182,7 @@ export const FakeBeerScreen = () => {
         Accelerometer.setUpdateInterval(SENSOR_UPDATE_MS);
         accelerometerSubscription = Accelerometer.addListener((gravity) => {
           clearAccelerometerWatchdog();
+          clearFallbackMotion();
           hasAccelerometerReadingRef.current = true;
           handleMotionReading(
             { accelerationIncludingGravity: gravity },
@@ -212,6 +220,7 @@ export const FakeBeerScreen = () => {
         if (deviceMotionReadingCount >= 3) {
           hasDeviceMotionReadingRef.current = true;
           clearDeviceMotionWatchdog();
+          clearFallbackMotion();
 
           if (accelerometerSubscription) {
             accelerometerSubscription.remove();
