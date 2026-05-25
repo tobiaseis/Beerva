@@ -12,26 +12,32 @@ import Svg, { Circle, Defs, LinearGradient, Path, Rect, Stop } from 'react-nativ
 
 import { colors } from '../theme/colors';
 
-type BubbleConfig = {
+type BubbleStreamConfig = {
   id: string;
   left: `${number}%`;
   size: number;
   distance: number;
   opacity: number;
   drift: number;
+  duration: number;
+  delay: number;
+  startY: number;
 };
 
-const BUBBLES = [
-  { id: 'b1', left: '8%', size: 7, distance: 300, opacity: 0.58, drift: 9 },
-  { id: 'b2', left: '16%', size: 4, distance: 390, opacity: 0.42, drift: 13 },
-  { id: 'b3', left: '27%', size: 11, distance: 335, opacity: 0.5, drift: 7 },
-  { id: 'b4', left: '39%', size: 5, distance: 420, opacity: 0.54, drift: 11 },
-  { id: 'b5', left: '51%', size: 8, distance: 355, opacity: 0.46, drift: 8 },
-  { id: 'b6', left: '64%', size: 4, distance: 405, opacity: 0.5, drift: 12 },
-  { id: 'b7', left: '76%', size: 10, distance: 320, opacity: 0.45, drift: 9 },
-  { id: 'b8', left: '88%', size: 6, distance: 380, opacity: 0.56, drift: 10 },
-  { id: 'b9', left: '95%', size: 3, distance: 440, opacity: 0.38, drift: 6 },
-] satisfies BubbleConfig[];
+const BUBBLE_STREAMS = [
+  { id: 'b1', left: '6%', size: 5, distance: 340, opacity: 0.52, drift: 8, duration: 3400, delay: 0, startY: 96 },
+  { id: 'b2', left: '12%', size: 9, distance: 430, opacity: 0.44, drift: 13, duration: 4200, delay: 680, startY: 126 },
+  { id: 'b3', left: '19%', size: 4, distance: 390, opacity: 0.5, drift: 9, duration: 3000, delay: 1180, startY: 108 },
+  { id: 'b4', left: '27%', size: 12, distance: 365, opacity: 0.46, drift: 7, duration: 4600, delay: 220, startY: 146 },
+  { id: 'b5', left: '36%', size: 5, distance: 460, opacity: 0.56, drift: 12, duration: 3600, delay: 1440, startY: 116 },
+  { id: 'b6', left: '45%', size: 7, distance: 320, opacity: 0.48, drift: 8, duration: 2900, delay: 860, startY: 100 },
+  { id: 'b7', left: '54%', size: 4, distance: 440, opacity: 0.42, drift: 13, duration: 3900, delay: 1720, startY: 138 },
+  { id: 'b8', left: '63%', size: 10, distance: 350, opacity: 0.5, drift: 9, duration: 4800, delay: 420, startY: 122 },
+  { id: 'b9', left: '72%', size: 5, distance: 410, opacity: 0.54, drift: 11, duration: 3150, delay: 1360, startY: 106 },
+  { id: 'b10', left: '81%', size: 8, distance: 380, opacity: 0.46, drift: 10, duration: 4400, delay: 1020, startY: 132 },
+  { id: 'b11', left: '89%', size: 4, distance: 455, opacity: 0.5, drift: 6, duration: 3500, delay: 1880, startY: 118 },
+  { id: 'b12', left: '96%', size: 6, distance: 335, opacity: 0.38, drift: 7, duration: 4100, delay: 540, startY: 112 },
+] satisfies BubbleStreamConfig[];
 
 type FakeBeerVisualProps = {
   fillLevel: number;
@@ -44,6 +50,68 @@ type FakeBeerVisualProps = {
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const clamp01 = (value: number) => clamp(value, 0, 1);
 
+const CarbonationBubble = React.memo(({ stream }: { stream: BubbleStreamConfig }) => {
+  const progress = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    progress.setValue(0);
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.delay(stream.delay),
+        Animated.timing(progress, {
+          toValue: 1,
+          duration: stream.duration,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(progress, {
+          toValue: 0,
+          duration: 0,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    loop.start();
+    return () => loop.stop();
+  }, [progress, stream.delay, stream.duration]);
+
+  const translateY = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [stream.startY, -stream.distance],
+  });
+  const translateX = progress.interpolate({
+    inputRange: [0, 0.34, 0.68, 1],
+    outputRange: [-stream.drift, stream.drift * 0.55, -stream.drift * 0.35, stream.drift],
+  });
+  const opacity = progress.interpolate({
+    inputRange: [0, 0.08, 0.72, 1],
+    outputRange: [0, stream.opacity, stream.opacity * 0.86, 0],
+  });
+  const scale = progress.interpolate({
+    inputRange: [0, 0.48, 1],
+    outputRange: [0.62, 1.18, 0.82],
+  });
+
+  return (
+    <Animated.View
+      style={[
+        styles.bubble,
+        {
+          left: stream.left,
+          width: stream.size,
+          height: stream.size,
+          borderRadius: stream.size / 2,
+          opacity,
+          transform: [{ translateY }, { translateX }, { scale }],
+        },
+      ]}
+    >
+      <View style={styles.bubbleGlint} />
+    </Animated.View>
+  );
+});
+
 export const FakeBeerVisual = ({
   fillLevel,
   tiltDegrees,
@@ -51,8 +119,8 @@ export const FakeBeerVisual = ({
   showHint = false,
   style,
 }: FakeBeerVisualProps) => {
-  const bubbleProgress = useRef(new Animated.Value(0)).current;
   const waveProgress = useRef(new Animated.Value(0)).current;
+  const microWaveProgress = useRef(new Animated.Value(0)).current;
   const hintOpacity = useRef(new Animated.Value(showHint ? 1 : 0)).current;
   const safeFillLevel = clamp01(fillLevel);
   const fillPercent = safeFillLevel * 100;
@@ -105,20 +173,6 @@ export const FakeBeerVisual = ({
   ), [surfaceLeftY, surfaceMidY, surfaceRightY]);
 
   useEffect(() => {
-    bubbleProgress.setValue(0);
-    const loop = Animated.loop(
-      Animated.timing(bubbleProgress, {
-        toValue: 1,
-        duration: 3100,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [bubbleProgress]);
-
-  useEffect(() => {
     waveProgress.setValue(0);
     const loop = Animated.loop(
       Animated.timing(waveProgress, {
@@ -131,6 +185,20 @@ export const FakeBeerVisual = ({
     loop.start();
     return () => loop.stop();
   }, [waveProgress]);
+
+  useEffect(() => {
+    microWaveProgress.setValue(0);
+    const loop = Animated.loop(
+      Animated.timing(microWaveProgress, {
+        toValue: 1,
+        duration: 1650,
+        easing: Easing.inOut(Easing.sin),
+        useNativeDriver: true,
+      })
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [microWaveProgress]);
 
   useEffect(() => {
     Animated.timing(hintOpacity, {
@@ -148,6 +216,14 @@ export const FakeBeerVisual = ({
   const foamSheenTranslateX = waveProgress.interpolate({
     inputRange: [0, 0.5, 1],
     outputRange: [42, -42, 42],
+  });
+  const rippleBackTranslateX = waveProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-58, 58],
+  });
+  const rippleFrontTranslateX = microWaveProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [52, -52],
   });
   const surfaceTransform = [
     { translateY: boundedSlosh * 0.34 },
@@ -191,41 +267,9 @@ export const FakeBeerVisual = ({
         <View style={styles.deepAmberLayer} />
         <View style={styles.goldenCoreLayer} />
         <View style={styles.carbonationHaze} />
-        {BUBBLES.map((bubble, index) => {
-          const translateY = bubbleProgress.interpolate({
-            inputRange: [0, 1],
-            outputRange: [86 + index * 24, -bubble.distance],
-          });
-          const translateX = waveProgress.interpolate({
-            inputRange: [0, 0.5, 1],
-            outputRange: [-bubble.drift, bubble.drift, -bubble.drift],
-          });
-          const opacity = bubbleProgress.interpolate({
-            inputRange: [0, 0.12, 0.78, 1],
-            outputRange: [0, bubble.opacity, bubble.opacity * 0.75, 0],
-          });
-          const scale = bubbleProgress.interpolate({
-            inputRange: [0, 0.55, 1],
-            outputRange: [0.75, 1.14, 0.86],
-          });
-
-          return (
-            <Animated.View
-              key={bubble.id}
-              style={[
-                styles.bubble,
-                {
-                  left: bubble.left,
-                  width: bubble.size,
-                  height: bubble.size,
-                  borderRadius: bubble.size / 2,
-                  opacity,
-                  transform: [{ translateY }, { translateX }, { scale }],
-                },
-              ]}
-            />
-          );
-        })}
+        {BUBBLE_STREAMS.map((stream) => (
+          <CarbonationBubble key={stream.id} stream={stream} />
+        ))}
       </View>
 
       <Animated.View
@@ -239,7 +283,19 @@ export const FakeBeerVisual = ({
           },
         ]}
       >
+        <Animated.View
+          style={[
+            styles.surfaceRippleBack,
+            { transform: [{ translateX: rippleBackTranslateX }] },
+          ]}
+        />
         <View style={styles.liquidSurfaceGlow} />
+        <Animated.View
+          style={[
+            styles.surfaceRippleFront,
+            { transform: [{ translateX: rippleFrontTranslateX }] },
+          ]}
+        />
         <View style={styles.liquidSurfaceShadow} />
       </Animated.View>
 
@@ -337,6 +393,15 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.78)',
     boxShadow: '0 0 8px rgba(255, 251, 218, 0.28)',
   },
+  bubbleGlint: {
+    position: 'absolute',
+    top: '18%',
+    left: '22%',
+    width: '32%',
+    height: '32%',
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.78)',
+  },
   liquidSurface: {
     position: 'absolute',
     left: -110,
@@ -345,11 +410,33 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     overflow: 'hidden',
   },
+  surfaceRippleBack: {
+    position: 'absolute',
+    left: -42,
+    right: -42,
+    top: 16,
+    height: 24,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 245, 184, 0.28)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 238, 0.3)',
+  },
   liquidSurfaceGlow: {
     flex: 1,
     backgroundColor: 'rgba(255, 224, 112, 0.42)',
     borderTopWidth: 2,
     borderTopColor: 'rgba(255, 255, 222, 0.62)',
+  },
+  surfaceRippleFront: {
+    position: 'absolute',
+    left: -64,
+    right: -64,
+    top: 4,
+    height: 18,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 219, 0.34)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.42)',
   },
   liquidSurfaceShadow: {
     position: 'absolute',

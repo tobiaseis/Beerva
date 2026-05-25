@@ -177,6 +177,18 @@ assert.match(
   'FakeBeerScreen should subscribe to real phone motion'
 );
 
+assert.match(
+  fakeBeerScreenSource,
+  /const MAX_SIP_AMOUNT = 0\.022;/,
+  'FakeBeerScreen should drain the fake beer slowly enough to feel like drinking liquid'
+);
+
+assert.match(
+  fakeBeerScreenSource,
+  /const SIP_MULTIPLIER = 0\.014;/,
+  'FakeBeerScreen should use a gentler sip multiplier so the beer disappears more slowly'
+);
+
 assert.doesNotMatch(
   fakeBeerScreenSource,
   /if \(!hasRotation\)[\s\S]*?return;/,
@@ -323,8 +335,44 @@ assert.match(
 
 assert.match(
   fakeBeerVisualSource,
-  /const BUBBLES = \[/,
-  'FakeBeerVisual should render persistent beer bubbles'
+  /const BUBBLE_STREAMS = \[/,
+  'FakeBeerVisual should define staggered carbonation streams'
+);
+
+assert.match(
+  fakeBeerVisualSource,
+  /type BubbleStreamConfig/,
+  'FakeBeerVisual should model independent bubble stream timing'
+);
+
+assert.match(
+  fakeBeerVisualSource,
+  /Animated\.delay\(stream\.delay\)/,
+  'FakeBeerVisual should stagger bubble streams so carbonation is continuous'
+);
+
+assert.match(
+  fakeBeerVisualSource,
+  /duration: stream\.duration/,
+  'FakeBeerVisual should let bubbles rise at varied speeds'
+);
+
+assert.match(
+  fakeBeerVisualSource,
+  /styles\.surfaceRippleFront/,
+  'FakeBeerVisual should render a continuous front wave on the beer surface'
+);
+
+assert.match(
+  fakeBeerVisualSource,
+  /styles\.surfaceRippleBack/,
+  'FakeBeerVisual should render a second offset wave layer on the beer surface'
+);
+
+assert.match(
+  fakeBeerVisualSource,
+  /styles\.bubbleGlint/,
+  'FakeBeerVisual bubbles should include highlights so they read as carbonation'
 );
 
 assert.match(

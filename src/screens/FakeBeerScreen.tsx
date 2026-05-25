@@ -22,8 +22,8 @@ const LIQUID_RESPONSE_MS = 50;
 const LIQUID_TILT_EASE = 0.16;
 const MAX_SLOSH_OFFSET = 18;
 const REFILL_MS = 900;
-const MAX_SIP_AMOUNT = 0.04;
-const SIP_MULTIPLIER = 0.024;
+const MAX_SIP_AMOUNT = 0.022;
+const SIP_MULTIPLIER = 0.014;
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const sensorDegreesToRadians = (value: number) => value * Math.PI / 180;
