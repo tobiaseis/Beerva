@@ -2,19 +2,27 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Platform, Pressable, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { X } from 'lucide-react-native';
-import { DeviceMotion } from 'expo-sensors';
+import { Accelerometer, DeviceMotion } from 'expo-sensors';
 
 import { FakeBeerVisual } from '../components/FakeBeerVisual';
+import {
+  createFakeBeerMotionBaseline,
+  getFakeBeerMotionSignal,
+  type FakeBeerMotionBaseline,
+  type FakeBeerMotionReading,
+} from '../lib/fakeBeerMotion';
 import { hapticLight } from '../lib/haptics';
 import { colors } from '../theme/colors';
 import { radius } from '../theme/layout';
 
-const DRINK_TILT_THRESHOLD = 0.72;
 const SENSOR_UPDATE_MS = 80;
+const DEVICE_MOTION_WATCHDOG_MS = 650;
 const LIQUID_RESPONSE_MS = 50;
 const LIQUID_TILT_EASE = 0.16;
 const MAX_SLOSH_OFFSET = 18;
 const REFILL_MS = 900;
+const MAX_SIP_AMOUNT = 0.04;
+const SIP_MULTIPLIER = 0.024;
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
@@ -29,6 +37,7 @@ export const FakeBeerScreen = () => {
   const liquidTiltDegreesRef = useRef(0);
   const renderedLiquidTiltRef = useRef(0);
   const renderedSloshOffsetRef = useRef(0);
+  const motionBaselineRef = useRef<FakeBeerMotionBaseline | null>(null);
   const refillingRef = useRef(false);
   const fallbackIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -81,6 +90,19 @@ export const FakeBeerScreen = () => {
     });
   }, [triggerRefill]);
 
+  const handleMotionReading = useCallback((reading: FakeBeerMotionReading) => {
+    if (!motionBaselineRef.current) {
+      motionBaselineRef.current = createFakeBeerMotionBaseline(reading);
+    }
+
+    const motionSignal = getFakeBeerMotionSignal(reading, motionBaselineRef.current);
+    targetTiltDegreesRef.current = motionSignal.tiltDegrees;
+
+    if (motionSignal.drinkPressure > 0) {
+      sipBeer(Math.min(MAX_SIP_AMOUNT, motionSignal.drinkPressure * SIP_MULTIPLIER));
+    }
+  }, [sipBeer]);
+
   useEffect(() => {
     const interval = setInterval(() => {
       const targetTilt = targetTiltDegreesRef.current;
@@ -108,7 +130,17 @@ export const FakeBeerScreen = () => {
 
   useEffect(() => {
     let active = true;
+    let hasDeviceMotionReading = false;
     let motionSubscription: { remove: () => void } | null = null;
+    let accelerometerSubscription: { remove: () => void } | null = null;
+    let deviceMotionWatchdogTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const clearDeviceMotionWatchdog = () => {
+      if (deviceMotionWatchdogTimeout) {
+        clearTimeout(deviceMotionWatchdogTimeout);
+        deviceMotionWatchdogTimeout = null;
+      }
+    };
 
     const startFallbackMotion = () => {
       if (fallbackIntervalRef.current) return;
@@ -117,44 +149,68 @@ export const FakeBeerScreen = () => {
       }, SENSOR_UPDATE_MS);
     };
 
+    const startAccelerometerMotion = () => {
+      Accelerometer.setUpdateInterval(SENSOR_UPDATE_MS);
+      Accelerometer.isAvailableAsync()
+        .then((available) => {
+          if (!active) return;
+
+          if (!available) {
+            startFallbackMotion();
+            return;
+          }
+
+          accelerometerSubscription = Accelerometer.addListener((gravity) => {
+            handleMotionReading({ accelerationIncludingGravity: gravity });
+          });
+        })
+        .catch(() => {
+          if (active) {
+            startFallbackMotion();
+          }
+        });
+    };
+
     DeviceMotion.setUpdateInterval(SENSOR_UPDATE_MS);
     DeviceMotion.isAvailableAsync()
       .then((available) => {
         if (!active) return;
 
         if (!available) {
-          startFallbackMotion();
+          startAccelerometerMotion();
           return;
         }
 
         motionSubscription = DeviceMotion.addListener((motion) => {
-          const beta = motion.rotation?.beta || 0;
-          const gamma = motion.rotation?.gamma || 0;
-          const nextTilt = clamp(gamma * 34, -22, 22);
-          const drinkPressure = Math.max(0, Math.abs(beta) - DRINK_TILT_THRESHOLD);
-
-          targetTiltDegreesRef.current = nextTilt;
-
-          if (drinkPressure > 0) {
-            sipBeer(Math.min(0.035, drinkPressure * 0.018));
-          }
+          hasDeviceMotionReading = true;
+          clearDeviceMotionWatchdog();
+          handleMotionReading(motion);
         });
+        deviceMotionWatchdogTimeout = setTimeout(() => {
+          if (!active || hasDeviceMotionReading || accelerometerSubscription) return;
+
+          motionSubscription?.remove();
+          motionSubscription = null;
+          startAccelerometerMotion();
+        }, DEVICE_MOTION_WATCHDOG_MS);
       })
       .catch(() => {
         if (active) {
-          startFallbackMotion();
+          startAccelerometerMotion();
         }
       });
 
     return () => {
       active = false;
+      clearDeviceMotionWatchdog();
       motionSubscription?.remove();
+      accelerometerSubscription?.remove();
       if (fallbackIntervalRef.current) {
         clearInterval(fallbackIntervalRef.current);
         fallbackIntervalRef.current = null;
       }
     };
-  }, [sipBeer]);
+  }, [handleMotionReading]);
 
   const handleFallbackSip = useCallback(() => {
     if (Platform.OS === 'web') {

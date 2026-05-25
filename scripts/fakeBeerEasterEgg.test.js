@@ -1,16 +1,38 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const Module = require('node:module');
 const path = require('node:path');
+const ts = require('typescript');
 
 const readSource = (relativePath) => fs.readFileSync(
   path.resolve(__dirname, '..', relativePath),
   'utf8'
 );
 
+const loadTypeScriptModule = (relativePath) => {
+  const filename = path.resolve(__dirname, '..', relativePath);
+  const source = fs.readFileSync(filename, 'utf8');
+  const { outputText } = ts.transpileModule(source, {
+    compilerOptions: {
+      esModuleInterop: true,
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2020,
+    },
+    fileName: filename,
+  });
+
+  const compiledModule = new Module(filename, module);
+  compiledModule.filename = filename;
+  compiledModule.paths = Module._nodeModulePaths(path.dirname(filename));
+  compiledModule._compile(outputText, filename);
+  return compiledModule.exports;
+};
+
 const packageJson = JSON.parse(readSource('package.json'));
 const appJson = JSON.parse(readSource('app.json'));
 const rootNavigatorSource = readSource('src/navigation/RootNavigator.tsx');
 const feedScreenSource = readSource('src/screens/FeedScreen.tsx');
+const fakeBeerMotionPath = path.resolve(__dirname, '..', 'src/lib/fakeBeerMotion.ts');
 
 assert.ok(
   packageJson.dependencies['expo-sensors'],
@@ -97,14 +119,38 @@ const fakeBeerOverlaySource = readSource('src/components/FakeBeerUnlockOverlay.t
 
 assert.match(
   fakeBeerScreenSource,
-  /import \{ DeviceMotion \} from 'expo-sensors';/,
-  'FakeBeerScreen should use DeviceMotion from expo-sensors'
+  /import \{ Accelerometer, DeviceMotion \} from 'expo-sensors';/,
+  'FakeBeerScreen should use DeviceMotion and Accelerometer from expo-sensors'
 );
 
 assert.match(
   fakeBeerScreenSource,
   /DeviceMotion\.addListener/,
   'FakeBeerScreen should subscribe to real phone motion'
+);
+
+assert.match(
+  fakeBeerScreenSource,
+  /Accelerometer\.addListener/,
+  'FakeBeerScreen should fall back to accelerometer gravity data when DeviceMotion is unavailable or unreliable'
+);
+
+assert.match(
+  fakeBeerScreenSource,
+  /const DEVICE_MOTION_WATCHDOG_MS = 650;/,
+  'FakeBeerScreen should define a watchdog for Android devices where DeviceMotion is available but silent'
+);
+
+assert.match(
+  fakeBeerScreenSource,
+  /deviceMotionWatchdogTimeout/,
+  'FakeBeerScreen should fall back when DeviceMotion does not emit readings'
+);
+
+assert.match(
+  fakeBeerScreenSource,
+  /getFakeBeerMotionSignal/,
+  'FakeBeerScreen should derive drinking from a shared motion helper'
 );
 
 assert.match(
@@ -129,12 +175,6 @@ assert.match(
   fakeBeerScreenSource,
   /sloshOffset=\{sloshOffset\}/,
   'FakeBeerScreen should pass slosh momentum into the beer visual'
-);
-
-assert.match(
-  fakeBeerScreenSource,
-  /const DRINK_TILT_THRESHOLD = 0\.72;/,
-  'FakeBeerScreen should define a deliberate drinking tilt threshold'
 );
 
 assert.match(
@@ -189,6 +229,50 @@ assert.match(
   fakeBeerVisualSource,
   /Tilt to drink/,
   'FakeBeerVisual should include the subtle opening hint'
+);
+
+assert.ok(
+  fs.existsSync(fakeBeerMotionPath),
+  'Android drinking should be handled by a reusable fakeBeerMotion helper'
+);
+
+const {
+  createFakeBeerMotionBaseline,
+  getFakeBeerMotionSignal,
+} = loadTypeScriptModule('src/lib/fakeBeerMotion.ts');
+
+const androidNeutralMotion = {
+  rotation: { alpha: 0, beta: 0, gamma: 0, timestamp: 1 },
+  accelerationIncludingGravity: { x: 0, y: 9.81, z: 0, timestamp: 1 },
+};
+
+const androidDrinkingMotion = {
+  rotation: { alpha: 0, beta: 0, gamma: 0, timestamp: 2 },
+  accelerationIncludingGravity: { x: 0, y: 5.8, z: 7.9, timestamp: 2 },
+};
+
+const androidSideTiltMotion = {
+  rotation: { alpha: 0, beta: 0, gamma: 0, timestamp: 3 },
+  accelerationIncludingGravity: { x: 4.4, y: 8.7, z: 0, timestamp: 3 },
+};
+
+const motionBaseline = createFakeBeerMotionBaseline(androidNeutralMotion);
+
+assert.equal(
+  getFakeBeerMotionSignal(androidNeutralMotion, motionBaseline).drinkPressure,
+  0,
+  'A calibrated neutral Android phone position should not drain the beer'
+);
+
+assert.ok(
+  getFakeBeerMotionSignal(androidDrinkingMotion, motionBaseline).drinkPressure > 0.1,
+  'Android gravity-vector tilt should drain the beer even when rotation beta stays zero'
+);
+
+assert.notEqual(
+  getFakeBeerMotionSignal(androidSideTiltMotion, motionBaseline).tiltDegrees,
+  0,
+  'Android gravity-vector side tilt should still move the liquid surface when rotation gamma stays zero'
 );
 
 assert.match(
