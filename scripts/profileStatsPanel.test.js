@@ -87,8 +87,20 @@ assert.match(
 
 assert.match(
   source,
-  /highScoreValue: \{[\s\S]*fontSize: 26,[\s\S]*lineHeight: 32,[\s\S]*flexShrink: 1,/,
-  'high-score values should use smaller shrinkable type so double-digit pints fit'
+  /highScoreMetricRow: \{[\s\S]*gap: Platform\.OS === 'web' \? 8 : 6,/,
+  'high-score metric rows should use compact gaps so decimal values like 15.6 fit'
+);
+
+assert.match(
+  source,
+  /highScoreEmoji: \{[\s\S]*width: 24,[\s\S]*fontSize: 22,/,
+  'high-score emojis should use compact fixed slots so they do not crowd the value'
+);
+
+assert.match(
+  source,
+  /highScoreValue: \{[\s\S]*fontSize: 26,[\s\S]*lineHeight: 32,[\s\S]*minWidth: 64,[\s\S]*flexShrink: 1,/,
+  'high-score values should reserve enough width for decimal double-digit pints'
 );
 
 console.log('profile stats panel checks passed');
