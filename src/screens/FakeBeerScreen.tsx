@@ -239,8 +239,7 @@ export const FakeBeerScreen = () => {
       deviceMotionWatchdogTimeout = setTimeout(() => {
         if (!active || hasDeviceMotionReadingRef.current) return;
 
-        motionSubscription?.remove();
-        motionSubscription = null;
+        // Do not remove the subscription as it might kill Accelerometer on Android
       }, DEVICE_MOTION_WATCHDOG_MS);
     } catch (err) {
       // DeviceMotion not supported
