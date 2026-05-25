@@ -184,39 +184,42 @@ export const FakeBeerScreen = () => {
         });
     };
 
-    startAccelerometerMotion();
-    DeviceMotion.setUpdateInterval(SENSOR_UPDATE_MS);
-    DeviceMotion.isAvailableAsync()
-      .then((available) => {
-        if (!active) return;
+    if (Platform.OS === 'android') {
+      startAccelerometerMotion();
+    } else {
+      startAccelerometerMotion();
+      DeviceMotion.setUpdateInterval(SENSOR_UPDATE_MS);
+      DeviceMotion.isAvailableAsync()
+        .then((available) => {
+          if (!active) return;
+          if (!available) return;
 
-        if (!available) {
-          startAccelerometerMotion();
-          return;
-        }
+          motionSubscription = DeviceMotion.addListener((motion) => {
+            hasDeviceMotionReading = true;
+            clearDeviceMotionWatchdog();
 
-        motionSubscription = DeviceMotion.addListener((motion) => {
-          hasDeviceMotionReading = true;
-          clearDeviceMotionWatchdog();
-          handleMotionReading(
-            motion,
-            deviceMotionBaselineRef,
-            !hasAccelerometerReadingRef.current
-          );
-        });
-        deviceMotionWatchdogTimeout = setTimeout(() => {
-          if (!active || hasDeviceMotionReading || accelerometerSubscription) return;
+            if (accelerometerSubscription) {
+              accelerometerSubscription.remove();
+              accelerometerSubscription = null;
+              hasAccelerometerReadingRef.current = false;
+            }
 
-          motionSubscription?.remove();
-          motionSubscription = null;
-          startAccelerometerMotion();
-        }, DEVICE_MOTION_WATCHDOG_MS);
-      })
-      .catch(() => {
-        if (active) {
-          startAccelerometerMotion();
-        }
-      });
+            handleMotionReading(
+              motion,
+              deviceMotionBaselineRef,
+              true
+            );
+          });
+
+          deviceMotionWatchdogTimeout = setTimeout(() => {
+            if (!active || hasDeviceMotionReading) return;
+
+            motionSubscription?.remove();
+            motionSubscription = null;
+          }, DEVICE_MOTION_WATCHDOG_MS);
+        })
+        .catch(() => {});
+    }
 
     return () => {
       active = false;
