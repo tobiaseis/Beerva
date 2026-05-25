@@ -211,8 +211,7 @@ export const FakeBeerScreen = () => {
                             typeof motion.rotation.gamma === 'number';
 
         if (!hasRotation) {
-          motionSubscription?.remove();
-          motionSubscription = null;
+          // DO NOT remove DeviceMotion on Android! Removing it silently kills Accelerometer due to an Expo bug.
           return;
         }
 
