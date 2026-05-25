@@ -13,7 +13,10 @@
       "backgroundColor": "#0D121A"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSMotionUsageDescription": "Beerva uses motion access so you can tilt your phone to drink the fake beer easter egg."
+      }
     },
     "android": {
       "adaptiveIcon": {

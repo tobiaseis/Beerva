@@ -8,12 +8,19 @@ const readSource = (relativePath) => fs.readFileSync(
 );
 
 const packageJson = JSON.parse(readSource('package.json'));
+const appJson = JSON.parse(readSource('app.json'));
 const rootNavigatorSource = readSource('src/navigation/RootNavigator.tsx');
 const feedScreenSource = readSource('src/screens/FeedScreen.tsx');
 
 assert.ok(
   packageJson.dependencies['expo-sensors'],
   'expo-sensors should be installed for real phone tilt'
+);
+
+assert.match(
+  appJson.expo?.ios?.infoPlist?.NSMotionUsageDescription || '',
+  /tilt/i,
+  'iOS config should explain why Beerva uses motion access for the fake beer tilt'
 );
 
 assert.match(
