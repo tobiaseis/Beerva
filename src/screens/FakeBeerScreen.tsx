@@ -37,7 +37,9 @@ export const FakeBeerScreen = () => {
   const liquidTiltDegreesRef = useRef(0);
   const renderedLiquidTiltRef = useRef(0);
   const renderedSloshOffsetRef = useRef(0);
-  const motionBaselineRef = useRef<FakeBeerMotionBaseline | null>(null);
+  const deviceMotionBaselineRef = useRef<FakeBeerMotionBaseline | null>(null);
+  const accelerometerBaselineRef = useRef<FakeBeerMotionBaseline | null>(null);
+  const hasAccelerometerReadingRef = useRef(false);
   const refillingRef = useRef(false);
   const fallbackIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -90,15 +92,19 @@ export const FakeBeerScreen = () => {
     });
   }, [triggerRefill]);
 
-  const handleMotionReading = useCallback((reading: FakeBeerMotionReading) => {
-    if (!motionBaselineRef.current) {
-      motionBaselineRef.current = createFakeBeerMotionBaseline(reading);
+  const handleMotionReading = useCallback((
+    reading: FakeBeerMotionReading,
+    baselineRef: React.MutableRefObject<FakeBeerMotionBaseline | null>,
+    allowsDrinking: boolean
+  ) => {
+    if (!baselineRef.current) {
+      baselineRef.current = createFakeBeerMotionBaseline(reading);
     }
 
-    const motionSignal = getFakeBeerMotionSignal(reading, motionBaselineRef.current);
+    const motionSignal = getFakeBeerMotionSignal(reading, baselineRef.current);
     targetTiltDegreesRef.current = motionSignal.tiltDegrees;
 
-    if (motionSignal.drinkPressure > 0) {
+    if (allowsDrinking && motionSignal.drinkPressure > 0) {
       sipBeer(Math.min(MAX_SIP_AMOUNT, motionSignal.drinkPressure * SIP_MULTIPLIER));
     }
   }, [sipBeer]);
@@ -150,6 +156,8 @@ export const FakeBeerScreen = () => {
     };
 
     const startAccelerometerMotion = () => {
+      if (accelerometerSubscription) return;
+
       Accelerometer.setUpdateInterval(SENSOR_UPDATE_MS);
       Accelerometer.isAvailableAsync()
         .then((available) => {
@@ -161,7 +169,12 @@ export const FakeBeerScreen = () => {
           }
 
           accelerometerSubscription = Accelerometer.addListener((gravity) => {
-            handleMotionReading({ accelerationIncludingGravity: gravity });
+            hasAccelerometerReadingRef.current = true;
+            handleMotionReading(
+              { accelerationIncludingGravity: gravity },
+              accelerometerBaselineRef,
+              true
+            );
           });
         })
         .catch(() => {
@@ -171,6 +184,7 @@ export const FakeBeerScreen = () => {
         });
     };
 
+    startAccelerometerMotion();
     DeviceMotion.setUpdateInterval(SENSOR_UPDATE_MS);
     DeviceMotion.isAvailableAsync()
       .then((available) => {
@@ -184,7 +198,11 @@ export const FakeBeerScreen = () => {
         motionSubscription = DeviceMotion.addListener((motion) => {
           hasDeviceMotionReading = true;
           clearDeviceMotionWatchdog();
-          handleMotionReading(motion);
+          handleMotionReading(
+            motion,
+            deviceMotionBaselineRef,
+            !hasAccelerometerReadingRef.current
+          );
         });
         deviceMotionWatchdogTimeout = setTimeout(() => {
           if (!active || hasDeviceMotionReading || accelerometerSubscription) return;

@@ -132,7 +132,19 @@ assert.match(
 assert.match(
   fakeBeerScreenSource,
   /Accelerometer\.addListener/,
-  'FakeBeerScreen should fall back to accelerometer gravity data when DeviceMotion is unavailable or unreliable'
+  'FakeBeerScreen should subscribe to accelerometer gravity data for Android tilt'
+);
+
+assert.match(
+  fakeBeerScreenSource,
+  /const deviceMotionBaselineRef = useRef<FakeBeerMotionBaseline \| null>\(null\);/,
+  'FakeBeerScreen should calibrate DeviceMotion separately'
+);
+
+assert.match(
+  fakeBeerScreenSource,
+  /const accelerometerBaselineRef = useRef<FakeBeerMotionBaseline \| null>\(null\);/,
+  'FakeBeerScreen should calibrate Accelerometer separately so DeviceMotion zeros cannot poison gravity tilt'
 );
 
 assert.match(
@@ -145,6 +157,12 @@ assert.match(
   fakeBeerScreenSource,
   /deviceMotionWatchdogTimeout/,
   'FakeBeerScreen should fall back when DeviceMotion does not emit readings'
+);
+
+assert.match(
+  fakeBeerScreenSource,
+  /startAccelerometerMotion\(\);\s*DeviceMotion\.setUpdateInterval/,
+  'FakeBeerScreen should start accelerometer motion alongside DeviceMotion, not only after DeviceMotion fails'
 );
 
 assert.match(
