@@ -27,8 +27,17 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ error: error.message }), { status: 500 });
   }
 
+  const { data: genericData, error: genericError } = await supabase.rpc('finalize_generic_due_challenges', {
+    batch_size: 10,
+  });
+
+  if (genericError) {
+    console.error('Generic challenge finalization error', genericError);
+    return new Response(JSON.stringify({ error: genericError.message }), { status: 500 });
+  }
+
   return new Response(JSON.stringify({
-    finalized: Array.isArray(data) ? data.length : 0,
-    results: data || [],
+    finalized: (Array.isArray(data) ? data.length : 0) + (Array.isArray(genericData) ? genericData.length : 0),
+    results: [...(data || []), ...(genericData || [])],
   }), { status: 200 });
 });
