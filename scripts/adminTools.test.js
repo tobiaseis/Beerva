@@ -32,7 +32,6 @@ assert.ok(exists(migrationPath), 'admin migration should exist');
 assert.ok(exists('src/lib/adminApi.ts'), 'admin API should exist');
 assert.ok(exists('src/lib/beverageCatalogContext.tsx'), 'beverage catalog provider should exist');
 assert.ok(exists('src/lib/adminTools.ts'), 'admin form helpers should exist');
-assert.ok(exists('src/screens/AdminToolsScreen.tsx'), 'admin tools screen should exist');
 
 const migrationSql = read(migrationPath);
 assert.match(migrationSql, /add column if not exists is_admin boolean not null default false/i);
@@ -43,7 +42,7 @@ assert.match(migrationSql, /create or replace function public\.admin_save_bevera
 assert.match(migrationSql, /create or replace function public\.admin_save_challenge/i);
 assert.match(migrationSql, /winner_trophy_enabled boolean not null default false/i);
 assert.match(migrationSql, /insert into public\.challenge_awards/i);
-assert.match(migrationSql, /challenge_row\.slug <> 'karnevalsdruk-2026'/i);
+assert.match(migrationSql, /challenges\.slug <> 'karnevalsdruk-2026'/i);
 assert.match(migrationSql, /raise exception 'Admin access required\.'/i);
 
 const sessionBeers = loadTypeScriptModule('src/lib/sessionBeers.ts');
@@ -80,6 +79,7 @@ assert.equal(
 
 const navigatorSource = read('src/navigation/RootNavigator.tsx');
 const profileSource = read('src/screens/ProfileScreen.tsx');
+assert.ok(exists('src/screens/AdminToolsScreen.tsx'), 'admin tools screen should exist');
 const adminScreenSource = read('src/screens/AdminToolsScreen.tsx');
 assert.match(navigatorSource, /BeverageCatalogProvider/);
 assert.match(navigatorSource, /<Stack\.Screen name="AdminTools"/);
