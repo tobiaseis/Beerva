@@ -41,6 +41,7 @@ assert.match(migrationSql, /create table if not exists public\.admin_beverages/i
 assert.match(migrationSql, /create or replace function public\.admin_save_beverage/i);
 assert.match(migrationSql, /create or replace function public\.admin_save_challenge/i);
 assert.match(migrationSql, /winner_trophy_enabled boolean not null default false/i);
+assert.match(migrationSql, /Winner trophies are only available for leaderboard challenges\./i);
 assert.match(migrationSql, /insert into public\.challenge_awards/i);
 assert.match(migrationSql, /challenges\.slug <> 'karnevalsdruk-2026'/i);
 assert.match(migrationSql, /raise exception 'Admin access required\.'/i);

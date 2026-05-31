@@ -255,6 +255,12 @@ begin
       raise exception 'Target true pints must be greater than 0.';
     end if;
 
+    if challenge_winner_trophy_enabled
+      or clean_trophy_title is not null
+      or clean_trophy_description is not null then
+      raise exception 'Winner trophies are only available for leaderboard challenges.';
+    end if;
+
     challenge_winner_trophy_enabled := false;
     clean_trophy_title := null;
     clean_trophy_description := null;
