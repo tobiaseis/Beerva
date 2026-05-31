@@ -34,7 +34,8 @@
     "test:avatar-crop": "node scripts/avatarCrop.test.js",
     "test:profile-avatar-crop": "node scripts/profileAvatarCrop.test.js",
     "test:push-delivery": "node scripts/pushDelivery.test.js",
-    "test:admin-tools": "node scripts/adminTools.test.js"
+    "test:admin-tools": "node scripts/adminTools.test.js",
+    "test:timeouts": "node scripts/timeouts.test.js"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",

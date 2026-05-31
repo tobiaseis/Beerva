@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { getErrorMessage, withTimeout } from './timeouts';
+import { getErrorMessage, withRetryableTimeout, withTimeout } from './timeouts';
 
 const ADMIN_TIMEOUT_MS = 15000;
 
@@ -80,6 +80,17 @@ const toNumber = (value: unknown) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 const firstRow = <T,>(value: T | T[] | null | undefined) => Array.isArray(value) ? value[0] : value;
+const createRequestKey = () => {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
+    const random = Math.floor(Math.random() * 16);
+    const value = character === 'x' ? random : (random & 0x3) | 0x8;
+    return value.toString(16);
+  });
+};
 
 export const mapAdminBeverageRow = (row: AdminBeverageRow): AdminBeverage => ({
   id: toString(row.id),
@@ -158,8 +169,8 @@ export const fetchAdminChallenges = async (): Promise<AdminChallenge[]> => {
 
 export const saveAdminChallenge = async (input: SaveAdminChallengeInput): Promise<AdminChallenge> => {
   try {
-    const { data, error } = await withTimeout(
-      supabase.rpc('admin_save_challenge', {
+    const requestKey = createRequestKey();
+    const payload = {
         target_challenge_id: input.id || null,
         challenge_title: input.title,
         challenge_description: input.description,
@@ -171,7 +182,10 @@ export const saveAdminChallenge = async (input: SaveAdminChallengeInput): Promis
         challenge_winner_trophy_enabled: input.winnerTrophyEnabled,
         challenge_winner_trophy_title: input.winnerTrophyTitle,
         challenge_winner_trophy_description: input.winnerTrophyDescription,
-      }),
+        challenge_request_key: requestKey,
+    };
+    const { data, error } = await withRetryableTimeout(
+      (signal) => supabase.rpc('admin_save_challenge', payload).abortSignal(signal),
       ADMIN_TIMEOUT_MS,
       'Saving the challenge is taking too long.'
     );

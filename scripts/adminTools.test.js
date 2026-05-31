@@ -28,7 +28,9 @@ const loadTypeScriptModule = (relativePath) => {
 };
 
 const migrationPath = 'supabase/migrations/20260531170000_add_admin_challenges_and_beverages.sql';
+const retryMigrationPath = 'supabase/migrations/20260531180000_make_admin_challenge_save_retryable.sql';
 assert.ok(exists(migrationPath), 'admin migration should exist');
+assert.ok(exists(retryMigrationPath), 'admin challenge retry migration should exist');
 assert.ok(exists('src/lib/adminApi.ts'), 'admin API should exist');
 assert.ok(exists('src/lib/beverageCatalogContext.tsx'), 'beverage catalog provider should exist');
 assert.ok(exists('src/lib/adminTools.ts'), 'admin form helpers should exist');
@@ -55,6 +57,13 @@ assert.match(
   migrationSql,
   /revoke execute on function public\.admin_save_challenge\(uuid, text, text, text, numeric, timestamp with time zone, timestamp with time zone, timestamp with time zone, boolean, text, text\) from public, anon;/i
 );
+
+const retryMigrationSql = read(retryMigrationPath);
+assert.match(retryMigrationSql, /add column if not exists admin_request_key uuid/i);
+assert.match(retryMigrationSql, /create unique index if not exists challenges_admin_request_key_idx/i);
+assert.match(retryMigrationSql, /challenge_request_key uuid default null/i);
+assert.match(retryMigrationSql, /where challenges\.admin_request_key = challenge_request_key/i);
+assert.match(retryMigrationSql, /admin_request_key\s*\)\s*values/i);
 
 const sessionBeers = loadTypeScriptModule('src/lib/sessionBeers.ts');
 const mergedCatalog = sessionBeers.mergeBeverageCatalog([
@@ -90,6 +99,7 @@ assert.equal(
 
 const navigatorSource = read('src/navigation/RootNavigator.tsx');
 const profileSource = read('src/screens/ProfileScreen.tsx');
+const adminApiSource = read('src/lib/adminApi.ts');
 assert.ok(exists('src/screens/AdminToolsScreen.tsx'), 'admin tools screen should exist');
 const adminScreenSource = read('src/screens/AdminToolsScreen.tsx');
 assert.match(navigatorSource, /BeverageCatalogProvider/);
@@ -100,5 +110,7 @@ assert.match(adminScreenSource, /Challenges/);
 assert.match(adminScreenSource, /Beers/);
 assert.match(adminScreenSource, /Winner trophy/);
 assert.doesNotMatch(adminScreenSource, /Delete challenge|Delete beer/);
+assert.match(adminApiSource, /withRetryableTimeout/);
+assert.match(adminApiSource, /challenge_request_key/);
 
 console.log('admin tools checks passed');
