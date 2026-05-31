@@ -4,10 +4,21 @@ const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
 const appSource = fs.readFileSync(path.join(root, 'App.tsx'), 'utf8');
+const indexHtmlSource = fs.readFileSync(path.join(root, 'public/index.html'), 'utf8');
 const pushSource = fs.readFileSync(path.join(root, 'src/lib/pushNotifications.ts'), 'utf8');
 const rootNavigatorSource = fs.readFileSync(path.join(root, 'src/navigation/RootNavigator.tsx'), 'utf8');
 const serviceWorkerSource = fs.readFileSync(path.join(root, 'public/sw.js'), 'utf8');
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'public/manifest.webmanifest'), 'utf8'));
+const manifestJson = JSON.parse(fs.readFileSync(path.join(root, 'public/manifest.json'), 'utf8'));
+
+const readPngSize = (relativePath) => {
+  const buffer = fs.readFileSync(path.join(root, relativePath));
+  assert.equal(buffer.toString('ascii', 1, 4), 'PNG', `${relativePath} should be a PNG`);
+  return {
+    width: buffer.readUInt32BE(16),
+    height: buffer.readUInt32BE(20),
+  };
+};
 
 const getExportedAsyncFunctionBody = (source, name) => {
   const marker = `export const ${name} = async`;
@@ -111,9 +122,85 @@ assert.doesNotMatch(
 
 assert.match(
   serviceWorkerSource,
-  /const CACHE_NAME = 'beerva-cache-v10'/,
+  /const CACHE_NAME = 'beerva-cache-v11'/,
   'service worker cache should be bumped when startup caching behavior changes'
 );
+
+assert.match(
+  indexHtmlSource,
+  /navigator\.serviceWorker\.register\('\/sw\.js'/,
+  'index.html should register the service worker before React boots so PWA scanners can detect it'
+);
+
+assert.doesNotMatch(
+  indexHtmlSource,
+  /<link rel="icon" href="\/favicon\.ico"/,
+  'index.html should not let the Expo export append an .ico favicon over the PNG favicons'
+);
+
+assert.equal(
+  manifest.lang,
+  'en',
+  'manifest should define the primary language'
+);
+
+assert.equal(
+  manifest.dir,
+  'ltr',
+  'manifest should define language direction'
+);
+
+assert.deepEqual(
+  manifest.display_override,
+  ['standalone', 'browser'],
+  'manifest should define display_override for install surfaces'
+);
+
+assert.equal(
+  manifest.prefer_related_applications,
+  false,
+  'manifest should prefer the PWA because no native store listing is configured'
+);
+
+assert.equal(
+  manifest.related_applications,
+  undefined,
+  'manifest should not include placeholder native app IDs'
+);
+
+assert.equal(
+  manifest.iarc_rating_id,
+  undefined,
+  'manifest should not include a placeholder IARC rating'
+);
+
+assert.deepEqual(
+  manifestJson,
+  manifest,
+  'manifest.json and manifest.webmanifest should stay in sync'
+);
+
+for (const icon of manifest.icons) {
+  assert.notEqual(icon.type, 'image/x-icon', 'manifest icons should not include .ico files');
+  assert.doesNotMatch(icon.src, /\.ico$/i, 'manifest icon sources should not point to .ico files');
+  assert.equal(icon.type, 'image/png', `${icon.src} should be declared as image/png`);
+  assert.ok(fs.existsSync(path.join(root, 'public', icon.src.replace(/^\//, ''))), `${icon.src} should exist in public`);
+}
+
+assert.ok(Array.isArray(manifest.screenshots), 'manifest should include screenshots');
+assert.ok(manifest.screenshots.length >= 2, 'manifest should include at least narrow and wide screenshots');
+const screenshotFormFactors = new Set(manifest.screenshots.map((screenshot) => screenshot.form_factor));
+assert.ok(screenshotFormFactors.has('narrow'), 'manifest should include a narrow screenshot');
+assert.ok(screenshotFormFactors.has('wide'), 'manifest should include a wide screenshot');
+
+for (const screenshot of manifest.screenshots) {
+  assert.equal(screenshot.type, 'image/png', `${screenshot.src} should be declared as image/png`);
+  assert.ok(screenshot.label, `${screenshot.src} should have a label`);
+  const publicPath = path.join('public', screenshot.src.replace(/^\//, ''));
+  assert.ok(fs.existsSync(path.join(root, publicPath)), `${screenshot.src} should exist in public`);
+  const size = readPngSize(publicPath);
+  assert.equal(`${size.width}x${size.height}`, screenshot.sizes, `${screenshot.src} sizes should match the PNG dimensions`);
+}
 
 assert.match(
   isCurrentlySubscribedBody,

@@ -2,14 +2,11 @@
   "short_name": "Beerva",
   "name": "Beerva",
   "description": "A social beer session tracker for friends.",
+  "lang": "en",
+  "dir": "ltr",
   "id": "/",
   "categories": ["social", "food", "lifestyle"],
   "icons": [
-    {
-      "src": "/favicon.ico",
-      "sizes": "64x64 32x32 24x24 16x16",
-      "type": "image/x-icon"
-    },
     {
       "src": "/beerva-icon-192.png",
       "type": "image/png",
@@ -61,10 +58,28 @@
       ]
     }
   ],
+  "screenshots": [
+    {
+      "src": "/screenshots/beerva-mobile-feed.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Beerva feed on mobile"
+    },
+    {
+      "src": "/screenshots/beerva-desktop-feed.png",
+      "sizes": "1440x900",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Beerva feed on desktop"
+    }
+  ],
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "browser"],
   "orientation": "portrait",
   "theme_color": "#0D121A",
-  "background_color": "#0D121A"
+  "background_color": "#0D121A",
+  "prefer_related_applications": false
 }
