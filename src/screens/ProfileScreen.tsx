@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Modal, Tex
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
-import { Bell, BellOff, Camera, Edit2, LogOut, Users, X } from 'lucide-react-native';
+import { Bell, BellOff, Camera, Edit2, LogOut, ShieldCheck, Users, X } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { confirmDestructive, showAlert } from '../lib/dialogs';
 import { deletePublicImageUrl, SelectedImage, uploadImageToBucket } from '../lib/imageUpload';
@@ -560,6 +560,19 @@ export const ProfileScreen = () => {
         </View>
       ) : null}
 
+      {profile?.is_admin === true ? (
+        <TouchableOpacity
+          style={styles.adminButton}
+          onPress={() => navigation.navigate('AdminTools')}
+          activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel="Open admin tools"
+        >
+          <ShieldCheck color={colors.primary} size={20} />
+          <Text style={styles.adminButtonText}>Admin tools</Text>
+        </TouchableOpacity>
+      ) : null}
+
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
         <LogOut color={colors.danger} size={20} />
         <Text style={styles.logoutText}>Log Out</Text>
@@ -920,6 +933,24 @@ const styles = StyleSheet.create({
     flex: 1,
     color: colors.textMuted,
     lineHeight: 19,
+  },
+  adminButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    minHeight: 50,
+    marginHorizontal: 16,
+    marginTop: 12,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    backgroundColor: colors.primarySoft,
+  },
+  adminButtonText: {
+    ...typography.body,
+    color: colors.primary,
+    fontWeight: '800',
   },
   logoutButton: {
     flexDirection: 'row',
