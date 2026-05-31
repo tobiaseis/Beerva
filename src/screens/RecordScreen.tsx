@@ -898,9 +898,10 @@ export const RecordScreen = ({ navigation }: any) => {
     }
   };
 
-  const addBeerToSession = async () => {
+  const addBeerToSession = async (draftOverride?: typeof beerDraft) => {
     if (!activeSession) return;
-    if (!beerDraft.beerName.trim()) {
+    const draftToAdd = draftOverride || beerDraft;
+    if (!draftToAdd.beerName.trim()) {
       showAlert('Missing drink', 'Add what you are drinking.');
       return;
     }
@@ -909,7 +910,7 @@ export const RecordScreen = ({ navigation }: any) => {
     try {
       const payload = {
         session_id: activeSession.id,
-        ...beerDraftToPayload(beerDraft),
+        ...beerDraftToPayload(draftToAdd),
         consumed_at: new Date().toISOString(),
       };
 

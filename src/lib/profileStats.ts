@@ -271,7 +271,39 @@ const RTD_BEVERAGE_KEYS = new Set([
 
 const JAGERBOMB_KEYS = new Set(['jagerbomb', 'jager bomb', 'jaegerbomb', 'jaeger bomb']);
 const SAMBUCA_KEYS = new Set(['sambuca shot', 'sambuca', 'sambuca shots', 'black sambuca', 'sambucca', 'sambucca shot']);
+const WINE_BEVERAGE_KEYS = new Set(['white wine', 'red wine']);
 const SPECIAL_MIXED_DRINK_KEYS = new Set([
+  'gin hass',
+  'gin tonic',
+  'gin and tonic',
+  'g t',
+  'cosmopolitan',
+  'cosmo',
+  'mojito',
+  'margarita',
+  'daiquiri',
+  'old fashioned',
+  'whiskey sour',
+  'whisky sour',
+  'espresso martini',
+  'negroni',
+  'pina colada',
+  'long island iced tea',
+  'long island ice tea',
+  'sex on the beach',
+  'moscow mule',
+  'caipirinha',
+  'caipirina',
+  'aperol spritz',
+  'spritz',
+  'dry martini',
+  'martini',
+  'gin martini',
+  'manhattan',
+  'cuba libre',
+  'rum and coke',
+  'rum coke',
+  'tequila sunrise',
   'vodkaredbull',
   'vodka red bull',
   'vodka redbull',
@@ -295,6 +327,11 @@ const isJagerbomb = (beerName?: string | null) => {
 const isSambuca = (beerName?: string | null) => {
   const key = getBeverageStatKey(beerName);
   return key ? SAMBUCA_KEYS.has(key) : false;
+};
+
+const isWineBeverage = (beerName?: string | null) => {
+  const key = getBeverageStatKey(beerName);
+  return key ? WINE_BEVERAGE_KEYS.has(key) : false;
 };
 
 const isSpecialMixedDrink = (beerName?: string | null) => {
@@ -393,6 +430,7 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
     const isRtd = isRtdBeverage(session.beer_name);
     const isJager = isJagerbomb(session.beer_name);
     const isSambu = isSambuca(session.beer_name);
+    const isWine = isWineBeverage(session.beer_name);
     const isSpecialMixed = isSpecialMixedDrink(session.beer_name);
 
     totalMl += sessionVolumeMl;
@@ -402,7 +440,7 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
     if (weekKey) {
       pintsPerWeek.set(weekKey, (pintsPerWeek.get(weekKey) || 0) + sessionPints);
     }
-    if (!isRtd && !isJager && !isSambu && !isSpecialMixed) {
+    if (!isRtd && !isJager && !isSambu && !isWine && !isSpecialMixed) {
       strongestAbv = Math.max(strongestAbv, abv);
     }
     hasLateNightSession = hasLateNightSession || isLateNightSession(sessionCreatedAt);

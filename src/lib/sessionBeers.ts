@@ -1,4 +1,4 @@
-export type BeverageKind = 'beer' | 'rtd' | 'mixed';
+export type BeverageKind = 'beer' | 'rtd' | 'mixed' | 'wine';
 
 export type BeerCatalogItem = {
   name: string;
@@ -238,6 +238,158 @@ export const BEER_CATALOG: BeerCatalogItem[] = [
   { name: "Jack Daniel's & Cola", abv: 5.0, kind: 'rtd', defaultVolume: '33cl' },
   { name: 'Bacardi Mojito RTD', abv: 5.0, kind: 'rtd', defaultVolume: '25cl' },
   { name: 'Absolut Vodka Soda Raspberry', abv: 5.0, kind: 'rtd', defaultVolume: '25cl' },
+  { name: 'White Wine', abv: 12.0, kind: 'wine', defaultVolume: '15cl' },
+  { name: 'Red Wine', abv: 13.0, kind: 'wine', defaultVolume: '15cl' },
+  {
+    name: 'Gin Hass',
+    abv: 37.5,
+    kind: 'mixed',
+    defaultVolume: '4cl',
+    countedVolume: '4cl',
+    aliases: ['Gin-Hass'],
+  },
+  {
+    name: 'Gin & Tonic',
+    abv: 37.5,
+    kind: 'mixed',
+    defaultVolume: '5cl',
+    countedVolume: '5cl',
+    aliases: ['Gin Tonic', 'Gin and Tonic', 'G&T'],
+  },
+  {
+    name: 'Cosmopolitan',
+    abv: 37.8,
+    kind: 'mixed',
+    defaultVolume: '5.5cl',
+    countedVolume: '5.5cl',
+    aliases: ['Cosmo'],
+  },
+  {
+    name: 'Mojito',
+    abv: 37.5,
+    kind: 'mixed',
+    defaultVolume: '4.5cl',
+    countedVolume: '4.5cl',
+  },
+  {
+    name: 'Margarita',
+    abv: 38.6,
+    kind: 'mixed',
+    defaultVolume: '7cl',
+    countedVolume: '7cl',
+  },
+  {
+    name: 'Daiquiri',
+    abv: 37.5,
+    kind: 'mixed',
+    defaultVolume: '6cl',
+    countedVolume: '6cl',
+  },
+  {
+    name: 'Old Fashioned',
+    abv: 40.0,
+    kind: 'mixed',
+    defaultVolume: '4.5cl',
+    countedVolume: '4.5cl',
+  },
+  {
+    name: 'Whiskey Sour',
+    abv: 40.0,
+    kind: 'mixed',
+    defaultVolume: '4.5cl',
+    countedVolume: '4.5cl',
+    aliases: ['Whisky Sour'],
+  },
+  {
+    name: 'Espresso Martini',
+    abv: 29.1,
+    kind: 'mixed',
+    defaultVolume: '8cl',
+    countedVolume: '8cl',
+  },
+  {
+    name: 'Negroni',
+    abv: 26.2,
+    kind: 'mixed',
+    defaultVolume: '9cl',
+    countedVolume: '9cl',
+  },
+  {
+    name: 'Pina Colada',
+    abv: 37.5,
+    kind: 'mixed',
+    defaultVolume: '5cl',
+    countedVolume: '5cl',
+    aliases: ['Piña Colada'],
+  },
+  {
+    name: 'Long Island Iced Tea',
+    abv: 38.0,
+    kind: 'mixed',
+    defaultVolume: '7.5cl',
+    countedVolume: '7.5cl',
+    aliases: ['Long Island Ice Tea'],
+  },
+  {
+    name: 'Sex on the Beach',
+    abv: 31.3,
+    kind: 'mixed',
+    defaultVolume: '6cl',
+    countedVolume: '6cl',
+  },
+  {
+    name: 'Moscow Mule',
+    abv: 37.0,
+    kind: 'mixed',
+    defaultVolume: '4.5cl',
+    countedVolume: '4.5cl',
+  },
+  {
+    name: 'Caipirinha',
+    abv: 40.0,
+    kind: 'mixed',
+    defaultVolume: '6cl',
+    countedVolume: '6cl',
+    aliases: ['Caipirina'],
+  },
+  {
+    name: 'Aperol Spritz',
+    abv: 11.0,
+    kind: 'mixed',
+    defaultVolume: '15cl',
+    countedVolume: '15cl',
+    aliases: ['Spritz'],
+  },
+  {
+    name: 'Dry Martini',
+    abv: 34.7,
+    kind: 'mixed',
+    defaultVolume: '7cl',
+    countedVolume: '7cl',
+    aliases: ['Martini', 'Gin Martini'],
+  },
+  {
+    name: 'Manhattan',
+    abv: 33.1,
+    kind: 'mixed',
+    defaultVolume: '7cl',
+    countedVolume: '7cl',
+  },
+  {
+    name: 'Cuba Libre',
+    abv: 37.5,
+    kind: 'mixed',
+    defaultVolume: '5cl',
+    countedVolume: '5cl',
+    aliases: ['Rum and Coke', 'Rum & Coke'],
+  },
+  {
+    name: 'Tequila Sunrise',
+    abv: 38.0,
+    kind: 'mixed',
+    defaultVolume: '4.5cl',
+    countedVolume: '4.5cl',
+  },
   {
     name: 'Vodka Red Bull',
     abv: 37.0,
@@ -328,6 +480,11 @@ export const getBeverageDefaultVolume = (beverageName: string) => {
 
 export const isBeverageVolumeLocked = (beverageName: string) => {
   return Boolean(getBeverageCatalogItem(beverageName)?.countedVolume);
+};
+
+export const isBeverageAutoAdded = (beverageName: string) => {
+  const beverage = getBeverageCatalogItem(beverageName);
+  return Boolean(beverage?.kind === 'mixed' && beverage.countedVolume);
 };
 
 export const getBeerAbv = (beerName: string) => {

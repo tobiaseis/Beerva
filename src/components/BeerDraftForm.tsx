@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Beer, Minus, Plus } from 'lucide-react-native';
 
@@ -12,6 +12,7 @@ import {
   BEER_OPTIONS,
   getBeverageDefaultVolume,
   getBeverageOptionSearchText,
+  isBeverageAutoAdded,
   isBeverageVolumeLocked,
   VOLUMES,
 } from '../lib/sessionBeers';
@@ -19,7 +20,7 @@ import {
 type BeerDraftFormProps = {
   draft: BeerDraft;
   onChange: (draft: BeerDraft) => void;
-  onSubmit: () => void;
+  onSubmit: (draft?: BeerDraft) => void;
   submitLabel: string;
   loading?: boolean;
 };
@@ -31,7 +32,23 @@ export const BeerDraftForm = ({
   submitLabel,
   loading = false,
 }: BeerDraftFormProps) => {
+  const [autoAddingName, setAutoAddingName] = useState<string | null>(null);
+
+  useEffect(() => {
+    const normalizedAutoAddingName = autoAddingName?.trim().toLowerCase();
+    const normalizedDraftName = draft.beerName.trim().toLowerCase();
+    if (!normalizedAutoAddingName || normalizedAutoAddingName === normalizedDraftName) return;
+    setAutoAddingName(null);
+  }, [autoAddingName, draft.beerName]);
+
+  useEffect(() => {
+    if (!loading) {
+      setAutoAddingName(null);
+    }
+  }, [loading]);
+
   const updateDraft = (patch: Partial<BeerDraft>) => {
+    setAutoAddingName(null);
     onChange({ ...draft, ...patch });
   };
 
@@ -40,70 +57,91 @@ export const BeerDraftForm = ({
     updateDraft(defaultVolume ? { beerName, volume: defaultVolume } : { beerName });
   };
 
+  const selectBeverageName = (beerName: string) => {
+    const defaultVolume = getBeverageDefaultVolume(beerName);
+    const nextDraft = defaultVolume ? { ...draft, beerName, volume: defaultVolume } : { ...draft, beerName };
+
+    if (isBeverageAutoAdded(beerName)) {
+      setAutoAddingName(beerName);
+      onChange(nextDraft);
+      onSubmit(nextDraft);
+      return;
+    }
+
+    setAutoAddingName(null);
+    onChange(nextDraft);
+  };
+
   const volumeLocked = isBeverageVolumeLocked(draft.beerName);
   const lockedVolume = getBeverageDefaultVolume(draft.beerName);
   const selectedVolume = volumeLocked ? lockedVolume || draft.volume : draft.volume;
+  const hideDrinkControls = Boolean(autoAddingName && isBeverageAutoAdded(draft.beerName));
 
   return (
     <View style={styles.container}>
       <AutocompleteInput
         value={draft.beerName}
         onChangeText={updateBeverageName}
+        onSelectItem={selectBeverageName}
         data={BEER_OPTIONS}
         placeholder="What are you drinking?"
         icon={<Beer color={colors.textMuted} size={20} />}
         getSearchText={getBeverageOptionSearchText}
       />
 
-      <Text style={styles.sectionLabel}>Size</Text>
-      <View style={styles.volumeRow}>
-        {VOLUMES.map((volume) => (
-          <TouchableOpacity
-            key={volume}
-            style={[
-              styles.volumeButton,
-              selectedVolume === volume && styles.volumeButtonActive,
-              volumeLocked && selectedVolume !== volume && styles.volumeButtonLocked,
-            ]}
-            onPress={() => updateDraft({ volume: volumeLocked ? lockedVolume || draft.volume : volume })}
-            activeOpacity={volumeLocked ? 1 : 0.76}
-            disabled={volumeLocked && selectedVolume !== volume}
-            accessibilityState={{
-              selected: selectedVolume === volume,
-              disabled: volumeLocked && selectedVolume !== volume,
-            }}
-          >
-            <Text style={[
-              styles.volumeText,
-              selectedVolume === volume && styles.volumeTextActive,
-              volumeLocked && selectedVolume !== volume && styles.volumeTextLocked,
-            ]}>{volume}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      {!hideDrinkControls && (
+        <>
+          <Text style={styles.sectionLabel}>Size</Text>
+          <View style={styles.volumeRow}>
+            {VOLUMES.map((volume) => (
+              <TouchableOpacity
+                key={volume}
+                style={[
+                  styles.volumeButton,
+                  selectedVolume === volume && styles.volumeButtonActive,
+                  volumeLocked && selectedVolume !== volume && styles.volumeButtonLocked,
+                ]}
+                onPress={() => updateDraft({ volume: volumeLocked ? lockedVolume || draft.volume : volume })}
+                activeOpacity={volumeLocked ? 1 : 0.76}
+                disabled={volumeLocked && selectedVolume !== volume}
+                accessibilityState={{
+                  selected: selectedVolume === volume,
+                  disabled: volumeLocked && selectedVolume !== volume,
+                }}
+              >
+                <Text style={[
+                  styles.volumeText,
+                  selectedVolume === volume && styles.volumeTextActive,
+                  volumeLocked && selectedVolume !== volume && styles.volumeTextLocked,
+                ]}>{volume}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
 
-      <Text style={styles.sectionLabel}>Quantity</Text>
-      <View style={styles.quantityContainer}>
-        <TouchableOpacity
-          style={styles.quantityBtn}
-          onPress={() => updateDraft({ quantity: Math.max(1, draft.quantity - 1) })}
-          activeOpacity={0.76}
-        >
-          <Minus color={colors.primary} size={22} />
-        </TouchableOpacity>
+          <Text style={styles.sectionLabel}>Quantity</Text>
+          <View style={styles.quantityContainer}>
+            <TouchableOpacity
+              style={styles.quantityBtn}
+              onPress={() => updateDraft({ quantity: Math.max(1, draft.quantity - 1) })}
+              activeOpacity={0.76}
+            >
+              <Minus color={colors.primary} size={22} />
+            </TouchableOpacity>
 
-        <Text style={styles.quantityText}>{draft.quantity}</Text>
+            <Text style={styles.quantityText}>{draft.quantity}</Text>
 
-        <TouchableOpacity
-          style={styles.quantityBtn}
-          onPress={() => updateDraft({ quantity: draft.quantity + 1 })}
-          activeOpacity={0.76}
-        >
-          <Plus color={colors.primary} size={22} />
-        </TouchableOpacity>
-      </View>
+            <TouchableOpacity
+              style={styles.quantityBtn}
+              onPress={() => updateDraft({ quantity: draft.quantity + 1 })}
+              activeOpacity={0.76}
+            >
+              <Plus color={colors.primary} size={22} />
+            </TouchableOpacity>
+          </View>
 
-      <AppButton label={submitLabel} onPress={onSubmit} loading={loading} />
+          <AppButton label={submitLabel} onPress={() => onSubmit()} loading={loading} />
+        </>
+      )}
     </View>
   );
 };

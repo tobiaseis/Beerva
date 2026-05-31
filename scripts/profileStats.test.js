@@ -11,6 +11,7 @@ const profileStatsPanelPath = 'src/components/ProfileStatsPanel.tsx';
 const profileScreenPath = 'src/screens/ProfileScreen.tsx';
 const userProfileScreenPath = 'src/screens/UserProfileScreen.tsx';
 const specialMixedDrinksMigrationPath = 'supabase/migrations/20260522100000_add_special_mixed_drinks.sql';
+const commonCocktailsMigrationPath = 'supabase/migrations/20260531160000_add_common_cocktails_and_wine.sql';
 
 const exists = (relativePath) => fs.existsSync(path.resolve(__dirname, '..', relativePath));
 const readSource = (relativePath) => fs.readFileSync(path.resolve(__dirname, '..', relativePath), 'utf8');
@@ -43,6 +44,7 @@ const {
   getBeverageOptionSearchText,
   getBeerLine,
   getSessionBeerSummary,
+  isBeverageAutoAdded,
   VOLUMES,
 } = loadTypeScriptModule('src/lib/sessionBeers.ts');
 
@@ -270,6 +272,112 @@ assert.equal(
   specialMixedDrinkStats.strongestAbv,
   5,
   'Vodka Orange Juice and Coffee Bailey should not count toward beer-only strongest ABV trophies'
+);
+
+const commonCocktailNames = [
+  'Gin Hass',
+  'Gin & Tonic',
+  'Cosmopolitan',
+  'Mojito',
+  'Margarita',
+  'Daiquiri',
+  'Old Fashioned',
+  'Whiskey Sour',
+  'Espresso Martini',
+  'Negroni',
+  'Pina Colada',
+  'Long Island Iced Tea',
+  'Sex on the Beach',
+  'Moscow Mule',
+  'Caipirinha',
+  'Aperol Spritz',
+  'Dry Martini',
+  'Manhattan',
+  'Cuba Libre',
+  'Tequila Sunrise',
+];
+
+assert.equal(commonCocktailNames.length, 20, 'the common cocktail set should include exactly 20 drinks');
+commonCocktailNames.forEach((name) => {
+  assert.equal(getBeverageCatalogItem(name)?.kind, 'mixed', `${name} should be a locked mixed-drink catalog item`);
+});
+
+assert.equal(getBeverageDefaultVolume('White Wine'), '15cl', 'generic white wine should default to a 15cl glass');
+assert.equal(getBeverageCatalogItem('White Wine')?.abv, 12, 'generic white wine should use 12% ABV');
+assert.equal(getBeverageCatalogItem('White Wine')?.kind, 'wine', 'generic white wine should be classified as wine');
+assert.equal(getBeverageDefaultVolume('Red Wine'), '15cl', 'generic red wine should default to a 15cl glass');
+assert.equal(getBeverageCatalogItem('Red Wine')?.abv, 13, 'generic red wine should use 13% ABV');
+assert.equal(getBeverageCatalogItem('Red Wine')?.kind, 'wine', 'generic red wine should be classified as wine');
+assert.equal(isBeverageAutoAdded('Gin Hass'), true, 'Gin Hass should auto-add when selected from the beverage dropdown');
+assert.equal(isBeverageAutoAdded('Jagerbomb'), true, 'existing mixed drinks should also auto-add when selected from the beverage dropdown');
+assert.equal(isBeverageAutoAdded('Red Wine'), false, 'wine should stay on the normal record flow');
+assert.equal(isBeverageAutoAdded('Guinness'), false, 'beer should stay on the normal record flow');
+
+assert.deepEqual(
+  beerDraftToPayload({ beerName: 'Gin Hass', volume: 'Pint', quantity: 1 }),
+  {
+    beer_name: 'Gin Hass',
+    volume: '4cl',
+    quantity: 1,
+    abv: 37.5,
+  },
+  'Gin Hass should count only the 4cl gin serving at 37.5% ABV'
+);
+
+assert.deepEqual(
+  beerDraftToPayload({ beerName: 'Cosmo', volume: 'Pint', quantity: 1 }),
+  {
+    beer_name: 'Cosmopolitan',
+    volume: '5.5cl',
+    quantity: 1,
+    abv: 37.8,
+  },
+  'Cosmopolitan should resolve its alias and count only vodka plus Cointreau'
+);
+
+assert.deepEqual(
+  beerDraftToPayload({ beerName: 'Aperol Spritz', volume: 'Pint', quantity: 1 }),
+  {
+    beer_name: 'Aperol Spritz',
+    volume: '15cl',
+    quantity: 1,
+    abv: 11,
+  },
+  'Aperol Spritz should count only its Prosecco and Aperol, not the soda water'
+);
+
+assert.deepEqual(
+  beerDraftToPayload({ beerName: 'Red Wine', volume: '15cl', quantity: 2 }),
+  {
+    beer_name: 'Red Wine',
+    volume: '15cl',
+    quantity: 2,
+    abv: 13,
+  },
+  'generic red wine should submit as a normal 15cl 13% wine serving'
+);
+
+const cocktailStats = calculateStats([
+  baseRow({ session_id: 'pint', beer_name: 'Pint Beer', volume: 'Pint', abv: 5 }),
+  baseRow({ session_id: 'gin-hass', beer_name: 'Gin Hass', volume: '4cl', abv: 37.5 }),
+  baseRow({ session_id: 'negroni', beer_name: 'Negroni', volume: '9cl', abv: 26.2 }),
+]);
+
+assert.equal(
+  cocktailStats.strongestAbv,
+  5,
+  'common cocktails should not count toward beer-only strongest ABV trophies'
+);
+
+const wineStats = calculateStats([
+  baseRow({ session_id: 'pint', beer_name: 'Pint Beer', volume: 'Pint', abv: 5 }),
+  baseRow({ session_id: 'red-wine', beer_name: 'Red Wine', volume: '15cl', abv: 13 }),
+]);
+
+assert.equal(
+  wineStats.strongestAbv,
+  5,
+  'generic wine should not count toward beer-only strongest ABV trophies'
 );
 
 const newBeverageStats = calculateStats([
@@ -587,6 +695,29 @@ assert.match(
   specialMixedDrinksMigration,
   /'coffee bailey'/,
   'migration profile stats should classify Coffee Bailey as a special mixed drink'
+);
+
+assert.ok(exists(commonCocktailsMigrationPath), 'common cocktail and wine migration should exist');
+const commonCocktailsMigration = readSource(commonCocktailsMigrationPath);
+assert.match(
+  commonCocktailsMigration,
+  /\('gin hass', 'Gin Hass', '4cl', 37\.5/,
+  'migration should normalize Gin Hass to its 4cl gin counted serving'
+);
+assert.match(
+  commonCocktailsMigration,
+  /\('cosmopolitan', 'Cosmopolitan', '5\.5cl', 37\.8/,
+  'migration should normalize Cosmopolitan to its counted alcoholic ingredients'
+);
+assert.match(
+  commonCocktailsMigration,
+  /\('aperol spritz', 'Aperol Spritz', '15cl', 11/,
+  'migration should normalize Aperol Spritz to its counted alcoholic ingredients'
+);
+assert.match(
+  commonCocktailsMigration,
+  /'gin hass'[\s\S]*'cosmopolitan'[\s\S]*'aperol spritz'/,
+  'migration profile stats should classify the common cocktails as special mixed drinks'
 );
 
 assert.equal(

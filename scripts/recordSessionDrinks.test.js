@@ -6,6 +6,10 @@ const source = fs.readFileSync(
   path.resolve(__dirname, '..', 'src/screens/RecordScreen.tsx'),
   'utf8'
 );
+const beerDraftFormSource = fs.readFileSync(
+  path.resolve(__dirname, '..', 'src/components/BeerDraftForm.tsx'),
+  'utf8'
+);
 
 assert.match(
   source,
@@ -41,6 +45,36 @@ assert.match(
   source,
   /style=\{styles\.beerRowActions\}/,
   'drink row actions should group the plus and delete controls together'
+);
+
+assert.match(
+  beerDraftFormSource,
+  /onSelectItem=\{selectBeverageName\}/,
+  'selecting an autocomplete beverage should use a dedicated selection handler'
+);
+
+assert.match(
+  beerDraftFormSource,
+  /isBeverageAutoAdded/,
+  'beer draft form should detect mixed drinks that auto-add from the dropdown'
+);
+
+assert.match(
+  beerDraftFormSource,
+  /onSubmit\(nextDraft\)/,
+  'selecting an auto-add mixed drink should submit the prepared draft immediately'
+);
+
+assert.match(
+  beerDraftFormSource,
+  /!\s*hideDrinkControls/,
+  'auto-added mixed drinks should hide size, quantity, and add-button controls while they submit'
+);
+
+assert.doesNotMatch(
+  beerDraftFormSource,
+  /volumeOptions/,
+  'mixed-drink auto-add should avoid adding recipe-specific volume buttons to the record form'
 );
 
 console.log('record session drink checks passed');
