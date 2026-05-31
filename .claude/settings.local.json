@@ -5,7 +5,22 @@
       "Bash(Select-Object FullName)",
       "Bash(npm install *)",
       "Bash(npx tsc *)",
-      "Bash(echo \"exit=$?\")"
+      "Bash(echo \"exit=$?\")",
+      "PowerShell($files = @\\(\"src/components/FeedCard.tsx\",\"src/components/CommentsSheet.tsx\",\"src/screens/FeedScreen.tsx\",\"src/screens/NotificationsScreen.tsx\",\"src/lib/socialApi.ts\",\"src/lib/feedApi.ts\"\\); foreach \\($f in $files\\) { $lines = \\(Get-Content $f | Measure-Object -Line\\).Lines; Write-Output \"$lines lines : $f\" })",
+      "PowerShell(\\(Get-Content \"src\\\\screens\\\\UserProfileScreen.tsx\" | Measure-Object -Line\\).Lines)",
+      "PowerShell(Get-ChildItem \"src\\\\screens\\\\UserProfileScreen.tsx\",\"src\\\\screens\\\\PeopleScreen.tsx\" | ForEach-Object { \"{0} : {1} bytes\" -f $_.Name, $_.Length })",
+      "Bash(echo \"EXIT $?\")",
+      "Bash(echo \"tsc exit $?\")",
+      "PowerShell($env:GIT_PAGER='cat'; git --no-pager log --oneline -25 | Out-String)",
+      "PowerShell($env:GIT_PAGER='cat'; git --no-pager log --oneline -30 | Out-String)",
+      "PowerShell($env:GIT_PAGER='cat'; \"=== STATUS ===\"; git --no-pager status --short | Out-String; \"=== LOG ===\"; git --no-pager log --oneline -30 | Out-String)",
+      "Bash(git --no-pager log --oneline -30)",
+      "Bash(echo \"exit $?\")",
+      "Bash(echo \"=== end $? ===\")",
+      "Bash(echo \"EOF-$?\")",
+      "Bash(echo \"EOFMARK-$?\")",
+      "Bash(echo \"DONE-$?\")",
+      "Bash(echo \"FIN-$?\")"
     ]
   }
 }

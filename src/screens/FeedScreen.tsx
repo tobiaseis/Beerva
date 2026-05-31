@@ -61,7 +61,7 @@ type FeedComment = {
   profiles?: ProfilePreview | null;
 };
 
-type FeedSession = {
+export type FeedSession = {
   id: string;
   user_id: string;
   pub_id?: string | null;
@@ -273,7 +273,7 @@ type FeedSessionCardProps = {
   onToggleCheers: (session: FeedSession) => void;
 };
 
-const FeedSessionCard = React.memo(({
+export const FeedSessionCard = React.memo(({
   item,
   currentUserId,
   isCheering,

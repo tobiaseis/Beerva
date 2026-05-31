@@ -23,7 +23,7 @@ type NotificationRow = {
   id: string;
   user_id: string;
   actor_id: string;
-  type: 'cheer' | 'invite' | 'session_started' | 'comment' | 'invite_response' | 'pub_crawl_started' | 'hangover_check';
+  type: 'cheer' | 'invite' | 'session_started' | 'comment' | 'invite_response' | 'pub_crawl_started' | 'hangover_check' | 'follow';
   reference_id: string | null;
   metadata?: {
     pub_name?: string | null;
@@ -119,6 +119,9 @@ Deno.serve(async (req) => {
   } else if (record.type === 'comment') {
     title = 'New comment';
     bodyText = `${actorName} commented on your beer session`;
+  } else if (record.type === 'follow') {
+    title = 'New follower';
+    bodyText = `${actorName} started following you`;
   } else if (record.type === 'invite') {
     title = 'Invitation to drink';
     bodyText = `${actorName} wants to grab a beer with you`;
@@ -143,9 +146,15 @@ Deno.serve(async (req) => {
   }
 
   const hangoverTargetType = record.metadata?.target_type === 'pub_crawl' ? 'pub_crawl' : 'session';
-  const url = record.type === 'hangover_check' && record.reference_id
-    ? `/?hangover=1&target_type=${encodeURIComponent(hangoverTargetType)}&target_id=${encodeURIComponent(record.reference_id)}&notificationId=${encodeURIComponent(record.id)}`
-    : `/?notifications=1&notificationId=${encodeURIComponent(record.id)}`;
+  let url: string;
+  if (record.type === 'hangover_check' && record.reference_id) {
+    url = `/?hangover=1&target_type=${encodeURIComponent(hangoverTargetType)}&target_id=${encodeURIComponent(record.reference_id)}&notificationId=${encodeURIComponent(record.id)}`;
+  } else if ((record.type === 'cheer' || record.type === 'comment') && record.reference_id) {
+    // Deep-link straight to the post that was cheered/commented on.
+    url = `/?post=${encodeURIComponent(record.reference_id)}&notificationId=${encodeURIComponent(record.id)}`;
+  } else {
+    url = `/?notifications=1&notificationId=${encodeURIComponent(record.id)}`;
+  }
 
   const payload = JSON.stringify({
     title,

@@ -28,6 +28,7 @@ export const getNotificationPubName = (item: NotificationMessageInput) => (
 export const getNotificationMessage = (item: NotificationMessageInput) => {
   if (item.type === 'cheer') return ' cheered your session!';
   if (item.type === 'comment') return ' commented on your session.';
+  if (item.type === 'follow') return ' started following you.';
   if (item.type === 'session_started') {
     const pubName = getNotificationPubName(item);
     return pubName

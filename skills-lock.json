@@ -73,6 +73,12 @@
       "skillPath": "skills/requesting-code-review/SKILL.md",
       "computedHash": "874f3786b05007a8b4a60452a4cd89b9917c645d34b6b1e40ea05037d12f0e67"
     },
+    "supabase-postgres-best-practices": {
+      "source": "supabase/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/supabase-postgres-best-practices/SKILL.md",
+      "computedHash": "38fb49d3b57c46cba18b07a44254bd42c4c93903fda1d8cb683429615d32fec4"
+    },
     "systematic-debugging": {
       "source": "obra/superpowers",
       "sourceType": "github",
@@ -98,10 +104,10 @@
       "computedHash": "de10fd3ff46d797acc92b9df6b3ea456a5cd1d095b73c90bc921e83cce4c5bb9"
     },
     "vercel-composition-patterns": {
-      "source": "vercel-labs/agent-skills",
+      "source": "supabase/supabase",
       "sourceType": "github",
-      "skillPath": "skills/composition-patterns/SKILL.md",
-      "computedHash": "575757e3e25761c8c562d6e395d29f0b76c98b1273c0bd72d88e6ab1bc9c7d42"
+      "skillPath": ".claude/skills/vercel-composition-patterns/SKILL.md",
+      "computedHash": "7ba1ceecf80662fd6df8a9acaeb495ebfd6c523dbe3dd01fe81f0b91dad63261"
     },
     "vercel-react-best-practices": {
       "source": "vercel-labs/agent-skills",

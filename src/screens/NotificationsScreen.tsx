@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Platform, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { ArrowLeft, Beer, Check, Coffee, MapPin, MessageCircle, PartyPopper, XCircle } from 'lucide-react-native';
+import { ArrowLeft, Beer, Check, Coffee, MapPin, MessageCircle, PartyPopper, UserPlus, XCircle } from 'lucide-react-native';
 
 import { CachedImage } from '../components/CachedImage';
 import { EmptyIllustration } from '../components/EmptyIllustration';
@@ -12,7 +12,7 @@ import { colors } from '../theme/colors';
 import { radius, shadows, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
 
-type NotificationType = 'cheer' | 'invite' | 'session_started' | 'comment' | 'invite_response' | 'pub_crawl_started' | 'hangover_check';
+type NotificationType = 'cheer' | 'invite' | 'session_started' | 'comment' | 'invite_response' | 'pub_crawl_started' | 'hangover_check' | 'follow';
 type InviteStatus = 'pending' | 'accepted' | 'declined';
 
 type ProfilePreview = {
@@ -205,6 +205,10 @@ export const NotificationsScreen = ({ navigation }: any) => {
     navigation.navigate('UserProfile', { userId });
   }, [navigation]);
 
+  const openPost = useCallback((sessionId: string) => {
+    navigation.navigate('PostDetail', { sessionId });
+  }, [navigation]);
+
   const openHangoverRating = useCallback((item: NotificationRow) => {
     if (!item.reference_id) return;
     navigation.navigate('HangoverRating', {
@@ -250,6 +254,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
     if (item.type === 'cheer') return <Beer color={colors.primary} size={24} />;
     if (item.type === 'hangover_check') return <Coffee color={colors.primary} size={24} />;
     if (item.type === 'comment') return <MessageCircle color={colors.primary} size={24} />;
+    if (item.type === 'follow') return <UserPlus color={colors.primary} size={24} />;
     if (item.type === 'session_started') return <MapPin color={colors.primary} size={24} />;
     if (item.type === 'invite_response' && item.invite?.status === 'accepted') {
       return <Check color={colors.success} size={24} />;
@@ -266,6 +271,16 @@ export const NotificationsScreen = ({ navigation }: any) => {
       && item.invite.recipient_id === currentUserId;
     const responding = Boolean(item.invite?.id && respondingInviteIds.has(item.invite.id));
     const answeredInvite = item.type === 'invite' && item.invite?.status !== 'pending' ? item.invite : null;
+    const opensPost = (item.type === 'cheer' || item.type === 'comment') && Boolean(item.reference_id);
+    const ContentWrapper: any = opensPost ? TouchableOpacity : View;
+    const contentWrapperProps = opensPost
+      ? {
+          onPress: () => openPost(item.reference_id as string),
+          activeOpacity: 0.75,
+          accessibilityRole: 'button',
+          accessibilityLabel: 'Open this post',
+        }
+      : {};
 
     return (
       <View style={[styles.card, !item.read && styles.unreadCard]}>
@@ -278,7 +293,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
             accessibilityLabel={`${item.profiles?.username || 'Someone'}'s avatar`}
           />
         </TouchableOpacity>
-        <View style={styles.content}>
+        <ContentWrapper style={styles.content} {...contentWrapperProps}>
           <Text style={styles.message}>
             <Text style={styles.username}>{item.profiles?.username || 'Someone'}</Text>
             {getNotificationMessage(item)}
@@ -337,13 +352,13 @@ export const NotificationsScreen = ({ navigation }: any) => {
               <Text style={styles.hangoverActionText}>Rate hangover</Text>
             </TouchableOpacity>
           ) : null}
-        </View>
+        </ContentWrapper>
         <View style={styles.iconContainer}>
           {renderIcon(item)}
         </View>
       </View>
     );
-  }, [currentUserId, openHangoverRating, openProfile, respondToInvite, respondingInviteIds]);
+  }, [currentUserId, openHangoverRating, openPost, openProfile, respondToInvite, respondingInviteIds]);
 
   return (
     <View style={styles.container}>
@@ -376,7 +391,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
             <View style={styles.emptyState}>
               <EmptyIllustration kind="notifications" size={170} />
               <Text style={styles.emptyTitle}>No notifications</Text>
-              <Text style={styles.emptyText}>When someone cheers your beer, invites you, or starts a session, you will see it here.</Text>
+              <Text style={styles.emptyText}>When someone follows you, cheers your beer, or comments on your session, you will see it here.</Text>
             </View>
           }
         />

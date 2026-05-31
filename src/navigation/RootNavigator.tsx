@@ -19,6 +19,7 @@ import { ChallengeDetailScreen } from '../screens/ChallengeDetailScreen';
 import { AuthScreen } from '../screens/AuthScreen';
 import { ProfileSetupScreen } from '../screens/ProfileSetupScreen';
 import { NotificationsScreen } from '../screens/NotificationsScreen';
+import { PostDetailScreen } from '../screens/PostDetailScreen';
 import { EditSessionScreen } from '../screens/EditSessionScreen';
 import { HangoverRatingScreen } from '../screens/HangoverRatingScreen';
 import { FakeBeerScreen } from '../screens/FakeBeerScreen';
@@ -91,6 +92,21 @@ const getHangoverLaunchParamsFromUrl = (): HangoverLaunchParams | null => {
     targetId,
     notificationId: params.get('notificationId'),
   };
+};
+
+const getPostIdFromUrl = (): string | null => {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
+  const params = new URLSearchParams(window.location.search);
+  const postId = params.get('post');
+  return postId && postId.length > 0 ? postId : null;
+};
+
+const clearPostLaunchParams = () => {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+  const url = new URL(window.location.href);
+  url.searchParams.delete('post');
+  url.searchParams.delete('notificationId');
+  window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
 };
 
 const clearNotificationLaunchParams = () => {
@@ -248,6 +264,7 @@ export const RootNavigator = () => {
   const pendingNotificationsOpenRef = useRef(shouldOpenNotificationsFromUrl());
   const pendingRecordOpenRef = useRef(shouldOpenRecordFromUrl());
   const pendingHangoverOpenRef = useRef<HangoverLaunchParams | null>(getHangoverLaunchParamsFromUrl());
+  const pendingPostOpenRef = useRef<string | null>(getPostIdFromUrl());
   const sessionUserId = session?.user?.id ?? null;
   const sessionHasCachedUsername = hasCachedUsername(session);
 
@@ -381,6 +398,14 @@ export const RootNavigator = () => {
       return;
     }
 
+    const pendingPostOpen = pendingPostOpenRef.current;
+    if (pendingPostOpen) {
+      pendingPostOpenRef.current = null;
+      navigationRef.navigate('PostDetail', { sessionId: pendingPostOpen });
+      clearPostLaunchParams();
+      return;
+    }
+
     if (pendingNotificationsOpenRef.current) {
       pendingNotificationsOpenRef.current = false;
       navigationRef.navigate('Notifications');
@@ -422,6 +447,7 @@ export const RootNavigator = () => {
               <Stack.Screen name="PubLegendDetail" component={PubLegendDetailScreen} />
               <Stack.Screen name="ChallengeDetail" component={ChallengeDetailScreen} />
               <Stack.Screen name="Notifications" component={NotificationsScreen} />
+              <Stack.Screen name="PostDetail" component={PostDetailScreen} />
               <Stack.Screen name="EditSession" component={EditSessionScreen} />
               <Stack.Screen name="HangoverRating" component={HangoverRatingScreen} />
               <Stack.Screen name="FakeBeer" component={FakeBeerScreen} options={{ animation: 'none' }} />
