@@ -9,6 +9,32 @@ where id in (
   where lower(auth_users.email) = 'xdrengx@gmail.com'
 );
 
+create or replace function public.prevent_profile_admin_self_promotion()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if coalesce(auth.role(), '') = 'authenticated' then
+    if tg_op = 'INSERT' and new.is_admin = true then
+      raise exception 'Profile admin access cannot be changed by signed-in users.';
+    end if;
+
+    if tg_op = 'UPDATE' and new.is_admin is distinct from old.is_admin then
+      raise exception 'Profile admin access cannot be changed by signed-in users.';
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists profiles_prevent_admin_self_promotion on public.profiles;
+create trigger profiles_prevent_admin_self_promotion
+  before insert or update of is_admin on public.profiles
+  for each row
+  execute function public.prevent_profile_admin_self_promotion();
+
 create or replace function public.is_current_user_admin()
 returns boolean
 language sql
@@ -584,6 +610,7 @@ $$;
 revoke execute on function public.is_current_user_admin() from public, anon;
 grant execute on function public.is_current_user_admin() to authenticated;
 
+revoke execute on function public.prevent_profile_admin_self_promotion() from public, anon, authenticated;
 revoke execute on function public.get_admin_beverages() from public, anon;
 revoke execute on function public.admin_get_challenges() from public, anon;
 revoke execute on function public.admin_save_beverage(uuid, text, numeric) from public, anon;

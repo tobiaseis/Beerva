@@ -735,4 +735,3 @@ supabase/migrations/20260531170000_add_admin_challenges_and_beverages.sql
 ```
 
 must be applied to the linked Supabase project before the deployed app can expose working admin RPCs or remote beers.
-
