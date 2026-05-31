@@ -9,13 +9,13 @@ import { radius, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
 import {
   BeerDraft,
-  BEER_OPTIONS,
   getBeverageDefaultVolume,
   getBeverageOptionSearchText,
   isBeverageAutoAdded,
   isBeverageVolumeLocked,
   VOLUMES,
 } from '../lib/sessionBeers';
+import { useBeverageCatalog } from '../lib/beverageCatalogContext';
 
 type BeerDraftFormProps = {
   draft: BeerDraft;
@@ -32,6 +32,7 @@ export const BeerDraftForm = ({
   submitLabel,
   loading = false,
 }: BeerDraftFormProps) => {
+  const { catalog, options } = useBeverageCatalog();
   const [autoAddingName, setAutoAddingName] = useState<string | null>(null);
 
   useEffect(() => {
@@ -53,15 +54,15 @@ export const BeerDraftForm = ({
   };
 
   const updateBeverageName = (beerName: string) => {
-    const defaultVolume = getBeverageDefaultVolume(beerName);
+    const defaultVolume = getBeverageDefaultVolume(beerName, catalog);
     updateDraft(defaultVolume ? { beerName, volume: defaultVolume } : { beerName });
   };
 
   const selectBeverageName = (beerName: string) => {
-    const defaultVolume = getBeverageDefaultVolume(beerName);
+    const defaultVolume = getBeverageDefaultVolume(beerName, catalog);
     const nextDraft = defaultVolume ? { ...draft, beerName, volume: defaultVolume } : { ...draft, beerName };
 
-    if (isBeverageAutoAdded(beerName)) {
+    if (isBeverageAutoAdded(beerName, catalog)) {
       setAutoAddingName(beerName);
       onChange(nextDraft);
       onSubmit(nextDraft);
@@ -72,10 +73,10 @@ export const BeerDraftForm = ({
     onChange(nextDraft);
   };
 
-  const volumeLocked = isBeverageVolumeLocked(draft.beerName);
-  const lockedVolume = getBeverageDefaultVolume(draft.beerName);
+  const volumeLocked = isBeverageVolumeLocked(draft.beerName, catalog);
+  const lockedVolume = getBeverageDefaultVolume(draft.beerName, catalog);
   const selectedVolume = volumeLocked ? lockedVolume || draft.volume : draft.volume;
-  const hideDrinkControls = Boolean(autoAddingName && isBeverageAutoAdded(draft.beerName));
+  const hideDrinkControls = Boolean(autoAddingName && isBeverageAutoAdded(draft.beerName, catalog));
 
   return (
     <View style={styles.container}>
@@ -83,10 +84,10 @@ export const BeerDraftForm = ({
         value={draft.beerName}
         onChangeText={updateBeverageName}
         onSelectItem={selectBeverageName}
-        data={BEER_OPTIONS}
+        data={options}
         placeholder="What are you drinking?"
         icon={<Beer color={colors.textMuted} size={20} />}
-        getSearchText={getBeverageOptionSearchText}
+        getSearchText={(beverageName) => getBeverageOptionSearchText(beverageName, catalog)}
       />
 
       {!hideDrinkControls && (

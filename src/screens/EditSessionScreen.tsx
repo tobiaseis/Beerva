@@ -37,6 +37,7 @@ import {
 } from '../lib/sessionBeers';
 import { supabase } from '../lib/supabase';
 import { useFocused } from '../lib/useFocused';
+import { useBeverageCatalog } from '../lib/beverageCatalogContext';
 import { colors } from '../theme/colors';
 import { radius, shadows, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
@@ -53,6 +54,7 @@ type EditableSession = {
 };
 
 export const EditSessionScreen = ({ navigation, route }: any) => {
+  const { catalog } = useBeverageCatalog();
   const sessionId = route?.params?.sessionId as string | undefined;
   const [session, setSession] = useState<EditableSession | null>(null);
   const [beers, setBeers] = useState<SessionBeer[]>([]);
@@ -125,7 +127,7 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
       return;
     }
 
-    const beerPayload = beerDraftToPayload(beerDraft);
+    const beerPayload = beerDraftToPayload(beerDraft, catalog);
     setBeers((previous) => [
       ...previous,
       {

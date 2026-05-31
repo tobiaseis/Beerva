@@ -506,45 +506,78 @@ const normalizeBeerName = (value: string) => (
     .trim()
 );
 
-export const getBeverageCatalogItem = (beverageName: string) => {
+export const mergeBeverageCatalog = (remoteBeverages: BeerCatalogItem[] = []) => {
+  const builtInKeys = new Set(BEER_CATALOG.map((item) => normalizeBeerName(item.name)));
+
+  return [
+    ...BEER_CATALOG,
+    ...remoteBeverages.filter((item) => (
+      item.name.trim().length > 0
+      && !builtInKeys.has(normalizeBeerName(item.name))
+    )),
+  ];
+};
+
+export const getBeverageCatalogItem = (
+  beverageName: string,
+  catalog: BeerCatalogItem[] = BEER_CATALOG
+) => {
   const normalizedBeverageName = normalizeBeerName(beverageName);
-  return BEER_CATALOG.find((beverage) => (
+  return catalog.find((beverage) => (
     normalizeBeerName(beverage.name) === normalizedBeverageName
     || beverage.aliases?.some((alias) => normalizeBeerName(alias) === normalizedBeverageName)
   ));
 };
 
-export const getBeverageOptionSearchText = (beverageName: string) => {
-  const beverage = BEER_CATALOG.find((item) => item.name === beverageName) ?? getBeverageCatalogItem(beverageName);
+export const getBeverageOptionSearchText = (
+  beverageName: string,
+  catalog: BeerCatalogItem[] = BEER_CATALOG
+) => {
+  const beverage = catalog.find((item) => item.name === beverageName) ?? getBeverageCatalogItem(beverageName, catalog);
   return [beverageName, ...(beverage?.aliases ?? [])].join(' ');
 };
 
-export const getBeverageDefaultVolume = (beverageName: string) => {
-  const match = getBeverageCatalogItem(beverageName);
+export const getBeverageDefaultVolume = (
+  beverageName: string,
+  catalog: BeerCatalogItem[] = BEER_CATALOG
+) => {
+  const match = getBeverageCatalogItem(beverageName, catalog);
   return match?.countedVolume || match?.defaultVolume || null;
 };
 
-export const isBeverageVolumeLocked = (beverageName: string) => {
-  return Boolean(getBeverageCatalogItem(beverageName)?.countedVolume);
+export const isBeverageVolumeLocked = (
+  beverageName: string,
+  catalog: BeerCatalogItem[] = BEER_CATALOG
+) => {
+  return Boolean(getBeverageCatalogItem(beverageName, catalog)?.countedVolume);
 };
 
-export const isBeverageAutoAdded = (beverageName: string) => {
-  const beverage = getBeverageCatalogItem(beverageName);
+export const isBeverageAutoAdded = (
+  beverageName: string,
+  catalog: BeerCatalogItem[] = BEER_CATALOG
+) => {
+  const beverage = getBeverageCatalogItem(beverageName, catalog);
   return Boolean(beverage?.kind === 'mixed' && beverage.countedVolume);
 };
 
-export const getBeerAbv = (beerName: string) => {
-  return getBeverageCatalogItem(beerName)?.abv ?? 5.0;
+export const getBeerAbv = (
+  beerName: string,
+  catalog: BeerCatalogItem[] = BEER_CATALOG
+) => {
+  return getBeverageCatalogItem(beerName, catalog)?.abv ?? 5.0;
 };
 
-export const beerDraftToPayload = (draft: BeerDraft) => {
-  const beverage = getBeverageCatalogItem(draft.beerName);
+export const beerDraftToPayload = (
+  draft: BeerDraft,
+  catalog: BeerCatalogItem[] = BEER_CATALOG
+) => {
+  const beverage = getBeverageCatalogItem(draft.beerName, catalog);
 
   return {
     beer_name: beverage?.name ?? draft.beerName.trim(),
     volume: beverage?.countedVolume || draft.volume,
     quantity: draft.quantity,
-    abv: beverage?.abv ?? getBeerAbv(draft.beerName),
+    abv: beverage?.abv ?? getBeerAbv(draft.beerName, catalog),
   };
 };
 

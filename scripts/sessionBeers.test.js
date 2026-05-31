@@ -26,6 +26,8 @@ const loadTypeScriptModule = (relativePath) => {
 const {
   getSessionBeerBreakdownLines,
   getSessionBeerSummary,
+  getBeverageCatalogItem,
+  mergeBeverageCatalog,
 } = loadTypeScriptModule('src/lib/sessionBeers.ts');
 
 const duplicateTuborgRows = [
@@ -102,6 +104,16 @@ check('feed summary collapses multiple beverage kinds into a count', () => {
     ]),
     '12 drinks across 3 kinds'
   );
+});
+
+check('remote ordinary beers merge without overriding built-ins', () => {
+  const catalog = mergeBeverageCatalog([
+    { name: 'Codex Lager', abv: 6.4 },
+    { name: 'Tuborg Classic', abv: 99 },
+  ]);
+
+  assert.equal(getBeverageCatalogItem('Codex Lager', catalog)?.abv, 6.4);
+  assert.equal(getBeverageCatalogItem('Tuborg Classic', catalog)?.abv, 4.6);
 });
 
 if (failures.length > 0) {

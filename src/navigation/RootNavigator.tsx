@@ -28,6 +28,7 @@ import { floatingTabBarMetrics, radius, shadows } from '../theme/layout';
 import { NotificationsProvider, useNotifications } from '../lib/notificationsContext';
 import { getPostLaunchParamsFromSearch, PostLaunchParams } from '../lib/postTargets';
 import { syncCurrentTimezone } from '../lib/timezone';
+import { BeverageCatalogProvider } from '../lib/beverageCatalogContext';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
 
@@ -440,25 +441,27 @@ export const RootNavigator = () => {
         needsProfileSetup ? (
           <ProfileSetupScreen onComplete={() => checkProfileSetup(session, true)} />
         ) : (
-          <NotificationsProvider>
-            <Stack.Navigator
-              screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: colors.background },
-                animation: 'slide_from_right',
-              }}
-            >
-              <Stack.Screen name="MainTabs" component={MainTabs} />
-              <Stack.Screen name="UserProfile" component={UserProfileScreen} />
-              <Stack.Screen name="PubLegendDetail" component={PubLegendDetailScreen} />
-              <Stack.Screen name="ChallengeDetail" component={ChallengeDetailScreen} />
-              <Stack.Screen name="Notifications" component={NotificationsScreen} />
-              <Stack.Screen name="PostDetail" component={PostDetailScreen} />
-              <Stack.Screen name="EditSession" component={EditSessionScreen} />
-              <Stack.Screen name="HangoverRating" component={HangoverRatingScreen} />
-              <Stack.Screen name="FakeBeer" component={FakeBeerScreen} options={{ animation: 'none' }} />
-            </Stack.Navigator>
-          </NotificationsProvider>
+          <BeverageCatalogProvider>
+            <NotificationsProvider>
+              <Stack.Navigator
+                screenOptions={{
+                  headerShown: false,
+                  contentStyle: { backgroundColor: colors.background },
+                  animation: 'slide_from_right',
+                }}
+              >
+                <Stack.Screen name="MainTabs" component={MainTabs} />
+                <Stack.Screen name="UserProfile" component={UserProfileScreen} />
+                <Stack.Screen name="PubLegendDetail" component={PubLegendDetailScreen} />
+                <Stack.Screen name="ChallengeDetail" component={ChallengeDetailScreen} />
+                <Stack.Screen name="Notifications" component={NotificationsScreen} />
+                <Stack.Screen name="PostDetail" component={PostDetailScreen} />
+                <Stack.Screen name="EditSession" component={EditSessionScreen} />
+                <Stack.Screen name="HangoverRating" component={HangoverRatingScreen} />
+                <Stack.Screen name="FakeBeer" component={FakeBeerScreen} options={{ animation: 'none' }} />
+              </Stack.Navigator>
+            </NotificationsProvider>
+          </BeverageCatalogProvider>
         )
       ) : (
         <AuthScreen />

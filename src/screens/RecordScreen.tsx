@@ -64,6 +64,7 @@ import { getCurrentTimezone } from '../lib/timezone';
 import { fetchProfileStats } from '../lib/profileStatsApi';
 import { getTrophies } from '../lib/profileStats';
 import { useFocused } from '../lib/useFocused';
+import { useBeverageCatalog } from '../lib/beverageCatalogContext';
 import { colors } from '../theme/colors';
 import { floatingTabBarMetrics, radius, shadows, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
@@ -176,6 +177,7 @@ const getPreviouslyGrantedBrowserLocation = async () => {
 };
 
 export const RecordScreen = ({ navigation }: any) => {
+  const { catalog } = useBeverageCatalog();
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
   const [activeCrawl, setActiveCrawl] = useState<ActivePubCrawlState | null>(null);
   const [sessionBeers, setSessionBeers] = useState<SessionBeer[]>([]);
@@ -910,7 +912,7 @@ export const RecordScreen = ({ navigation }: any) => {
     try {
       const payload = {
         session_id: activeSession.id,
-        ...beerDraftToPayload(draftToAdd),
+        ...beerDraftToPayload(draftToAdd, catalog),
         consumed_at: new Date().toISOString(),
       };
 
