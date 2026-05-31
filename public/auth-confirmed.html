@@ -90,6 +90,21 @@
         color: #cbd5e1;
         font-size: 14px;
       }
+
+      .continue-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        margin-top: 18px;
+        padding: 0 18px;
+        border-radius: 999px;
+        background: var(--primary);
+        color: #0d121a;
+        font-size: 15px;
+        font-weight: 800;
+        text-decoration: none;
+      }
     </style>
   </head>
   <body>
@@ -97,8 +112,29 @@
       <img class="logo" src="/beerva-logo-transparent.png" alt="Beerva" />
       <div class="brand">Beerva</div>
       <h1>You have been confirmed.</h1>
-      <p>Your email is officially on the guest list. Head back to the app and continue your very serious pint-tracking career.</p>
-      <p class="note">This tab has done its job. Like a good bartender, it knows when to stop pouring.</p>
+      <p>Your email is officially on the guest list. You will be redirected shortly so you can finish your profile.</p>
+      <a id="continue-link" class="continue-link" href="/">Continue now</a>
+      <p class="note">If nothing happens, tap continue and Beerva will pick up right where confirmation left off.</p>
     </main>
+    <script>
+      (function () {
+        const REDIRECT_DELAY_SECONDS = 5;
+        const continueLink = document.getElementById('continue-link');
+
+        function getAppUrl() {
+          return `/${window.location.search || ''}${window.location.hash || ''}`;
+        }
+
+        const appUrl = getAppUrl();
+
+        if (continueLink) {
+          continueLink.href = appUrl;
+        }
+
+        window.setTimeout(function () {
+          window.location.replace(appUrl);
+        }, REDIRECT_DELAY_SECONDS * 1000);
+      })();
+    </script>
   </body>
 </html>

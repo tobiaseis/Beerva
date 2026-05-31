@@ -22,6 +22,7 @@
     "test:app-theme": "node scripts/appThemeTokens.test.js",
     "test:app-theme-screens": "node scripts/appThemeScreens.test.js",
     "test:logo-usage": "node scripts/logoUsage.test.js",
+    "test:auth-confirmation": "node scripts/authConfirmationRedirect.test.js",
     "test:feed-header": "node scripts/feedHeader.test.js",
     "test:fake-beer": "node scripts/fakeBeerEasterEgg.test.js",
     "test:floating-nav": "node scripts/floatingBottomNav.test.js",
