@@ -195,15 +195,20 @@ export const ChallengeDetailScreen = ({ navigation, route }: any) => {
                 <Text style={styles.summaryValue}>{challenge.entrantsCount}</Text>
               </View>
             </View>
-          ) : (
+          ) : challenge.joinOpen ? (
             <View style={styles.preJoinSummary}>
               <View style={styles.summaryPill}>
                 <Text style={styles.summaryLabel}>Entered</Text>
                 <Text style={styles.summaryValue}>{challenge.entrantsCount}</Text>
               </View>
               <Text style={styles.preJoinText}>
-                {getChallengePreJoinCopy(challenge) || 'Join to see your retroactive progress from May 1.'}
+                {getChallengePreJoinCopy(challenge)}
               </Text>
+            </View>
+          ) : (
+            <View style={styles.summaryPill}>
+              <Text style={styles.summaryLabel}>Entered</Text>
+              <Text style={styles.summaryValue}>{challenge.entrantsCount}</Text>
             </View>
           )}
 

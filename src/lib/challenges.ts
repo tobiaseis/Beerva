@@ -161,12 +161,8 @@ export const formatChallengeStatusLabel = (status: ChallengeStatus) => {
 };
 
 export const getChallengePreJoinCopy = (
-  challenge: Pick<ChallengeSummary, 'challengeType' | 'slug'> | { challengeType?: ChallengeType | string | null; slug?: string | null }
-) => (
-  isLeaderboardChallenge(challenge)
-    ? 'Join to count your Karneval drinks from the full 06:00 to 06:00 window.'
-    : 'Join to see your retroactive progress from May 1.'
-);
+  _challenge: Pick<ChallengeSummary, 'challengeType' | 'slug'> | { challengeType?: ChallengeType | string | null; slug?: string | null }
+) => 'Join this challenge to track your progress.';
 
 export const getLeaderboardEntryMeta = (
   entry: Pick<ChallengeLeaderboardEntry, 'completed' | 'progressValue'> | { completed?: boolean | null; progressValue?: number | string | null },
