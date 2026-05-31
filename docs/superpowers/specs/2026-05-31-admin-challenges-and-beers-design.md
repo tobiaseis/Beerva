@@ -2,9 +2,9 @@
 
 ## Summary
 
-Add a secure admin area for Beerva. The first admin account belongs to `xdrengx@gmail.com`. Admin users can create and edit official challenges and add or edit ordinary beers directly in the app.
+Add a secure admin area for Beerva. The first admin account belongs to `xdrengx@gmail.com`. Admin users can create and edit official challenges, optionally configure a winner trophy for leaderboard challenges, and add or edit ordinary beers directly in the app.
 
-The feature intentionally excludes trophy creation, deletion, and archival. Existing built-in beverages remain in client code. Admin-added beers are stored in Supabase and merged into the existing picker at runtime.
+The feature intentionally excludes a general trophy builder, deletion, and archival. Existing built-in beverages remain in client code. Admin-added beers are stored in Supabase and merged into the existing picker at runtime.
 
 ## Requirements
 
@@ -16,12 +16,13 @@ The feature intentionally excludes trophy creation, deletion, and archival. Exis
 - Allow admins to create and edit official target and leaderboard challenges.
 - Keep challenge scoring limited to existing `true_pints`.
 - Publish one official winner feed post after an admin-created leaderboard challenge ends.
+- Allow admins to configure an optional persistent winner trophy for leaderboard challenges.
 - Preserve existing KarnevalsDruk trophies and finalization behavior.
 - Allow admins to create and edit ordinary beers with a name and ABV percentage.
 - Merge admin-added beers into the existing recording autocomplete picker.
 - Do not rewrite historical session rows when a beer is edited.
 - Do not add deletion or archival actions in this version.
-- Do not add trophy creation.
+- Do not add a general-purpose trophy builder.
 
 ## Admin Access
 
@@ -187,6 +188,9 @@ The form includes:
 - end date and time
 - joining closes date and time
 - target true pints, visible only for target challenges
+- enable winner trophy toggle, visible only for leaderboard challenges
+- winner trophy title, visible and required only when the toggle is enabled
+- winner trophy description, visible and required only when the toggle is enabled
 
 Dates and times should be entered in the device's local timezone and converted to ISO timestamps before saving. The UI should make the chosen local values visible while editing.
 
@@ -211,9 +215,29 @@ Add RPCs:
 8. Writes `target_value = null` for leaderboard challenges.
 9. Inserts a generated slug for new rows.
 10. Keeps the existing slug when editing.
-11. Returns the saved row.
+11. Accepts optional leaderboard winner trophy configuration.
+12. Rejects winner trophy configuration for target challenges.
+13. Requires non-empty winner trophy title and description when a leaderboard winner trophy is enabled.
+14. Clears winner trophy title and description when a leaderboard winner trophy is disabled.
+15. Returns the saved row.
 
-Do not permit changing a finalized challenge. To keep joined competitions predictable, do not permit changing type or time windows after a challenge has entrants. Title and description may still be corrected.
+Do not permit changing a finalized challenge. To keep joined competitions predictable, do not permit changing type, time windows, or winner trophy configuration after a challenge has entrants. Challenge title and description may still be corrected.
+
+### Configurable Winner Trophy
+
+Add nullable winner trophy configuration to `public.challenges`:
+
+- `winner_trophy_enabled boolean not null default false`
+- `winner_trophy_title text`
+- `winner_trophy_description text`
+
+Use constraints so:
+
+- target challenges always have `winner_trophy_enabled = false`
+- enabled leaderboard trophies require non-empty trimmed title and description
+- disabled trophies store null title and description
+
+Leaderboard trophy configuration is optional. A leaderboard challenge without a configured trophy still publishes its winner announcement. A configured trophy uses the existing standard challenge trophy icon automatically; there is no image upload or icon picker.
 
 ### List And Detail Behavior
 
@@ -227,7 +251,7 @@ Existing challenge list and detail behavior continues to work:
 
 ## Leaderboard Finalization
 
-Admin-created leaderboard challenges publish an official winner announcement after ending. They do not award trophies.
+Admin-created leaderboard challenges publish an official winner announcement after ending. They award one persistent challenge trophy only when the admin enabled and configured that optional reward before entrants joined.
 
 The existing KarnevalsDruk flow has special dual-trophy behavior and must remain intact. Extend finalization with a separate generic path for leaderboard challenges whose slug is not `karnevalsdruk-2026`.
 
@@ -242,7 +266,8 @@ For each ended, unfinalized generic leaderboard challenge:
    - average ABV
    - session count
 5. Insert one `official_feed_posts` row with conflict protection.
-6. Store `finalized_at`, `winner_user_id`, and `winner_progress_value`.
+6. If the challenge has an enabled winner trophy, insert one `challenge_awards` row for the winner with conflict protection.
+7. Store `finalized_at`, `winner_user_id`, and `winner_progress_value`.
 
 The post should use:
 
@@ -253,6 +278,17 @@ The post should use:
 - metadata including `challenge_slug`
 
 Finalization must be idempotent. Repeated scheduled runs cannot duplicate posts. Existing scheduled finalization should invoke both the KarnevalsDruk-specific path and the generic path.
+
+For a configured generic trophy:
+
+- derive a stable `award_slug` from the challenge slug, such as `{challenge_slug}-winner`
+- use the configured winner trophy title and description
+- set `rank = 1`
+- set `progress_value` to the winning true-pint total
+- include `challenge_slug` in metadata
+- render it through the existing `challenge_awards` fetch and Trophy Cabinet merge
+
+KarnevalsDruk remains on its existing special finalization path and retains its dual trophies.
 
 ## Client Modules
 
@@ -281,7 +317,7 @@ Keep the catalog lookup utilities testable as pure functions by accepting an opt
 - Leaderboard challenges ignore target input and store null.
 - Target challenges require a positive target.
 - Finalized challenges reject edits.
-- Challenges with entrants reject type and time-window edits.
+- Challenges with entrants reject type, time-window, and trophy-configuration edits.
 - Remote beverage loading failure falls back to built-in drinks.
 - Generic finalization with no positive-progress winner stores a finalized no-winner state without posting.
 
@@ -304,9 +340,14 @@ Add focused source-level and helper tests for:
 - challenge windows are validated
 - finalized challenges reject edits
 - competitions with entrants reject type and window changes
+- target challenges reject winner trophy configuration
+- optional leaderboard trophy configuration requires non-empty title and description
+- competitions with entrants reject trophy-configuration changes
 - generic leaderboard finalization publishes one official post idempotently
 - no-positive-progress generic leaderboard finalization creates no post
-- generic finalization does not create challenge trophies
+- generic finalization inserts one configured winner trophy idempotently
+- generic finalization creates no trophy when the optional reward is disabled
+- generic challenge trophies render through the existing Trophy Cabinet merge
 - KarnevalsDruk trophy behavior remains unchanged
 - Profile conditionally exposes `Admin tools`
 - navigator registers `AdminTools`
@@ -324,9 +365,10 @@ Run existing focused tests, especially:
 
 ## Non-Goals
 
-- No trophy creation.
+- No general-purpose trophy builder.
 - No automatic trophy rule builder.
-- No challenge-award configuration.
+- No target-challenge completion trophies.
+- No custom trophy icons or trophy image uploads.
 - No beer deletion.
 - No challenge deletion.
 - No archival controls.
