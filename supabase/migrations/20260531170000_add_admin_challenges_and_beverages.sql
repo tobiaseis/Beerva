@@ -584,6 +584,10 @@ $$;
 revoke execute on function public.is_current_user_admin() from public, anon;
 grant execute on function public.is_current_user_admin() to authenticated;
 
+revoke execute on function public.get_admin_beverages() from public, anon;
+revoke execute on function public.admin_get_challenges() from public, anon;
+revoke execute on function public.admin_save_beverage(uuid, text, numeric) from public, anon;
+revoke execute on function public.admin_save_challenge(uuid, text, text, text, numeric, timestamp with time zone, timestamp with time zone, timestamp with time zone, boolean, text, text) from public, anon;
 grant execute on function public.get_admin_beverages() to authenticated;
 grant execute on function public.admin_get_challenges() to authenticated;
 grant execute on function public.admin_save_beverage(uuid, text, numeric) to authenticated;

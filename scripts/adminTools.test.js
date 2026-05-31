@@ -45,6 +45,13 @@ assert.match(migrationSql, /Winner trophies are only available for leaderboard c
 assert.match(migrationSql, /insert into public\.challenge_awards/i);
 assert.match(migrationSql, /challenges\.slug <> 'karnevalsdruk-2026'/i);
 assert.match(migrationSql, /raise exception 'Admin access required\.'/i);
+assert.match(migrationSql, /revoke execute on function public\.get_admin_beverages\(\) from public, anon;/i);
+assert.match(migrationSql, /revoke execute on function public\.admin_get_challenges\(\) from public, anon;/i);
+assert.match(migrationSql, /revoke execute on function public\.admin_save_beverage\(uuid, text, numeric\) from public, anon;/i);
+assert.match(
+  migrationSql,
+  /revoke execute on function public\.admin_save_challenge\(uuid, text, text, text, numeric, timestamp with time zone, timestamp with time zone, timestamp with time zone, boolean, text, text\) from public, anon;/i
+);
 
 const sessionBeers = loadTypeScriptModule('src/lib/sessionBeers.ts');
 const mergedCatalog = sessionBeers.mergeBeverageCatalog([
