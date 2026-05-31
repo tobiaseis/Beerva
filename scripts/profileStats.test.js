@@ -313,6 +313,113 @@ assert.equal(isBeverageAutoAdded('Jagerbomb'), true, 'existing mixed drinks shou
 assert.equal(isBeverageAutoAdded('Red Wine'), false, 'wine should stay on the normal record flow');
 assert.equal(isBeverageAutoAdded('Guinness'), false, 'beer should stay on the normal record flow');
 
+const normalizeCatalogName = (value) => value
+  .trim()
+  .toLowerCase()
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/[øö]/g, 'o')
+  .replace(/[æä]/g, 'ae')
+  .replace(/å/g, 'a')
+  .replace(/[^a-z0-9]+/g, ' ')
+  .trim();
+
+const newCommonDenmarkBeers = [
+  { name: 'Tuborg Grøn Økologisk', abv: 4.6 },
+  { name: 'Tuborg Rå', abv: 4.3 },
+  { name: 'Carlsberg Brewmasters IPA', abv: 5.2 },
+  { name: 'Gamle Carlsberg Porter', abv: 7.8 },
+  { name: 'Carlsberg Nordlyst', abv: 2.5 },
+  { name: 'Carlsberg Fanbryg', abv: 5.0 },
+  { name: 'Jacobsen Original Dark Lager', abv: 5.8 },
+  { name: 'Jacobsen Extra Pilsner', abv: 5.5 },
+  { name: 'Jacobsen Maj-Bock', abv: 7.5 },
+  { name: 'Jacobsen Donker Winter Ale', abv: 7.5 },
+  { name: 'Albani Rødhætte', abv: 5.6 },
+  { name: 'Albani Giraf Black', abv: 10.0 },
+  { name: 'Albani Odense Light', abv: 2.6 },
+  { name: 'Albani Odense Extra Light', abv: 0.05 },
+  { name: 'Maribo Pilsner', abv: 4.6 },
+  { name: 'Maribo Classic', abv: 4.6 },
+  { name: 'Maribo Julebryg', abv: 5.6 },
+  { name: 'Maribo Guld', abv: 5.7 },
+  { name: 'Slots Pilsner', abv: 4.6 },
+  { name: 'Slots Classic', abv: 4.6 },
+  { name: 'Slots Guld', abv: 5.9 },
+  { name: 'Slots Julebryg', abv: 5.6 },
+  { name: 'King Pilsner', abv: 4.6 },
+  { name: 'Karlens Pilsner', abv: 4.6 },
+  { name: 'Karlens Classic', abv: 4.6 },
+  { name: 'Karlens Julebryg', abv: 5.6 },
+  { name: 'Odin Pilsner', abv: 4.6 },
+  { name: 'Pokal Classic', abv: 4.6 },
+  { name: 'Royal Classic Øko', abv: 4.8 },
+  { name: 'Fuglsang Pilsner', abv: 4.6 },
+  { name: 'Fuglsang Black Bird', abv: 4.8 },
+  { name: 'Fuglsang Early Bird', abv: 5.5 },
+  { name: 'Fuglsang White Bird', abv: 5.0 },
+  { name: 'Fur Renæssance Brown Ale', abv: 6.2 },
+  { name: 'Fur Alkoholfri IPA', abv: 0.5 },
+  { name: 'Fanø Rav', abv: 4.6 },
+  { name: 'Fanø Stormflod', abv: 5.8 },
+  { name: 'Hancock Saaz Brew', abv: 8.1 },
+  { name: 'Skovlyst BirkeBryg', abv: 4.8 },
+  { name: 'Herslev Hvedeøl', abv: 5.0 },
+  { name: 'Peroni Nastro Azzurro', abv: 5.0 },
+  { name: 'Peroni Nastro Azzurro 0.0', abv: 0.0 },
+  { name: 'San Miguel Especial', abv: 5.4 },
+  { name: 'Estrella Damm', abv: 4.6 },
+  { name: 'Birra Moretti', abv: 4.6 },
+  { name: 'Asahi Super Dry', abv: 5.0 },
+  { name: 'Kirin Ichiban', abv: 5.0 },
+  { name: 'Tiger Beer', abv: 5.0 },
+  { name: 'Tsingtao', abv: 4.7 },
+  { name: 'Desperados', abv: 5.9 },
+];
+
+assert.equal(newCommonDenmarkBeers.length, 50, 'the Denmark beer catalog addition should contain exactly 50 beers');
+assert.equal(
+  new Set(newCommonDenmarkBeers.map((beer) => normalizeCatalogName(beer.name))).size,
+  newCommonDenmarkBeers.length,
+  'the 50 Denmark beer additions should not duplicate each other'
+);
+assert.equal(
+  new Set(BEER_CATALOG.map((beer) => normalizeCatalogName(beer.name))).size,
+  BEER_CATALOG.length,
+  'the full beverage catalog should not contain duplicate normalized names'
+);
+
+newCommonDenmarkBeers.forEach(({ name, abv }) => {
+  const catalogItem = getBeverageCatalogItem(name);
+  assert.ok(catalogItem, `${name} should be present in the beverage catalog`);
+  assert.equal(catalogItem.abv, abv, `${name} should have the expected ABV`);
+  assert.equal(catalogItem.kind ?? 'beer', 'beer', `${name} should remain a normal beer catalog item`);
+  assert.equal(isBeverageAutoAdded(name), false, `${name} should not auto-add like a mixed drink`);
+});
+
+const semanticDuplicateResolutions = [
+  { input: 'Carlsberg Hof', canonical: 'Carlsberg Pilsner' },
+  { input: 'Odense Classic', canonical: 'Albani Classic' },
+  { input: 'Odense Rød Classic', canonical: 'Albani Rød Pilsner' },
+  { input: 'Royal Økologisk', canonical: 'Royal Økologisk Pilsner' },
+  { input: 'Hancock Pilsner', canonical: 'Hancock Høker Bajer' },
+  { input: 'Hancock Gambrinus', canonical: 'Hancock Old Gambrinus Dark' },
+];
+
+const visibleCatalogNames = new Set(BEER_CATALOG.map((beer) => beer.name));
+semanticDuplicateResolutions.forEach(({ input, canonical }) => {
+  assert.equal(
+    visibleCatalogNames.has(input),
+    false,
+    `${input} should be an alias of ${canonical}, not a second visible beer option`
+  );
+  assert.equal(
+    getBeverageCatalogItem(input)?.name,
+    canonical,
+    `${input} should resolve to the canonical ${canonical} catalog item`
+  );
+});
+
 assert.deepEqual(
   beerDraftToPayload({ beerName: 'Gin Hass', volume: 'Pint', quantity: 1 }),
   {
