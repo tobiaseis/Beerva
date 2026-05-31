@@ -1203,6 +1203,7 @@ export const FeedScreen = ({ route }: any) => {
             actor_id: currentUserId,
             type: 'comment',
             reference_id: commentingSession.id,
+            metadata: { target_type: 'pub_crawl' },
           });
           if (notifError) console.error('Comment notification insert error:', notifError);
         }
@@ -1260,6 +1261,7 @@ export const FeedScreen = ({ route }: any) => {
           actor_id: currentUserId,
           type: 'comment',
           reference_id: commentingSession.id,
+          metadata: { target_type: 'session' },
         });
         if (notifError) console.error('Comment notification insert error:', notifError);
       }
@@ -1361,6 +1363,7 @@ export const FeedScreen = ({ route }: any) => {
           actor_id: currentUserId,
           type: 'cheer',
           reference_id: item.id,
+          metadata: { target_type: 'session' },
         });
         if (notifError) console.error('Cheer notification insert error:', notifError);
       } else {

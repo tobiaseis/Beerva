@@ -439,6 +439,28 @@ export const fetchPublishedPubCrawlsForFeedPage = async (
   };
 };
 
+export const fetchPublishedPubCrawlById = async (
+  crawlId: string,
+  currentUserId?: string | null
+): Promise<PubCrawl | null> => {
+  const { data, error } = await withTimeout(
+    supabase
+      .from('pub_crawls')
+      .select('id, user_id, status, started_at, ended_at, published_at, hangover_score, created_at')
+      .eq('id', crawlId)
+      .eq('status', 'published')
+      .maybeSingle(),
+    PUB_CRAWL_TIMEOUT_MS,
+    'Pub crawl post is taking too long.'
+  );
+
+  if (error) throw error;
+  if (!data) return null;
+
+  const [crawl] = await hydratePubCrawls([data as PubCrawlBaseRow], currentUserId);
+  return crawl || null;
+};
+
 export const togglePubCrawlCheers = async (crawl: PubCrawl, currentUserId: string) => {
   const hasCheered = crawl.cheerProfiles.some((profile) => profile.id === currentUserId);
 
@@ -450,6 +472,14 @@ export const togglePubCrawlCheers = async (crawl: PubCrawl, currentUserId: strin
       .eq('user_id', currentUserId);
 
     if (error) throw error;
+
+    await supabase.from('notifications')
+      .delete()
+      .eq('user_id', crawl.userId)
+      .eq('actor_id', currentUserId)
+      .eq('type', 'cheer')
+      .eq('reference_id', crawl.id);
+
     return false;
   }
 
@@ -458,6 +488,16 @@ export const togglePubCrawlCheers = async (crawl: PubCrawl, currentUserId: strin
     .insert({ pub_crawl_id: crawl.id, user_id: currentUserId });
 
   if (error) throw error;
+
+  const { error: notifError } = await supabase.from('notifications').insert({
+    user_id: crawl.userId,
+    actor_id: currentUserId,
+    type: 'cheer',
+    reference_id: crawl.id,
+    metadata: { target_type: 'pub_crawl' },
+  });
+  if (notifError) console.error('Pub crawl cheer notification insert error:', notifError);
+
   return true;
 };
 

@@ -16,7 +16,10 @@ import { ArrowLeft, MessageCircle, Send } from 'lucide-react-native';
 
 import { CachedImage } from '../components/CachedImage';
 import { ImageViewerModal } from '../components/ImageViewerModal';
+import { PubCrawlFeedCard } from '../components/PubCrawlFeedCard';
 import { FeedSessionCard, FeedSession } from './FeedScreen';
+import { PubCrawl, PubCrawlComment } from '../lib/pubCrawls';
+import { addPubCrawlComment, fetchPublishedPubCrawlById, togglePubCrawlCheers } from '../lib/pubCrawlsApi';
 import { SessionBeer } from '../lib/sessionBeers';
 import { supabase } from '../lib/supabase';
 import { confirmDestructive } from '../lib/dialogs';
@@ -42,6 +45,9 @@ type PostComment = {
   profiles?: ProfilePreview | null;
 };
 
+type PostTargetType = 'session' | 'pub_crawl';
+type DetailComment = PostComment | PubCrawlComment;
+
 const getTimeAgo = (dateString?: string | null) => {
   if (!dateString) return 'Recently';
   const date = new Date(dateString);
@@ -55,13 +61,41 @@ const getTimeAgo = (dateString?: string | null) => {
   return `${Math.round(diffHours / 24)} days ago`;
 };
 
+const getDetailCommentUserId = (comment: DetailComment) => (
+  'user_id' in comment ? comment.user_id : comment.userId
+);
+
+const getDetailCommentBody = (comment: DetailComment) => comment.body;
+
+const getDetailCommentCreatedAt = (comment: DetailComment) => (
+  'created_at' in comment ? comment.created_at : comment.createdAt
+);
+
+const getDetailCommentProfile = (comment: DetailComment): ProfilePreview | null => {
+  if ('user_id' in comment) return comment.profiles || null;
+  const { profile } = comment;
+  if (!profile) return null;
+  return {
+    id: profile.id,
+    username: profile.username,
+    avatar_url: profile.avatarUrl,
+  };
+};
+
 export const PostDetailScreen = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const sessionId = route?.params?.sessionId as string | undefined;
+  const routeTargetType = route?.params?.targetType as PostTargetType | undefined;
+  const routeTargetId = route?.params?.targetId as string | undefined;
+  const targetType: PostTargetType = routeTargetType === 'pub_crawl' ? 'pub_crawl' : 'session';
+  const sessionId = targetType === 'session'
+    ? (routeTargetId || route?.params?.sessionId as string | undefined)
+    : undefined;
+  const crawlId = targetType === 'pub_crawl' ? routeTargetId : undefined;
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [session, setSession] = useState<FeedSession | null>(null);
+  const [crawl, setCrawl] = useState<PubCrawl | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [cheering, setCheering] = useState(false);
@@ -72,7 +106,46 @@ export const PostDetailScreen = () => {
   const listRef = useRef<FlatList>(null);
 
   const fetchPost = useCallback(async () => {
+    setLoading(true);
+    setNotFound(false);
+
+    if (targetType === 'pub_crawl') {
+      if (!crawlId) {
+        setSession(null);
+        setCrawl(null);
+        setNotFound(true);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        setCurrentUserId(user?.id || null);
+
+        const nextCrawl = await fetchPublishedPubCrawlById(crawlId, user?.id || null);
+        if (!nextCrawl) {
+          setSession(null);
+          setCrawl(null);
+          setNotFound(true);
+          return;
+        }
+
+        setSession(null);
+        setCrawl(nextCrawl);
+      } catch (error) {
+        console.error('Pub crawl detail fetch error:', error);
+        setSession(null);
+        setCrawl(null);
+        setNotFound(true);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     if (!sessionId) {
+      setSession(null);
+      setCrawl(null);
       setNotFound(true);
       setLoading(false);
       return;
@@ -111,6 +184,7 @@ export const PostDetailScreen = () => {
       if (!sessionRow) {
         setNotFound(true);
         setSession(null);
+        setCrawl(null);
         return;
       }
 
@@ -198,13 +272,14 @@ export const PostDetailScreen = () => {
 
       setNotFound(false);
       setSession(assembled);
+      setCrawl(null);
     } catch (error) {
       console.error('Post detail fetch error:', error);
       setNotFound(true);
     } finally {
       setLoading(false);
     }
-  }, [sessionId]);
+  }, [crawlId, sessionId, targetType]);
 
   useFocusEffect(
     useCallback(() => {
@@ -251,6 +326,7 @@ export const PostDetailScreen = () => {
           actor_id: currentUserId,
           type: 'cheer',
           reference_id: target.id,
+          metadata: { target_type: 'session' },
         });
         if (notifError) console.error('Cheer notification insert error:', notifError);
       } else {
@@ -280,6 +356,63 @@ export const PostDetailScreen = () => {
     }
   }, [cheering, currentUserId]);
 
+  const toggleCrawlCheers = useCallback(async (target: PubCrawl) => {
+    if (!currentUserId || target.userId === currentUserId || cheering) return;
+
+    const hadCheered = target.cheerProfiles.some((profile) => profile.id === currentUserId);
+    const previousCrawl = crawl;
+    const fallbackProfile = { id: currentUserId, username: null, avatarUrl: null };
+
+    setCheering(true);
+    setCrawl((prev) => {
+      if (!prev || prev.id !== target.id) return prev;
+      return {
+        ...prev,
+        cheersCount: Math.max(0, prev.cheersCount + (hadCheered ? -1 : 1)),
+        cheerProfiles: hadCheered
+          ? prev.cheerProfiles.filter((profile) => profile.id !== currentUserId)
+          : [...prev.cheerProfiles, fallbackProfile],
+      };
+    });
+
+    try {
+      const isNowCheered = await togglePubCrawlCheers(target, currentUserId);
+
+      if (isNowCheered) {
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('id, username, avatar_url')
+          .eq('id', currentUserId)
+          .maybeSingle();
+
+        if (profileError) {
+          console.error('Pub crawl cheer profile fetch error:', profileError);
+        } else if (profileData) {
+          setCrawl((prev) => {
+            if (!prev || prev.id !== target.id) return prev;
+            return {
+              ...prev,
+              cheerProfiles: prev.cheerProfiles.map((profile) => (
+                profile.id === currentUserId
+                  ? {
+                      id: profileData.id,
+                      username: profileData.username || null,
+                      avatarUrl: profileData.avatar_url || null,
+                    }
+                  : profile
+              )),
+            };
+          });
+        }
+      }
+    } catch (error: any) {
+      setCrawl(previousCrawl);
+      Alert.alert('Could not update cheers', error?.message || 'Please try again.');
+    } finally {
+      setCheering(false);
+    }
+  }, [cheering, crawl, currentUserId]);
+
   const deleteSession = useCallback((target: FeedSession) => {
     if (!currentUserId) return;
 
@@ -305,7 +438,7 @@ export const PostDetailScreen = () => {
 
   const submitComment = useCallback(async () => {
     const cleanComment = commentDraft.trim();
-    if (!currentUserId || !session || !cleanComment || submittingComment) return;
+    if (!currentUserId || (!session && !crawl) || !cleanComment || submittingComment) return;
 
     setSubmittingComment(true);
     try {
@@ -320,6 +453,50 @@ export const PostDetailScreen = () => {
       const currentProfile: ProfilePreview | null = profileData
         ? { id: profileData.id, username: profileData.username, avatar_url: profileData.avatar_url }
         : null;
+
+      if (crawl) {
+        const data = await addPubCrawlComment(crawl.id, cleanComment);
+        const nextComment: PubCrawlComment = {
+          id: data.id,
+          crawlId: data.pub_crawl_id,
+          userId: data.user_id,
+          body: data.body,
+          createdAt: data.created_at,
+          updatedAt: data.updated_at,
+          profile: currentProfile
+            ? {
+                id: currentProfile.id,
+                username: currentProfile.username || null,
+                avatarUrl: currentProfile.avatar_url || null,
+              }
+            : null,
+        };
+
+        setCrawl((prev) => {
+          if (!prev || prev.id !== crawl.id) return prev;
+          return {
+            ...prev,
+            comments: [...prev.comments, nextComment],
+            commentsCount: prev.commentsCount + 1,
+          };
+        });
+        setCommentDraft('');
+        hapticLight();
+
+        if (crawl.userId !== currentUserId) {
+          const { error: notifError } = await supabase.from('notifications').insert({
+            user_id: crawl.userId,
+            actor_id: currentUserId,
+            type: 'comment',
+            reference_id: crawl.id,
+            metadata: { target_type: 'pub_crawl' },
+          });
+          if (notifError) console.error('Pub crawl comment notification insert error:', notifError);
+        }
+        return;
+      }
+
+      if (!session) return;
 
       const { data, error } = await supabase
         .from('session_comments')
@@ -352,6 +529,7 @@ export const PostDetailScreen = () => {
           actor_id: currentUserId,
           type: 'comment',
           reference_id: session.id,
+          metadata: { target_type: 'session' },
         });
         if (notifError) console.error('Comment notification insert error:', notifError);
       }
@@ -361,28 +539,58 @@ export const PostDetailScreen = () => {
     } finally {
       setSubmittingComment(false);
     }
-  }, [commentDraft, currentUserId, session, submittingComment]);
+  }, [commentDraft, crawl, currentUserId, session, submittingComment]);
 
-  const renderComment = useCallback(({ item }: { item: PostComment }) => (
-    <View style={styles.commentRow}>
-      <TouchableOpacity onPress={() => openProfile(item.user_id)} activeOpacity={0.75}>
-        <CachedImage
-          uri={item.profiles?.avatar_url}
-          fallbackUri={`https://i.pravatar.cc/150?u=${item.user_id}`}
-          style={styles.commentAvatar}
-          recyclingKey={`post-comment-${item.id}-${item.profiles?.avatar_url || 'fallback'}`}
-          accessibilityLabel={`${item.profiles?.username || 'Someone'}'s avatar`}
-        />
-      </TouchableOpacity>
-      <View style={styles.commentBubble}>
-        <Text style={styles.commentBubbleName}>{item.profiles?.username || 'Someone'}</Text>
-        <Text style={styles.commentBubbleText}>{item.body}</Text>
-        <Text style={styles.commentTime}>{getTimeAgo(item.created_at)}</Text>
+  const renderComment = useCallback(({ item }: { item: DetailComment }) => {
+    const userId = getDetailCommentUserId(item);
+    const profile = getDetailCommentProfile(item);
+
+    return (
+      <View style={styles.commentRow}>
+        <TouchableOpacity onPress={() => openProfile(userId)} activeOpacity={0.75}>
+          <CachedImage
+            uri={profile?.avatar_url}
+            fallbackUri={`https://i.pravatar.cc/150?u=${userId}`}
+            style={styles.commentAvatar}
+            recyclingKey={`post-comment-${item.id}-${profile?.avatar_url || 'fallback'}`}
+            accessibilityLabel={`${profile?.username || 'Someone'}'s avatar`}
+          />
+        </TouchableOpacity>
+        <View style={styles.commentBubble}>
+          <Text style={styles.commentBubbleName}>{profile?.username || 'Someone'}</Text>
+          <Text style={styles.commentBubbleText}>{getDetailCommentBody(item)}</Text>
+          <Text style={styles.commentTime}>{getTimeAgo(getDetailCommentCreatedAt(item))}</Text>
+        </View>
       </View>
-    </View>
-  ), [openProfile]);
+    );
+  }, [openProfile]);
 
   const renderHeader = useCallback(() => {
+    if (crawl) {
+      return (
+        <View>
+          <PubCrawlFeedCard
+            crawl={crawl}
+            currentUserId={currentUserId}
+            isCheering={cheering}
+            onToggleCheer={toggleCrawlCheers}
+            onOpenCheers={() => {}}
+            onOpenComments={openComments}
+            onOpenProfile={openProfile}
+            onImagePress={setViewingImageUrl}
+          />
+          <View style={styles.commentsHeader}>
+            <MessageCircle color={colors.primary} size={17} />
+            <Text style={styles.commentsHeaderText}>
+              {crawl.commentsCount > 0
+                ? `${crawl.commentsCount} ${crawl.commentsCount === 1 ? 'Comment' : 'Comments'}`
+                : 'Comments'}
+            </Text>
+          </View>
+        </View>
+      );
+    }
+
     if (!session) return null;
     return (
       <View>
@@ -408,7 +616,7 @@ export const PostDetailScreen = () => {
         </View>
       </View>
     );
-  }, [cheering, currentUserId, deleteSession, editSession, openComments, openProfile, session, toggleCheers]);
+  }, [cheering, crawl, currentUserId, deleteSession, editSession, openComments, openProfile, session, toggleCheers, toggleCrawlCheers]);
 
   return (
     <View style={styles.container}>
@@ -424,10 +632,10 @@ export const PostDetailScreen = () => {
         <View style={styles.loader}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
-      ) : notFound || !session ? (
+      ) : notFound || (!session && !crawl) ? (
         <View style={styles.emptyState}>
           <Text style={typography.h3}>Post unavailable</Text>
-          <Text style={styles.emptyText}>This session may have been deleted.</Text>
+          <Text style={styles.emptyText}>This post may have been deleted.</Text>
         </View>
       ) : (
         <KeyboardAvoidingView
@@ -436,7 +644,7 @@ export const PostDetailScreen = () => {
         >
           <FlatList
             ref={listRef}
-            data={session.comments as PostComment[]}
+            data={(session?.comments || crawl?.comments || []) as DetailComment[]}
             keyExtractor={(item) => item.id}
             renderItem={renderComment}
             ListHeaderComponent={renderHeader}

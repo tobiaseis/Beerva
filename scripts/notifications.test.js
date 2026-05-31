@@ -27,6 +27,59 @@ const {
   getNotificationMessage,
   getNotificationPubName,
 } = loadTypeScriptModule('src/lib/notificationMessages.ts');
+const {
+  getNotificationPostTarget,
+  getPostLaunchParamsFromSearch,
+  normalizePostTargetType,
+} = loadTypeScriptModule('src/lib/postTargets.ts');
+
+assert.equal(
+  normalizePostTargetType('pub_crawl'),
+  'pub_crawl',
+  'post target normalization should preserve pub crawl targets'
+);
+
+assert.equal(
+  normalizePostTargetType('anything-else'),
+  'session',
+  'post target normalization should default older notifications to session targets'
+);
+
+assert.deepEqual(
+  getPostLaunchParamsFromSearch('?post=crawl-1&post_type=pub_crawl&notificationId=notif-1'),
+  { targetType: 'pub_crawl', targetId: 'crawl-1', notificationId: 'notif-1' },
+  'post launch params should parse pub crawl deep links'
+);
+
+assert.deepEqual(
+  getPostLaunchParamsFromSearch('?post=session-1'),
+  { targetType: 'session', targetId: 'session-1', notificationId: null },
+  'post launch params should keep old session-only deep links working'
+);
+
+assert.equal(
+  getPostLaunchParamsFromSearch('?notifications=1'),
+  null,
+  'post launch params should ignore non-post URLs'
+);
+
+assert.deepEqual(
+  getNotificationPostTarget({
+    reference_id: 'crawl-1',
+    metadata: { target_type: 'pub_crawl' },
+  }),
+  { targetType: 'pub_crawl', targetId: 'crawl-1' },
+  'notification rows should expose typed pub crawl post targets'
+);
+
+assert.deepEqual(
+  getNotificationPostTarget({
+    reference_id: 'session-1',
+    metadata: null,
+  }),
+  { targetType: 'session', targetId: 'session-1' },
+  'older notification rows without metadata should open session posts'
+);
 
 assert.equal(
   getNotificationPubName({
@@ -82,11 +135,60 @@ assert.match(
   /getNotificationMessage/,
   'notifications screen should render messages through the shared metadata-aware helper'
 );
+assert.match(
+  notificationsScreenSource,
+  /getNotificationPostTarget/,
+  'notifications screen should derive typed post navigation targets through the shared helper'
+);
+
+const rootNavigatorSource = fs.readFileSync(path.resolve(__dirname, '..', 'src/navigation/RootNavigator.tsx'), 'utf8');
+assert.match(
+  rootNavigatorSource,
+  /getPostLaunchParamsFromSearch/,
+  'root navigator should parse typed post deep links through the shared helper'
+);
+assert.match(
+  rootNavigatorSource,
+  /targetType:\s*pendingPostOpen\.targetType/,
+  'root navigator should pass the parsed post target type to PostDetail'
+);
+
+const postDetailSource = fs.readFileSync(path.resolve(__dirname, '..', 'src/screens/PostDetailScreen.tsx'), 'utf8');
+assert.match(
+  postDetailSource,
+  /targetType/,
+  'post detail screen should accept typed post targets'
+);
+assert.match(
+  postDetailSource,
+  /fetchPublishedPubCrawlById/,
+  'post detail screen should be able to load pub crawl posts by id'
+);
+
+const pubCrawlsApiSource = fs.readFileSync(path.resolve(__dirname, '..', 'src/lib/pubCrawlsApi.ts'), 'utf8');
+assert.match(
+  pubCrawlsApiSource,
+  /fetchPublishedPubCrawlById/,
+  'pub crawl API should expose a detail fetch helper for notification deep links'
+);
+
+const feedScreenSource = fs.readFileSync(path.resolve(__dirname, '..', 'src/screens/FeedScreen.tsx'), 'utf8');
+assert.match(
+  feedScreenSource,
+  /target_type:\s*'session'/,
+  'session cheer/comment notifications should snapshot a session target type'
+);
+assert.match(
+  feedScreenSource,
+  /target_type:\s*'pub_crawl'/,
+  'pub crawl cheer/comment notifications should snapshot a pub crawl target type'
+);
 
 const sendPushSource = fs.readFileSync(path.resolve(__dirname, '..', 'supabase/functions/send-push/index.ts'), 'utf8');
 assert.match(sendPushSource, /pub_crawl_started/, 'push delivery should support pub crawl start notifications');
 assert.match(sendPushSource, /record\.metadata\?\.pub_name/, 'push delivery should prefer notification metadata pub names');
 assert.match(sendPushSource, /started a pub crawl at/, 'pub crawl push text should include the pub name when available');
+assert.match(sendPushSource, /post_type/, 'cheer/comment push URLs should include the post target type');
 
 const migrationSql = fs
   .readdirSync(path.resolve(__dirname, '..', 'supabase/migrations'))
@@ -96,5 +198,15 @@ const migrationSql = fs
 assert.match(migrationSql, /add column if not exists metadata jsonb/, 'notifications should have metadata jsonb storage');
 assert.match(migrationSql, /set_notification_metadata/, 'database should backfill notification metadata on insert');
 assert.match(migrationSql, /update public\.notifications/, 'migration should backfill pub_name metadata for existing start notifications');
+assert.match(
+  migrationSql,
+  /notifications\.type in \('cheer', 'comment'\)[\s\S]*jsonb_build_object\('target_type', 'pub_crawl'\)/,
+  'notification metadata should include typed pub crawl post targets for cheer/comment links'
+);
+assert.match(
+  migrationSql,
+  /type = 'cheer'[\s\S]*pub_crawl_cheers[\s\S]*pub_crawl_cheers\.pub_crawl_id = notifications\.reference_id/,
+  'notification insert policy should allow pub crawl cheer notifications'
+);
 
 console.log('notification tests passed');

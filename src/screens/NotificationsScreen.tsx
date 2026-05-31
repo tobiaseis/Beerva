@@ -7,6 +7,7 @@ import { CachedImage } from '../components/CachedImage';
 import { EmptyIllustration } from '../components/EmptyIllustration';
 import { getNotificationMessage, NotificationMetadata } from '../lib/notificationMessages';
 import { useNotifications } from '../lib/notificationsContext';
+import { getNotificationPostTarget, PostTarget } from '../lib/postTargets';
 import { supabase } from '../lib/supabase';
 import { colors } from '../theme/colors';
 import { radius, shadows, spacing } from '../theme/layout';
@@ -205,8 +206,12 @@ export const NotificationsScreen = ({ navigation }: any) => {
     navigation.navigate('UserProfile', { userId });
   }, [navigation]);
 
-  const openPost = useCallback((sessionId: string) => {
-    navigation.navigate('PostDetail', { sessionId });
+  const openPost = useCallback((target: PostTarget) => {
+    navigation.navigate('PostDetail', {
+      targetType: target.targetType,
+      targetId: target.targetId,
+      sessionId: target.targetType === 'session' ? target.targetId : undefined,
+    });
   }, [navigation]);
 
   const openHangoverRating = useCallback((item: NotificationRow) => {
@@ -271,14 +276,17 @@ export const NotificationsScreen = ({ navigation }: any) => {
       && item.invite.recipient_id === currentUserId;
     const responding = Boolean(item.invite?.id && respondingInviteIds.has(item.invite.id));
     const answeredInvite = item.type === 'invite' && item.invite?.status !== 'pending' ? item.invite : null;
-    const opensPost = (item.type === 'cheer' || item.type === 'comment') && Boolean(item.reference_id);
+    const postTarget = (item.type === 'cheer' || item.type === 'comment')
+      ? getNotificationPostTarget(item)
+      : null;
+    const opensPost = Boolean(postTarget);
     const ContentWrapper: any = opensPost ? TouchableOpacity : View;
     const contentWrapperProps = opensPost
       ? {
-          onPress: () => openPost(item.reference_id as string),
+          onPress: () => postTarget && openPost(postTarget),
           activeOpacity: 0.75,
           accessibilityRole: 'button',
-          accessibilityLabel: 'Open this post',
+          accessibilityLabel: postTarget?.targetType === 'pub_crawl' ? 'Open this pub crawl' : 'Open this post',
         }
       : {};
 

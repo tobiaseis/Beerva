@@ -110,6 +110,7 @@ Deno.serve(async (req) => {
     ? record.metadata.pub_name.trim()
     : '';
   const notificationPubName = metadataPubName || referencedSession?.pub_name || referencedCrawlStop?.pub_name || null;
+  const postTargetType = record.metadata?.target_type === 'pub_crawl' ? 'pub_crawl' : 'session';
 
   let title = 'Beerva';
   let bodyText = '';
@@ -151,7 +152,7 @@ Deno.serve(async (req) => {
     url = `/?hangover=1&target_type=${encodeURIComponent(hangoverTargetType)}&target_id=${encodeURIComponent(record.reference_id)}&notificationId=${encodeURIComponent(record.id)}`;
   } else if ((record.type === 'cheer' || record.type === 'comment') && record.reference_id) {
     // Deep-link straight to the post that was cheered/commented on.
-    url = `/?post=${encodeURIComponent(record.reference_id)}&notificationId=${encodeURIComponent(record.id)}`;
+    url = `/?post=${encodeURIComponent(record.reference_id)}&post_type=${encodeURIComponent(postTargetType)}&notificationId=${encodeURIComponent(record.id)}`;
   } else {
     url = `/?notifications=1&notificationId=${encodeURIComponent(record.id)}`;
   }

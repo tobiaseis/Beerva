@@ -26,6 +26,7 @@ import { FakeBeerScreen } from '../screens/FakeBeerScreen';
 import { colors } from '../theme/colors';
 import { floatingTabBarMetrics, radius, shadows } from '../theme/layout';
 import { NotificationsProvider, useNotifications } from '../lib/notificationsContext';
+import { getPostLaunchParamsFromSearch, PostLaunchParams } from '../lib/postTargets';
 import { syncCurrentTimezone } from '../lib/timezone';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
@@ -94,17 +95,17 @@ const getHangoverLaunchParamsFromUrl = (): HangoverLaunchParams | null => {
   };
 };
 
-const getPostIdFromUrl = (): string | null => {
+const getPostLaunchParamsFromUrl = (): PostLaunchParams | null => {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
-  const params = new URLSearchParams(window.location.search);
-  const postId = params.get('post');
-  return postId && postId.length > 0 ? postId : null;
+  return getPostLaunchParamsFromSearch(window.location.search);
 };
 
 const clearPostLaunchParams = () => {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return;
   const url = new URL(window.location.href);
   url.searchParams.delete('post');
+  url.searchParams.delete('post_type');
+  url.searchParams.delete('target_type');
   url.searchParams.delete('notificationId');
   window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
 };
@@ -264,7 +265,7 @@ export const RootNavigator = () => {
   const pendingNotificationsOpenRef = useRef(shouldOpenNotificationsFromUrl());
   const pendingRecordOpenRef = useRef(shouldOpenRecordFromUrl());
   const pendingHangoverOpenRef = useRef<HangoverLaunchParams | null>(getHangoverLaunchParamsFromUrl());
-  const pendingPostOpenRef = useRef<string | null>(getPostIdFromUrl());
+  const pendingPostOpenRef = useRef<PostLaunchParams | null>(getPostLaunchParamsFromUrl());
   const sessionUserId = session?.user?.id ?? null;
   const sessionHasCachedUsername = hasCachedUsername(session);
 
@@ -401,7 +402,12 @@ export const RootNavigator = () => {
     const pendingPostOpen = pendingPostOpenRef.current;
     if (pendingPostOpen) {
       pendingPostOpenRef.current = null;
-      navigationRef.navigate('PostDetail', { sessionId: pendingPostOpen });
+      navigationRef.navigate('PostDetail', {
+        targetType: pendingPostOpen.targetType,
+        targetId: pendingPostOpen.targetId,
+        notificationId: pendingPostOpen.notificationId,
+        sessionId: pendingPostOpen.targetType === 'session' ? pendingPostOpen.targetId : undefined,
+      });
       clearPostLaunchParams();
       return;
     }
