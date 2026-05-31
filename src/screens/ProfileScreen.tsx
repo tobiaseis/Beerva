@@ -6,7 +6,7 @@ import { typography } from '../theme/typography';
 import { Bell, BellOff, Camera, Edit2, LogOut, Users, X } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
 import { confirmDestructive, showAlert } from '../lib/dialogs';
-import { deletePublicImageUrl, prepareWebImageFromPickerAsset, SelectedImage, UPLOAD_IMAGE_MAX_WIDTH, uploadImageToBucket } from '../lib/imageUpload';
+import { deletePublicImageUrl, SelectedImage, uploadImageToBucket } from '../lib/imageUpload';
 import { ProfileStatsPanel } from '../components/ProfileStatsPanel';
 import { fetchChallengeAwards } from '../lib/challengeAwardsApi';
 import { emptyStats, getVolumeMl, ProfileSessionStatsRow, Stats, TopPubVisit, TrophyDefinition } from '../lib/profileStats';
@@ -16,6 +16,7 @@ import { openMaps } from '../lib/maps';
 import { CachedImage } from '../components/CachedImage';
 import { getUsernameSaveErrorMessage, normalizeUsername } from '../lib/usernames';
 import { AppButton } from '../components/AppButton';
+import { AvatarCropModal } from '../components/AvatarCropModal';
 import { floatingTabBarMetrics, radius, shadows, spacing } from '../theme/layout';
 import { SkeletonProfile } from '../components/Skeleton';
 import { useFocused } from '../lib/useFocused';
@@ -115,6 +116,7 @@ export const ProfileScreen = () => {
   const usernameFocus = useFocused();
   const [editAvatarUri, setEditAvatarUri] = useState<string | null>(null);
   const [editAvatar, setEditAvatar] = useState<SelectedImage | null>(null);
+  const [avatarCropAsset, setAvatarCropAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [saving, setSaving] = useState(false);
 
   const [pushSupported, setPushSupported] = useState(false);
@@ -348,34 +350,19 @@ export const ProfileScreen = () => {
   const pickAvatar = async () => {
     let result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
+      allowsEditing: false,
       quality: 1,
     });
 
     if (!result.canceled) {
-      const asset = result.assets[0];
-
-      if (Platform.OS === 'web') {
-        const image = await prepareWebImageFromPickerAsset(asset);
-        setEditAvatarUri(image.uri);
-        setEditAvatar(image);
-        return;
-      }
-
-      const ImageManipulator = await import('expo-image-manipulator');
-      const manipResult = await ImageManipulator.manipulateAsync(
-        asset.uri,
-        [{ resize: { width: UPLOAD_IMAGE_MAX_WIDTH, height: UPLOAD_IMAGE_MAX_WIDTH } }],
-        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
-      );
-      const image = {
-        uri: manipResult.uri,
-        mimeType: 'image/jpeg',
-      };
-      setEditAvatarUri(image.uri);
-      setEditAvatar(image);
+      setAvatarCropAsset(result.assets[0]);
     }
+  };
+
+  const applyCroppedAvatar = (image: SelectedImage) => {
+    setEditAvatarUri(image.uri);
+    setEditAvatar(image);
+    setAvatarCropAsset(null);
   };
 
   const saveProfile = async () => {
@@ -614,6 +601,13 @@ export const ProfileScreen = () => {
           </View>
         </View>
       </Modal>
+
+      <AvatarCropModal
+        visible={Boolean(avatarCropAsset)}
+        asset={avatarCropAsset}
+        onCancel={() => setAvatarCropAsset(null)}
+        onConfirm={applyCroppedAvatar}
+      />
 
       <Modal
         visible={Boolean(followModalKind)}

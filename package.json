@@ -30,6 +30,8 @@
     "test:pwa-startup": "node scripts/pwaStartup.test.js",
     "test:pwa-install": "node scripts/pwaInstallPrompt.test.js",
     "test:record-session-drinks": "node scripts/recordSessionDrinks.test.js",
+    "test:avatar-crop": "node scripts/avatarCrop.test.js",
+    "test:profile-avatar-crop": "node scripts/profileAvatarCrop.test.js",
     "test:push-delivery": "node scripts/pushDelivery.test.js"
   },
   "dependencies": {

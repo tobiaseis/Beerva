@@ -3,8 +3,9 @@ import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, TextI
 import { Bell, BellOff, Camera, LogOut } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 
-import { deletePublicImageUrl, prepareWebImageFromPickerAsset, SelectedImage, UPLOAD_IMAGE_MAX_WIDTH, uploadImageToBucket } from '../lib/imageUpload';
+import { deletePublicImageUrl, SelectedImage, uploadImageToBucket } from '../lib/imageUpload';
 import { CachedImage } from '../components/CachedImage';
+import { AvatarCropModal } from '../components/AvatarCropModal';
 import { supabase } from '../lib/supabase';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
@@ -31,6 +32,7 @@ export const ProfileSetupScreen = ({ onComplete }: ProfileSetupScreenProps) => {
   const usernameFocus = useFocused();
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [avatar, setAvatar] = useState<SelectedImage | null>(null);
+  const [avatarCropAsset, setAvatarCropAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
   const [previousAvatarUri, setPreviousAvatarUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -120,34 +122,19 @@ export const ProfileSetupScreen = ({ onComplete }: ProfileSetupScreenProps) => {
   const pickAvatar = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
+      allowsEditing: false,
       quality: 1,
     });
 
     if (result.canceled) return;
 
-    const asset = result.assets[0];
+    setAvatarCropAsset(result.assets[0]);
+  };
 
-    if (Platform.OS === 'web') {
-      const image = await prepareWebImageFromPickerAsset(asset);
-      setAvatarUri(image.uri);
-      setAvatar(image);
-      return;
-    }
-
-    const ImageManipulator = await import('expo-image-manipulator');
-    const manipResult = await ImageManipulator.manipulateAsync(
-      asset.uri,
-      [{ resize: { width: UPLOAD_IMAGE_MAX_WIDTH, height: UPLOAD_IMAGE_MAX_WIDTH } }],
-      { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
-    );
-    const image = {
-      uri: manipResult.uri,
-      mimeType: 'image/jpeg',
-    };
+  const applyCroppedAvatar = (image: SelectedImage) => {
     setAvatarUri(image.uri);
     setAvatar(image);
+    setAvatarCropAsset(null);
   };
 
   const saveProfile = async () => {
@@ -290,6 +277,13 @@ export const ProfileSetupScreen = ({ onComplete }: ProfileSetupScreenProps) => {
           <Text style={styles.signOutText}>Use another account</Text>
         </TouchableOpacity>
       </Surface>
+
+      <AvatarCropModal
+        visible={Boolean(avatarCropAsset)}
+        asset={avatarCropAsset}
+        onCancel={() => setAvatarCropAsset(null)}
+        onConfirm={applyCroppedAvatar}
+      />
     </ScrollView>
   );
 };
