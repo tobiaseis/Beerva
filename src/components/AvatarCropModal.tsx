@@ -337,7 +337,7 @@ export const AvatarCropModal = ({
                 <Minus color={colors.text} size={20} />
               </ControlButton>
               <View style={styles.zoomTrack}>
-                <View style={[styles.zoomFill, { width: zoomProgress }]} />
+                <View style={[styles.zoomFill, { width: zoomProgress as any }]} />
               </View>
               <ControlButton
                 accessibilityLabel="Zoom photo in"
