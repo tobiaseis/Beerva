@@ -6,6 +6,14 @@ export type NotificationMetadata = {
   beer_name?: string | null;
   duration_ms?: number | string | null;
   session_status?: string | null;
+  official_post_id?: string | null;
+  official_title?: string | null;
+  notification_body?: string | null;
+  push_enabled?: boolean | null;
+  push_title?: string | null;
+  push_body?: string | null;
+  challenge_id?: string | null;
+  challenge_slug?: string | null;
 };
 
 export type NotificationMessageInput = {
@@ -27,6 +35,14 @@ const toCleanString = (value: unknown) => {
 
 export const getNotificationPubName = (item: NotificationMessageInput) => (
   toCleanString(item.metadata?.pub_name) || toCleanString(item.session?.pub_name)
+);
+
+export const getOfficialNotificationTitle = (item: NotificationMessageInput) => (
+  toCleanString(item.metadata?.official_title) || 'Official Beerva'
+);
+
+export const getOfficialNotificationBody = (item: NotificationMessageInput) => (
+  toCleanString(item.metadata?.notification_body) || 'There is a new official Beerva announcement.'
 );
 
 export const getNotificationMessage = (item: NotificationMessageInput) => {

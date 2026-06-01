@@ -28,6 +28,7 @@ import { AdminToolsScreen } from '../screens/AdminToolsScreen';
 import { colors } from '../theme/colors';
 import { floatingTabBarMetrics, radius, shadows } from '../theme/layout';
 import { NotificationsProvider, useNotifications } from '../lib/notificationsContext';
+import { ChallengeLaunchParams, getChallengeLaunchParamsFromSearch } from '../lib/challengeLaunchParams';
 import { getPostLaunchParamsFromSearch, PostLaunchParams } from '../lib/postTargets';
 import { syncCurrentTimezone } from '../lib/timezone';
 import { BeverageCatalogProvider } from '../lib/beverageCatalogContext';
@@ -108,6 +109,11 @@ const getPostLaunchParamsFromUrl = (): PostLaunchParams | null => {
   return getPostLaunchParamsFromSearch(window.location.search);
 };
 
+const getChallengeLaunchParamsFromUrl = (): ChallengeLaunchParams | null => {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
+  return getChallengeLaunchParamsFromSearch(window.location.search);
+};
+
 const getChugVerificationLaunchParamsFromUrl = (): ChugVerificationLaunchParams | null => {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
   const params = new URLSearchParams(window.location.search);
@@ -136,6 +142,25 @@ const clearNotificationLaunchParams = () => {
   url.searchParams.delete('notifications');
   url.searchParams.delete('notificationId');
   window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+};
+
+const clearChallengeLaunchParams = () => {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+  const url = new URL(window.location.href);
+  url.searchParams.delete('challenge');
+  url.searchParams.delete('notificationId');
+  window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+};
+
+const markNotificationRead = (notificationId?: string | null) => {
+  if (!notificationId) return;
+  supabase
+    .from('notifications')
+    .update({ read: true })
+    .eq('id', notificationId)
+    .then(({ error }) => {
+      if (error) console.warn('Could not mark push-opened notification read', error);
+    });
 };
 
 const clearRecordLaunchParams = () => {
@@ -296,6 +321,7 @@ export const RootNavigator = () => {
   const pendingRecordOpenRef = useRef(shouldOpenRecordFromUrl());
   const pendingHangoverOpenRef = useRef<HangoverLaunchParams | null>(getHangoverLaunchParamsFromUrl());
   const pendingPostOpenRef = useRef<PostLaunchParams | null>(getPostLaunchParamsFromUrl());
+  const pendingChallengeOpenRef = useRef<ChallengeLaunchParams | null>(getChallengeLaunchParamsFromUrl());
   const pendingChugVerificationOpenRef = useRef<ChugVerificationLaunchParams | null>(getChugVerificationLaunchParamsFromUrl());
   const sessionUserId = session?.user?.id ?? null;
   const sessionHasCachedUsername = hasCachedUsername(session);
@@ -454,6 +480,15 @@ export const RootNavigator = () => {
       pendingChugVerificationOpenRef.current = null;
       navigationRef.navigate('ChugVerification', pendingChugVerificationOpen);
       clearChugVerificationLaunchParams();
+      return;
+    }
+
+    const pendingChallengeOpen = pendingChallengeOpenRef.current;
+    if (pendingChallengeOpen) {
+      pendingChallengeOpenRef.current = null;
+      navigationRef.navigate('ChallengeDetail', { challengeSlug: pendingChallengeOpen.challengeSlug });
+      markNotificationRead(pendingChallengeOpen.notificationId);
+      clearChallengeLaunchParams();
       return;
     }
 

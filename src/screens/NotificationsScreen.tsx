@@ -1,11 +1,16 @@
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Platform, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Image, Platform, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { ArrowLeft, Beer, Check, Coffee, MapPin, MessageCircle, PartyPopper, Timer, UserPlus, XCircle } from 'lucide-react-native';
+import { ArrowLeft, Beer, Check, Coffee, MapPin, Megaphone, MessageCircle, PartyPopper, Timer, UserPlus, XCircle } from 'lucide-react-native';
 
 import { CachedImage } from '../components/CachedImage';
 import { EmptyIllustration } from '../components/EmptyIllustration';
-import { getNotificationMessage, NotificationMetadata } from '../lib/notificationMessages';
+import {
+  getNotificationMessage,
+  getOfficialNotificationBody,
+  getOfficialNotificationTitle,
+  NotificationMetadata,
+} from '../lib/notificationMessages';
 import { useNotifications } from '../lib/notificationsContext';
 import { getNotificationPostTarget, PostTarget } from '../lib/postTargets';
 import { declineSessionBuddy } from '../lib/sessionBuddies';
@@ -14,7 +19,20 @@ import { colors } from '../theme/colors';
 import { radius, shadows, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
 
-type NotificationType = 'cheer' | 'invite' | 'session_started' | 'comment' | 'invite_response' | 'pub_crawl_started' | 'hangover_check' | 'follow' | 'chug_verification' | 'drinking_buddy_added';
+const beervaLogo = require('../../assets/beerva-header-logo.png');
+
+type NotificationType =
+  | 'cheer'
+  | 'invite'
+  | 'session_started'
+  | 'comment'
+  | 'invite_response'
+  | 'pub_crawl_started'
+  | 'hangover_check'
+  | 'follow'
+  | 'chug_verification'
+  | 'drinking_buddy_added'
+  | 'official_post';
 type InviteStatus = 'pending' | 'accepted' | 'declined';
 
 type ProfilePreview = {
@@ -45,7 +63,7 @@ type DrinkingInvite = {
 
 type NotificationRow = {
   id: string;
-  actor_id: string;
+  actor_id: string | null;
   type: NotificationType;
   reference_id: string | null;
   metadata: NotificationMetadata | null;
@@ -107,7 +125,9 @@ export const NotificationsScreen = ({ navigation }: any) => {
       if (error) throw error;
 
       const baseRows = (data || []) as NotificationBaseRow[];
-      const actorIds = Array.from(new Set(baseRows.map((n) => n.actor_id).filter(Boolean)));
+      const actorIds = Array.from(new Set(
+        baseRows.map((notification) => notification.actor_id).filter(Boolean) as string[]
+      ));
       const sessionIds = Array.from(new Set(
         baseRows
           .filter((n) => (
@@ -203,7 +223,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
 
         return {
           ...notification,
-          profiles: profilesById.get(notification.actor_id) || null,
+          profiles: notification.actor_id ? profilesById.get(notification.actor_id) || null : null,
           session: notificationSessionId ? sessionsById.get(notificationSessionId) || null : null,
           invite: notification.reference_id ? invitesById.get(notification.reference_id) || null : null,
           buddy: notification.reference_id ? buddiesById.get(notification.reference_id) || null : null,
@@ -269,6 +289,12 @@ export const NotificationsScreen = ({ navigation }: any) => {
       attemptId: item.reference_id,
       notificationId: item.id,
     });
+  }, [navigation]);
+
+  const openOfficialChallenge = useCallback((item: NotificationRow) => {
+    const challengeSlug = item.metadata?.challenge_slug?.trim();
+    if (!challengeSlug) return;
+    navigation.navigate('ChallengeDetail', { challengeSlug });
   }, [navigation]);
 
   const respondToInvite = useCallback(async (item: NotificationRow, status: Exclude<InviteStatus, 'pending'>) => {
@@ -349,6 +375,33 @@ export const NotificationsScreen = ({ navigation }: any) => {
   };
 
   const renderItem = useCallback(({ item }: { item: NotificationRow }) => {
+    if (item.type === 'official_post') {
+      const challengeSlug = item.metadata?.challenge_slug?.trim();
+      return (
+        <View style={[styles.card, !item.read && styles.unreadCard]}>
+          <View style={styles.avatarContainer}>
+            <View style={styles.officialAvatar}>
+              <Image source={beervaLogo} style={styles.officialLogo} />
+            </View>
+          </View>
+          <View style={styles.content}>
+            <Text style={styles.username}>Official Beerva</Text>
+            <Text style={styles.message}>{getOfficialNotificationTitle(item)}</Text>
+            <Text style={styles.officialNotificationBody}>{getOfficialNotificationBody(item)}</Text>
+            <Text style={styles.time}>{getTimeAgo(item.created_at)}</Text>
+            {challengeSlug ? (
+              <TouchableOpacity style={styles.hangoverActionButton} onPress={() => openOfficialChallenge(item)}>
+                <Text style={styles.hangoverActionText}>View challenge</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          <View style={styles.iconContainer}>
+            <Megaphone color={colors.primary} size={22} />
+          </View>
+        </View>
+      );
+    }
+
     const canRespond = item.type === 'invite'
       && item.invite?.status === 'pending'
       && item.invite.recipient_id === currentUserId;
@@ -384,15 +437,17 @@ export const NotificationsScreen = ({ navigation }: any) => {
 
     return (
       <View style={[styles.card, !item.read && styles.unreadCard]}>
-        <TouchableOpacity onPress={() => openProfile(item.actor_id)} style={styles.avatarContainer}>
-          <CachedImage
-            uri={item.profiles?.avatar_url}
-            fallbackUri={`https://i.pravatar.cc/150?u=${item.actor_id}`}
-            style={styles.avatar}
-            recyclingKey={`notification-${item.actor_id}-${item.profiles?.avatar_url || 'fallback'}`}
-            accessibilityLabel={`${item.profiles?.username || 'Someone'}'s avatar`}
-          />
-        </TouchableOpacity>
+        {item.actor_id ? (
+          <TouchableOpacity onPress={() => openProfile(item.actor_id as string)} style={styles.avatarContainer}>
+            <CachedImage
+              uri={item.profiles?.avatar_url}
+              fallbackUri={`https://i.pravatar.cc/150?u=${item.actor_id}`}
+              style={styles.avatar}
+              recyclingKey={`notification-${item.actor_id}-${item.profiles?.avatar_url || 'fallback'}`}
+              accessibilityLabel={`${item.profiles?.username || 'Someone'}'s avatar`}
+            />
+          </TouchableOpacity>
+        ) : null}
         <ContentWrapper style={styles.content} {...contentWrapperProps}>
           <Text style={styles.message}>
             <Text style={styles.username}>{item.profiles?.username || 'Someone'}</Text>
@@ -476,7 +531,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
         </View>
       </View>
     );
-  }, [currentUserId, declineBuddy, decliningBuddyIds, openChugVerification, openHangoverRating, openPost, openProfile, respondToInvite, respondingInviteIds]);
+  }, [currentUserId, declineBuddy, decliningBuddyIds, openChugVerification, openHangoverRating, openOfficialChallenge, openPost, openProfile, respondToInvite, respondingInviteIds]);
 
   return (
     <View style={styles.container}>
@@ -587,6 +642,21 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.primary,
   },
+  officialAvatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    borderWidth: 2,
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  officialLogo: {
+    width: 30,
+    height: 30,
+    resizeMode: 'contain',
+  },
   content: {
     flex: 1,
     justifyContent: 'center',
@@ -603,6 +673,12 @@ const styles = StyleSheet.create({
   time: {
     ...typography.caption,
     marginTop: 4,
+  },
+  officialNotificationBody: {
+    ...typography.caption,
+    color: colors.text,
+    marginTop: 4,
+    lineHeight: 18,
   },
   inviteActions: {
     flexDirection: 'row',

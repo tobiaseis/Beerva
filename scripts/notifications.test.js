@@ -24,6 +24,8 @@ const loadTypeScriptModule = (relativePath) => {
 };
 
 const {
+  getOfficialNotificationBody,
+  getOfficialNotificationTitle,
   getNotificationMessage,
   getNotificationPubName,
 } = loadTypeScriptModule('src/lib/notificationMessages.ts');
@@ -133,6 +135,15 @@ assert.equal(
     session: null,
   }),
   ' added you as a drinking buddy.'
+);
+
+assert.equal(
+  getOfficialNotificationTitle({ type: 'official_post', metadata: { official_title: 'Booze-in-June has begun' } }),
+  'Booze-in-June has begun'
+);
+assert.equal(
+  getOfficialNotificationBody({ type: 'official_post', metadata: { notification_body: 'Tap to join.' } }),
+  'Tap to join.'
 );
 
 const recordScreenSource = fs.readFileSync(path.resolve(__dirname, '..', 'src/screens/RecordScreen.tsx'), 'utf8');

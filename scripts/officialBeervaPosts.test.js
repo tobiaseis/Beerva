@@ -145,4 +145,23 @@ assert.match(feedScreenSource, /fetchOfficialPostLinkedChallengeSummaries/, 'fee
 assert.match(feedScreenSource, /handleJoinOfficialPostChallenge/, 'feed should join challenges from announcements');
 assert.match(feedScreenSource, /onImagePress=\{setViewingImageUrl\}/, 'feed should route official photos to the existing viewer');
 
+const challengeLaunchParams = loadTypeScriptModule('src/lib/challengeLaunchParams.ts');
+assert.deepEqual(
+  challengeLaunchParams.getChallengeLaunchParamsFromSearch('?challenge=booze-in-june&notificationId=notif-1'),
+  { challengeSlug: 'booze-in-june', notificationId: 'notif-1' }
+);
+assert.equal(
+  challengeLaunchParams.getChallengeLaunchParamsFromSearch('?notifications=1'),
+  null
+);
+
+const notificationsScreenSource = read('src/screens/NotificationsScreen.tsx');
+const navigatorSource = read('src/navigation/RootNavigator.tsx');
+assert.match(notificationsScreenSource, /official_post/, 'notifications screen should render official notifications');
+assert.match(notificationsScreenSource, /Official Beerva/, 'official notifications should show Beerva identity');
+assert.match(notificationsScreenSource, /View challenge/, 'official notifications should open linked challenges');
+assert.match(navigatorSource, /getChallengeLaunchParamsFromSearch/, 'navigator should parse challenge push links');
+assert.match(navigatorSource, /navigationRef\.navigate\('ChallengeDetail'/, 'navigator should open challenge detail');
+assert.match(navigatorSource, /\.from\('notifications'\)[\s\S]*\.update\(\{ read: true \}\)/, 'navigator should mark push-opened challenge notifications read');
+
 console.log('official Beerva post checks passed');
