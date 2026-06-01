@@ -16,6 +16,14 @@ import { hapticLight, hapticMedium, hapticWarning } from '../lib/haptics';
 import { useNotifications } from '../lib/notificationsContext';
 import { EmptyIllustration } from '../components/EmptyIllustration';
 import { getSessionBeerBreakdownLines, getSessionBeerSummary, SessionBeer } from '../lib/sessionBeers';
+import {
+  formatChugDuration,
+  getChugStatSubtitle,
+  getFastestVisibleChugAttempt,
+  mapChugAttemptRow,
+  SessionChugAttempt,
+  SessionChugAttemptRow,
+} from '../lib/chugAttempts';
 import { getVolumeMl, TrophyDefinition } from '../lib/profileStats';
 import { AllTrophiesUnlockedModal, TrophyUnlockModal } from '../components/TrophyUnlockModal';
 import { ImageViewerModal } from '../components/ImageViewerModal';
@@ -80,6 +88,7 @@ export type FeedSession = {
   hangover_score?: number | null;
   created_at: string;
   session_beers: SessionBeer[];
+  session_chug_attempts: SessionChugAttempt[];
   profiles?: {
     username?: string | null;
     avatar_url?: string | null;
@@ -300,6 +309,7 @@ export const FeedSessionCard = React.memo(({
   const truePints = getSessionTruePints(item);
   const averageAbv = getSessionAverageAbv(item);
   const beerBreakdownLines = getSessionBeerBreakdownLines(item.session_beers);
+  const fastestChug = getFastestVisibleChugAttempt(item.session_chug_attempts || []);
   const [statsExpanded, setStatsExpanded] = React.useState(false);
   const cheersScale = React.useRef(new Animated.Value(1)).current;
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
@@ -501,6 +511,13 @@ export const FeedSessionCard = React.memo(({
                 <View style={styles.detailPill}>
                   <Text style={styles.detailLabel}>Avg ABV</Text>
                   <Text style={styles.detailValue}>{formatStatNumber(averageAbv)}%</Text>
+                </View>
+              ) : null}
+              {fastestChug ? (
+                <View style={styles.detailPill}>
+                  <Text style={styles.detailLabel}>Fastest chug</Text>
+                  <Text style={styles.detailValue}>{formatChugDuration(fastestChug.durationMs)}</Text>
+                  <Text style={styles.detailHint} numberOfLines={2}>{getChugStatSubtitle(fastestChug)}</Text>
                 </View>
               ) : null}
             </View>
@@ -815,7 +832,7 @@ export const FeedScreen = ({ route }: any) => {
 
       const sessionIds = sessionRows.map((session) => session.id);
 
-      const [cheersResult, beersResult, commentsResult] = await withTimeout(
+      const [cheersResult, beersResult, commentsResult, chugsResult] = await withTimeout(
         Promise.all([
           sessionIds.length > 0
             ? supabase
@@ -837,6 +854,9 @@ export const FeedScreen = ({ route }: any) => {
                 .in('session_id', sessionIds)
                 .order('created_at', { ascending: true })
             : Promise.resolve({ data: [] as FeedComment[], error: null }),
+          sessionIds.length > 0
+            ? supabase.rpc('get_session_chug_attempt_summaries', { session_ids: sessionIds })
+            : Promise.resolve({ data: [] as SessionChugAttemptRow[], error: null }),
         ]),
         FEED_REQUEST_TIMEOUT_MS,
         'Feed details are taking too long.'
@@ -853,10 +873,14 @@ export const FeedScreen = ({ route }: any) => {
       if (commentsResult.error) {
         console.error('Session comments fetch error:', commentsResult.error);
       }
+      if (chugsResult.error) {
+        console.error('Session chugs fetch error:', chugsResult.error);
+      }
 
       const cheers: SessionCheer[] = (cheersResult.data || []) as SessionCheer[];
       const beerRows: SessionBeer[] = (beersResult.data || []) as SessionBeer[];
       const commentRows: FeedComment[] = (commentsResult.data || []) as FeedComment[];
+      const chugRows = ((chugsResult.data || []) as SessionChugAttemptRow[]).map(mapChugAttemptRow);
 
       const profileIds = Array.from(new Set([
         ...sessionRows.map((session) => session.user_id),
@@ -916,6 +940,13 @@ export const FeedScreen = ({ route }: any) => {
         return acc;
       }, new Map<string, FeedComment[]>());
 
+      const chugsBySession = chugRows.reduce((acc, attempt) => {
+        const existing = acc.get(attempt.sessionId) || [];
+        existing.push(attempt);
+        acc.set(attempt.sessionId, existing);
+        return acc;
+      }, new Map<string, SessionChugAttempt[]>());
+
       const pageSessions = sessionRows.map((session): FeedItem => {
         const sessionCheers = cheersBySession.get(session.id) || [];
         const sessionComments = commentsBySession.get(session.id) || [];
@@ -939,6 +970,7 @@ export const FeedScreen = ({ route }: any) => {
           session: {
             ...session,
             session_beers: sessionBeers,
+            session_chug_attempts: chugsBySession.get(session.id) || [],
             profiles: profilesById.get(session.user_id) || null,
             cheer_profiles: sessionCheers.map((cheer) => profilesById.get(cheer.user_id)).filter(Boolean) as ProfilePreview[],
             comments: sessionComments,
@@ -2280,6 +2312,12 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     marginTop: 3,
     fontVariant: ['tabular-nums'],
+  },
+  detailHint: {
+    ...typography.tiny,
+    color: colors.textMuted,
+    marginTop: 2,
+    lineHeight: 13,
   },
   hangoverBadge: {
     alignSelf: 'flex-end',

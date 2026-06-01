@@ -21,6 +21,7 @@ import { FeedSessionCard, FeedSession } from './FeedScreen';
 import { PubCrawl, PubCrawlComment } from '../lib/pubCrawls';
 import { addPubCrawlComment, fetchPublishedPubCrawlById, togglePubCrawlCheers } from '../lib/pubCrawlsApi';
 import { SessionBeer } from '../lib/sessionBeers';
+import { mapChugAttemptRow, SessionChugAttemptRow } from '../lib/chugAttempts';
 import { supabase } from '../lib/supabase';
 import { confirmDestructive } from '../lib/dialogs';
 import { deletePublicImageUrl } from '../lib/imageUpload';
@@ -188,7 +189,7 @@ export const PostDetailScreen = () => {
         return;
       }
 
-      const [beersResult, cheersResult, commentsResult] = await Promise.all([
+      const [beersResult, cheersResult, commentsResult, chugsResult] = await Promise.all([
         supabase
           .from('session_beers')
           .select('id, session_id, beer_name, volume, quantity, abv, note, consumed_at, created_at')
@@ -203,15 +204,18 @@ export const PostDetailScreen = () => {
           .select('id, session_id, user_id, body, created_at, updated_at')
           .eq('session_id', sessionId)
           .order('created_at', { ascending: true }),
+        supabase.rpc('get_session_chug_attempt_summaries', { session_ids: [sessionId] }),
       ]);
 
       if (beersResult.error) console.error('Post beers fetch error:', beersResult.error);
       if (cheersResult.error) console.error('Post cheers fetch error:', cheersResult.error);
       if (commentsResult.error) console.error('Post comments fetch error:', commentsResult.error);
+      if (chugsResult.error) console.error('Post chugs fetch error:', chugsResult.error);
 
       const beerRows = (beersResult.data || []) as SessionBeer[];
       const cheerRows = (cheersResult.data || []) as { user_id: string }[];
       const commentRows = (commentsResult.data || []) as PostComment[];
+      const chugRows = ((chugsResult.data || []) as SessionChugAttemptRow[]).map(mapChugAttemptRow);
 
       const profileIds = Array.from(new Set([
         sessionRow.user_id,
@@ -260,6 +264,7 @@ export const PostDetailScreen = () => {
       const assembled: FeedSession = {
         ...sessionRow,
         session_beers: sessionBeers,
+        session_chug_attempts: chugRows,
         profiles: profilesById.get(sessionRow.user_id) || null,
         cheer_profiles: cheerRows
           .map((cheer) => profilesById.get(cheer.user_id))
