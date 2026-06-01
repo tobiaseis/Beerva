@@ -8,7 +8,9 @@ import {
 
 const FACE_MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task';
 const OBJECT_MODEL_URL = 'https://storage.googleapis.com/mediapipe-tasks/object_detector/efficientdet_lite0_uint8.tflite';
-const WASM_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm';
+const MEDIAPIPE_VERSION = '0.10.35';
+const MEDIAPIPE_MODULE_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MEDIAPIPE_VERSION}`;
+const WASM_URL = `${MEDIAPIPE_MODULE_URL}/wasm`;
 const FRAME_STEP_MS = 100;
 const MOUTH_LANDMARK_IDS = [13, 14, 61, 291, 78, 308];
 const BOTTLE_LABELS = new Set(['bottle']);
@@ -16,6 +18,24 @@ const BOTTLE_LABELS = new Set(['bottle']);
 export type ChugVideoAnalysisInput = {
   uri: string;
   blob?: Blob;
+};
+
+type MediaPipeVisionModule = {
+  FilesetResolver: any;
+  FaceLandmarker: any;
+  ObjectDetector: any;
+};
+
+let mediaPipeVisionPromise: Promise<MediaPipeVisionModule> | null = null;
+
+const loadMediaPipeVision = () => {
+  if (!mediaPipeVisionPromise) {
+    const browserImport = new Function('moduleUrl', 'return import(moduleUrl)') as (
+      moduleUrl: string
+    ) => Promise<MediaPipeVisionModule>;
+    mediaPipeVisionPromise = browserImport(MEDIAPIPE_MODULE_URL);
+  }
+  return mediaPipeVisionPromise;
 };
 
 export const analyzeChugVideo = async (input: ChugVideoAnalysisInput) => {
@@ -27,7 +47,7 @@ export const analyzeChugVideo = async (input: ChugVideoAnalysisInput) => {
     FilesetResolver,
     FaceLandmarker,
     ObjectDetector,
-  } = await import('@mediapipe/tasks-vision');
+  } = await loadMediaPipeVision();
 
   const objectUrl = input.blob ? URL.createObjectURL(input.blob) : input.uri;
 

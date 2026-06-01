@@ -22,6 +22,7 @@
     "test:chug-db": "node scripts/chugDatabase.test.js",
     "test:chug-notifications": "node scripts/chugNotifications.test.js",
     "test:chug-detection": "node scripts/chugDetection.test.js",
+    "test:chug-mediapipe-bundle": "node scripts/chugMediaPipeBundle.test.js",
     "test:chug-proof-storage": "node scripts/chugProofStorage.test.js",
     "test:chug-record": "node scripts/chugRecordScreen.test.js",
     "test:chug-review": "node scripts/chugVerificationScreen.test.js",
