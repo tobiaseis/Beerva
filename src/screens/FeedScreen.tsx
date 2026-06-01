@@ -19,7 +19,7 @@ import { getSessionBeerBreakdownLines, getSessionBeerSummary, SessionBeer } from
 import {
   formatChugDuration,
   getChugStatSubtitle,
-  getFastestVisibleChugAttempt,
+  getVisibleChugStat,
   mapChugAttemptRow,
   SessionChugAttempt,
   SessionChugAttemptRow,
@@ -309,7 +309,7 @@ export const FeedSessionCard = React.memo(({
   const truePints = getSessionTruePints(item);
   const averageAbv = getSessionAverageAbv(item);
   const beerBreakdownLines = getSessionBeerBreakdownLines(item.session_beers);
-  const fastestChug = getFastestVisibleChugAttempt(item.session_chug_attempts || []);
+  const visibleChugStat = getVisibleChugStat(item.session_chug_attempts || []);
   const [statsExpanded, setStatsExpanded] = React.useState(false);
   const cheersScale = React.useRef(new Animated.Value(1)).current;
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
@@ -513,11 +513,23 @@ export const FeedSessionCard = React.memo(({
                   <Text style={styles.detailValue}>{formatStatNumber(averageAbv)}%</Text>
                 </View>
               ) : null}
-              {fastestChug ? (
+              {visibleChugStat ? (
                 <View style={styles.detailPill}>
-                  <Text style={styles.detailLabel}>Fastest chug</Text>
-                  <Text style={styles.detailValue}>{formatChugDuration(fastestChug.durationMs)}</Text>
-                  <Text style={styles.detailHint} numberOfLines={2}>{getChugStatSubtitle(fastestChug)}</Text>
+                  <Text style={styles.detailLabel}>
+                    {visibleChugStat.kind === 'timed' ? 'Fastest chug' : 'Chug verification'}
+                  </Text>
+                  {visibleChugStat.kind === 'timed' ? (
+                    <>
+                      <Text style={styles.detailValue}>{formatChugDuration(visibleChugStat.attempt.durationMs)}</Text>
+                      <Text style={styles.detailHint} numberOfLines={2}>{getChugStatSubtitle(visibleChugStat.attempt)}</Text>
+                    </>
+                  ) : (
+                    <Text style={styles.detailStateValue}>
+                      {visibleChugStat.kind === 'pending_manual'
+                        ? 'Pending manual timing'
+                        : 'Chugging verification expired'}
+                    </Text>
+                  )}
                 </View>
               ) : null}
             </View>
@@ -2318,6 +2330,12 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginTop: 2,
     lineHeight: 13,
+  },
+  detailStateValue: {
+    ...typography.caption,
+    color: colors.text,
+    fontWeight: '800',
+    lineHeight: 18,
   },
   hangoverBadge: {
     alignSelf: 'flex-end',

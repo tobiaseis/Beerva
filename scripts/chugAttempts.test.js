@@ -38,8 +38,10 @@ const {
   CHUG_REQUIRED_VOLUME,
   formatChugDuration,
   formatChugStatusLabel,
+  getChugBeerOptions,
   getFastestVisibleChugAttempt,
   getChugStatSubtitle,
+  getVisibleChugStat,
   isBottleChugEligibleBeer,
   mapChugAttemptRow,
 } = loadTypeScriptModule('src/lib/chugAttempts.ts');
@@ -55,12 +57,14 @@ assert.equal(isBottleChugEligibleBeer({ beer_name: 'Tuborg Gron', volume: '33cl'
 assert.equal(isBottleChugEligibleBeer({ beer_name: 'Tuborg Gron', volume: '50cl', quantity: 1 }, catalog), false);
 assert.equal(isBottleChugEligibleBeer({ beer_name: 'Breezer Lime', volume: '33cl', quantity: 1 }, catalog), false);
 assert.equal(isBottleChugEligibleBeer({ beer_name: 'Sambuca Shot', volume: '33cl', quantity: 1 }, catalog), false);
+assert.deepEqual(getChugBeerOptions(catalog), ['Tuborg Gron']);
 
 assert.equal(formatChugDuration(4800), '4.8s');
 assert.equal(formatChugDuration(4250), '4.25s');
 assert.equal(formatChugStatusLabel('unverified'), 'Unverified');
 assert.equal(formatChugStatusLabel('verified'), 'Verified');
 assert.equal(formatChugStatusLabel('rejected'), 'Rejected');
+assert.equal(formatChugStatusLabel('expired'), 'Expired');
 
 const attempts = [
   { id: 'slow', sessionId: 's1', status: 'verified', durationMs: 6200, requiredVolume: '33cl', containerType: 'bottle' },
@@ -70,6 +74,26 @@ const attempts = [
 
 assert.equal(getFastestVisibleChugAttempt(attempts).id, 'fast');
 assert.equal(getChugStatSubtitle(attempts[2]), '33cl bottle - Unverified');
+
+const pendingAttempt = {
+  id: 'pending',
+  sessionId: 's1',
+  status: 'unverified',
+  timingSource: 'pending_manual',
+  durationMs: null,
+};
+const expiredAttempt = {
+  id: 'expired',
+  sessionId: 's1',
+  status: 'expired',
+  timingSource: 'ai',
+  durationMs: 3500,
+};
+
+assert.equal(getVisibleChugStat([expiredAttempt]).kind, 'expired');
+assert.equal(getVisibleChugStat([expiredAttempt, pendingAttempt]).kind, 'pending_manual');
+assert.equal(getVisibleChugStat([expiredAttempt, pendingAttempt, ...attempts]).kind, 'timed');
+assert.equal(getFastestVisibleChugAttempt([expiredAttempt, ...attempts]).id, 'fast');
 
 assert.deepEqual(
   mapChugAttemptRow({
@@ -102,9 +126,42 @@ assert.deepEqual(
     detectedEndMs: 6323,
     containerType: 'bottle',
     requiredVolume: '33cl',
+    timingSource: 'ai',
+    expiresAt: null,
     createdAt: '2026-06-01T12:00:00Z',
     verifiedAt: '2026-06-01T12:03:00Z',
     beerName: 'Tuborg Gron',
+  }
+);
+
+assert.deepEqual(
+  mapChugAttemptRow({
+    id: 'pending-row',
+    session_id: 'session-1',
+    session_beer_id: 'beer-1',
+    status: 'unverified',
+    duration_ms: null,
+    timing_source: 'pending_manual',
+    expires_at: '2026-06-02T12:00:00Z',
+  }),
+  {
+    id: 'pending-row',
+    sessionId: 'session-1',
+    sessionBeerId: 'beer-1',
+    userId: null,
+    verifierUserId: null,
+    status: 'unverified',
+    durationMs: null,
+    confidenceScore: null,
+    detectedStartMs: null,
+    detectedEndMs: null,
+    containerType: 'bottle',
+    requiredVolume: '33cl',
+    timingSource: 'pending_manual',
+    expiresAt: '2026-06-02T12:00:00Z',
+    createdAt: null,
+    verifiedAt: null,
+    beerName: null,
   }
 );
 
