@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -28,7 +28,9 @@ type ReviewAttempt = {
   user_id: string;
   verifier_user_id: string;
   status: string;
-  duration_ms: number;
+  duration_ms: number | null;
+  timing_source?: 'ai' | 'manual' | 'pending_manual' | string | null;
+  expires_at?: string | null;
   confidence_score?: number | null;
   video_path?: string | null;
   verifier_note?: string | null;
@@ -92,7 +94,15 @@ export const ChugVerificationScreen = () => {
   const [reviewMode, setReviewMode] = useState<ReviewMode>('review');
   const [manualStartMs, setManualStartMs] = useState<number | null>(null);
   const [manualEndMs, setManualEndMs] = useState<number | null>(null);
+  const [nowMs, setNowMs] = useState(Date.now());
   const manualDurationMs = calculateManualChugDuration(manualStartMs, manualEndMs);
+  const expiryMs = attempt?.expires_at ? Date.parse(attempt.expires_at) : Number.POSITIVE_INFINITY;
+  const reviewExpired = attempt?.status === 'expired' || expiryMs <= nowMs;
+
+  useEffect(() => {
+    const timer = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const fetchAttempt = useCallback(async () => {
     if (!attemptId) {
@@ -112,6 +122,8 @@ export const ChugVerificationScreen = () => {
           verifier_user_id,
           status,
           duration_ms,
+          timing_source,
+          expires_at,
           confidence_score,
           video_path,
           verifier_note,
@@ -136,8 +148,14 @@ export const ChugVerificationScreen = () => {
       setAttempt(row);
       setOwnerProfile(profileData || null);
       setNote(row.verifier_note || '');
-      setVideoUrl(row.video_path ? await createChugProofSignedUrl(row.video_path) : null);
-      setReviewMode('review');
+      const rowExpired = row.status === 'expired'
+        || Boolean(row.expires_at && Date.parse(row.expires_at) <= Date.now());
+      setVideoUrl(!rowExpired && row.video_path ? await createChugProofSignedUrl(row.video_path) : null);
+      setReviewMode(
+        row.status === 'unverified' && row.timing_source === 'pending_manual'
+          ? 'manual_timing'
+          : 'review'
+      );
       setManualStartMs(null);
       setManualEndMs(null);
 
@@ -161,7 +179,7 @@ export const ChugVerificationScreen = () => {
     nextStatus: 'verified' | 'rejected',
     manualTiming?: { startMs: number; endMs: number }
   ) => {
-    if (!attemptId || reviewing) return;
+    if (!attemptId || reviewing || reviewExpired) return;
     setReviewing(nextStatus);
     setError(null);
     try {
@@ -179,7 +197,7 @@ export const ChugVerificationScreen = () => {
     } finally {
       setReviewing(null);
     }
-  }, [attemptId, fetchAttempt, note, reviewing]);
+  }, [attemptId, fetchAttempt, note, reviewExpired, reviewing]);
 
   const restartManualTiming = useCallback(async () => {
     setManualStartMs(null);
@@ -196,10 +214,14 @@ export const ChugVerificationScreen = () => {
     }
   }, []);
 
-  const enterManualTiming = useCallback(async () => {
+  const enterManualTiming = useCallback(() => {
     setReviewMode('manual_timing');
-    await restartManualTiming();
-  }, [restartManualTiming]);
+  }, []);
+
+  useEffect(() => {
+    if (reviewMode !== 'manual_timing' || !videoUrl || reviewExpired) return;
+    restartManualTiming();
+  }, [restartManualTiming, reviewExpired, reviewMode, videoUrl]);
 
   const captureManualTimestamp = useCallback(() => {
     const timestampMs = videoRef.current?.getCurrentTimestampMs() ?? null;
@@ -256,11 +278,15 @@ export const ChugVerificationScreen = () => {
             <Text style={styles.kicker}>{attempt.sessions?.pub_name || 'Session chug'}</Text>
             <Text style={styles.meta}>{ownerProfile?.username || 'Someone'} asked you to review this</Text>
             <Text style={styles.title}>{attempt.session_beers?.beer_name || '33cl beer'}</Text>
-            <Text style={styles.duration}>{formatChugDuration(attempt.duration_ms)}</Text>
+            {attempt.duration_ms ? (
+              <Text style={styles.duration}>{formatChugDuration(attempt.duration_ms)}</Text>
+            ) : (
+              <Text style={styles.pendingTiming}>Pending manual timing</Text>
+            )}
             <Text style={styles.meta}>{formatChugStatusLabel(attempt.status)}</Text>
           </View>
 
-          {videoUrl ? (
+          {videoUrl && !reviewExpired ? (
             <View style={styles.videoPanel}>
               <WebVideo ref={videoRef} uri={videoUrl} />
               {Platform.OS !== 'web' ? (
@@ -269,7 +295,9 @@ export const ChugVerificationScreen = () => {
             </View>
           ) : (
             <View style={styles.panel}>
-              <Text style={styles.meta}>Proof video has already been cleared.</Text>
+              <Text style={styles.meta}>
+                {reviewExpired ? 'Proof video is no longer available.' : 'Proof video has already been cleared.'}
+              </Text>
             </View>
           )}
 
@@ -281,11 +309,19 @@ export const ChugVerificationScreen = () => {
             style={styles.noteInput}
             multiline
             maxLength={160}
+            editable={!reviewExpired}
           />
 
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-          {attempt.status === 'unverified' && reviewMode === 'review' ? (
+          {reviewExpired ? (
+            <View style={styles.expiredPanel}>
+              <Text style={styles.expiredTitle}>Chugging verification expired.</Text>
+              <Text style={styles.meta}>The temporary proof video is no longer available for review.</Text>
+            </View>
+          ) : null}
+
+          {attempt.status === 'unverified' && !reviewExpired && reviewMode === 'review' ? (
             <View style={styles.actions}>
               <TouchableOpacity
                 style={[styles.actionButton, styles.rejectButton]}
@@ -306,7 +342,7 @@ export const ChugVerificationScreen = () => {
             </View>
           ) : null}
 
-          {attempt.status === 'unverified' && reviewMode === 'reject_options' ? (
+          {attempt.status === 'unverified' && !reviewExpired && reviewMode === 'reject_options' ? (
             <View style={styles.decisionPanel}>
               <Text style={styles.decisionTitle}>What needs changing?</Text>
               <TouchableOpacity
@@ -333,7 +369,7 @@ export const ChugVerificationScreen = () => {
             </View>
           ) : null}
 
-          {attempt.status === 'unverified' && reviewMode === 'manual_timing' ? (
+          {attempt.status === 'unverified' && !reviewExpired && reviewMode === 'manual_timing' ? (
             <View style={styles.decisionPanel}>
               <Text style={styles.decisionTitle}>Adjust chug time</Text>
               <Text style={styles.meta}>Video plays at 0.75x. Mark the exact drinking window.</Text>
@@ -442,6 +478,11 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginTop: 10,
   },
+  pendingTiming: {
+    ...typography.h3,
+    color: colors.primary,
+    marginTop: 10,
+  },
   meta: {
     ...typography.caption,
     color: colors.textMuted,
@@ -455,6 +496,19 @@ const styles = StyleSheet.create({
     color: colors.text,
     padding: 12,
     textAlignVertical: 'top',
+  },
+  expiredPanel: {
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.surface,
+    padding: 14,
+    gap: 4,
+  },
+  expiredTitle: {
+    ...typography.body,
+    color: colors.text,
+    fontWeight: '800',
   },
   actions: {
     flexDirection: 'row',

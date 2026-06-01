@@ -23,5 +23,11 @@ assert.match(source, /Re-do timing/, 'manual timing should support retry');
 assert.match(source, /Proof video is unavailable\./, 'manual timing should report an unavailable proof video');
 assert.match(source, /manual_start_ms:\s*manualTiming\?\.startMs \?\? null/, 'review RPC should receive manual start');
 assert.match(source, /manual_end_ms:\s*manualTiming\?\.endMs \?\? null/, 'review RPC should receive manual end');
+assert.match(source, /timing_source/, 'review screen should fetch the timing source');
+assert.match(source, /expires_at/, 'review screen should fetch the expiry deadline');
+assert.match(source, /row\.timing_source === 'pending_manual'/, 'pending-manual review should open directly in manual timing mode');
+assert.match(source, /Chugging verification expired\./, 'expired review should show a clear disabled state');
+assert.match(source, /setInterval\(\(\) => setNowMs\(Date\.now\(\)\), 1000\)/, 'open verifier screen should notice expiry without a reload');
+assert.match(source, /!reviewExpired/, 'review actions should be disabled after the deadline');
 
 console.log('chug verification screen checks passed');
