@@ -90,6 +90,7 @@ export const AdminToolsScreen = ({ navigation }: any) => {
   const [selectedOfficialPostImage, setSelectedOfficialPostImage] = useState<SelectedImage | null>(null);
   const [officialPostRequestKey, setOfficialPostRequestKey] = useState(createAdminRequestKey);
   const [pendingOfficialPostImageUrl, setPendingOfficialPostImageUrl] = useState<string | null>(null);
+  const [officialPostPublishUncertain, setOfficialPostPublishUncertain] = useState(false);
 
   const loadAll = useCallback(async ({ refresh = false } = {}) => {
     refresh ? setRefreshing(true) : setLoading(true);
@@ -120,8 +121,13 @@ export const AdminToolsScreen = ({ navigation }: any) => {
   const closeModal = () => {
     if (saving) return;
     if (activeModal === 'official-post') {
+      if (officialPostPublishUncertain) {
+        setFormError('Resolve the uncertain publish before closing this post. Press Publish Official Post again to confirm whether it was sent.');
+        return;
+      }
       setSelectedOfficialPostImage(null);
       setPendingOfficialPostImageUrl(null);
+      setOfficialPostPublishUncertain(false);
     }
     setActiveModal(null);
     setFormError(null);
@@ -156,6 +162,7 @@ export const AdminToolsScreen = ({ navigation }: any) => {
     setSelectedOfficialPostImage(null);
     setOfficialPostRequestKey(createAdminRequestKey());
     setPendingOfficialPostImageUrl(null);
+    setOfficialPostPublishUncertain(false);
     setFormError(null);
     setActiveModal('official-post');
   };
@@ -358,8 +365,15 @@ export const AdminToolsScreen = ({ navigation }: any) => {
       setOfficialPosts((current) => [published, ...current.filter((post) => post.id !== published.id)]);
       setSelectedOfficialPostImage(null);
       setPendingOfficialPostImageUrl(null);
+      setOfficialPostPublishUncertain(false);
       setActiveModal(null);
     } catch (error) {
+      if (publicationAttempted && error instanceof AdminOfficialPostPublishError && error.uncertain) {
+        setOfficialPostPublishUncertain(true);
+      } else {
+        setOfficialPostPublishUncertain(false);
+      }
+
       if (
         publicationAttempted
         && uploadedUrl

@@ -856,11 +856,16 @@ export const FeedScreen = ({ route }: any) => {
       setHasMore(hasNextPage);
       hasMoreRef.current = hasNextPage;
 
-      const officialPostChallengeSummaries = await withTimeout(
-        fetchOfficialPostLinkedChallengeSummaries(officialPosts),
-        FEED_REQUEST_TIMEOUT_MS,
-        'Official challenge actions are taking too long.'
-      );
+      let officialPostChallengeSummaries = new Map<string, ChallengeSummary>();
+      try {
+        officialPostChallengeSummaries = await withTimeout(
+          fetchOfficialPostLinkedChallengeSummaries(officialPosts),
+          FEED_REQUEST_TIMEOUT_MS,
+          'Official challenge actions are taking too long.'
+        );
+      } catch (error) {
+        console.error('Official challenge actions fetch error:', error);
+      }
       if (!isLatestRequest()) return;
 
       setOfficialPostChallengesById((previous) => {

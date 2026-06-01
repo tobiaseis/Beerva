@@ -133,6 +133,16 @@ assert.match(adminScreenSource, /Select a challenge/, 'composer should expose op
 assert.match(adminScreenSource, /deletePublicImageUrl/, 'definitive publication failures should clean uploaded photos');
 assert.match(adminScreenSource, /officialPostRequestKey/, 'manual publication retries should reuse the composer request key');
 assert.match(adminScreenSource, /pendingOfficialPostImageUrl/, 'manual retries should reuse a photo uploaded before an uncertain timeout');
+assert.match(
+  adminScreenSource,
+  /Resolve the uncertain publish before closing this post/,
+  'admin composer should not discard retry state after an uncertain official-post publish'
+);
+assert.match(
+  adminScreenSource,
+  /setOfficialPostPublishUncertain\(true\)/,
+  'admin composer should remember when a publish attempt may have succeeded'
+);
 
 const officialCardSource = read('src/components/OfficialFeedPostCard.tsx');
 const feedScreenSource = read('src/screens/FeedScreen.tsx');
@@ -144,6 +154,11 @@ assert.match(officialCardSource, /onImagePress/, 'announcement photos should ope
 assert.match(feedScreenSource, /fetchOfficialPostLinkedChallengeSummaries/, 'feed should hydrate linked challenge summaries once per page');
 assert.match(feedScreenSource, /handleJoinOfficialPostChallenge/, 'feed should join challenges from announcements');
 assert.match(feedScreenSource, /onImagePress=\{setViewingImageUrl\}/, 'feed should route official photos to the existing viewer');
+assert.match(
+  feedScreenSource,
+  /Official challenge actions fetch error/,
+  'feed should treat official challenge CTA hydration as best-effort so announcement posts still render'
+);
 
 const challengeLaunchParams = loadTypeScriptModule('src/lib/challengeLaunchParams.ts');
 assert.deepEqual(
