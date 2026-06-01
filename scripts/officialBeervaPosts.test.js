@@ -119,4 +119,19 @@ assert.match(adminApiSource, /AdminOfficialPostPublishError/, 'admin API should 
 assert.match(adminApiSource, /failed to fetch\|network request failed\|abort/i, 'network failures should remain uncertain after publication');
 assert.match(imageUploadSource, /check that the \$\{bucket\} bucket is available/, 'image upload errors should name the requested bucket');
 
+const adminScreenSource = read('src/screens/AdminToolsScreen.tsx');
+assert.match(adminScreenSource, /type AdminSegment = 'challenges' \| 'beers' \| 'official-posts'/, 'admin tools should add official posts segment');
+assert.match(adminScreenSource, /fetchAdminOfficialPosts/, 'admin tools should load official posts');
+assert.match(adminScreenSource, /publishAdminOfficialPost/, 'admin tools should publish official posts');
+assert.match(adminScreenSource, /prepareWebImageFromPickerAsset/, 'web official photos should use shared compression');
+assert.match(adminScreenSource, /UPLOAD_IMAGE_MAX_WIDTH/, 'native official photos should reuse the session image width');
+assert.match(adminScreenSource, /official_post_images/, 'official photos should use the dedicated bucket');
+assert.match(adminScreenSource, /admins\/\$\{user\.id\}\/posts/, 'official photos should upload into the current admin folder');
+assert.match(adminScreenSource, /Send in-app notification/, 'composer should expose the in-app toggle');
+assert.match(adminScreenSource, /Send push notification/, 'composer should expose the push toggle');
+assert.match(adminScreenSource, /Select a challenge/, 'composer should expose optional challenge linking');
+assert.match(adminScreenSource, /deletePublicImageUrl/, 'definitive publication failures should clean uploaded photos');
+assert.match(adminScreenSource, /officialPostRequestKey/, 'manual publication retries should reuse the composer request key');
+assert.match(adminScreenSource, /pendingOfficialPostImageUrl/, 'manual retries should reuse a photo uploaded before an uncertain timeout');
+
 console.log('official Beerva post checks passed');

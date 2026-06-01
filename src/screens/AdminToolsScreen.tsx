@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   Modal,
   Platform,
   Pressable,
@@ -15,36 +16,54 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { ArrowLeft, Beer, Edit3, Plus, ShieldCheck, Trophy, X } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { ArrowLeft, Beer, Camera, Edit3, ImagePlus, Megaphone, Plus, ShieldCheck, Trophy, X } from 'lucide-react-native';
 
 import { AppButton } from '../components/AppButton';
 import {
   AdminBeverage,
   AdminChallenge,
+  AdminOfficialPostPublishError,
+  createAdminRequestKey,
   fetchAdminBeverages,
   fetchAdminChallenges,
+  fetchAdminOfficialPosts,
+  publishAdminOfficialPost,
   saveAdminBeverage,
   saveAdminChallenge,
 } from '../lib/adminApi';
 import {
   AdminBeerDraft,
   AdminChallengeDraft,
+  AdminOfficialPostDraft,
   adminBeverageToDraft,
   adminChallengeToDraft,
+  applyOfficialPostChallengePrefill,
   createEmptyBeerDraft,
   createEmptyChallengeDraft,
+  createEmptyOfficialPostDraft,
   fromLocalDateTimeInput,
   validateBeerDraft,
   validateChallengeDraft,
+  validateOfficialPostDraft,
 } from '../lib/adminTools';
 import { useBeverageCatalog } from '../lib/beverageCatalogContext';
+import {
+  deletePublicImageUrl,
+  prepareWebImageFromPickerAsset,
+  SelectedImage,
+  UPLOAD_IMAGE_MAX_WIDTH,
+  uploadImageToBucket,
+} from '../lib/imageUpload';
+import { OfficialFeedPost } from '../lib/officialFeedPosts';
 import { getBeverageCatalogItem } from '../lib/sessionBeers';
+import { supabase } from '../lib/supabase';
 import { colors } from '../theme/colors';
 import { radius, shadows, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
 
-type AdminSegment = 'challenges' | 'beers';
-type ActiveModal = 'challenge' | 'beer' | null;
+type AdminSegment = 'challenges' | 'beers' | 'official-posts';
+type ActiveModal = 'challenge' | 'beer' | 'official-post' | null;
 
 const formatChallengeWindow = (challenge: AdminChallenge) => {
   const start = new Date(challenge.startsAt);
@@ -58,6 +77,7 @@ export const AdminToolsScreen = ({ navigation }: any) => {
   const [activeSegment, setActiveSegment] = useState<AdminSegment>('challenges');
   const [challenges, setChallenges] = useState<AdminChallenge[]>([]);
   const [beverages, setBeverages] = useState<AdminBeverage[]>([]);
+  const [officialPosts, setOfficialPosts] = useState<OfficialFeedPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -66,17 +86,23 @@ export const AdminToolsScreen = ({ navigation }: any) => {
   const [activeModal, setActiveModal] = useState<ActiveModal>(null);
   const [beerDraft, setBeerDraft] = useState<AdminBeerDraft>(createEmptyBeerDraft);
   const [challengeDraft, setChallengeDraft] = useState<AdminChallengeDraft>(createEmptyChallengeDraft);
+  const [officialPostDraft, setOfficialPostDraft] = useState<AdminOfficialPostDraft>(createEmptyOfficialPostDraft);
+  const [selectedOfficialPostImage, setSelectedOfficialPostImage] = useState<SelectedImage | null>(null);
+  const [officialPostRequestKey, setOfficialPostRequestKey] = useState(createAdminRequestKey);
+  const [pendingOfficialPostImageUrl, setPendingOfficialPostImageUrl] = useState<string | null>(null);
 
   const loadAll = useCallback(async ({ refresh = false } = {}) => {
     refresh ? setRefreshing(true) : setLoading(true);
     setErrorMessage(null);
     try {
-      const [challengeRows, beverageRows] = await Promise.all([
+      const [challengeRows, beverageRows, officialPostRows] = await Promise.all([
         fetchAdminChallenges(),
         fetchAdminBeverages(),
+        fetchAdminOfficialPosts(),
       ]);
       setChallenges(challengeRows);
       setBeverages(beverageRows);
+      setOfficialPosts(officialPostRows);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Could not load admin tools.');
     } finally {
@@ -93,6 +119,10 @@ export const AdminToolsScreen = ({ navigation }: any) => {
 
   const closeModal = () => {
     if (saving) return;
+    if (activeModal === 'official-post') {
+      setSelectedOfficialPostImage(null);
+      setPendingOfficialPostImageUrl(null);
+    }
     setActiveModal(null);
     setFormError(null);
   };
@@ -119,6 +149,91 @@ export const AdminToolsScreen = ({ navigation }: any) => {
     setChallengeDraft(adminChallengeToDraft(challenge));
     setFormError(null);
     setActiveModal('challenge');
+  };
+
+  const openNewOfficialPost = () => {
+    setOfficialPostDraft(createEmptyOfficialPostDraft());
+    setSelectedOfficialPostImage(null);
+    setOfficialPostRequestKey(createAdminRequestKey());
+    setPendingOfficialPostImageUrl(null);
+    setFormError(null);
+    setActiveModal('official-post');
+  };
+
+  const prepareOfficialPostImage = async (asset: ImagePicker.ImagePickerAsset) => {
+    if (Platform.OS === 'web') {
+      return prepareWebImageFromPickerAsset(asset);
+    }
+
+    const ImageManipulator = await import('expo-image-manipulator');
+    const manipResult = await ImageManipulator.manipulateAsync(
+      asset.uri,
+      [{ resize: { width: UPLOAD_IMAGE_MAX_WIDTH } }],
+      { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG }
+    );
+
+    return {
+      uri: manipResult.uri,
+      mimeType: 'image/jpeg',
+    };
+  };
+
+  const setOfficialPostPhoto = async (asset: ImagePicker.ImagePickerAsset) => {
+    if (pendingOfficialPostImageUrl) {
+      setFormError('Retry publishing before changing the photo.');
+      return;
+    }
+
+    try {
+      setFormError(null);
+      setSelectedOfficialPostImage(await prepareOfficialPostImage(asset));
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Could not prepare official post photo.');
+    }
+  };
+
+  const removeOfficialPostPhoto = () => {
+    if (pendingOfficialPostImageUrl) {
+      setFormError('Retry publishing before removing the photo.');
+      return;
+    }
+    setSelectedOfficialPostImage(null);
+  };
+
+  const chooseOfficialPostPhoto = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: false,
+      quality: 1,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    await setOfficialPostPhoto(result.assets[0]);
+  };
+
+  const takeOfficialPostPhoto = async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      setFormError('Camera permission is required to take a photo.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      allowsEditing: false,
+      quality: 1,
+      cameraType: ImagePicker.CameraType.back,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    await setOfficialPostPhoto(result.assets[0]);
+  };
+
+  const selectOfficialPostChallenge = (challenge: AdminChallenge | null) => {
+    if (!challenge) {
+      setOfficialPostDraft((current) => ({ ...current, linkedChallengeId: null }));
+      return;
+    }
+
+    setOfficialPostDraft((current) => applyOfficialPostChallengePrefill(current, challenge));
   };
 
   const handleSaveBeer = async () => {
@@ -195,8 +310,77 @@ export const AdminToolsScreen = ({ navigation }: any) => {
     }
   };
 
+  const handlePublishOfficialPost = async () => {
+    const validationError = validateOfficialPostDraft(officialPostDraft);
+    if (validationError) {
+      setFormError(validationError);
+      return;
+    }
+
+    setSaving(true);
+    setFormError(null);
+    let uploadedUrl = pendingOfficialPostImageUrl;
+    let publicationAttempted = false;
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not logged in.');
+
+      if (selectedOfficialPostImage && !uploadedUrl) {
+        uploadedUrl = await uploadImageToBucket(
+          'official_post_images',
+          selectedOfficialPostImage,
+          `admins/${user.id}/posts`
+        );
+        setPendingOfficialPostImageUrl(uploadedUrl);
+      }
+
+      publicationAttempted = true;
+      const published = await publishAdminOfficialPost({
+        requestKey: officialPostRequestKey,
+        title: officialPostDraft.title.trim(),
+        body: officialPostDraft.body.trim(),
+        imageUrl: uploadedUrl,
+        linkedChallengeId: officialPostDraft.linkedChallengeId,
+        sendInAppNotification: officialPostDraft.sendInAppNotification,
+        notificationBody: officialPostDraft.sendInAppNotification
+          ? officialPostDraft.notificationBody.trim()
+          : null,
+        sendPushNotification: officialPostDraft.sendPushNotification,
+        pushTitle: officialPostDraft.sendPushNotification
+          ? officialPostDraft.pushTitle.trim()
+          : null,
+        pushBody: officialPostDraft.sendPushNotification
+          ? officialPostDraft.pushBody.trim()
+          : null,
+      });
+
+      setOfficialPosts((current) => [published, ...current.filter((post) => post.id !== published.id)]);
+      setSelectedOfficialPostImage(null);
+      setPendingOfficialPostImageUrl(null);
+      setActiveModal(null);
+    } catch (error) {
+      if (
+        publicationAttempted
+        && uploadedUrl
+        && error instanceof AdminOfficialPostPublishError
+        && !error.uncertain
+      ) {
+        void deletePublicImageUrl('official_post_images', uploadedUrl);
+        setPendingOfficialPostImageUrl(null);
+      }
+      setFormError(error instanceof Error ? error.message : 'Could not publish official post.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const emptyCopy = useMemo(() => (
-    activeSegment === 'challenges' ? 'No challenges yet.' : 'No admin-added beers yet.'
+    activeSegment === 'challenges'
+      ? 'No challenges yet.'
+      : activeSegment === 'beers'
+        ? 'No admin-added beers yet.'
+        : 'No official posts yet.'
   ), [activeSegment]);
 
   const renderChallenge = useCallback(({ item }: { item: AdminChallenge }) => (
@@ -240,6 +424,30 @@ export const AdminToolsScreen = ({ navigation }: any) => {
     </Pressable>
   ), []);
 
+  const renderOfficialPost = useCallback(({ item }: { item: OfficialFeedPost }) => (
+    <View style={styles.row}>
+      <View style={styles.rowIcon}>
+        <Megaphone color={colors.primary} size={18} />
+      </View>
+      <View style={styles.rowBody}>
+        <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
+        <Text style={styles.rowMeta} numberOfLines={2}>{item.body}</Text>
+        {item.challengeSlug ? <Text style={styles.rowAccent}>Challenge: {item.challengeSlug}</Text> : null}
+      </View>
+    </View>
+  ), []);
+
+  const addAction = activeSegment === 'challenges'
+    ? openNewChallenge
+    : activeSegment === 'beers'
+      ? openNewBeer
+      : openNewOfficialPost;
+  const addActionLabel = activeSegment === 'challenges'
+    ? 'Create challenge'
+    : activeSegment === 'beers'
+      ? 'Add beer'
+      : 'Create official post';
+
   return (
     <View style={styles.container}>
       <View style={styles.topBar}>
@@ -259,7 +467,7 @@ export const AdminToolsScreen = ({ navigation }: any) => {
       </View>
 
       <View style={styles.segmentedControl}>
-        {(['challenges', 'beers'] as AdminSegment[]).map((segment) => (
+        {(['challenges', 'beers', 'official-posts'] as AdminSegment[]).map((segment) => (
           <TouchableOpacity
             key={segment}
             style={[styles.segmentButton, activeSegment === segment ? styles.segmentButtonActive : null]}
@@ -268,7 +476,7 @@ export const AdminToolsScreen = ({ navigation }: any) => {
             accessibilityState={{ selected: activeSegment === segment }}
           >
             <Text style={[styles.segmentText, activeSegment === segment ? styles.segmentTextActive : null]}>
-              {segment === 'challenges' ? 'Challenges' : 'Beers'}
+              {segment === 'challenges' ? 'Challenges' : segment === 'beers' ? 'Beers' : 'Official posts'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -276,16 +484,18 @@ export const AdminToolsScreen = ({ navigation }: any) => {
 
       <View style={styles.toolbar}>
         <View>
-          <Text style={styles.toolbarTitle}>{activeSegment === 'challenges' ? 'Challenges' : 'Admin beers'}</Text>
+          <Text style={styles.toolbarTitle}>
+            {activeSegment === 'challenges' ? 'Challenges' : activeSegment === 'beers' ? 'Admin beers' : 'Official posts'}
+          </Text>
           <Text style={styles.toolbarMeta}>
-            {activeSegment === 'challenges' ? challenges.length : beverages.length} total
+            {activeSegment === 'challenges' ? challenges.length : activeSegment === 'beers' ? beverages.length : officialPosts.length} total
           </Text>
         </View>
         <TouchableOpacity
           style={styles.addButton}
-          onPress={activeSegment === 'challenges' ? openNewChallenge : openNewBeer}
+          onPress={addAction}
           accessibilityRole="button"
-          accessibilityLabel={activeSegment === 'challenges' ? 'Create challenge' : 'Add beer'}
+          accessibilityLabel={addActionLabel}
         >
           <Plus color={colors.background} size={20} />
         </TouchableOpacity>
@@ -307,13 +517,23 @@ export const AdminToolsScreen = ({ navigation }: any) => {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadAll({ refresh: true })} tintColor={colors.primary} />}
           ListEmptyComponent={<Text style={styles.emptyText}>{emptyCopy}</Text>}
         />
-      ) : (
+      ) : activeSegment === 'beers' ? (
         <FlatList
           data={beverages}
           keyExtractor={(item) => item.id}
           renderItem={renderBeer}
           contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={[styles.listContent, beverages.length === 0 ? styles.emptyContent : null]}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadAll({ refresh: true })} tintColor={colors.primary} />}
+          ListEmptyComponent={<Text style={styles.emptyText}>{emptyCopy}</Text>}
+        />
+      ) : (
+        <FlatList
+          data={officialPosts}
+          keyExtractor={(item) => item.id}
+          renderItem={renderOfficialPost}
+          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={[styles.listContent, officialPosts.length === 0 ? styles.emptyContent : null]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadAll({ refresh: true })} tintColor={colors.primary} />}
           ListEmptyComponent={<Text style={styles.emptyText}>{emptyCopy}</Text>}
         />
@@ -327,10 +547,16 @@ export const AdminToolsScreen = ({ navigation }: any) => {
                 <Text style={styles.modalTitle}>
                   {activeModal === 'beer'
                     ? beerDraft.id ? 'Edit beer' : 'Add beer'
-                    : challengeDraft.id ? 'Edit challenge' : 'Create challenge'}
+                    : activeModal === 'challenge'
+                      ? challengeDraft.id ? 'Edit challenge' : 'Create challenge'
+                      : 'Create official post'}
                 </Text>
                 <Text style={styles.modalSubtitle}>
-                  {activeModal === 'beer' ? 'Ordinary beer catalog entry' : 'Official true-pint competition'}
+                  {activeModal === 'beer'
+                    ? 'Ordinary beer catalog entry'
+                    : activeModal === 'challenge'
+                      ? 'Official true-pint competition'
+                      : 'Official Beerva feed announcement'}
                 </Text>
               </View>
               <TouchableOpacity
@@ -365,7 +591,7 @@ export const AdminToolsScreen = ({ navigation }: any) => {
                     keyboardType="decimal-pad"
                   />
                 </>
-              ) : (
+              ) : activeModal === 'challenge' ? (
                 <>
                   <FormLabel>Title</FormLabel>
                   <FormInput
@@ -469,16 +695,150 @@ export const AdminToolsScreen = ({ navigation }: any) => {
                     </>
                   ) : null}
                 </>
+              ) : (
+                <>
+                  <FormLabel>Title</FormLabel>
+                  <FormInput
+                    value={officialPostDraft.title}
+                    onChangeText={(title) => setOfficialPostDraft((current) => ({ ...current, title }))}
+                    placeholder="Official Beerva announcement"
+                  />
+                  <FormLabel>Feed body</FormLabel>
+                  <FormInput
+                    value={officialPostDraft.body}
+                    onChangeText={(body) => setOfficialPostDraft((current) => ({ ...current, body }))}
+                    placeholder="Tell the beer crew what is happening"
+                    multiline
+                  />
+
+                  <FormLabel>Optional photo</FormLabel>
+                  {selectedOfficialPostImage ? (
+                    <>
+                      <Image source={{ uri: selectedOfficialPostImage.uri }} style={styles.officialPostPhotoPreview} />
+                      <View style={styles.inlineActions}>
+                        <TouchableOpacity style={styles.smallActionButton} onPress={chooseOfficialPostPhoto}>
+                          <ImagePlus color={colors.primary} size={16} />
+                          <Text style={styles.smallActionText}>Replace</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.smallActionButton} onPress={removeOfficialPostPhoto}>
+                          <X color={colors.text} size={16} />
+                          <Text style={styles.smallActionText}>Remove</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </>
+                  ) : (
+                    <View style={styles.inlineActions}>
+                      <TouchableOpacity style={styles.smallActionButton} onPress={chooseOfficialPostPhoto}>
+                        <ImagePlus color={colors.primary} size={16} />
+                        <Text style={styles.smallActionText}>Choose photo</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.smallActionButton} onPress={takeOfficialPostPhoto}>
+                        <Camera color={colors.primary} size={16} />
+                        <Text style={styles.smallActionText}>Take photo</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
+                  <FormLabel>Select a challenge</FormLabel>
+                  <TouchableOpacity
+                    style={[styles.challengeChoice, !officialPostDraft.linkedChallengeId ? styles.challengeChoiceActive : null]}
+                    onPress={() => selectOfficialPostChallenge(null)}
+                  >
+                    <Text style={styles.challengeChoiceText}>No linked challenge</Text>
+                  </TouchableOpacity>
+                  {challenges.map((challenge) => (
+                    <TouchableOpacity
+                      key={challenge.id}
+                      style={[styles.challengeChoice, officialPostDraft.linkedChallengeId === challenge.id ? styles.challengeChoiceActive : null]}
+                      onPress={() => selectOfficialPostChallenge(challenge)}
+                    >
+                      <Text style={styles.challengeChoiceText}>{challenge.title}</Text>
+                    </TouchableOpacity>
+                  ))}
+
+                  <View style={styles.switchRow}>
+                    <View style={styles.switchCopy}>
+                      <Text style={styles.switchTitle}>Send in-app notification</Text>
+                      <Text style={styles.switchDescription}>Add this announcement to every user's notification inbox.</Text>
+                    </View>
+                    <Switch
+                      value={officialPostDraft.sendInAppNotification}
+                      onValueChange={(sendInAppNotification) => setOfficialPostDraft((current) => ({
+                        ...current,
+                        sendInAppNotification,
+                        sendPushNotification: sendInAppNotification ? current.sendPushNotification : false,
+                      }))}
+                      trackColor={{ false: colors.border, true: colors.primaryBorder }}
+                      thumbColor={officialPostDraft.sendInAppNotification ? colors.primary : colors.textMuted}
+                    />
+                  </View>
+
+                  {officialPostDraft.sendInAppNotification ? (
+                    <>
+                      <FormLabel>Notification body</FormLabel>
+                      <FormInput
+                        value={officialPostDraft.notificationBody}
+                        onChangeText={(notificationBody) => setOfficialPostDraft((current) => ({ ...current, notificationBody }))}
+                        placeholder="Short inbox copy"
+                        multiline
+                      />
+                      <View style={styles.switchRow}>
+                        <View style={styles.switchCopy}>
+                          <Text style={styles.switchTitle}>Send push notification</Text>
+                          <Text style={styles.switchDescription}>Notify subscribed devices too.</Text>
+                        </View>
+                        <Switch
+                          value={officialPostDraft.sendPushNotification}
+                          onValueChange={(sendPushNotification) => setOfficialPostDraft((current) => ({ ...current, sendPushNotification }))}
+                          trackColor={{ false: colors.border, true: colors.primaryBorder }}
+                          thumbColor={officialPostDraft.sendPushNotification ? colors.primary : colors.textMuted}
+                        />
+                      </View>
+                    </>
+                  ) : null}
+
+                  {officialPostDraft.sendPushNotification ? (
+                    <>
+                      <FormLabel>Push title</FormLabel>
+                      <FormInput
+                        value={officialPostDraft.pushTitle}
+                        onChangeText={(pushTitle) => setOfficialPostDraft((current) => ({ ...current, pushTitle }))}
+                        placeholder="New challenge"
+                      />
+                      <FormLabel>Push body</FormLabel>
+                      <FormInput
+                        value={officialPostDraft.pushBody}
+                        onChangeText={(pushBody) => setOfficialPostDraft((current) => ({ ...current, pushBody }))}
+                        placeholder="Short device notification copy"
+                        multiline
+                      />
+                    </>
+                  ) : null}
+                </>
               )}
 
               {formError ? <Text style={styles.formError}>{formError}</Text> : null}
               <AppButton
-                label={activeModal === 'beer' ? 'Save Beer' : 'Save Challenge'}
-                onPress={activeModal === 'beer' ? handleSaveBeer : handleSaveChallenge}
+                label={
+                  activeModal === 'beer'
+                    ? 'Save Beer'
+                    : activeModal === 'challenge'
+                      ? 'Save Challenge'
+                      : 'Publish Official Post'
+                }
+                onPress={
+                  activeModal === 'beer'
+                    ? handleSaveBeer
+                    : activeModal === 'challenge'
+                      ? handleSaveChallenge
+                      : handlePublishOfficialPost
+                }
                 loading={saving}
                 icon={activeModal === 'beer'
                   ? <Beer color={colors.background} size={18} />
-                  : <ShieldCheck color={colors.background} size={18} />}
+                  : activeModal === 'challenge'
+                    ? <ShieldCheck color={colors.background} size={18} />
+                    : <Megaphone color={colors.background} size={18} />}
               />
             </ScrollView>
           </View>
@@ -740,6 +1100,51 @@ const styles = StyleSheet.create({
   inputMultiline: {
     minHeight: 88,
     paddingTop: 12,
+  },
+  officialPostPhotoPreview: {
+    width: '100%',
+    height: 180,
+    borderRadius: radius.md,
+    backgroundColor: colors.cardMuted,
+  },
+  inlineActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  smallActionButton: {
+    minHeight: 38,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  smallActionText: {
+    ...typography.caption,
+    color: colors.text,
+    fontWeight: '800',
+  },
+  challengeChoice: {
+    minHeight: 40,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+  },
+  challengeChoiceActive: {
+    borderColor: colors.primaryBorder,
+    backgroundColor: colors.primarySoft,
+  },
+  challengeChoiceText: {
+    ...typography.caption,
+    color: colors.text,
+    fontWeight: '800',
   },
   typeControl: {
     minHeight: 42,
