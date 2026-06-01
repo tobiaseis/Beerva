@@ -10,6 +10,7 @@ The first use is the already-created `Booze-in-June` challenge launch. This feat
 
 - Add an `Official posts` section to Admin tools.
 - Let admins compose and publish official feed announcements at any time.
+- Allow one optional compressed photo on an official feed announcement.
 - Allow an optional challenge link on each official post.
 - Render a linked challenge action on the feed card.
 - Let admins toggle in-app notifications per post.
@@ -23,6 +24,7 @@ The first use is the already-created `Booze-in-June` challenge launch. This feat
 - Do not create or modify the Booze-in-June challenge record.
 - Do not add scheduled publication.
 - Do not add editing or deletion of published official posts.
+- Do not add multi-photo carousels for official posts.
 - Do not send a push without creating the matching in-app notification.
 - Do not change existing challenge winner post creation.
 - Do not change existing person-to-person notifications.
@@ -35,6 +37,7 @@ The section lists previously published official posts newest-first and has a com
 
 - `Title`
 - `Feed body`
+- optional photo picker with preview, replace, and remove actions
 - optional linked challenge selector
 - `Send in-app notification` toggle
 - `Notification body`, shown and required when in-app notification is enabled
@@ -43,6 +46,12 @@ The section lists previously published official posts newest-first and has a com
 - `Push body`, shown and required when push delivery is enabled
 
 Feed publication is always enabled. Turning off in-app notifications also turns off push delivery.
+
+Each official post supports one optional photo. The compose sheet offers the same gallery and camera choices used for ordinary session photos. Selected photos are compressed before upload through the established image-preparation flow:
+
+- web uses `prepareWebImageFromPickerAsset()`
+- native uses `expo-image-manipulator` with the existing `UPLOAD_IMAGE_MAX_WIDTH` resize and JPEG compression settings
+- both platforms upload through `uploadImageToBucket()`
 
 The challenge selector lists existing challenges loaded through the current admin challenge API. Choosing a challenge pre-fills launch-oriented copy if the corresponding text fields are still empty. The admin can edit every prefilled field before publishing.
 
@@ -66,7 +75,10 @@ General official announcements render:
 - the existing verified `Official Beerva` badge
 - announcement title
 - announcement body
+- the optional announcement photo
 - a compact challenge action when a challenge is linked
+
+The optional photo renders below the body through `CachedImage`. Pressing it opens the existing feed `ImageViewerModal`, matching ordinary post photos. Official post photos do not appear in in-app notifications or Web Push payloads.
 
 For a linked challenge:
 
@@ -116,6 +128,7 @@ Extend the current table with:
 
 - `admin_request_key uuid`
 - `linked_challenge_id uuid references public.challenges(id) on delete set null`
+- `image_url text`
 - a unique partial index on `admin_request_key` where it is not null
 
 Existing winner posts continue to use `challenge_id`, `kind = 'challenge_winner'`, and their current unique constraint.
@@ -132,6 +145,22 @@ Announcement metadata stores:
 ```
 
 Both properties are omitted when the post is informational.
+
+### Storage
+
+Add a public Supabase Storage bucket:
+
+```text
+official_post_images
+```
+
+Uploaded objects use:
+
+```text
+admins/<admin-user-id>/posts/<generated-file-name>
+```
+
+Storage policies allow authenticated admins to upload and delete files inside their own admin folder. The bucket is public so feed clients can display published images through their public URLs. The shared uploader continues to generate unique filenames and returns the public URL stored in `official_feed_posts.image_url`.
 
 ### `public.notifications`
 
@@ -165,6 +194,7 @@ public.admin_get_official_posts()
 public.admin_publish_official_post(
   post_title text,
   post_body text,
+  post_image_url text default null,
   linked_challenge_id uuid default null,
   send_in_app_notification boolean default false,
   notification_body text default null,
@@ -180,6 +210,7 @@ Both functions require `public.is_current_user_admin()`.
 `admin_publish_official_post` validates:
 
 - title and feed body are non-empty
+- image URL is null or belongs to the public `official_post_images` bucket
 - the linked challenge exists when supplied
 - push cannot be enabled without in-app notifications
 - notification body is non-empty when in-app notifications are enabled
@@ -189,7 +220,7 @@ Both functions require `public.is_current_user_admin()`.
 Within one transaction, the RPC:
 
 1. returns the existing post when `post_request_key` has already been used
-2. inserts one `official_feed_posts` announcement row with optional `linked_challenge_id`
+2. inserts one `official_feed_posts` announcement row with optional `image_url` and `linked_challenge_id`
 3. inserts one `official_post` notification row per profile when in-app notifications are enabled
 4. snapshots all display, routing, and push metadata into each notification
 5. returns the published official feed post
@@ -200,11 +231,15 @@ The fan-out uses one set-based insert. The existing notification insert trigger 
 
 ### `src/lib/officialFeedPosts.ts`
 
-Extend the mapper with announcement metadata and helpers that distinguish winner cards from general announcements.
+Extend the mapper with `imageUrl`, announcement metadata, and helpers that distinguish winner cards from general announcements.
 
 ### `src/lib/officialFeedPostsApi.ts`
 
 Keep public feed loading here. Add a helper for resolving linked challenge summaries in one load.
+
+### `src/lib/imageUpload.ts`
+
+Keep the shared upload behavior unchanged, but make its unreachable-storage error mention the requested bucket instead of hard-coding `session_images`.
 
 ### `src/lib/adminApi.ts`
 
@@ -220,7 +255,7 @@ Preserve the winner card and add an announcement variant with optional challenge
 
 ### `src/screens/AdminToolsScreen.tsx`
 
-Add the `Official posts` segment, list, and compose sheet. Reuse loaded admin challenges for the optional challenge selector.
+Add the `Official posts` segment, list, and compose sheet. Reuse loaded admin challenges for the optional challenge selector. Reuse the existing image picker, platform-specific compression flow, and shared image uploader for one optional official-post photo.
 
 ### `src/screens/NotificationsScreen.tsx`
 
@@ -229,6 +264,10 @@ Support official notifications without assuming an actor profile exists. Render 
 ### `src/navigation/RootNavigator.tsx`
 
 Parse `?challenge=<slug>&notificationId=<id>` and open the challenge detail screen after app startup.
+
+### `src/screens/FeedScreen.tsx`
+
+Pass the existing image-viewer callback into official announcement cards so their optional photos open `ImageViewerModal`.
 
 ### `supabase/functions/send-push/index.ts`
 
@@ -239,6 +278,10 @@ Support nullable actors and `official_post`. Skip Web Push delivery when `push_e
 - Publication validation failures stay inside the compose sheet.
 - Retryable client timeouts reuse the same generated request key.
 - Repeating an RPC request with the same key returns the original post without duplicate fan-out.
+- If a selected photo is present, the client compresses and uploads it before calling the publication RPC.
+- If photo upload fails, publication stops and the compose sheet keeps the selected preview for retry.
+- If publication is definitively rejected after an upload, the client removes the newly uploaded object through `deletePublicImageUrl()`.
+- If publication remains uncertain after retryable timeouts, the client does not remove the uploaded object because the committed post may already reference it.
 - Feed challenge-join failures show inline while preserving a route to challenge detail.
 - Push failures keep the in-app notification and feed post intact, matching existing best-effort delivery behavior.
 - Expired push subscriptions continue to be removed by the existing Edge Function.
@@ -248,6 +291,8 @@ Support nullable actors and `official_post`. Skip Web Push delivery when `push_e
 Add focused source-contract and helper tests covering:
 
 - migration exists and adds `official_post`
+- migration creates the public `official_post_images` bucket and admin-only upload policies
+- announcement rows accept one optional official-post image URL
 - official notifications permit nullable actors only through trusted server publication
 - admin RPCs enforce admin access
 - publication validates toggles and required copy
@@ -256,7 +301,9 @@ Add focused source-contract and helper tests covering:
 - announcement posts can repeat for the same linked challenge
 - existing winner-post uniqueness, finalization, and rendering remain intact
 - admin draft validation and Booze-in-June prefill copy
+- admin photo picking uses existing web and native compression settings and uploads to the dedicated bucket
 - official announcement mapping
+- official announcement photos render through cached images and open the existing image viewer
 - announcement CTA state and join wiring
 - official in-app notification rendering without a user actor
 - push suppression when disabled
