@@ -22,8 +22,8 @@ webpush.setVapidDetails(contact, vapidPublic, vapidPrivate);
 type NotificationRow = {
   id: string;
   user_id: string;
-  actor_id: string;
-  type: 'cheer' | 'invite' | 'session_started' | 'comment' | 'invite_response' | 'pub_crawl_started' | 'hangover_check' | 'follow' | 'chug_verification' | 'drinking_buddy_added';
+  actor_id: string | null;
+  type: 'cheer' | 'invite' | 'session_started' | 'comment' | 'invite_response' | 'pub_crawl_started' | 'hangover_check' | 'follow' | 'chug_verification' | 'drinking_buddy_added' | 'official_post';
   reference_id: string | null;
   metadata?: {
     pub_name?: string | null;
@@ -33,6 +33,10 @@ type NotificationRow = {
     beer_name?: string | null;
     duration_ms?: number | string | null;
     session_status?: string | null;
+    push_enabled?: boolean | null;
+    push_title?: string | null;
+    push_body?: string | null;
+    challenge_slug?: string | null;
   } | null;
 };
 
@@ -77,6 +81,10 @@ Deno.serve(async (req) => {
 
   record = storedNotification as NotificationRow;
 
+  if (record.type === 'official_post' && record.metadata?.push_enabled !== true) {
+    return new Response(JSON.stringify({ sent: 0, reason: 'push disabled' }), { status: 200 });
+  }
+
   const [
     { data: actor },
     { data: subscriptions },
@@ -85,7 +93,9 @@ Deno.serve(async (req) => {
     { data: referencedInvite },
     { data: referencedBuddySession },
   ] = await Promise.all([
-    supabase.from('profiles').select('username').eq('id', record.actor_id).maybeSingle(),
+    record.actor_id
+      ? supabase.from('profiles').select('username').eq('id', record.actor_id).maybeSingle()
+      : Promise.resolve({ data: null }),
     supabase
       .from('push_subscriptions')
       .select('endpoint, p256dh, auth_key')
@@ -132,7 +142,10 @@ Deno.serve(async (req) => {
 
   let title = 'Beerva';
   let bodyText = '';
-  if (record.type === 'cheer') {
+  if (record.type === 'official_post') {
+    title = record.metadata?.push_title?.trim() || 'Official Beerva';
+    bodyText = record.metadata?.push_body?.trim() || 'There is a new official Beerva announcement.';
+  } else if (record.type === 'cheer') {
     title = 'Cheers received!';
     bodyText = `${actorName} cheered your beer session`;
   } else if (record.type === 'comment') {
@@ -172,7 +185,11 @@ Deno.serve(async (req) => {
 
   const hangoverTargetType = record.metadata?.target_type === 'pub_crawl' ? 'pub_crawl' : 'session';
   let url: string;
-  if (record.type === 'chug_verification' && record.reference_id) {
+  if (record.type === 'official_post' && record.metadata?.challenge_slug) {
+    url = `/?challenge=${encodeURIComponent(record.metadata.challenge_slug)}&notificationId=${encodeURIComponent(record.id)}`;
+  } else if (record.type === 'official_post') {
+    url = `/?notifications=1&notificationId=${encodeURIComponent(record.id)}`;
+  } else if (record.type === 'chug_verification' && record.reference_id) {
     url = `/?chug_verification=1&attempt_id=${encodeURIComponent(record.reference_id)}&notificationId=${encodeURIComponent(record.id)}`;
   } else if (record.type === 'hangover_check' && record.reference_id) {
     url = `/?hangover=1&target_type=${encodeURIComponent(hangoverTargetType)}&target_id=${encodeURIComponent(record.reference_id)}&notificationId=${encodeURIComponent(record.id)}`;

@@ -108,4 +108,11 @@ assert.match(
   'active-session buddy pushes should open notifications'
 );
 
+assert.match(sendPushSource, /official_post/, 'push delivery should support official posts');
+assert.match(sendPushSource, /push_enabled\s*!==\s*true/, 'official pushes should stop when the admin toggle is off');
+assert.match(sendPushSource, /push_title/, 'official pushes should use snapshotted titles');
+assert.match(sendPushSource, /push_body/, 'official pushes should use snapshotted bodies');
+assert.match(sendPushSource, /challenge=/, 'official challenge pushes should deep-link to challenge detail');
+assert.match(sendPushSource, /record\.actor_id\s*\?/, 'system-authored notifications should skip actor profile lookup');
+
 console.log('push delivery checks passed');
