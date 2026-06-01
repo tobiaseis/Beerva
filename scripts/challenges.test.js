@@ -91,6 +91,10 @@ assert.equal(
   'Join to count your Karneval drinks from the full 06:00 to 06:00 window.'
 );
 assert.equal(
+  getChallengePreJoinCopy({ challengeType: 'target', slug: 'may-2026-15-true-pints' }),
+  'Join this challenge to track your progress.'
+);
+assert.equal(
   getLeaderboardEntryMeta({ completed: true, progressValue: 8.44 }, { challengeType: 'leaderboard' }),
   '8.4 true pints'
 );
@@ -149,7 +153,7 @@ assert.equal(summary.title, 'Drink 15 beers in May');
 assert.equal(summary.metricType, 'true_pints');
 assert.equal(summary.targetValue, 15);
 assert.equal(summary.joined, true);
-assert.equal(summary.joinOpen, true);
+assert.equal(summary.joinOpen, false);
 assert.equal(summary.entrantsCount, 4);
 assert.equal(summary.currentUserRank, 3);
 assert.equal(summary.currentUserProgress, 6.234);
@@ -467,7 +471,7 @@ assert.match(detailScreenSource, /joinChallenge/, 'detail screen should support 
 assert.match(detailScreenSource, /FlatList/, 'detail screen should render leaderboard as a list');
 assert.match(detailScreenSource, /styles\.joinButtonCompact/, 'detail screen should use compact join button styling');
 assert.match(detailScreenSource, /challenge\.joined\s*\?\s*\(/, 'detail screen should gate progress and rank behind joined state');
-assert.match(detailScreenSource, /Join to see your retroactive progress/, 'detail screen should explain retroactive progress before joining');
+assert.match(detailScreenSource, /getChallengePreJoinCopy\(challenge\)/, 'detail screen should render shared pre-join challenge copy');
 assert.match(detailScreenSource, /CHALLENGE_AUTO_REFRESH_INTERVAL_MS\s*=\s*20000/, 'active challenge detail should poll every 20 seconds');
 assert.match(detailScreenSource, /setInterval/, 'active challenge detail should auto-refresh while focused');
 assert.match(detailScreenSource, /clearInterval/, 'active challenge detail should clear its auto-refresh timer on blur');
