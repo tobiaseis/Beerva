@@ -39,6 +39,11 @@ import { fetchOfficialFeedPostsForFeedPage } from '../lib/officialFeedPostsApi';
 import { OfficialFeedPostCard } from '../components/OfficialFeedPostCard';
 import { FakeBeerUnlockOverlay } from '../components/FakeBeerUnlockOverlay';
 import { requestWebMotionPermission } from '../lib/webMotionPermission';
+import {
+  fetchSessionBuddySummaries,
+  formatDrinkingBuddyNames,
+  SessionBuddy,
+} from '../lib/sessionBuddies';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
 const cheersLogoSource = beervaLogo;
@@ -89,6 +94,7 @@ export type FeedSession = {
   created_at: string;
   session_beers: SessionBeer[];
   session_chug_attempts: SessionChugAttempt[];
+  drinking_buddies: SessionBuddy[];
   profiles?: {
     username?: string | null;
     avatar_url?: string | null;
@@ -310,6 +316,7 @@ export const FeedSessionCard = React.memo(({
   const averageAbv = getSessionAverageAbv(item);
   const beerBreakdownLines = getSessionBeerBreakdownLines(item.session_beers);
   const visibleChugStat = getVisibleChugStat(item.session_chug_attempts || []);
+  const drinkingBuddyNames = formatDrinkingBuddyNames(item.drinking_buddies || []);
   const [statsExpanded, setStatsExpanded] = React.useState(false);
   const cheersScale = React.useRef(new Animated.Value(1)).current;
   const overlayOpacity = React.useRef(new Animated.Value(0)).current;
@@ -541,6 +548,11 @@ export const FeedSessionCard = React.memo(({
                   </Text>
                 ))}
               </View>
+            ) : null}
+            {drinkingBuddyNames ? (
+              <Text style={styles.buddyStatsText}>
+                Drinking buddies: {drinkingBuddyNames}
+              </Text>
             ) : null}
           </View>
         ) : null}
@@ -844,7 +856,7 @@ export const FeedScreen = ({ route }: any) => {
 
       const sessionIds = sessionRows.map((session) => session.id);
 
-      const [cheersResult, beersResult, commentsResult, chugsResult] = await withTimeout(
+      const [cheersResult, beersResult, commentsResult, chugsResult, buddiesBySession] = await withTimeout(
         Promise.all([
           sessionIds.length > 0
             ? supabase
@@ -869,6 +881,12 @@ export const FeedScreen = ({ route }: any) => {
           sessionIds.length > 0
             ? supabase.rpc('get_session_chug_attempt_summaries', { session_ids: sessionIds })
             : Promise.resolve({ data: [] as SessionChugAttemptRow[], error: null }),
+          sessionIds.length > 0
+            ? fetchSessionBuddySummaries(sessionIds).catch((error) => {
+                console.error('Session buddies fetch error:', error);
+                return new Map<string, SessionBuddy[]>();
+              })
+            : Promise.resolve(new Map<string, SessionBuddy[]>()),
         ]),
         FEED_REQUEST_TIMEOUT_MS,
         'Feed details are taking too long.'
@@ -983,6 +1001,7 @@ export const FeedScreen = ({ route }: any) => {
             ...session,
             session_beers: sessionBeers,
             session_chug_attempts: chugsBySession.get(session.id) || [],
+            drinking_buddies: buddiesBySession.get(session.id) || [],
             profiles: profilesById.get(session.user_id) || null,
             cheer_profiles: sessionCheers.map((cheer) => profilesById.get(cheer.user_id)).filter(Boolean) as ProfilePreview[],
             comments: sessionComments,
@@ -2268,6 +2287,12 @@ const styles = StyleSheet.create({
   beerBreakdownText: {
     ...typography.caption,
     color: colors.textMuted,
+  },
+  buddyStatsText: {
+    ...typography.caption,
+    color: colors.text,
+    fontWeight: '800',
+    lineHeight: 18,
   },
   editedText: {
     ...typography.caption,

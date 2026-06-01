@@ -29,6 +29,7 @@ import { hapticLight, hapticWarning } from '../lib/haptics';
 import { colors } from '../theme/colors';
 import { radius } from '../theme/layout';
 import { typography } from '../theme/typography';
+import { fetchSessionBuddySummaries, SessionBuddy } from '../lib/sessionBuddies';
 
 type ProfilePreview = {
   id: string;
@@ -189,7 +190,7 @@ export const PostDetailScreen = () => {
         return;
       }
 
-      const [beersResult, cheersResult, commentsResult, chugsResult] = await Promise.all([
+      const [beersResult, cheersResult, commentsResult, chugsResult, buddiesBySession] = await Promise.all([
         supabase
           .from('session_beers')
           .select('id, session_id, beer_name, volume, quantity, abv, note, consumed_at, created_at')
@@ -205,6 +206,10 @@ export const PostDetailScreen = () => {
           .eq('session_id', sessionId)
           .order('created_at', { ascending: true }),
         supabase.rpc('get_session_chug_attempt_summaries', { session_ids: [sessionId] }),
+        fetchSessionBuddySummaries([sessionId]).catch((error) => {
+          console.error('Post buddies fetch error:', error);
+          return new Map<string, SessionBuddy[]>();
+        }),
       ]);
 
       if (beersResult.error) console.error('Post beers fetch error:', beersResult.error);
@@ -265,6 +270,7 @@ export const PostDetailScreen = () => {
         ...sessionRow,
         session_beers: sessionBeers,
         session_chug_attempts: chugRows,
+        drinking_buddies: buddiesBySession.get(sessionId) || [],
         profiles: profilesById.get(sessionRow.user_id) || null,
         cheer_profiles: cheerRows
           .map((cheer) => profilesById.get(cheer.user_id))

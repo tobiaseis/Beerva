@@ -127,4 +127,14 @@ assert.match(recordScreenSource, /sessionId=\{activeSession\.id\}/, 'record scre
 assert.match(editScreenSource, /DrinkingBuddiesPicker/, 'edit screen should render the shared drinking buddies picker');
 assert.match(editScreenSource, /sessionId=\{sessionId\}/, 'edit screen should pass edited session id to the picker');
 
+const feedSource = fs.readFileSync(path.join(root, 'src/screens/FeedScreen.tsx'), 'utf8');
+const postDetailSource = fs.readFileSync(path.join(root, 'src/screens/PostDetailScreen.tsx'), 'utf8');
+
+assert.match(feedSource, /drinking_buddies:\s*SessionBuddy\[\]/, 'FeedSession should include drinking buddies');
+assert.match(feedSource, /fetchSessionBuddySummaries/, 'feed should fetch drinking buddy summaries');
+assert.match(feedSource, /formatDrinkingBuddyNames/, 'feed should format drinking buddy names');
+assert.match(feedSource, /Drinking buddies:/, 'feed More stats should render drinking buddies');
+assert.match(postDetailSource, /fetchSessionBuddySummaries/, 'post detail should fetch drinking buddy summaries');
+assert.match(postDetailSource, /drinking_buddies:/, 'post detail assembled sessions should include drinking buddies');
+
 console.log('drinking buddies checks passed');
