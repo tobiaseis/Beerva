@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
-import { getErrorMessage, withRetryableTimeout, withTimeout } from './timeouts';
+import { mapOfficialFeedPostRow, OfficialFeedPost, OfficialFeedPostRow } from './officialFeedPosts';
+import { getErrorMessage, TimeoutError, withRetryableTimeout, withTimeout } from './timeouts';
 
 const ADMIN_TIMEOUT_MS = 15000;
 
@@ -73,6 +74,19 @@ export type SaveAdminChallengeInput = {
   winnerTrophyDescription: string | null;
 };
 
+export type PublishAdminOfficialPostInput = {
+  requestKey: string;
+  title: string;
+  body: string;
+  imageUrl: string | null;
+  linkedChallengeId: string | null;
+  sendInAppNotification: boolean;
+  notificationBody: string | null;
+  sendPushNotification: boolean;
+  pushTitle: string | null;
+  pushBody: string | null;
+};
+
 const toString = (value: unknown) => typeof value === 'string' ? value.trim() : '';
 const toStringOrNull = (value: unknown) => toString(value) || null;
 const toNumber = (value: unknown) => {
@@ -80,7 +94,7 @@ const toNumber = (value: unknown) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 const firstRow = <T,>(value: T | T[] | null | undefined) => Array.isArray(value) ? value[0] : value;
-const createRequestKey = () => {
+export const createAdminRequestKey = () => {
   if (typeof globalThis.crypto?.randomUUID === 'function') {
     return globalThis.crypto.randomUUID();
   }
@@ -90,6 +104,23 @@ const createRequestKey = () => {
     const value = character === 'x' ? random : (random & 0x3) | 0x8;
     return value.toString(16);
   });
+};
+
+export class AdminOfficialPostPublishError extends Error {
+  uncertain: boolean;
+
+  constructor(message: string, uncertain: boolean) {
+    super(message);
+    this.name = 'AdminOfficialPostPublishError';
+    this.uncertain = uncertain;
+  }
+}
+
+const isUncertainOfficialPostPublishError = (error: unknown) => {
+  const message = typeof (error as { message?: unknown })?.message === 'string'
+    ? (error as { message: string }).message
+    : '';
+  return error instanceof TimeoutError || /failed to fetch|network request failed|abort/i.test(message);
 };
 
 export const mapAdminBeverageRow = (row: AdminBeverageRow): AdminBeverage => ({
@@ -169,7 +200,7 @@ export const fetchAdminChallenges = async (): Promise<AdminChallenge[]> => {
 
 export const saveAdminChallenge = async (input: SaveAdminChallengeInput): Promise<AdminChallenge> => {
   try {
-    const requestKey = createRequestKey();
+    const requestKey = createAdminRequestKey();
     const payload = {
         target_challenge_id: input.id || null,
         challenge_title: input.title,
@@ -196,5 +227,54 @@ export const saveAdminChallenge = async (input: SaveAdminChallengeInput): Promis
     return mapAdminChallengeRow(row);
   } catch (error) {
     throw new Error(getErrorMessage(error, 'Could not save challenge.'));
+  }
+};
+
+export const fetchAdminOfficialPosts = async (): Promise<OfficialFeedPost[]> => {
+  try {
+    const { data, error } = await withTimeout(
+      supabase.rpc('admin_get_official_posts'),
+      ADMIN_TIMEOUT_MS,
+      'Official posts are taking too long to load.'
+    );
+
+    if (error) throw error;
+    return ((data || []) as OfficialFeedPostRow[]).map(mapOfficialFeedPostRow);
+  } catch (error) {
+    throw new Error(getErrorMessage(error, 'Could not load official posts.'));
+  }
+};
+
+export const publishAdminOfficialPost = async (
+  input: PublishAdminOfficialPostInput
+): Promise<OfficialFeedPost> => {
+  try {
+    const payload = {
+      post_title: input.title,
+      post_body: input.body,
+      post_image_url: input.imageUrl,
+      linked_challenge_id: input.linkedChallengeId,
+      send_in_app_notification: input.sendInAppNotification,
+      notification_body: input.notificationBody,
+      send_push_notification: input.sendPushNotification,
+      push_title: input.pushTitle,
+      push_body: input.pushBody,
+      post_request_key: input.requestKey,
+    };
+    const { data, error } = await withRetryableTimeout(
+      (signal) => supabase.rpc('admin_publish_official_post', payload).abortSignal(signal),
+      ADMIN_TIMEOUT_MS,
+      'Publishing the official post is taking too long.'
+    );
+
+    if (error) throw error;
+    const row = firstRow(data as OfficialFeedPostRow | OfficialFeedPostRow[] | null);
+    if (!row) throw new Error('The published official post was not returned.');
+    return mapOfficialFeedPostRow(row);
+  } catch (error) {
+    throw new AdminOfficialPostPublishError(
+      getErrorMessage(error, 'Could not publish official post.'),
+      isUncertainOfficialPostPublishError(error)
+    );
   }
 };

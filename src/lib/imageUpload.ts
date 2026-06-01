@@ -171,7 +171,7 @@ export const uploadImageToBucket = async (
       error = result.error;
     } catch (uploadError: any) {
       if (uploadError?.message?.toLowerCase().includes('failed to fetch')) {
-        throw new Error('Could not reach image storage. Try a smaller JPG/PNG, then check that the session_images bucket is available.');
+        throw new Error(`Could not reach image storage. Try a smaller JPG/PNG, then check that the ${bucket} bucket is available.`);
       }
 
       throw uploadError;

@@ -49,4 +49,74 @@ assert.match(migrationSql, /select profiles\.id/i, 'fan-out should create one ro
 assert.match(migrationSql, /'push_enabled'/i, 'fan-out should snapshot the push toggle');
 assert.match(migrationSql, /notify pgrst,\s*'reload schema'/i, 'migration should refresh PostgREST schema');
 
+const officialFeedPosts = loadTypeScriptModule('src/lib/officialFeedPosts.ts');
+const adminTools = loadTypeScriptModule('src/lib/adminTools.ts');
+
+const announcement = officialFeedPosts.mapOfficialFeedPostRow({
+  id: 'post-1',
+  kind: 'announcement',
+  title: 'Booze-in-June has begun',
+  body: 'June is here.',
+  image_url: 'https://example.com/june.jpg',
+  linked_challenge_id: 'challenge-1',
+  metadata: { challenge_slug: 'booze-in-june' },
+  published_at: '2026-06-01T18:00:00Z',
+  created_at: '2026-06-01T18:00:00Z',
+});
+
+assert.equal(announcement.imageUrl, 'https://example.com/june.jpg');
+assert.equal(announcement.linkedChallengeId, 'challenge-1');
+assert.equal(announcement.challengeSlug, 'booze-in-june');
+assert.equal(officialFeedPosts.isOfficialWinnerPost(announcement), false);
+assert.equal(
+  officialFeedPosts.isOfficialWinnerPost(
+    officialFeedPosts.mapOfficialFeedPostRow({ kind: 'challenge_winner' })
+  ),
+  true
+);
+
+const emptyOfficialDraft = adminTools.createEmptyOfficialPostDraft();
+assert.equal(emptyOfficialDraft.sendInAppNotification, false);
+assert.equal(emptyOfficialDraft.sendPushNotification, false);
+
+const juneDraft = adminTools.applyOfficialPostChallengePrefill(
+  emptyOfficialDraft,
+  { id: 'challenge-1', slug: 'booze-in-june', title: 'Booze-in-June' }
+);
+assert.equal(juneDraft.title, 'Booze-in-June has begun');
+assert.match(juneDraft.body, /liver has been assigned a side quest/);
+assert.equal(juneDraft.pushTitle, 'New June challenge');
+assert.match(juneDraft.pushBody, /first beer starts counting itself lonely/);
+assert.equal(juneDraft.notificationBody, juneDraft.pushBody);
+
+assert.equal(
+  adminTools.validateOfficialPostDraft({
+    ...juneDraft,
+    sendInAppNotification: false,
+    sendPushNotification: true,
+  }),
+  'Enable in-app notifications before sending a push.'
+);
+
+assert.equal(
+  adminTools.validateOfficialPostDraft({
+    ...juneDraft,
+    sendInAppNotification: true,
+    notificationBody: '',
+  }),
+  'Notification body is required.'
+);
+
+const officialApiSource = read('src/lib/officialFeedPostsApi.ts');
+const adminApiSource = read('src/lib/adminApi.ts');
+const imageUploadSource = read('src/lib/imageUpload.ts');
+assert.match(officialApiSource, /linked_challenge_id/, 'feed API should fetch linked challenge ids');
+assert.match(officialApiSource, /image_url/, 'feed API should fetch official post image URLs');
+assert.match(adminApiSource, /fetchAdminOfficialPosts/, 'admin API should list official posts');
+assert.match(adminApiSource, /publishAdminOfficialPost/, 'admin API should publish official posts');
+assert.match(adminApiSource, /post_request_key:\s*input\.requestKey/, 'admin API should send the composer retry key');
+assert.match(adminApiSource, /AdminOfficialPostPublishError/, 'admin API should classify uncertain publication failures');
+assert.match(adminApiSource, /failed to fetch\|network request failed\|abort/i, 'network failures should remain uncertain after publication');
+assert.match(imageUploadSource, /check that the \$\{bucket\} bucket is available/, 'image upload errors should name the requested bucket');
+
 console.log('official Beerva post checks passed');

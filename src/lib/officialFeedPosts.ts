@@ -1,9 +1,11 @@
 export type OfficialFeedPostRow = {
   id?: string | null;
   challenge_id?: string | null;
+  linked_challenge_id?: string | null;
   kind?: string | null;
   title?: string | null;
   body?: string | null;
+  image_url?: string | null;
   metadata?: Record<string, unknown> | null;
   published_at?: string | null;
   created_at?: string | null;
@@ -12,9 +14,11 @@ export type OfficialFeedPostRow = {
 export type OfficialFeedPost = {
   id: string;
   challengeId: string | null;
+  linkedChallengeId: string | null;
   kind: string;
   title: string;
   body: string;
+  imageUrl: string | null;
   winnerUserId: string | null;
   winnerUsername: string | null;
   winnerAvatarUrl: string | null;
@@ -49,15 +53,21 @@ export const formatOfficialWinnerStat = (
   return `${label} ${formatted}${suffix}`;
 };
 
+export const isOfficialWinnerPost = (post: Pick<OfficialFeedPost, 'kind'>) => (
+  post.kind === 'challenge_winner'
+);
+
 export const mapOfficialFeedPostRow = (row: OfficialFeedPostRow): OfficialFeedPost => {
   const metadata = row.metadata || {};
 
   return {
     id: toStringOrNull(row.id) || 'unknown',
     challengeId: toStringOrNull(row.challenge_id),
+    linkedChallengeId: toStringOrNull(row.linked_challenge_id),
     kind: toStringOrNull(row.kind) || 'official',
     title: toStringOrNull(row.title) || 'Official Beerva',
     body: toStringOrNull(row.body) || '',
+    imageUrl: toStringOrNull(row.image_url),
     winnerUserId: toStringOrNull(metadata.winner_user_id),
     winnerUsername: toStringOrNull(metadata.winner_username),
     winnerAvatarUrl: toStringOrNull(metadata.winner_avatar_url),

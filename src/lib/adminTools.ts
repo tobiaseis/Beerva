@@ -20,6 +20,23 @@ export type AdminChallengeDraft = {
   winnerTrophyDescription: string;
 };
 
+export type AdminOfficialPostDraft = {
+  title: string;
+  body: string;
+  linkedChallengeId: string | null;
+  sendInAppNotification: boolean;
+  notificationBody: string;
+  sendPushNotification: boolean;
+  pushTitle: string;
+  pushBody: string;
+};
+
+type OfficialPostChallengePrefillInput = {
+  id: string;
+  slug: string;
+  title: string;
+};
+
 const LOCAL_DATE_TIME_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
 
 export const toLocalDateTimeInput = (
@@ -89,6 +106,17 @@ export const createEmptyChallengeDraft = (now = new Date()): AdminChallengeDraft
   };
 };
 
+export const createEmptyOfficialPostDraft = (): AdminOfficialPostDraft => ({
+  title: '',
+  body: '',
+  linkedChallengeId: null,
+  sendInAppNotification: false,
+  notificationBody: '',
+  sendPushNotification: false,
+  pushTitle: '',
+  pushBody: '',
+});
+
 export const adminChallengeToDraft = (challenge: AdminChallenge): AdminChallengeDraft => ({
   id: challenge.id,
   title: challenge.title,
@@ -145,5 +173,60 @@ export const validateChallengeDraft = (draft: AdminChallengeDraft) => {
     if (!draft.winnerTrophyDescription.trim()) return 'Trophy description is required.';
   }
 
+  return null;
+};
+
+const getOfficialPostChallengePrefill = (challenge: OfficialPostChallengePrefillInput) => {
+  if (
+    challenge.slug.trim().toLowerCase() === 'booze-in-june'
+    || challenge.title.trim().toLowerCase() === 'booze-in-june'
+  ) {
+    const pushBody = 'Booze-in-June is live. Tap to join before your first beer starts counting itself lonely.';
+    return {
+      title: 'Booze-in-June has begun',
+      body: 'June is here, the taps are flowing, and your liver has been assigned a side quest. Join Booze-in-June, log your beers, and prove your pintsmanship before the month runs dry.',
+      notificationBody: pushBody,
+      pushTitle: 'New June challenge',
+      pushBody,
+    };
+  }
+
+  const pushBody = `${challenge.title} is live. Tap to join the challenge.`;
+  return {
+    title: `${challenge.title} has begun`,
+    body: `${challenge.title} is live. Join the challenge and log your drinks to take part.`,
+    notificationBody: pushBody,
+    pushTitle: `New challenge: ${challenge.title}`,
+    pushBody,
+  };
+};
+
+export const applyOfficialPostChallengePrefill = (
+  draft: AdminOfficialPostDraft,
+  challenge: OfficialPostChallengePrefillInput
+): AdminOfficialPostDraft => {
+  const prefill = getOfficialPostChallengePrefill(challenge);
+  return {
+    ...draft,
+    linkedChallengeId: challenge.id,
+    title: draft.title.trim() ? draft.title : prefill.title,
+    body: draft.body.trim() ? draft.body : prefill.body,
+    notificationBody: draft.notificationBody.trim() ? draft.notificationBody : prefill.notificationBody,
+    pushTitle: draft.pushTitle.trim() ? draft.pushTitle : prefill.pushTitle,
+    pushBody: draft.pushBody.trim() ? draft.pushBody : prefill.pushBody,
+  };
+};
+
+export const validateOfficialPostDraft = (draft: AdminOfficialPostDraft) => {
+  if (!draft.title.trim()) return 'Official post title is required.';
+  if (!draft.body.trim()) return 'Official post body is required.';
+  if (draft.sendPushNotification && !draft.sendInAppNotification) {
+    return 'Enable in-app notifications before sending a push.';
+  }
+  if (draft.sendInAppNotification && !draft.notificationBody.trim()) {
+    return 'Notification body is required.';
+  }
+  if (draft.sendPushNotification && !draft.pushTitle.trim()) return 'Push title is required.';
+  if (draft.sendPushNotification && !draft.pushBody.trim()) return 'Push body is required.';
   return null;
 };
