@@ -134,4 +134,15 @@ assert.match(adminScreenSource, /deletePublicImageUrl/, 'definitive publication 
 assert.match(adminScreenSource, /officialPostRequestKey/, 'manual publication retries should reuse the composer request key');
 assert.match(adminScreenSource, /pendingOfficialPostImageUrl/, 'manual retries should reuse a photo uploaded before an uncertain timeout');
 
+const officialCardSource = read('src/components/OfficialFeedPostCard.tsx');
+const feedScreenSource = read('src/screens/FeedScreen.tsx');
+assert.match(officialCardSource, /isOfficialWinnerPost/, 'official card should preserve a winner branch');
+assert.match(officialCardSource, /Join challenge/, 'announcement card should expose immediate challenge joining');
+assert.match(officialCardSource, /View challenge/, 'announcement card should preserve detail navigation');
+assert.match(officialCardSource, /post\.imageUrl/, 'announcement card should render optional photos');
+assert.match(officialCardSource, /onImagePress/, 'announcement photos should open the shared image viewer');
+assert.match(feedScreenSource, /fetchOfficialPostLinkedChallengeSummaries/, 'feed should hydrate linked challenge summaries once per page');
+assert.match(feedScreenSource, /handleJoinOfficialPostChallenge/, 'feed should join challenges from announcements');
+assert.match(feedScreenSource, /onImagePress=\{setViewingImageUrl\}/, 'feed should route official photos to the existing viewer');
+
 console.log('official Beerva post checks passed');

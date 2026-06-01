@@ -33,9 +33,9 @@ import { PubCrawlFeedCard } from '../components/PubCrawlFeedCard';
 import { PubCrawl, PubCrawlComment } from '../lib/pubCrawls';
 import { fetchPublishedPubCrawlsForFeedPage, togglePubCrawlCheers, addPubCrawlComment } from '../lib/pubCrawlsApi';
 import { ChallengeSummary, formatChallengeProgress, formatChallengeRank } from '../lib/challenges';
-import { fetchJoinedActiveChallengeSummary } from '../lib/challengesApi';
+import { fetchJoinedActiveChallengeSummary, joinChallenge } from '../lib/challengesApi';
 import { OfficialFeedPost } from '../lib/officialFeedPosts';
-import { fetchOfficialFeedPostsForFeedPage } from '../lib/officialFeedPostsApi';
+import { fetchOfficialFeedPostsForFeedPage, fetchOfficialPostLinkedChallengeSummaries } from '../lib/officialFeedPostsApi';
 import { OfficialFeedPostCard } from '../components/OfficialFeedPostCard';
 import { FakeBeerUnlockOverlay } from '../components/FakeBeerUnlockOverlay';
 import { requestWebMotionPermission } from '../lib/webMotionPermission';
@@ -708,6 +708,7 @@ export const FeedScreen = ({ route }: any) => {
   const [viewingImageUrl, setViewingImageUrl] = useState<string | null>(null);
   const [submittingComment, setSubmittingComment] = useState(false);
   const [activeChallengeSummary, setActiveChallengeSummary] = useState<ChallengeSummary | null>(null);
+  const [officialPostChallengesById, setOfficialPostChallengesById] = useState<Map<string, ChallengeSummary>>(() => new Map());
   const { unreadCount } = useNotifications();
   const [pullDistance, setPullDistance] = useState(0);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -780,6 +781,7 @@ export const FeedScreen = ({ route }: any) => {
         loadedSessionCountRef.current = 0;
         loadedCrawlCountRef.current = 0;
         loadedOfficialPostCountRef.current = 0;
+        setOfficialPostChallengesById(new Map());
         setFollowedUserCount(0);
         setHasMore(false);
         hasMoreRef.current = false;
@@ -853,6 +855,19 @@ export const FeedScreen = ({ route }: any) => {
       loadedOfficialPostCountRef.current = officialOffset + officialPosts.length;
       setHasMore(hasNextPage);
       hasMoreRef.current = hasNextPage;
+
+      const officialPostChallengeSummaries = await withTimeout(
+        fetchOfficialPostLinkedChallengeSummaries(officialPosts),
+        FEED_REQUEST_TIMEOUT_MS,
+        'Official challenge actions are taking too long.'
+      );
+      if (!isLatestRequest()) return;
+
+      setOfficialPostChallengesById((previous) => {
+        const next = reset ? new Map<string, ChallengeSummary>() : new Map(previous);
+        officialPostChallengeSummaries.forEach((challenge, id) => next.set(id, challenge));
+        return next;
+      });
 
       const sessionIds = sessionRows.map((session) => session.id);
 
@@ -1162,6 +1177,21 @@ export const FeedScreen = ({ route }: any) => {
     const parentNavigation = navigation.getParent?.();
     (parentNavigation || navigation).navigate('UserProfile', { userId });
   }, [currentUserId, navigation]);
+
+  const handleJoinOfficialPostChallenge = useCallback(async (challenge: ChallengeSummary) => {
+    await joinChallenge(challenge.id);
+
+    const loadedOfficialPosts = sessionsRef.current
+      .filter((item): item is Extract<FeedItem, { type: 'official_post' }> => item.type === 'official_post')
+      .map((item) => item.post);
+
+    const [summaries, activeSummary] = await Promise.all([
+      fetchOfficialPostLinkedChallengeSummaries(loadedOfficialPosts),
+      fetchJoinedActiveChallengeSummary(),
+    ]);
+    setOfficialPostChallengesById(summaries);
+    setActiveChallengeSummary(activeSummary);
+  }, []);
 
   const editSession = useCallback((session: FeedSession) => {
     navigation.navigate('EditSession', { sessionId: session.id });
@@ -1688,7 +1718,11 @@ export const FeedScreen = ({ route }: any) => {
       return (
         <OfficialFeedPostCard
           post={item.post}
+          linkedChallenge={item.post.linkedChallengeId ? officialPostChallengesById.get(item.post.linkedChallengeId) : null}
+          onJoinChallenge={handleJoinOfficialPostChallenge}
+          onOpenChallenge={(challengeSlug) => navigation.navigate('ChallengeDetail', { challengeSlug })}
           onOpenProfile={openProfile}
+          onImagePress={setViewingImageUrl}
         />
       );
     }
@@ -1722,7 +1756,20 @@ export const FeedScreen = ({ route }: any) => {
         onToggleCheers={toggleCheers}
       />
     );
-  }, [cheeringSessionIds, currentUserId, deleteSession, editSession, openCheers, openComments, openProfile, toggleCheers, toggleCrawlCheers]);
+  }, [
+    cheeringSessionIds,
+    currentUserId,
+    deleteSession,
+    editSession,
+    handleJoinOfficialPostChallenge,
+    navigation,
+    officialPostChallengesById,
+    openCheers,
+    openComments,
+    openProfile,
+    toggleCheers,
+    toggleCrawlCheers,
+  ]);
 
   return (
     <View style={styles.container}>
