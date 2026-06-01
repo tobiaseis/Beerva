@@ -146,7 +146,26 @@ assert.match(
 
 const officialCardSource = read('src/components/OfficialFeedPostCard.tsx');
 const feedScreenSource = read('src/screens/FeedScreen.tsx');
+const winnerCardSection = officialCardSource.slice(
+  officialCardSource.indexOf('const WinnerOfficialFeedPostCard'),
+  officialCardSource.indexOf('const AnnouncementOfficialFeedPostCard')
+);
+const announcementCardSection = officialCardSource.slice(
+  officialCardSource.indexOf('const AnnouncementOfficialFeedPostCard'),
+  officialCardSource.indexOf('export const OfficialFeedPostCard')
+);
 assert.match(officialCardSource, /isOfficialWinnerPost/, 'official card should preserve a winner branch');
+assert.match(winnerCardSection, /statGrid/, 'winner announcements should keep official winner stats');
+assert.match(
+  winnerCardSection,
+  /formatOfficialWinnerStat\('True pints'/,
+  'winner announcements should render official winner stat values'
+);
+assert.doesNotMatch(
+  announcementCardSection,
+  /statGrid|formatOfficialWinnerStat|True pints|Average ABV|Sessions/,
+  'promotional announcements should not render winner stats'
+);
 assert.match(officialCardSource, /Join challenge/, 'announcement card should expose immediate challenge joining');
 assert.match(officialCardSource, /View challenge/, 'announcement card should preserve detail navigation');
 assert.match(officialCardSource, /post\.imageUrl/, 'announcement card should render optional photos');

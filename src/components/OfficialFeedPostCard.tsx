@@ -5,6 +5,7 @@ import { CheckCircle2, Trophy } from 'lucide-react-native';
 import { CachedImage } from './CachedImage';
 import { ChallengeSummary } from '../lib/challenges';
 import {
+  formatOfficialWinnerStat,
   isOfficialWinnerPost,
   OfficialFeedPost,
 } from '../lib/officialFeedPosts';
@@ -58,6 +59,12 @@ const WinnerOfficialFeedPostCard = ({
       </Pressable>
     ) : null}
 
+    <View style={styles.statGrid}>
+      <Text style={styles.statText}>{formatOfficialWinnerStat('True pints', post.truePints)}</Text>
+      <Text style={styles.statText}>{formatOfficialWinnerStat('Average ABV', post.averageAbv, '%')}</Text>
+      <Text style={styles.statText}>{formatOfficialWinnerStat('Drinks', post.drinkCount)}</Text>
+      <Text style={styles.statText}>{formatOfficialWinnerStat('Sessions', post.sessionCount)}</Text>
+    </View>
   </View>
 );
 
@@ -272,5 +279,20 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: '900',
   },
+  statGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  statText: {
+    ...typography.caption,
+    color: colors.text,
+    backgroundColor: colors.cardMuted,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    borderRadius: radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    overflow: 'hidden',
   },
 });
