@@ -34,6 +34,9 @@ const server = http.createServer((request, response) => {
   const urlPath = decodeURIComponent((request.url || '/').split('?')[0]);
   const safePath = path.normalize(urlPath).replace(/^(\.\.[/\\])+/, '');
   const requestedFile = path.join(distDir, safePath);
+  const acceptsHtml = (request.headers.accept || '').includes('text/html');
+  const hasFileExtension = Boolean(path.extname(urlPath));
+  const shouldServeAppShell = !hasFileExtension && acceptsHtml;
 
   if (!requestedFile.startsWith(distDir)) {
     response.writeHead(403);
@@ -47,7 +50,13 @@ const server = http.createServer((request, response) => {
       return;
     }
 
-    sendFile(response, path.join(distDir, 'index.html'));
+    if (shouldServeAppShell) {
+      sendFile(response, path.join(distDir, 'index.html'));
+      return;
+    }
+
+    response.writeHead(404);
+    response.end('Not found');
   });
 });
 

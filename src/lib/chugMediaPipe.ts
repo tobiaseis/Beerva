@@ -26,6 +26,21 @@ type MediaPipeVisionModule = {
   ObjectDetector: any;
 };
 
+type MediaPipeDetectionCategory = {
+  categoryName?: string;
+  score?: number;
+};
+
+type MediaPipeDetection = {
+  categories?: MediaPipeDetectionCategory[];
+  boundingBox?: {
+    originX: number;
+    originY: number;
+    width: number;
+    height: number;
+  };
+};
+
 let mediaPipeVisionPromise: Promise<MediaPipeVisionModule> | null = null;
 
 const loadMediaPipeVision = () => {
@@ -96,7 +111,7 @@ export const analyzeChugVideo = async (input: ChugVideoAnalysisInput) => {
         .map((landmark) => ({ x: landmark.x, y: landmark.y }));
 
       const mouthBox = getMouthBoxFromLandmarks(mouthLandmarks, video.videoWidth, video.videoHeight);
-      const bottle = objectResult.detections
+      const bottle = (objectResult.detections as MediaPipeDetection[] | undefined)
         ?.filter((detection) => detection.categories?.some((category) => BOTTLE_LABELS.has((category.categoryName || '').toLowerCase())))
         .sort((a, b) => (b.categories?.[0]?.score || 0) - (a.categories?.[0]?.score || 0))[0];
       const box = bottle?.boundingBox;

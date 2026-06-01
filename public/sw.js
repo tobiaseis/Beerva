@@ -1,6 +1,6 @@
 // Beerva Service Worker (Push + Offline Caching)
 
-const CACHE_NAME = 'beerva-cache-v11';
+const CACHE_NAME = 'beerva-cache-v12';
 const OFFLINE_URLS = [
   '/',
   '/index.html',
@@ -53,6 +53,15 @@ const isStaticAsset = (url) => {
   );
 };
 
+const isHtmlResponse = (response) => {
+  return (response.headers.get('Content-Type') || '').toLowerCase().includes('text/html');
+};
+
+const missingAssetResponse = () => new Response('Not found', {
+  status: 404,
+  headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+});
+
 self.addEventListener('fetch', (event) => {
   // Only handle GET requests for our origin
   if (event.request.method !== 'GET' || !event.request.url.startsWith(self.location.origin)) {
@@ -94,23 +103,30 @@ self.addEventListener('fetch', (event) => {
   // Cache-first for static assets (JS bundles, CSS, fonts, images)
   if (isStaticAsset(event.request.url)) {
     event.respondWith(
-      caches.match(event.request).then((cachedResponse) => {
-        if (cachedResponse) {
-          return cachedResponse;
-        }
-
-        return fetch(event.request).then((response) => {
-          if (response.ok) {
-            const responseClone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseClone);
-            });
+      caches.open(CACHE_NAME).then((cache) => (
+        cache.match(event.request).then((cachedResponse) => {
+          if (cachedResponse && !isHtmlResponse(cachedResponse)) {
+            return cachedResponse;
           }
-          return response;
-        }).catch(() => {
-          // Asset not available offline
-        });
-      })
+
+          if (cachedResponse) {
+            cache.delete(event.request);
+          }
+
+          return fetch(event.request).then((response) => {
+            if (isHtmlResponse(response)) {
+              cache.delete(event.request);
+              return missingAssetResponse();
+            }
+
+            if (response.ok) {
+              const responseClone = response.clone();
+              cache.put(event.request, responseClone);
+            }
+            return response;
+          }).catch(() => missingAssetResponse());
+        })
+      ))
     );
     return;
   }

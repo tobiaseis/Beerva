@@ -51,6 +51,10 @@ const navigationCacheBlock = serviceWorkerSource.slice(
   serviceWorkerSource.indexOf("if (event.request.mode === 'navigate')"),
   serviceWorkerSource.indexOf('  // Cache-first for static assets')
 );
+const staticAssetCacheBlock = serviceWorkerSource.slice(
+  serviceWorkerSource.indexOf('  // Cache-first for static assets'),
+  serviceWorkerSource.indexOf('  // Stale-while-revalidate for other requests')
+);
 
 assert.match(
   pushSource,
@@ -122,7 +126,7 @@ assert.doesNotMatch(
 
 assert.match(
   serviceWorkerSource,
-  /const CACHE_NAME = 'beerva-cache-v11'/,
+  /const CACHE_NAME = 'beerva-cache-v12'/,
   'service worker cache should be bumped when startup caching behavior changes'
 );
 
@@ -236,6 +240,30 @@ assert.match(
   navigationCacheBlock,
   /cache\.put\('\/', responseClone\)/,
   'cached-first startup should still refresh the app shell in the background'
+);
+
+assert.match(
+  staticAssetCacheBlock,
+  /isHtmlResponse/,
+  'static asset caching should detect HTML fallbacks served for missing bundles'
+);
+
+assert.match(
+  staticAssetCacheBlock,
+  /cache\.delete\(event\.request\)/,
+  'static asset caching should evict poisoned cached HTML responses'
+);
+
+assert.match(
+  staticAssetCacheBlock,
+  /missingAssetResponse\(\)/,
+  'static asset caching should return a real 404 for HTML fallbacks on asset URLs'
+);
+
+assert.match(
+  serviceWorkerSource,
+  /const missingAssetResponse = \(\) => new Response\('Not found'[\s\S]*status:\s*404/,
+  'missing asset fallback should produce a 404 response'
 );
 
 const recordShortcut = manifest.shortcuts.find((shortcut) => shortcut.short_name === 'Record');
