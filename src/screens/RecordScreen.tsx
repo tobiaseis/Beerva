@@ -12,12 +12,13 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Beer, Camera, CheckCircle2, Clock, Home, Images, LocateFixed, Lock, MapPin, MessageSquare, PlusCircle, Sparkles, Trash2, X } from 'lucide-react-native';
+import { Beer, Camera, CheckCircle2, Clock, Home, Images, LocateFixed, Lock, MapPin, MessageSquare, PlusCircle, Sparkles, Timer, Trash2, X } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 
 import { AppButton } from '../components/AppButton';
 import { AutocompleteInput } from '../components/AutocompleteInput';
 import { BeerDraftForm } from '../components/BeerDraftForm';
+import { ChugAttemptModal } from '../components/ChugAttemptModal';
 import { PubRouletteModal } from '../components/PubRouletteModal';
 import { Surface } from '../components/Surface';
 import { confirmDestructive, showAlert } from '../lib/dialogs';
@@ -37,6 +38,14 @@ import {
   getTotalBeerQuantity,
   SessionBeer,
 } from '../lib/sessionBeers';
+import {
+  CHUG_CONTAINER_TYPE,
+  CHUG_REQUIRED_VOLUME,
+  CHUG_VIDEO_MAX_SECONDS,
+  isBottleChugEligibleBeer,
+} from '../lib/chugAttempts';
+import { analyzeChugVideo } from '../lib/chugMediaPipe';
+import { chugVideoFromPickerAsset, SelectedChugVideo, uploadChugProofVideo } from '../lib/chugProofStorage';
 import {
   createUserPub,
   fetchAndCacheNearbyPubs,
@@ -93,6 +102,19 @@ type FollowOutRow = {
 
 type FollowInRow = {
   follower_id: string;
+};
+
+type MutualFollowerProfile = {
+  id: string;
+  username?: string | null;
+  avatar_url?: string | null;
+};
+
+type ChugAnalysisPreview = {
+  durationMs: number;
+  confidenceScore?: number | null;
+  detectedStartMs?: number | null;
+  detectedEndMs?: number | null;
 };
 
 const PUB_SEARCH_MIN_LENGTH = 3;
@@ -194,6 +216,18 @@ export const RecordScreen = ({ navigation }: any) => {
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
   const [photoChoiceVisible, setPhotoChoiceVisible] = useState(false);
   const [pubCategoryChoiceVisible, setPubCategoryChoiceVisible] = useState(false);
+  const [chugVisible, setChugVisible] = useState(false);
+  const [chugBusy, setChugBusy] = useState(false);
+  const [chugError, setChugError] = useState<string | null>(null);
+  const [chugBeerDraft, setChugBeerDraft] = useState(() => ({
+    ...createEmptyBeerDraft(),
+    volume: CHUG_REQUIRED_VOLUME,
+  }));
+  const [chugSelectedBeerId, setChugSelectedBeerId] = useState<string | null>(null);
+  const [chugSelectedVerifierId, setChugSelectedVerifierId] = useState<string | null>(null);
+  const [chugAnalysisPreview, setChugAnalysisPreview] = useState<ChugAnalysisPreview | null>(null);
+  const [chugVideo, setChugVideo] = useState<SelectedChugVideo | null>(null);
+  const [mutualFollowers, setMutualFollowers] = useState<MutualFollowerProfile[]>([]);
 
   const [loadingActive, setLoadingActive] = useState(true);
   const [starting, setStarting] = useState(false);
@@ -368,6 +402,15 @@ export const RecordScreen = ({ navigation }: any) => {
     setSelectedImage(null);
     setExistingImageUrl(null);
     setSavingPhoto(false);
+    setChugVisible(false);
+    setChugBusy(false);
+    setChugError(null);
+    setChugBeerDraft({ ...createEmptyBeerDraft(), volume: CHUG_REQUIRED_VOLUME });
+    setChugSelectedBeerId(null);
+    setChugSelectedVerifierId(null);
+    setChugAnalysisPreview(null);
+    setChugVideo(null);
+    setMutualFollowers([]);
     setSelectedPub(null);
     setCrawlPubAction(null);
     setCrawlPubDraft('');
@@ -900,12 +943,16 @@ export const RecordScreen = ({ navigation }: any) => {
     }
   };
 
-  const addBeerToSession = async (draftOverride?: typeof beerDraft) => {
-    if (!activeSession) return;
+  const eligibleChugBeers = sessionBeers.filter((beer) => (
+    Boolean(beer.id) && isBottleChugEligibleBeer(beer, catalog)
+  ));
+
+  const addBeerToSession = async (draftOverride?: typeof beerDraft): Promise<SessionBeer | null> => {
+    if (!activeSession) return null;
     const draftToAdd = draftOverride || beerDraft;
     if (!draftToAdd.beerName.trim()) {
       showAlert('Missing drink', 'Add what you are drinking.');
-      return;
+      return null;
     }
 
     setAddingBeer(true);
@@ -929,10 +976,12 @@ export const RecordScreen = ({ navigation }: any) => {
       setBeerDraft(createEmptyBeerDraft());
       syncLegacyFields(activeSession.id, nextBeers);
       hapticSuccess();
+      return data as SessionBeer;
     } catch (error: any) {
       console.error('Add beer error:', error);
       hapticError();
       showAlert('Could not add drink', error?.message || 'Please try again.');
+      return null;
     } finally {
       setAddingBeer(false);
     }
@@ -991,6 +1040,189 @@ export const RecordScreen = ({ navigation }: any) => {
     }
 
     syncLegacyFields(activeSession.id, nextBeers);
+  };
+
+  const loadMutualFollowers = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const [followingResult, followersResult] = await Promise.all([
+      supabase.from('follows').select('following_id').eq('follower_id', user.id),
+      supabase.from('follows').select('follower_id').eq('following_id', user.id),
+    ]);
+
+    if (followingResult.error) throw followingResult.error;
+    if (followersResult.error) throw followersResult.error;
+
+    const followers = new Set(((followersResult.data || []) as FollowInRow[]).map((row) => row.follower_id));
+    const mutualIds = ((followingResult.data || []) as FollowOutRow[])
+      .map((row) => row.following_id)
+      .filter((id) => followers.has(id));
+
+    if (mutualIds.length === 0) return [];
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, username, avatar_url')
+      .in('id', mutualIds)
+      .order('username', { ascending: true });
+
+    if (error) throw error;
+    return (data || []) as MutualFollowerProfile[];
+  };
+
+  const openChugFlow = async () => {
+    if (!activeSession) return;
+
+    setChugVisible(true);
+    setChugError(null);
+    setChugAnalysisPreview(null);
+    setChugVideo(null);
+    setChugBeerDraft({ ...createEmptyBeerDraft(), volume: CHUG_REQUIRED_VOLUME });
+    setChugSelectedBeerId(eligibleChugBeers[0]?.id || null);
+
+    try {
+      const followers = await loadMutualFollowers();
+      setMutualFollowers(followers);
+      setChugSelectedVerifierId(followers[0]?.id || null);
+    } catch (error: any) {
+      setChugError(error?.message || 'Could not load mutual followers.');
+    }
+  };
+
+  const createChugBeer = async (draftOverride?: typeof chugBeerDraft) => {
+    const nextDraft = { ...(draftOverride || chugBeerDraft), volume: CHUG_REQUIRED_VOLUME, quantity: 1 };
+    setChugBusy(true);
+    setChugBeerDraft(nextDraft);
+
+    try {
+      const createdBeer = await addBeerToSession(nextDraft);
+      if (createdBeer?.id) {
+        setChugSelectedBeerId(createdBeer.id);
+        setChugError(null);
+      }
+    } finally {
+      setChugBusy(false);
+    }
+  };
+
+  const recordChugVideo = async () => {
+    if (!activeSession || !chugSelectedBeerId || !chugSelectedVerifierId || chugBusy) return;
+
+    setChugBusy(true);
+    setChugError(null);
+    setChugAnalysisPreview(null);
+    setChugVideo(null);
+
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        setChugError('Camera access is needed to record a chug attempt.');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['videos'],
+        allowsEditing: false,
+        quality: 0.65,
+        videoMaxDuration: CHUG_VIDEO_MAX_SECONDS,
+        videoQuality: ImagePicker.UIImagePickerControllerQualityType.Low,
+        cameraType: ImagePicker.CameraType.back,
+      });
+
+      if (result.canceled || !result.assets[0]) return;
+
+      const preparedVideo = await chugVideoFromPickerAsset(result.assets[0]);
+      const analysis = await analyzeChugVideo(preparedVideo);
+
+      if (!analysis.ok || !analysis.durationMs) {
+        setChugError(analysis.reason || 'Could not detect a clean chug start and stop.');
+        setChugVideo(preparedVideo);
+        return;
+      }
+
+      setChugVideo(preparedVideo);
+      setChugAnalysisPreview({
+        durationMs: analysis.durationMs,
+        confidenceScore: analysis.confidenceScore,
+        detectedStartMs: analysis.detectedStartMs,
+        detectedEndMs: analysis.detectedEndMs,
+      });
+    } catch (error: any) {
+      setChugError(error?.message || 'Could not analyze this chug attempt.');
+    } finally {
+      setChugBusy(false);
+    }
+  };
+
+  const acceptChugAttempt = async () => {
+    if (
+      !activeSession
+      || !chugSelectedBeerId
+      || !chugSelectedVerifierId
+      || !chugAnalysisPreview
+      || !chugVideo
+      || chugBusy
+    ) {
+      return;
+    }
+
+    setChugBusy(true);
+    setChugError(null);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not logged in.');
+
+      const videoPath = await uploadChugProofVideo(chugVideo, user.id);
+      const { data: attempt, error } = await supabase
+        .from('session_chug_attempts')
+        .insert({
+          session_id: activeSession.id,
+          session_beer_id: chugSelectedBeerId,
+          user_id: user.id,
+          verifier_user_id: chugSelectedVerifierId,
+          status: 'unverified',
+          duration_ms: chugAnalysisPreview.durationMs,
+          confidence_score: chugAnalysisPreview.confidenceScore ?? null,
+          detected_start_ms: chugAnalysisPreview.detectedStartMs ?? null,
+          detected_end_ms: chugAnalysisPreview.detectedEndMs ?? null,
+          container_type: CHUG_CONTAINER_TYPE,
+          required_volume: CHUG_REQUIRED_VOLUME,
+          video_path: videoPath,
+        })
+        .select('id')
+        .single();
+
+      if (error) throw error;
+
+      const selectedBeer = sessionBeers.find((beer) => beer.id === chugSelectedBeerId);
+      const { error: notifError } = await supabase.from('notifications').insert({
+        user_id: chugSelectedVerifierId,
+        actor_id: user.id,
+        type: 'chug_verification',
+        reference_id: attempt.id,
+        metadata: {
+          target_type: 'chug_attempt',
+          session_id: activeSession.id,
+          beer_name: selectedBeer?.beer_name || null,
+          duration_ms: chugAnalysisPreview.durationMs,
+          pub_name: activeSession.pub_name,
+        },
+      });
+
+      if (notifError) console.error('Chug verification notification insert error:', notifError);
+
+      setChugVisible(false);
+      setChugAnalysisPreview(null);
+      setChugVideo(null);
+      hapticSuccess();
+      showAlert('Chug saved', 'Your result is on the post as unverified until your mate reviews it.');
+    } catch (error: any) {
+      setChugError(error?.message || 'Could not save chug attempt.');
+    } finally {
+      setChugBusy(false);
+    }
   };
 
   const handleImageAsset = async (asset: ImagePicker.ImagePickerAsset) => {
@@ -1632,6 +1864,20 @@ export const RecordScreen = ({ navigation }: any) => {
                 </View>
               )}
 
+              <TouchableOpacity
+                style={styles.chugButton}
+                onPress={openChugFlow}
+                activeOpacity={0.76}
+                accessibilityRole="button"
+                accessibilityLabel="Record a 33cl bottle chug attempt"
+              >
+                <Timer color={colors.primary} size={20} />
+                <View style={styles.chugButtonText}>
+                  <Text style={styles.chugButtonTitle}>How fast can you chug?</Text>
+                  <Text style={styles.chugButtonSubtitle}>33cl bottled beers only</Text>
+                </View>
+              </TouchableOpacity>
+
               <BeerDraftForm
                 draft={beerDraft}
                 onChange={setBeerDraft}
@@ -1721,6 +1967,26 @@ export const RecordScreen = ({ navigation }: any) => {
           </>
         )}
       </View>
+
+      <ChugAttemptModal
+        visible={chugVisible}
+        eligibleBeers={eligibleChugBeers}
+        mutualFollowers={mutualFollowers}
+        beerDraft={chugBeerDraft}
+        selectedBeerId={chugSelectedBeerId}
+        selectedVerifierId={chugSelectedVerifierId}
+        analysisPreview={chugAnalysisPreview}
+        busy={chugBusy}
+        error={chugError}
+        onClose={() => setChugVisible(false)}
+        onBeerDraftChange={(draft) => setChugBeerDraft({ ...draft, volume: CHUG_REQUIRED_VOLUME, quantity: 1 })}
+        onSelectBeer={setChugSelectedBeerId}
+        onCreateBeer={createChugBeer}
+        onSelectVerifier={setChugSelectedVerifierId}
+        onRecord={recordChugVideo}
+        onRetry={recordChugVideo}
+        onAccept={acceptChugAttempt}
+      />
 
       <PubRouletteModal
         visible={rouletteVisible}
@@ -2280,6 +2546,31 @@ const styles = StyleSheet.create({
     backgroundColor: colors.dangerSoft,
     borderWidth: 1,
     borderColor: 'rgba(239, 68, 68, 0.24)',
+  },
+  chugButton: {
+    minHeight: 62,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  chugButtonText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  chugButtonTitle: {
+    ...typography.body,
+    color: colors.text,
+    fontWeight: '900',
+  },
+  chugButtonSubtitle: {
+    ...typography.caption,
+    color: colors.textMuted,
   },
   sectionLabel: {
     ...typography.body,
