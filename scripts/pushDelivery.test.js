@@ -84,4 +84,28 @@ assert.match(
   'send-push should validate webhook calls through the custom x-beerva-webhook-secret header'
 );
 
+assert.match(
+  sendPushSource,
+  /drinking_buddy_added/,
+  'push delivery should support drinking buddy notifications'
+);
+
+assert.match(
+  sendPushSource,
+  /added you as a drinking buddy/,
+  'drinking buddy push body should use the approved copy'
+);
+
+assert.match(
+  sendPushSource,
+  /session_status/,
+  'drinking buddy push routing should inspect session status metadata'
+);
+
+assert.match(
+  sendPushSource,
+  /notifications=1/,
+  'active-session buddy pushes should open notifications'
+);
+
 console.log('push delivery checks passed');

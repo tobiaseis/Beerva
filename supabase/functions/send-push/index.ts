@@ -23,7 +23,7 @@ type NotificationRow = {
   id: string;
   user_id: string;
   actor_id: string;
-  type: 'cheer' | 'invite' | 'session_started' | 'comment' | 'invite_response' | 'pub_crawl_started' | 'hangover_check' | 'follow' | 'chug_verification';
+  type: 'cheer' | 'invite' | 'session_started' | 'comment' | 'invite_response' | 'pub_crawl_started' | 'hangover_check' | 'follow' | 'chug_verification' | 'drinking_buddy_added';
   reference_id: string | null;
   metadata?: {
     pub_name?: string | null;
@@ -32,6 +32,7 @@ type NotificationRow = {
     session_id?: string | null;
     beer_name?: string | null;
     duration_ms?: number | string | null;
+    session_status?: string | null;
   } | null;
 };
 
@@ -82,6 +83,7 @@ Deno.serve(async (req) => {
     { data: referencedSession },
     { data: referencedCrawlStop },
     { data: referencedInvite },
+    { data: referencedBuddySession },
   ] = await Promise.all([
     supabase.from('profiles').select('username').eq('id', record.actor_id).maybeSingle(),
     supabase
@@ -102,6 +104,13 @@ Deno.serve(async (req) => {
     (record.type === 'invite' || record.type === 'invite_response') && record.reference_id
       ? supabase.from('drinking_invites').select('status').eq('id', record.reference_id).maybeSingle()
       : Promise.resolve({ data: null }),
+    record.type === 'drinking_buddy_added' && record.reference_id
+      ? supabase
+          .from('session_buddies')
+          .select('session_id, sessions!inner(pub_name, status)')
+          .eq('id', record.reference_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
 
   if (!subscriptions || subscriptions.length === 0) {
@@ -114,6 +123,12 @@ Deno.serve(async (req) => {
     : '';
   const notificationPubName = metadataPubName || referencedSession?.pub_name || referencedCrawlStop?.pub_name || null;
   const postTargetType = record.metadata?.target_type === 'pub_crawl' ? 'pub_crawl' : 'session';
+  const buddySessionId = typeof record.metadata?.session_id === 'string'
+    ? record.metadata.session_id.trim()
+    : (referencedBuddySession as any)?.session_id || '';
+  const buddySessionStatus = typeof record.metadata?.session_status === 'string'
+    ? record.metadata.session_status
+    : (referencedBuddySession as any)?.sessions?.status || '';
 
   let title = 'Beerva';
   let bodyText = '';
@@ -129,6 +144,9 @@ Deno.serve(async (req) => {
   } else if (record.type === 'chug_verification') {
     title = 'Chug verification';
     bodyText = `${actorName} wants you to verify a 33cl bottle chug`;
+  } else if (record.type === 'drinking_buddy_added') {
+    title = 'Drinking buddy';
+    bodyText = `${actorName} added you as a drinking buddy`;
   } else if (record.type === 'invite') {
     title = 'Invitation to drink';
     bodyText = `${actorName} wants to grab a beer with you`;
@@ -158,6 +176,10 @@ Deno.serve(async (req) => {
     url = `/?chug_verification=1&attempt_id=${encodeURIComponent(record.reference_id)}&notificationId=${encodeURIComponent(record.id)}`;
   } else if (record.type === 'hangover_check' && record.reference_id) {
     url = `/?hangover=1&target_type=${encodeURIComponent(hangoverTargetType)}&target_id=${encodeURIComponent(record.reference_id)}&notificationId=${encodeURIComponent(record.id)}`;
+  } else if (record.type === 'drinking_buddy_added' && buddySessionId && buddySessionStatus === 'published') {
+    url = `/?post=${encodeURIComponent(buddySessionId)}&post_type=session&notificationId=${encodeURIComponent(record.id)}`;
+  } else if (record.type === 'drinking_buddy_added') {
+    url = `/?notifications=1&notificationId=${encodeURIComponent(record.id)}`;
   } else if ((record.type === 'cheer' || record.type === 'comment') && record.reference_id) {
     // Deep-link straight to the post that was cheered/commented on.
     url = `/?post=${encodeURIComponent(record.reference_id)}&post_type=${encodeURIComponent(postTargetType)}&notificationId=${encodeURIComponent(record.id)}`;
