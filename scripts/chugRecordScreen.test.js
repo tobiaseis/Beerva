@@ -18,5 +18,12 @@ assert.match(recordSource, /isBottleChugEligibleBeer/, 'record flow should filte
 assert.match(modalSource, /mutualFollowers/, 'chug modal should receive mutual followers');
 assert.match(modalSource, /eligibleBeers/, 'chug modal should receive eligible beers');
 assert.match(modalSource, /Chugs are 33cl bottled beers only for now\./, 'modal should explain 33cl-only rule');
+assert.match(modalSource, /person_drinking_beer\.png/, 'modal should render the supplied recording-angle illustration');
+assert.match(modalSource, /Best recording angle/, 'modal should label the recording-angle guidance');
+assert.match(
+  modalSource,
+  /Keep the face and bottle visible\. Film from a slight side angle in good lighting\./,
+  'modal should explain how to frame the chug video'
+);
 
 console.log('chug record screen checks passed');

@@ -18,6 +18,8 @@ import { colors } from '../theme/colors';
 import { radius, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
 
+const recordingAngleImage = require('../../assets/person_drinking_beer.png');
+
 type MutualFollower = {
   id: string;
   username?: string | null;
@@ -88,6 +90,21 @@ export const ChugAttemptModal = ({
           </View>
 
           <ScrollView contentContainerStyle={styles.content}>
+            <View style={styles.guidancePanel}>
+              <Image
+                source={recordingAngleImage}
+                style={styles.guidanceImage}
+                resizeMode="cover"
+                accessibilityLabel="Example of filming a drinker and bottle from a slight side angle"
+              />
+              <View style={styles.guidanceCopy}>
+                <Text style={styles.guidanceTitle}>Best recording angle</Text>
+                <Text style={styles.guidanceText}>
+                  Keep the face and bottle visible. Film from a slight side angle in good lighting.
+                </Text>
+              </View>
+            </View>
+
             <Text style={styles.sectionTitle}>Choose beer</Text>
             {eligibleBeers.length === 0 ? (
               <View style={styles.emptyBox}>
@@ -233,6 +250,31 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.text,
     fontWeight: '800',
+  },
+  guidancePanel: {
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.surface,
+    overflow: 'hidden',
+  },
+  guidanceImage: {
+    width: '100%',
+    height: 138,
+  },
+  guidanceCopy: {
+    gap: 4,
+    padding: 12,
+  },
+  guidanceTitle: {
+    ...typography.body,
+    color: colors.text,
+    fontWeight: '800',
+  },
+  guidanceText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    lineHeight: 18,
   },
   emptyBox: {
     minHeight: 58,
