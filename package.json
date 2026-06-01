@@ -46,7 +46,8 @@
     "test:push-delivery": "node scripts/pushDelivery.test.js",
     "test:admin-tools": "node scripts/adminTools.test.js",
     "test:timeouts": "node scripts/timeouts.test.js",
-    "test:serve-dist": "node scripts/serveDist.test.js"
+    "test:serve-dist": "node scripts/serveDist.test.js",
+    "test:github-pages": "node scripts/githubPages.test.js"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",
