@@ -21,7 +21,13 @@ import { colors } from '../theme/colors';
 import { radius, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
 
-const recordingAngleImage = require('../../assets/person_drinking_beer.png');
+const recordingAngleImage = require('../../assets/person_drinking.png');
+
+const chugSetupSteps = [
+  'Choose the 33cl bottled beer you want to chug.',
+  'Find a mate to verify and record from the angle shown.',
+  'Keep your face and bottle visible, then chug once the camera is rolling.',
+];
 
 type MutualFollower = {
   id: string;
@@ -117,9 +123,14 @@ export const ChugAttemptModal = ({
               />
               <View style={styles.guidanceCopy}>
                 <Text style={styles.guidanceTitle}>Best recording angle</Text>
-                <Text style={styles.guidanceText}>
-                  Keep the face and bottle visible. Film from a slight side angle in good lighting.
-                </Text>
+                <View style={styles.stepList}>
+                  {chugSetupSteps.map((step, index) => (
+                    <View key={step} style={styles.stepRow}>
+                      <Text style={styles.stepNumber}>{index + 1}</Text>
+                      <Text style={styles.stepText}>{step}</Text>
+                    </View>
+                  ))}
+                </View>
               </View>
             </View>
 
@@ -308,7 +319,26 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: '800',
   },
-  guidanceText: {
+  stepList: {
+    gap: 8,
+  },
+  stepRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  stepNumber: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    overflow: 'hidden',
+    backgroundColor: colors.primarySoft,
+    color: colors.primary,
+    fontWeight: '900',
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  stepText: {
+    flex: 1,
     ...typography.caption,
     color: colors.textMuted,
     lineHeight: 18,

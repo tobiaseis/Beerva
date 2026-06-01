@@ -16,12 +16,22 @@ assert.match(recordSource, /ai_duration_ms:\s*durationMs/, 'record flow should p
 assert.match(recordSource, /type:\s*'chug_verification'/, 'record flow should notify chosen verifier');
 assert.match(modalSource, /mutualFollowers/, 'chug modal should receive mutual followers');
 assert.match(modalSource, /Chugs are 33cl bottled beers only for now\./, 'modal should explain 33cl-only rule');
-assert.match(modalSource, /person_drinking_beer\.png/, 'modal should render the supplied recording-angle illustration');
+assert.match(modalSource, /person_drinking\.png/, 'modal should render the supplied recording-angle illustration');
 assert.match(modalSource, /Best recording angle/, 'modal should label the recording-angle guidance');
 assert.match(
   modalSource,
-  /Keep the face and bottle visible\. Film from a slight side angle in good lighting\./,
-  'modal should explain how to frame the chug video'
+  /Choose the 33cl bottled beer you want to chug\./,
+  'modal should explain the first chug setup step'
+);
+assert.match(
+  modalSource,
+  /Find a mate to verify and record from the angle shown\./,
+  'modal should explain who records the chug'
+);
+assert.match(
+  modalSource,
+  /Keep your face and bottle visible, then chug once the camera is rolling\./,
+  'modal should explain how to frame and start the chug video'
 );
 assert.doesNotMatch(modalSource, /BeerDraftForm/, 'chug modal should not reuse the generic drink form');
 assert.doesNotMatch(modalSource, /eligibleBeers/, 'chug modal should not offer existing session beers');
