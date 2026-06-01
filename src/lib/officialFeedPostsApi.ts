@@ -16,7 +16,7 @@ export const fetchOfficialFeedPostsForFeedPage = async (
         .from('official_feed_posts')
         .select('id, challenge_id, linked_challenge_id, kind, title, body, image_url, metadata, published_at, created_at')
         .order('published_at', { ascending: false })
-        .range(offset, offset + limit),
+        .range(offset, offset + limit - 1),
       OFFICIAL_FEED_TIMEOUT_MS,
       'Official Beerva posts are taking too long.'
     );

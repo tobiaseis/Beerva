@@ -41,4 +41,4 @@ yarn-error.*
 /android
 
 .agents
-.claude
+.claudesupabase/.temp/
