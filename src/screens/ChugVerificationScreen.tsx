@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -13,6 +13,11 @@ import { ArrowLeft, CheckCircle2, XCircle } from 'lucide-react-native';
 
 import { createChugProofSignedUrl } from '../lib/chugProofStorage';
 import { formatChugDuration, formatChugStatusLabel } from '../lib/chugAttempts';
+import {
+  calculateManualChugDuration,
+  CHUG_MANUAL_PLAYBACK_RATE,
+  getVideoPlaybackTimestampMs,
+} from '../lib/chugManualTiming';
 import { supabase } from '../lib/supabase';
 import { colors } from '../theme/colors';
 import { radius, spacing } from '../theme/layout';
@@ -36,9 +41,29 @@ type OwnerProfile = {
   avatar_url?: string | null;
 };
 
-const WebVideo = ({ uri }: { uri: string }) => {
+type ReviewMode = 'review' | 'reject_options' | 'manual_timing';
+
+type WebVideoHandle = {
+  getCurrentTimestampMs: () => number | null;
+  resetAndPlaySlowMotion: () => Promise<void>;
+};
+
+const WebVideo = React.forwardRef<WebVideoHandle, { uri: string }>(({ uri }, ref) => {
+  const videoRef = useRef<any>(null);
+
+  React.useImperativeHandle(ref, () => ({
+    getCurrentTimestampMs: () => getVideoPlaybackTimestampMs(videoRef.current?.currentTime),
+    resetAndPlaySlowMotion: async () => {
+      if (!videoRef.current) return;
+      videoRef.current.currentTime = 0;
+      videoRef.current.playbackRate = CHUG_MANUAL_PLAYBACK_RATE;
+      await videoRef.current.play();
+    },
+  }), []);
+
   if (Platform.OS !== 'web') return null;
   return React.createElement('video', {
+    ref: videoRef,
     src: uri,
     controls: true,
     playsInline: true,
@@ -49,13 +74,14 @@ const WebVideo = ({ uri }: { uri: string }) => {
       backgroundColor: '#000',
     },
   });
-};
+});
 
 export const ChugVerificationScreen = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const attemptId = route?.params?.attemptId as string | undefined;
   const notificationId = route?.params?.notificationId as string | undefined;
+  const videoRef = useRef<WebVideoHandle | null>(null);
   const [attempt, setAttempt] = useState<ReviewAttempt | null>(null);
   const [ownerProfile, setOwnerProfile] = useState<OwnerProfile | null>(null);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -63,6 +89,10 @@ export const ChugVerificationScreen = () => {
   const [loading, setLoading] = useState(true);
   const [reviewing, setReviewing] = useState<'verified' | 'rejected' | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reviewMode, setReviewMode] = useState<ReviewMode>('review');
+  const [manualStartMs, setManualStartMs] = useState<number | null>(null);
+  const [manualEndMs, setManualEndMs] = useState<number | null>(null);
+  const manualDurationMs = calculateManualChugDuration(manualStartMs, manualEndMs);
 
   const fetchAttempt = useCallback(async () => {
     if (!attemptId) {
@@ -107,6 +137,9 @@ export const ChugVerificationScreen = () => {
       setOwnerProfile(profileData || null);
       setNote(row.verifier_note || '');
       setVideoUrl(row.video_path ? await createChugProofSignedUrl(row.video_path) : null);
+      setReviewMode('review');
+      setManualStartMs(null);
+      setManualEndMs(null);
 
       if (notificationId) {
         supabase.from('notifications').update({ read: true }).eq('id', notificationId).then(() => {});
@@ -124,7 +157,10 @@ export const ChugVerificationScreen = () => {
     }, [fetchAttempt])
   );
 
-  const reviewAttempt = useCallback(async (nextStatus: 'verified' | 'rejected') => {
+  const reviewAttempt = useCallback(async (
+    nextStatus: 'verified' | 'rejected',
+    manualTiming?: { startMs: number; endMs: number }
+  ) => {
     if (!attemptId || reviewing) return;
     setReviewing(nextStatus);
     setError(null);
@@ -133,6 +169,8 @@ export const ChugVerificationScreen = () => {
         target_attempt_id: attemptId,
         next_status: nextStatus,
         note,
+        manual_start_ms: manualTiming?.startMs ?? null,
+        manual_end_ms: manualTiming?.endMs ?? null,
       });
       if (reviewError) throw reviewError;
       await fetchAttempt();
@@ -142,6 +180,57 @@ export const ChugVerificationScreen = () => {
       setReviewing(null);
     }
   }, [attemptId, fetchAttempt, note, reviewing]);
+
+  const restartManualTiming = useCallback(async () => {
+    setManualStartMs(null);
+    setManualEndMs(null);
+    setError(null);
+    try {
+      if (!videoRef.current) {
+        setError('Proof video is unavailable.');
+        return;
+      }
+      await videoRef.current.resetAndPlaySlowMotion();
+    } catch {
+      setError('Could not start slow-motion playback. Use the video controls and try again.');
+    }
+  }, []);
+
+  const enterManualTiming = useCallback(async () => {
+    setReviewMode('manual_timing');
+    await restartManualTiming();
+  }, [restartManualTiming]);
+
+  const captureManualTimestamp = useCallback(() => {
+    const timestampMs = videoRef.current?.getCurrentTimestampMs() ?? null;
+    if (timestampMs === null) {
+      setError('Could not read the video position.');
+      return;
+    }
+
+    if (manualStartMs === null) {
+      setManualStartMs(timestampMs);
+      setManualEndMs(null);
+      setError(null);
+      return;
+    }
+
+    if (calculateManualChugDuration(manualStartMs, timestampMs) === null) {
+      setError('Stop must be after Start and within 15 seconds.');
+      return;
+    }
+
+    setManualEndMs(timestampMs);
+    setError(null);
+  }, [manualStartMs]);
+
+  const approveManualTiming = useCallback(() => {
+    if (manualStartMs === null || manualEndMs === null || manualDurationMs === null) {
+      setError('Record a valid Start and Stop time first.');
+      return;
+    }
+    reviewAttempt('verified', { startMs: manualStartMs, endMs: manualEndMs });
+  }, [manualDurationMs, manualEndMs, manualStartMs, reviewAttempt]);
 
   return (
     <View style={styles.container}>
@@ -157,7 +246,7 @@ export const ChugVerificationScreen = () => {
         <View style={styles.centered}>
           <ActivityIndicator color={colors.primary} size="large" />
         </View>
-      ) : error ? (
+      ) : error && !attempt ? (
         <View style={styles.centered}>
           <Text style={styles.errorText}>{error}</Text>
         </View>
@@ -173,7 +262,7 @@ export const ChugVerificationScreen = () => {
 
           {videoUrl ? (
             <View style={styles.videoPanel}>
-              <WebVideo uri={videoUrl} />
+              <WebVideo ref={videoRef} uri={videoUrl} />
               {Platform.OS !== 'web' ? (
                 <Text style={styles.meta}>Proof video review is available in the web app for this version.</Text>
               ) : null}
@@ -194,14 +283,16 @@ export const ChugVerificationScreen = () => {
             maxLength={160}
           />
 
-          {attempt.status === 'unverified' ? (
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+          {attempt.status === 'unverified' && reviewMode === 'review' ? (
             <View style={styles.actions}>
               <TouchableOpacity
                 style={[styles.actionButton, styles.rejectButton]}
-                onPress={() => reviewAttempt('rejected')}
+                onPress={() => setReviewMode('reject_options')}
                 disabled={Boolean(reviewing)}
               >
-                {reviewing === 'rejected' ? <ActivityIndicator color={colors.text} /> : <XCircle color={colors.text} size={18} />}
+                <XCircle color={colors.text} size={18} />
                 <Text style={styles.actionText}>Reject</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -211,6 +302,66 @@ export const ChugVerificationScreen = () => {
               >
                 {reviewing === 'verified' ? <ActivityIndicator color={colors.background} /> : <CheckCircle2 color={colors.background} size={18} />}
                 <Text style={[styles.actionText, styles.approveText]}>Verify</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
+          {attempt.status === 'unverified' && reviewMode === 'reject_options' ? (
+            <View style={styles.decisionPanel}>
+              <Text style={styles.decisionTitle}>What needs changing?</Text>
+              <TouchableOpacity
+                style={[styles.actionButton, styles.approveButton]}
+                onPress={enterManualTiming}
+                disabled={Platform.OS !== 'web' || !videoUrl}
+              >
+                <Text style={[styles.actionText, styles.approveText]}>Adjust time</Text>
+              </TouchableOpacity>
+              {Platform.OS !== 'web' ? (
+                <Text style={styles.meta}>Manual timing is available in the web app for this version.</Text>
+              ) : null}
+              <TouchableOpacity
+                style={[styles.actionButton, styles.destructiveButton]}
+                onPress={() => reviewAttempt('rejected')}
+                disabled={Boolean(reviewing)}
+              >
+                {reviewing === 'rejected' ? <ActivityIndicator color={colors.text} /> : <XCircle color={colors.text} size={18} />}
+                <Text style={styles.actionText}>Reject chug completely</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.secondaryButton} onPress={() => setReviewMode('review')}>
+                <Text style={styles.secondaryButtonText}>Back</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
+          {attempt.status === 'unverified' && reviewMode === 'manual_timing' ? (
+            <View style={styles.decisionPanel}>
+              <Text style={styles.decisionTitle}>Adjust chug time</Text>
+              <Text style={styles.meta}>Video plays at 0.75x. Mark the exact drinking window.</Text>
+              <TouchableOpacity
+                style={[styles.timingButton, manualStartMs !== null && manualEndMs === null ? styles.stopTimingButton : null]}
+                onPress={captureManualTimestamp}
+                disabled={manualEndMs !== null}
+              >
+                <Text style={styles.timingButtonText}>{manualStartMs === null ? 'Start' : 'Stop'}</Text>
+              </TouchableOpacity>
+              {manualDurationMs !== null ? (
+                <Text style={styles.manualDuration}>{formatChugDuration(manualDurationMs)}</Text>
+              ) : null}
+              {manualDurationMs !== null ? (
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.approveButton]}
+                  onPress={approveManualTiming}
+                  disabled={Boolean(reviewing)}
+                >
+                  {reviewing === 'verified' ? <ActivityIndicator color={colors.background} /> : <CheckCircle2 color={colors.background} size={18} />}
+                  <Text style={[styles.actionText, styles.approveText]}>Approve time</Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity style={styles.secondaryButton} onPress={restartManualTiming}>
+                <Text style={styles.secondaryButtonText}>Re-do timing</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.secondaryButton} onPress={() => setReviewMode('reject_options')}>
+                <Text style={styles.secondaryButtonText}>Back</Text>
               </TouchableOpacity>
             </View>
           ) : null}
@@ -325,6 +476,54 @@ const styles = StyleSheet.create({
   },
   approveButton: {
     backgroundColor: colors.primary,
+  },
+  decisionPanel: {
+    gap: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    padding: 16,
+  },
+  decisionTitle: {
+    ...typography.h3,
+    color: colors.text,
+  },
+  destructiveButton: {
+    backgroundColor: colors.dangerSoft,
+    borderWidth: 1,
+    borderColor: colors.danger,
+  },
+  secondaryButton: {
+    minHeight: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryButtonText: {
+    ...typography.body,
+    color: colors.primary,
+    fontWeight: '800',
+  },
+  timingButton: {
+    minHeight: 82,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+  },
+  stopTimingButton: {
+    backgroundColor: colors.danger,
+  },
+  timingButtonText: {
+    ...typography.h2,
+    color: colors.background,
+    fontWeight: '900',
+  },
+  manualDuration: {
+    ...typography.h1,
+    color: colors.text,
+    textAlign: 'center',
+    fontVariant: ['tabular-nums'],
   },
   actionText: {
     ...typography.body,
