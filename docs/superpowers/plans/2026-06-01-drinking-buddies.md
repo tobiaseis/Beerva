@@ -245,17 +245,21 @@ begin
   into target_session
   from public.sessions
   where id = target_session_id
-    and user_id = requesting_user_id;
+    and user_id = requesting_user_id
+    and status in ('active', 'published');
 
   if target_session.id is null then
     raise exception 'Session not found.';
   end if;
 
-  select coalesce(array_agg(distinct buddy_id), array[]::uuid[])
+  if requesting_user_id = any(coalesce(buddy_user_ids, array[]::uuid[])) then
+    raise exception 'You cannot add yourself as a drinking buddy.';
+  end if;
+
+  select coalesce(array_agg(distinct requested.buddy_id), array[]::uuid[])
   into cleaned_buddy_ids
-  from unnest(coalesce(buddy_user_ids, array[]::uuid[])) as buddy_id
-  where buddy_id is not null
-    and buddy_id <> requesting_user_id;
+  from unnest(coalesce(buddy_user_ids, array[]::uuid[])) as requested(buddy_id)
+  where requested.buddy_id is not null;
 
   foreach requested_buddy_id in array cleaned_buddy_ids loop
     if not public.is_mutual_follower(requesting_user_id, requested_buddy_id) then
@@ -281,7 +285,6 @@ begin
     and status = 'active'
     and not (buddy_user_id = any(cleaned_buddy_ids));
 
-  return query
   with requested as (
     select unnest(cleaned_buddy_ids) as buddy_user_id
   ),
@@ -295,24 +298,23 @@ begin
           responded_at = null
       where public.session_buddies.status = 'removed'
     returning public.session_buddies.*
-  ),
-  notification_rows as (
-    insert into public.notifications (user_id, actor_id, type, reference_id, metadata)
-    select
-      changed.buddy_user_id,
-      requesting_user_id,
-      'drinking_buddy_added',
-      changed.id,
-      jsonb_build_object(
-        'target_type', 'session',
-        'session_id', target_session_id,
-        'pub_name', target_session.pub_name,
-        'session_status', target_session.status
-      )
-    from changed
-    where changed.status = 'active'
-    returning id
   )
+  insert into public.notifications (user_id, actor_id, type, reference_id, metadata)
+  select
+    changed.buddy_user_id,
+    requesting_user_id,
+    'drinking_buddy_added',
+    changed.id,
+    jsonb_build_object(
+      'target_type', 'session',
+      'session_id', target_session_id,
+      'pub_name', target_session.pub_name,
+      'session_status', target_session.status
+    )
+  from changed
+  where changed.status = 'active';
+
+  return query
   select *
   from public.session_buddies
   where session_id = target_session_id
@@ -621,13 +623,13 @@ export const fetchMutualMateOptions = async (currentUserId: string): Promise<Mut
 };
 
 export const setSessionBuddies = async (sessionId: string, buddyUserIds: string[]) => {
-  const { data, error } = await supabase.rpc('set_session_buddies', {
+  const { error } = await supabase.rpc('set_session_buddies', {
     target_session_id: sessionId,
     buddy_user_ids: Array.from(new Set(buddyUserIds)),
   });
 
   if (error) throw error;
-  return ((data || []) as SessionBuddyRow[]).map(mapSessionBuddyRow);
+  return fetchSessionBuddies(sessionId);
 };
 
 export const declineSessionBuddy = async (sessionBuddyId: string) => {
@@ -1336,13 +1338,13 @@ const declineBuddy = useCallback(async (item: NotificationRow) => {
 
   setDecliningBuddyIds((previous) => new Set(previous).add(buddyId));
   try {
-    const updated = await declineSessionBuddy(buddyId);
+    await declineSessionBuddy(buddyId);
     setNotifications((previous) => previous.map((notification) => (
       notification.reference_id === buddyId
         ? {
             ...notification,
             buddy: notification.buddy
-              ? { ...notification.buddy, status: updated?.id ? 'declined' : 'declined' }
+              ? { ...notification.buddy, status: 'declined' }
               : notification.buddy,
           }
         : notification
