@@ -22,6 +22,7 @@ import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { PostDetailScreen } from '../screens/PostDetailScreen';
 import { EditSessionScreen } from '../screens/EditSessionScreen';
 import { HangoverRatingScreen } from '../screens/HangoverRatingScreen';
+import { ChugVerificationScreen } from '../screens/ChugVerificationScreen';
 import { FakeBeerScreen } from '../screens/FakeBeerScreen';
 import { AdminToolsScreen } from '../screens/AdminToolsScreen';
 import { colors } from '../theme/colors';
@@ -76,6 +77,11 @@ type HangoverLaunchParams = {
   notificationId?: string | null;
 };
 
+type ChugVerificationLaunchParams = {
+  attemptId: string;
+  notificationId?: string | null;
+};
+
 const getHangoverLaunchParamsFromUrl = (): HangoverLaunchParams | null => {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
   // Handles /?hangover=1&target_type=session&target_id=...
@@ -100,6 +106,18 @@ const getHangoverLaunchParamsFromUrl = (): HangoverLaunchParams | null => {
 const getPostLaunchParamsFromUrl = (): PostLaunchParams | null => {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
   return getPostLaunchParamsFromSearch(window.location.search);
+};
+
+const getChugVerificationLaunchParamsFromUrl = (): ChugVerificationLaunchParams | null => {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('chug_verification') !== '1') return null;
+  const attemptId = params.get('attempt_id') || params.get('id');
+  if (!attemptId) return null;
+  return {
+    attemptId,
+    notificationId: params.get('notificationId'),
+  };
 };
 
 const clearPostLaunchParams = () => {
@@ -134,6 +152,16 @@ const clearHangoverLaunchParams = () => {
   url.searchParams.delete('target_type');
   url.searchParams.delete('target');
   url.searchParams.delete('target_id');
+  url.searchParams.delete('id');
+  url.searchParams.delete('notificationId');
+  window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+};
+
+const clearChugVerificationLaunchParams = () => {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+  const url = new URL(window.location.href);
+  url.searchParams.delete('chug_verification');
+  url.searchParams.delete('attempt_id');
   url.searchParams.delete('id');
   url.searchParams.delete('notificationId');
   window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
@@ -268,6 +296,7 @@ export const RootNavigator = () => {
   const pendingRecordOpenRef = useRef(shouldOpenRecordFromUrl());
   const pendingHangoverOpenRef = useRef<HangoverLaunchParams | null>(getHangoverLaunchParamsFromUrl());
   const pendingPostOpenRef = useRef<PostLaunchParams | null>(getPostLaunchParamsFromUrl());
+  const pendingChugVerificationOpenRef = useRef<ChugVerificationLaunchParams | null>(getChugVerificationLaunchParamsFromUrl());
   const sessionUserId = session?.user?.id ?? null;
   const sessionHasCachedUsername = hasCachedUsername(session);
 
@@ -414,6 +443,14 @@ export const RootNavigator = () => {
       return;
     }
 
+    const pendingChugVerificationOpen = pendingChugVerificationOpenRef.current;
+    if (pendingChugVerificationOpen) {
+      pendingChugVerificationOpenRef.current = null;
+      navigationRef.navigate('ChugVerification', pendingChugVerificationOpen);
+      clearChugVerificationLaunchParams();
+      return;
+    }
+
     if (pendingNotificationsOpenRef.current) {
       pendingNotificationsOpenRef.current = false;
       navigationRef.navigate('Notifications');
@@ -459,6 +496,7 @@ export const RootNavigator = () => {
                 <Stack.Screen name="PostDetail" component={PostDetailScreen} />
                 <Stack.Screen name="EditSession" component={EditSessionScreen} />
                 <Stack.Screen name="HangoverRating" component={HangoverRatingScreen} />
+                <Stack.Screen name="ChugVerification" component={ChugVerificationScreen} />
                 <Stack.Screen name="FakeBeer" component={FakeBeerScreen} options={{ animation: 'none' }} />
                 <Stack.Screen name="AdminTools" component={AdminToolsScreen} />
               </Stack.Navigator>

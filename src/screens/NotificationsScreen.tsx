@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Platform, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { ArrowLeft, Beer, Check, Coffee, MapPin, MessageCircle, PartyPopper, UserPlus, XCircle } from 'lucide-react-native';
+import { ArrowLeft, Beer, Check, Coffee, MapPin, MessageCircle, PartyPopper, Timer, UserPlus, XCircle } from 'lucide-react-native';
 
 import { CachedImage } from '../components/CachedImage';
 import { EmptyIllustration } from '../components/EmptyIllustration';
@@ -13,7 +13,7 @@ import { colors } from '../theme/colors';
 import { radius, shadows, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
 
-type NotificationType = 'cheer' | 'invite' | 'session_started' | 'comment' | 'invite_response' | 'pub_crawl_started' | 'hangover_check' | 'follow';
+type NotificationType = 'cheer' | 'invite' | 'session_started' | 'comment' | 'invite_response' | 'pub_crawl_started' | 'hangover_check' | 'follow' | 'chug_verification';
 type InviteStatus = 'pending' | 'accepted' | 'declined';
 
 type ProfilePreview = {
@@ -223,6 +223,14 @@ export const NotificationsScreen = ({ navigation }: any) => {
     });
   }, [navigation]);
 
+  const openChugVerification = useCallback((item: NotificationRow) => {
+    if (!item.reference_id) return;
+    navigation.navigate('ChugVerification', {
+      attemptId: item.reference_id,
+      notificationId: item.id,
+    });
+  }, [navigation]);
+
   const respondToInvite = useCallback(async (item: NotificationRow, status: Exclude<InviteStatus, 'pending'>) => {
     const inviteId = item.invite?.id || item.reference_id;
     if (!currentUserId || !inviteId || item.invite?.status !== 'pending') return;
@@ -260,6 +268,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
     if (item.type === 'hangover_check') return <Coffee color={colors.primary} size={24} />;
     if (item.type === 'comment') return <MessageCircle color={colors.primary} size={24} />;
     if (item.type === 'follow') return <UserPlus color={colors.primary} size={24} />;
+    if (item.type === 'chug_verification') return <Timer color={colors.primary} size={24} />;
     if (item.type === 'session_started') return <MapPin color={colors.primary} size={24} />;
     if (item.type === 'invite_response' && item.invite?.status === 'accepted') {
       return <Check color={colors.success} size={24} />;
@@ -280,8 +289,16 @@ export const NotificationsScreen = ({ navigation }: any) => {
       ? getNotificationPostTarget(item)
       : null;
     const opensPost = Boolean(postTarget);
-    const ContentWrapper: any = opensPost ? TouchableOpacity : View;
-    const contentWrapperProps = opensPost
+    const opensChugVerification = item.type === 'chug_verification' && Boolean(item.reference_id);
+    const ContentWrapper: any = opensPost || opensChugVerification ? TouchableOpacity : View;
+    const contentWrapperProps = opensChugVerification
+      ? {
+          onPress: () => openChugVerification(item),
+          activeOpacity: 0.75,
+          accessibilityRole: 'button',
+          accessibilityLabel: 'Open chug verification',
+        }
+      : opensPost
       ? {
           onPress: () => postTarget && openPost(postTarget),
           activeOpacity: 0.75,
@@ -366,7 +383,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
         </View>
       </View>
     );
-  }, [currentUserId, openHangoverRating, openPost, openProfile, respondToInvite, respondingInviteIds]);
+  }, [currentUserId, openChugVerification, openHangoverRating, openPost, openProfile, respondToInvite, respondingInviteIds]);
 
   return (
     <View style={styles.container}>

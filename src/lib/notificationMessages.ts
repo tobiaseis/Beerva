@@ -1,7 +1,10 @@
 export type NotificationMetadata = {
   pub_name?: string | null;
   prompt_id?: string | null;
-  target_type?: 'session' | 'pub_crawl' | string | null;
+  target_type?: 'session' | 'pub_crawl' | 'chug_attempt' | string | null;
+  session_id?: string | null;
+  beer_name?: string | null;
+  duration_ms?: number | string | null;
 };
 
 export type NotificationMessageInput = {
@@ -47,5 +50,6 @@ export const getNotificationMessage = (item: NotificationMessageInput) => {
     if (item.invite?.status === 'declined') return " can't make it.";
     return ' answered your drinking invite.';
   }
+  if (item.type === 'chug_verification') return ' wants you to verify a 33cl bottle chug.';
   return ' invited you to drink!';
 };

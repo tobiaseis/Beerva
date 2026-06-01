@@ -20,6 +20,7 @@
     "test:session-beers": "node scripts/sessionBeers.test.js",
     "test:chugs": "node scripts/chugAttempts.test.js",
     "test:chug-db": "node scripts/chugDatabase.test.js",
+    "test:chug-notifications": "node scripts/chugNotifications.test.js",
     "test:hangover": "node scripts/hangover.test.js",
     "test:app-theme": "node scripts/appThemeTokens.test.js",
     "test:app-theme-screens": "node scripts/appThemeScreens.test.js",

@@ -23,12 +23,15 @@ type NotificationRow = {
   id: string;
   user_id: string;
   actor_id: string;
-  type: 'cheer' | 'invite' | 'session_started' | 'comment' | 'invite_response' | 'pub_crawl_started' | 'hangover_check' | 'follow';
+  type: 'cheer' | 'invite' | 'session_started' | 'comment' | 'invite_response' | 'pub_crawl_started' | 'hangover_check' | 'follow' | 'chug_verification';
   reference_id: string | null;
   metadata?: {
     pub_name?: string | null;
     prompt_id?: string | null;
-    target_type?: 'session' | 'pub_crawl' | string | null;
+    target_type?: 'session' | 'pub_crawl' | 'chug_attempt' | string | null;
+    session_id?: string | null;
+    beer_name?: string | null;
+    duration_ms?: number | string | null;
   } | null;
 };
 
@@ -123,6 +126,9 @@ Deno.serve(async (req) => {
   } else if (record.type === 'follow') {
     title = 'New follower';
     bodyText = `${actorName} started following you`;
+  } else if (record.type === 'chug_verification') {
+    title = 'Chug verification';
+    bodyText = `${actorName} wants you to verify a 33cl bottle chug`;
   } else if (record.type === 'invite') {
     title = 'Invitation to drink';
     bodyText = `${actorName} wants to grab a beer with you`;
@@ -148,7 +154,9 @@ Deno.serve(async (req) => {
 
   const hangoverTargetType = record.metadata?.target_type === 'pub_crawl' ? 'pub_crawl' : 'session';
   let url: string;
-  if (record.type === 'hangover_check' && record.reference_id) {
+  if (record.type === 'chug_verification' && record.reference_id) {
+    url = `/?chug_verification=1&attempt_id=${encodeURIComponent(record.reference_id)}&notificationId=${encodeURIComponent(record.id)}`;
+  } else if (record.type === 'hangover_check' && record.reference_id) {
     url = `/?hangover=1&target_type=${encodeURIComponent(hangoverTargetType)}&target_id=${encodeURIComponent(record.reference_id)}&notificationId=${encodeURIComponent(record.id)}`;
   } else if ((record.type === 'cheer' || record.type === 'comment') && record.reference_id) {
     // Deep-link straight to the post that was cheered/commented on.
