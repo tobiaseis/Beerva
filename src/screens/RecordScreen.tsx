@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Beer, Camera, CheckCircle2, Clock, Home, Images, LocateFixed, Lock, MapPin, MessageSquare, PlusCircle, Sparkles, Timer, Trash2, X } from 'lucide-react-native';
+import { Beer, Camera, CheckCircle2, Clock, Home, Images, LocateFixed, Lock, MapPin, MessageSquare, PlusCircle, Sparkles, Trash2, X } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 
 import { AppButton } from '../components/AppButton';
@@ -1896,17 +1896,26 @@ export const RecordScreen = ({ navigation }: any) => {
             </Surface>
 
             <TouchableOpacity
-              style={styles.chugButton}
+              style={styles.chugBottleButton}
               onPress={openChugFlow}
               activeOpacity={0.76}
               accessibilityRole="button"
               accessibilityLabel="Record a 33cl bottle chug attempt"
             >
-              <Timer color={colors.primary} size={20} />
-              <View style={styles.chugButtonText}>
-                <Text style={styles.chugButtonTitle}>How fast can you chug?</Text>
-                <Text style={styles.chugButtonSubtitle}>33cl bottled beers only</Text>
+              <View style={styles.chugBottleBody}>
+                <View style={styles.chugBottleHighlight} />
+                <View style={styles.chugBottleLabel}>
+                  <Text style={styles.chugButtonTitle}>How fast can you chug?</Text>
+                  <Text style={styles.chugButtonSubtitle}>33cl bottled beers only</Text>
+                </View>
+                <View style={styles.chugBottleBubbles}>
+                  <View style={[styles.chugBottleBubble, styles.chugBottleBubbleLarge]} />
+                  <View style={styles.chugBottleBubble} />
+                  <View style={[styles.chugBottleBubble, styles.chugBottleBubbleSmall]} />
+                </View>
               </View>
+              <View style={styles.chugBottleNeck} />
+              <View style={styles.chugBottleCap} />
             </TouchableOpacity>
 
             <Surface style={styles.formSurface}>
@@ -2568,21 +2577,99 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(239, 68, 68, 0.24)',
   },
-  chugButton: {
-    minHeight: 62,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.primaryBorder,
-    backgroundColor: colors.primarySoft,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+  chugBottleButton: {
+    minHeight: 86,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    paddingVertical: 6,
+    ...shadows.card,
   },
-  chugButtonText: {
+  chugBottleBody: {
     flex: 1,
+    minHeight: 72,
     minWidth: 0,
+    position: 'relative',
+    justifyContent: 'center',
+    borderTopLeftRadius: 26,
+    borderBottomLeftRadius: 26,
+    borderTopRightRadius: 13,
+    borderBottomRightRadius: 13,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    backgroundColor: colors.primary,
+    overflow: 'hidden',
+  },
+  chugBottleHighlight: {
+    position: 'absolute',
+    top: 10,
+    left: 28,
+    right: 18,
+    height: 8,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(255, 255, 255, 0.28)',
+  },
+  chugBottleLabel: {
+    alignSelf: 'stretch',
+    marginLeft: 82,
+    marginRight: 18,
+    minHeight: 44,
+    justifyContent: 'center',
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(248, 250, 252, 0.14)',
+    backgroundColor: 'rgba(13, 18, 26, 0.72)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  chugBottleBubbles: {
+    position: 'absolute',
+    left: 22,
+    top: 16,
+    width: 42,
+    height: 42,
+  },
+  chugBottleBubble: {
+    position: 'absolute',
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(248, 250, 252, 0.58)',
+    backgroundColor: 'rgba(248, 250, 252, 0.22)',
+    right: 6,
+    bottom: 8,
+  },
+  chugBottleBubbleLarge: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    left: 0,
+    top: 2,
+  },
+  chugBottleBubbleSmall: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    left: 18,
+    bottom: 0,
+  },
+  chugBottleNeck: {
+    width: 38,
+    height: 44,
+    marginLeft: -1,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: colors.primaryBorder,
+    backgroundColor: colors.primaryDark,
+  },
+  chugBottleCap: {
+    width: 16,
+    height: 52,
+    borderTopRightRadius: 7,
+    borderBottomRightRadius: 7,
+    borderWidth: 1,
+    borderColor: 'rgba(248, 250, 252, 0.18)',
+    backgroundColor: colors.surfaceRaised,
   },
   chugButtonTitle: {
     ...typography.body,
