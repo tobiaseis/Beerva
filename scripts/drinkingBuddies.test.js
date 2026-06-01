@@ -1,10 +1,37 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const Module = require('node:module');
 const path = require('node:path');
+const ts = require('typescript');
 
 const root = path.resolve(__dirname, '..');
 const migrationPath = path.join(root, 'supabase/migrations/20260601150000_add_session_buddies.sql');
 const migrationSql = fs.existsSync(migrationPath) ? fs.readFileSync(migrationPath, 'utf8') : '';
+
+const loadTypeScriptModule = (relativePath, mocks = {}) => {
+  const filename = path.join(root, relativePath);
+  const source = fs.readFileSync(filename, 'utf8');
+  const { outputText } = ts.transpileModule(source, {
+    compilerOptions: {
+      esModuleInterop: true,
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2020,
+    },
+    fileName: filename,
+  });
+
+  const compiledModule = new Module(filename, module);
+  compiledModule.filename = filename;
+  compiledModule.paths = Module._nodeModulePaths(path.dirname(filename));
+  compiledModule.require = (request) => {
+    if (Object.prototype.hasOwnProperty.call(mocks, request)) {
+      return mocks[request];
+    }
+    return Module.prototype.require.call(compiledModule, request);
+  };
+  compiledModule._compile(outputText, filename);
+  return compiledModule.exports;
+};
 
 assert.match(migrationSql, /create table if not exists public\.session_buddies/, 'migration should create session_buddies');
 assert.match(migrationSql, /status in \('active', 'removed', 'declined'\)/, 'session buddies should constrain status values');
@@ -24,5 +51,64 @@ assert.match(migrationSql, /jsonb_build_object\([\s\S]*'target_type', 'session'[
 assert.match(migrationSql, /grant execute on function public\.set_session_buddies\(uuid, uuid\[\]\) to authenticated/, 'authenticated users should execute set_session_buddies');
 assert.match(migrationSql, /grant execute on function public\.decline_session_buddy\(uuid\) to authenticated/, 'authenticated users should execute decline_session_buddy');
 assert.match(migrationSql, /grant execute on function public\.get_session_buddy_summaries\(uuid\[\]\) to authenticated/, 'authenticated users should execute get_session_buddy_summaries');
+
+const buddyLibPath = path.join(root, 'src/lib/sessionBuddies.ts');
+assert.equal(fs.existsSync(buddyLibPath), true, 'shared drinking buddies client API should exist');
+
+const sessionBuddies = loadTypeScriptModule('src/lib/sessionBuddies.ts', {
+  './supabase': { supabase: {} },
+});
+
+assert.equal(
+  sessionBuddies.formatDrinkingBuddyNames([
+    { username: 'Beist' },
+    { username: 'Tubpac' },
+  ]),
+  'Beist and Tubpac',
+  'two buddy names should use and'
+);
+
+assert.equal(
+  sessionBuddies.formatDrinkingBuddyNames([
+    { username: 'Beist' },
+    { username: 'Tubpac' },
+    { username: 'Someone Else' },
+    { username: 'Fourth' },
+  ]),
+  'Beist, Tubpac +2',
+  'long buddy lists should show two names and a remaining count'
+);
+
+assert.equal(
+  sessionBuddies.formatDrinkingBuddyNames([]),
+  null,
+  'empty buddy lists should not render a stats line'
+);
+
+assert.deepEqual(
+  sessionBuddies.mapSessionBuddyRow({
+    id: 'buddy-row-1',
+    session_id: 'session-1',
+    buddy_user_id: 'user-2',
+    username: 'Beist',
+    avatar_url: 'avatar.png',
+    created_at: '2026-06-01T12:00:00Z',
+  }),
+  {
+    id: 'buddy-row-1',
+    sessionId: 'session-1',
+    buddyUserId: 'user-2',
+    username: 'Beist',
+    avatarUrl: 'avatar.png',
+    createdAt: '2026-06-01T12:00:00Z',
+  },
+  'buddy RPC rows should map to app shape'
+);
+
+const buddyLibSource = fs.readFileSync(buddyLibPath, 'utf8');
+assert.match(buddyLibSource, /rpc\('get_session_buddy_summaries'/, 'client API should fetch buddy summaries through RPC');
+assert.match(buddyLibSource, /rpc\('set_session_buddies'/, 'client API should save buddy selections through RPC');
+assert.match(buddyLibSource, /rpc\('decline_session_buddy'/, 'client API should decline buddy tags through RPC');
+assert.match(buddyLibSource, /\.from\('follows'\)/, 'client API should load mutual mates from follows');
 
 console.log('drinking buddies checks passed');
