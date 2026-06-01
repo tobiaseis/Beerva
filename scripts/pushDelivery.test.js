@@ -26,6 +26,12 @@ assert.match(
 
 assert.match(
   migrationSql,
+  /drop trigger if exists "send-push-on-notification" on public\.notifications/i,
+  'legacy dashboard-created push triggers should be removed so notifications do not double-call send-push'
+);
+
+assert.match(
+  migrationSql,
   /functions\/v1\/send-push/i,
   'the notification trigger should call the send-push edge function'
 );
