@@ -1184,6 +1184,7 @@ export const RecordScreen = ({ navigation }: any) => {
           verifier_user_id: chugSelectedVerifierId,
           status: 'unverified',
           duration_ms: chugAnalysisPreview.durationMs,
+          ai_duration_ms: chugAnalysisPreview.durationMs,
           confidence_score: chugAnalysisPreview.confidenceScore ?? null,
           detected_start_ms: chugAnalysisPreview.detectedStartMs ?? null,
           detected_end_ms: chugAnalysisPreview.detectedEndMs ?? null,

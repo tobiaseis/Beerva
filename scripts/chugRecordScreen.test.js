@@ -12,6 +12,7 @@ assert.match(recordSource, /videoMaxDuration:\s*CHUG_VIDEO_MAX_SECONDS/, 'record
 assert.match(recordSource, /analyzeChugVideo/, 'record flow should analyze chug video locally');
 assert.match(recordSource, /uploadChugProofVideo/, 'record flow should upload accepted proof video');
 assert.match(recordSource, /\.from\('session_chug_attempts'\)\s*[\s\S]*?\.insert/, 'record flow should insert a chug attempt');
+assert.match(recordSource, /ai_duration_ms:\s*chugAnalysisPreview\.durationMs/, 'record flow should preserve the original AI timing');
 assert.match(recordSource, /type:\s*'chug_verification'/, 'record flow should notify chosen verifier');
 assert.match(recordSource, /isBottleChugEligibleBeer/, 'record flow should filter 33cl bottled beers');
 assert.match(modalSource, /mutualFollowers/, 'chug modal should receive mutual followers');
