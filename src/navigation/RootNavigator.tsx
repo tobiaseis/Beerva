@@ -339,16 +339,22 @@ export const RootNavigator = () => {
 
       if (error) {
         console.error('Profile setup check error:', error);
+        // If the database query failed (e.g. timeout or connection drop),
+        // we shouldn't force the user to the setup screen. It creates the illusion
+        // of being signed out. Default to false so they can see the feed's network error.
+        setNeedsProfileSetup(false);
+      } else {
+        setNeedsProfileSetup(!data?.username);
       }
-
-      setNeedsProfileSetup(!data?.username);
+      
       profileCheckedUserIdRef.current = userId;
       setProfileCheckedUserId(userId);
     } catch (error) {
       if (profileCheckRequestIdRef.current !== requestId) return;
 
       console.error('Profile setup check error:', getErrorMessage(error, 'Unknown profile check error'));
-      setNeedsProfileSetup(fallbackNeedsProfileSetup);
+      // On network timeout, assume they don't need setup to avoid aggressive redirect.
+      setNeedsProfileSetup(false);
       profileCheckedUserIdRef.current = userId;
       setProfileCheckedUserId(userId);
     } finally {

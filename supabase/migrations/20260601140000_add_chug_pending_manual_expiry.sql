@@ -271,11 +271,8 @@ begin
     perform cron.unschedule('beerva-expire-chug-attempts');
   end if;
 
-  perform cron.schedule(
-    'beerva-expire-chug-attempts',
-    '* * * * *',
-    $job$select public.expire_stale_chug_attempts();$job$
-  );
+  -- Temporary: Removed automatic pg_cron scheduling due to connection pool exhaustion issues.
+  -- The expire_stale_chug_attempts() function can be invoked manually or via an Edge Function.
 end;
 $$;
 
