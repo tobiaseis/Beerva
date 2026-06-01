@@ -82,7 +82,7 @@ Keep verification status and timing source separate.
 
 Add `expires_at`, defaulting to 24 hours after attempt creation.
 
-Allow `duration_ms` and `ai_duration_ms` to be null only while `timing_source = 'pending_manual'`. Once a pending-manual attempt is verified, save the manually selected duration and change `timing_source` to `manual`.
+Allow `duration_ms` to be null only while `timing_source = 'pending_manual'`. Allow `ai_duration_ms` to be null for pending-manual attempts and for manually verified attempts that never had an AI baseline. Once a pending-manual attempt is verified, save the manually selected effective duration, leave `ai_duration_ms` null, and change `timing_source` to `manual`.
 
 Create a new additive migration. Do not rewrite the existing chug migrations.
 
