@@ -19,6 +19,7 @@ import { AppButton } from '../components/AppButton';
 import { AutocompleteInput } from '../components/AutocompleteInput';
 import { BeerDraftForm } from '../components/BeerDraftForm';
 import { ChugAttemptModal } from '../components/ChugAttemptModal';
+import { DrinkingBuddiesPicker } from '../components/DrinkingBuddiesPicker';
 import { PubRouletteModal } from '../components/PubRouletteModal';
 import { Surface } from '../components/Surface';
 import { confirmDestructive, showAlert } from '../lib/dialogs';
@@ -1917,6 +1918,13 @@ export const RecordScreen = ({ navigation }: any) => {
               <View style={styles.chugBottleNeck} />
               <View style={styles.chugBottleCap} />
             </TouchableOpacity>
+
+            {!activeCrawl ? (
+              <DrinkingBuddiesPicker
+                sessionId={activeSession.id}
+                disabled={ending || cancelling}
+              />
+            ) : null}
 
             <Surface style={styles.formSurface}>
               <Text style={styles.sectionTitle}>Post Details</Text>

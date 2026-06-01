@@ -246,6 +246,7 @@ begin
   from public.sessions
   where id = target_session_id
     and user_id = requesting_user_id
+    and pub_crawl_id is null
     and status in ('active', 'published');
 
   if target_session.id is null then
@@ -925,10 +926,12 @@ import { DrinkingBuddiesPicker } from '../components/DrinkingBuddiesPicker';
 Inside the active-session JSX, place this block between the chug button and the `Post Details` surface:
 
 ```tsx
-<DrinkingBuddiesPicker
-  sessionId={activeSession.id}
-  disabled={ending || cancelling}
-/>
+{!activeCrawl ? (
+  <DrinkingBuddiesPicker
+    sessionId={activeSession.id}
+    disabled={ending || cancelling}
+  />
+) : null}
 ```
 
 - [ ] **Step 5: Mount the picker in EditSessionScreen**

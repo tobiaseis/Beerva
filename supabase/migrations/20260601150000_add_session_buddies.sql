@@ -176,6 +176,7 @@ begin
   from public.sessions
   where id = target_session_id
     and user_id = requesting_user_id
+    and pub_crawl_id is null
     and status in ('active', 'published');
 
   if target_session.id is null then

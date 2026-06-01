@@ -45,6 +45,7 @@ assert.match(migrationSql, /create or replace function public\.set_session_buddi
 assert.match(migrationSql, /create or replace function public\.decline_session_buddy/, 'buddy decline RPC should exist');
 assert.match(migrationSql, /create or replace function public\.get_session_buddy_summaries/, 'feed summary RPC should exist');
 assert.match(migrationSql, /public\.is_mutual_follower\(requesting_user_id,\s*requested_buddy_id\)/, 'adding buddies should require mutual mates');
+assert.match(migrationSql, /and pub_crawl_id is null/, 'pub crawl stops should stay outside the first drinking buddies pass');
 assert.match(migrationSql, /status = 'declined'[\s\S]*cannot be re-added/i, 'declined buddies should not be reactivated');
 assert.match(migrationSql, /'drinking_buddy_added'/, 'notification type should include drinking_buddy_added');
 assert.match(migrationSql, /jsonb_build_object\([\s\S]*'target_type', 'session'[\s\S]*'session_id'/, 'buddy notifications should snapshot session metadata');
@@ -110,5 +111,20 @@ assert.match(buddyLibSource, /rpc\('get_session_buddy_summaries'/, 'client API s
 assert.match(buddyLibSource, /rpc\('set_session_buddies'/, 'client API should save buddy selections through RPC');
 assert.match(buddyLibSource, /rpc\('decline_session_buddy'/, 'client API should decline buddy tags through RPC');
 assert.match(buddyLibSource, /\.from\('follows'\)/, 'client API should load mutual mates from follows');
+
+const pickerPath = path.join(root, 'src/components/DrinkingBuddiesPicker.tsx');
+const pickerSource = fs.existsSync(pickerPath) ? fs.readFileSync(pickerPath, 'utf8') : '';
+const recordScreenSource = fs.readFileSync(path.join(root, 'src/screens/RecordScreen.tsx'), 'utf8');
+const editScreenSource = fs.readFileSync(path.join(root, 'src/screens/EditSessionScreen.tsx'), 'utf8');
+
+assert.match(pickerSource, /export const DrinkingBuddiesPicker/, 'shared picker should export DrinkingBuddiesPicker');
+assert.match(pickerSource, /Add your drinking buddies/, 'picker button should use the approved label');
+assert.match(pickerSource, /fetchMutualMateOptions/, 'picker should load mutual mates');
+assert.match(pickerSource, /setSessionBuddies/, 'picker should autosave selections through the RPC wrapper');
+assert.match(pickerSource, /selectedBuddyIds/, 'picker should track selected buddy ids');
+assert.match(recordScreenSource, /DrinkingBuddiesPicker/, 'record screen should render the shared drinking buddies picker');
+assert.match(recordScreenSource, /sessionId=\{activeSession\.id\}/, 'record screen should pass active session id to the picker');
+assert.match(editScreenSource, /DrinkingBuddiesPicker/, 'edit screen should render the shared drinking buddies picker');
+assert.match(editScreenSource, /sessionId=\{sessionId\}/, 'edit screen should pass edited session id to the picker');
 
 console.log('drinking buddies checks passed');

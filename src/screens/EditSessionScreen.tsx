@@ -17,6 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 
 import { AppButton } from '../components/AppButton';
 import { BeerDraftForm } from '../components/BeerDraftForm';
+import { DrinkingBuddiesPicker } from '../components/DrinkingBuddiesPicker';
 import { Surface } from '../components/Surface';
 import { showAlert } from '../lib/dialogs';
 import { hapticError, hapticSuccess, hapticWarning } from '../lib/haptics';
@@ -355,6 +356,13 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
           </View>
         </View>
       </Surface>
+
+      {sessionId ? (
+        <DrinkingBuddiesPicker
+          sessionId={sessionId}
+          disabled={saving}
+        />
+      ) : null}
 
       <Surface style={styles.formSurface}>
         <View style={styles.sectionHeader}>
