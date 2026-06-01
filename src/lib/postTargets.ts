@@ -13,6 +13,7 @@ type NotificationTargetInput = {
   reference_id?: string | null;
   metadata?: {
     target_type?: unknown;
+    session_id?: unknown;
   } | null;
 };
 
@@ -39,7 +40,7 @@ export const getPostLaunchParamsFromSearch = (search: string): PostLaunchParams 
 };
 
 export const getNotificationPostTarget = (item: NotificationTargetInput): PostTarget | null => {
-  const targetId = toCleanString(item.reference_id);
+  const targetId = toCleanString(item.metadata?.session_id) || toCleanString(item.reference_id);
   if (!targetId) return null;
 
   return {

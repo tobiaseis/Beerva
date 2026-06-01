@@ -8,12 +8,13 @@ import { EmptyIllustration } from '../components/EmptyIllustration';
 import { getNotificationMessage, NotificationMetadata } from '../lib/notificationMessages';
 import { useNotifications } from '../lib/notificationsContext';
 import { getNotificationPostTarget, PostTarget } from '../lib/postTargets';
+import { declineSessionBuddy } from '../lib/sessionBuddies';
 import { supabase } from '../lib/supabase';
 import { colors } from '../theme/colors';
 import { radius, shadows, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
 
-type NotificationType = 'cheer' | 'invite' | 'session_started' | 'comment' | 'invite_response' | 'pub_crawl_started' | 'hangover_check' | 'follow' | 'chug_verification';
+type NotificationType = 'cheer' | 'invite' | 'session_started' | 'comment' | 'invite_response' | 'pub_crawl_started' | 'hangover_check' | 'follow' | 'chug_verification' | 'drinking_buddy_added';
 type InviteStatus = 'pending' | 'accepted' | 'declined';
 
 type ProfilePreview = {
@@ -23,6 +24,14 @@ type ProfilePreview = {
 
 type SessionPreview = {
   pub_name: string | null;
+  status?: string | null;
+};
+
+type SessionBuddyNotification = {
+  id: string;
+  session_id: string;
+  buddy_user_id: string;
+  status: 'active' | 'removed' | 'declined';
 };
 
 type DrinkingInvite = {
@@ -45,9 +54,10 @@ type NotificationRow = {
   profiles: ProfilePreview | null;
   session: SessionPreview | null;
   invite: DrinkingInvite | null;
+  buddy: SessionBuddyNotification | null;
 };
 
-type NotificationBaseRow = Omit<NotificationRow, 'profiles' | 'session' | 'invite'>;
+type NotificationBaseRow = Omit<NotificationRow, 'profiles' | 'session' | 'invite' | 'buddy'>;
 
 const getTimeAgo = (dateString: string) => {
   const date = new Date(dateString);
@@ -73,6 +83,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [respondingInviteIds, setRespondingInviteIds] = useState<Set<string>>(() => new Set());
+  const [decliningBuddyIds, setDecliningBuddyIds] = useState<Set<string>>(() => new Set());
   const { markAllRead } = useNotifications();
 
   const fetchNotifications = useCallback(async () => {
@@ -99,8 +110,13 @@ export const NotificationsScreen = ({ navigation }: any) => {
       const actorIds = Array.from(new Set(baseRows.map((n) => n.actor_id).filter(Boolean)));
       const sessionIds = Array.from(new Set(
         baseRows
-          .filter((n) => (n.type === 'session_started' || (n.type === 'hangover_check' && n.metadata?.target_type !== 'pub_crawl')) && n.reference_id)
-          .map((n) => n.reference_id as string)
+          .filter((n) => (
+            n.type === 'session_started'
+            || (n.type === 'hangover_check' && n.metadata?.target_type !== 'pub_crawl')
+            || n.type === 'drinking_buddy_added'
+          ))
+          .map((n) => n.type === 'drinking_buddy_added' ? n.metadata?.session_id : n.reference_id)
+          .filter(Boolean) as string[]
       ));
       const crawlIds = Array.from(new Set(
         baseRows
@@ -112,19 +128,27 @@ export const NotificationsScreen = ({ navigation }: any) => {
           .filter((n) => (n.type === 'invite' || n.type === 'invite_response') && n.reference_id)
           .map((n) => n.reference_id as string)
       ));
+      const buddyIds = Array.from(new Set(
+        baseRows
+          .filter((n) => n.type === 'drinking_buddy_added' && n.reference_id)
+          .map((n) => n.reference_id as string)
+      ));
 
-      const [profilesResult, sessionsResult, crawlsResult, invitesResult] = await Promise.all([
+      const [profilesResult, sessionsResult, crawlsResult, invitesResult, buddiesResult] = await Promise.all([
         actorIds.length > 0
           ? supabase.from('profiles').select('id, username, avatar_url').in('id', actorIds)
           : Promise.resolve({ data: [], error: null }),
         sessionIds.length > 0
-          ? supabase.from('sessions').select('id, pub_name').in('id', sessionIds)
+          ? supabase.from('sessions').select('id, pub_name, status').in('id', sessionIds)
           : Promise.resolve({ data: [], error: null }),
         crawlIds.length > 0
           ? supabase.from('sessions').select('pub_crawl_id, pub_name').in('pub_crawl_id', crawlIds).eq('crawl_stop_order', 1)
           : Promise.resolve({ data: [], error: null }),
         inviteIds.length > 0
           ? supabase.from('drinking_invites').select('id, sender_id, recipient_id, status, created_at, responded_at').in('id', inviteIds)
+          : Promise.resolve({ data: [], error: null }),
+        buddyIds.length > 0
+          ? supabase.from('session_buddies').select('id, session_id, buddy_user_id, status').in('id', buddyIds)
           : Promise.resolve({ data: [], error: null }),
       ]);
 
@@ -142,7 +166,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
         console.error('Notification sessions fetch error', sessionsResult.error);
       } else {
         (sessionsResult.data || []).forEach((session: any) => {
-          sessionsById.set(session.id, { pub_name: session.pub_name });
+          sessionsById.set(session.id, { pub_name: session.pub_name, status: session.status });
         });
       }
 
@@ -163,12 +187,28 @@ export const NotificationsScreen = ({ navigation }: any) => {
         });
       }
 
-      const rows: NotificationRow[] = baseRows.map((notification) => ({
-        ...notification,
-        profiles: profilesById.get(notification.actor_id) || null,
-        session: notification.reference_id ? sessionsById.get(notification.reference_id) || null : null,
-        invite: notification.reference_id ? invitesById.get(notification.reference_id) || null : null,
-      }));
+      const buddiesById = new Map<string, SessionBuddyNotification>();
+      if (buddiesResult.error) {
+        console.error('Notification buddies fetch error', buddiesResult.error);
+      } else {
+        ((buddiesResult.data || []) as SessionBuddyNotification[]).forEach((buddy) => {
+          buddiesById.set(buddy.id, buddy);
+        });
+      }
+
+      const rows: NotificationRow[] = baseRows.map((notification) => {
+        const notificationSessionId = notification.type === 'drinking_buddy_added'
+          ? notification.metadata?.session_id
+          : notification.reference_id;
+
+        return {
+          ...notification,
+          profiles: profilesById.get(notification.actor_id) || null,
+          session: notificationSessionId ? sessionsById.get(notificationSessionId) || null : null,
+          invite: notification.reference_id ? invitesById.get(notification.reference_id) || null : null,
+          buddy: notification.reference_id ? buddiesById.get(notification.reference_id) || null : null,
+        };
+      });
 
       setNotifications(rows);
 
@@ -263,11 +303,40 @@ export const NotificationsScreen = ({ navigation }: any) => {
     }
   }, [currentUserId]);
 
+  const declineBuddy = useCallback(async (item: NotificationRow) => {
+    const buddyId = item.buddy?.id || item.reference_id;
+    if (!currentUserId || !buddyId || item.buddy?.status !== 'active') return;
+
+    setDecliningBuddyIds((previous) => new Set(previous).add(buddyId));
+    try {
+      await declineSessionBuddy(buddyId);
+      setNotifications((previous) => previous.map((notification) => (
+        notification.reference_id === buddyId
+          ? {
+              ...notification,
+              buddy: notification.buddy
+                ? { ...notification.buddy, status: 'declined' }
+                : notification.buddy,
+            }
+          : notification
+      )));
+    } catch (error: any) {
+      Alert.alert('Could not update buddy tag', error?.message || 'Please try again.');
+    } finally {
+      setDecliningBuddyIds((previous) => {
+        const next = new Set(previous);
+        next.delete(buddyId);
+        return next;
+      });
+    }
+  }, [currentUserId]);
+
   const renderIcon = (item: NotificationRow) => {
     if (item.type === 'cheer') return <Beer color={colors.primary} size={24} />;
     if (item.type === 'hangover_check') return <Coffee color={colors.primary} size={24} />;
     if (item.type === 'comment') return <MessageCircle color={colors.primary} size={24} />;
     if (item.type === 'follow') return <UserPlus color={colors.primary} size={24} />;
+    if (item.type === 'drinking_buddy_added') return <UserPlus color={colors.primary} size={24} />;
     if (item.type === 'chug_verification') return <Timer color={colors.primary} size={24} />;
     if (item.type === 'session_started') return <MapPin color={colors.primary} size={24} />;
     if (item.type === 'invite_response' && item.invite?.status === 'accepted') {
@@ -285,7 +354,13 @@ export const NotificationsScreen = ({ navigation }: any) => {
       && item.invite.recipient_id === currentUserId;
     const responding = Boolean(item.invite?.id && respondingInviteIds.has(item.invite.id));
     const answeredInvite = item.type === 'invite' && item.invite?.status !== 'pending' ? item.invite : null;
-    const postTarget = (item.type === 'cheer' || item.type === 'comment')
+    const canDeclineBuddy = item.type === 'drinking_buddy_added'
+      && item.buddy?.status === 'active'
+      && item.buddy.buddy_user_id === currentUserId;
+    const decliningBuddy = Boolean(item.buddy?.id && decliningBuddyIds.has(item.buddy.id));
+    const opensBuddyPost = item.type === 'drinking_buddy_added'
+      && item.session?.status === 'published';
+    const postTarget = (item.type === 'cheer' || item.type === 'comment' || opensBuddyPost)
       ? getNotificationPostTarget(item)
       : null;
     const opensPost = Boolean(postTarget);
@@ -361,6 +436,24 @@ export const NotificationsScreen = ({ navigation }: any) => {
             </Text>
           ) : null}
 
+          {canDeclineBuddy ? (
+            <TouchableOpacity
+              style={[styles.declineBuddyButton, decliningBuddy ? styles.inviteActionButtonDisabled : null]}
+              onPress={() => declineBuddy(item)}
+              disabled={decliningBuddy}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: decliningBuddy }}
+            >
+              {decliningBuddy ? <ActivityIndicator color={colors.text} size="small" /> : <XCircle color={colors.text} size={16} />}
+              <Text style={styles.declineBuddyText}>Not with me</Text>
+            </TouchableOpacity>
+          ) : null}
+
+          {item.type === 'drinking_buddy_added' && item.buddy?.status === 'declined' ? (
+            <Text style={styles.inviteStatusText}>Removed from this session</Text>
+          ) : null}
+
           {item.type === 'invite' && item.reference_id && !item.invite ? (
             <Text style={styles.unavailableText}>This invite is no longer available.</Text>
           ) : null}
@@ -383,7 +476,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
         </View>
       </View>
     );
-  }, [currentUserId, openChugVerification, openHangoverRating, openPost, openProfile, respondToInvite, respondingInviteIds]);
+  }, [currentUserId, declineBuddy, decliningBuddyIds, openChugVerification, openHangoverRating, openPost, openProfile, respondToInvite, respondingInviteIds]);
 
   return (
     <View style={styles.container}>
@@ -404,7 +497,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
           data={notifications}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
-          extraData={respondingInviteIds}
+          extraData={{ respondingInviteIds, decliningBuddyIds }}
           initialNumToRender={12}
           maxToRenderPerBatch={12}
           windowSize={7}
@@ -540,6 +633,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
   },
+  inviteActionButtonDisabled: {
+    opacity: 0.62,
+  },
   declineActionText: {
     color: colors.text,
   },
@@ -558,6 +654,24 @@ const styles = StyleSheet.create({
     ...typography.caption,
     marginTop: 8,
     color: colors.textMuted,
+  },
+  declineBuddyButton: {
+    alignSelf: 'flex-start',
+    minHeight: 38,
+    borderRadius: radius.pill,
+    paddingHorizontal: 12,
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+  },
+  declineBuddyText: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: '900',
   },
   hangoverActionButton: {
     alignSelf: 'flex-start',

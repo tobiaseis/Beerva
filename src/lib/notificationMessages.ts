@@ -5,6 +5,7 @@ export type NotificationMetadata = {
   session_id?: string | null;
   beer_name?: string | null;
   duration_ms?: number | string | null;
+  session_status?: string | null;
 };
 
 export type NotificationMessageInput = {
@@ -51,5 +52,6 @@ export const getNotificationMessage = (item: NotificationMessageInput) => {
     return ' answered your drinking invite.';
   }
   if (item.type === 'chug_verification') return ' wants you to verify a 33cl bottle chug.';
+  if (item.type === 'drinking_buddy_added') return ' added you as a drinking buddy.';
   return ' invited you to drink!';
 };

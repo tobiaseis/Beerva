@@ -81,6 +81,15 @@ assert.deepEqual(
   'older notification rows without metadata should open session posts'
 );
 
+assert.deepEqual(
+  getNotificationPostTarget({
+    reference_id: 'session-buddy-row-1',
+    metadata: { target_type: 'session', session_id: 'session-1' },
+  }),
+  { targetType: 'session', targetId: 'session-1' },
+  'drinking buddy notifications should open the session from metadata instead of the buddy row'
+);
+
 assert.equal(
   getNotificationPubName({
     metadata: { pub_name: '  John Bull Pub  ' },
@@ -117,6 +126,15 @@ assert.equal(
   ' started a pub crawl at John Bull Pub.'
 );
 
+assert.equal(
+  getNotificationMessage({
+    type: 'drinking_buddy_added',
+    metadata: { session_id: 'session-1', target_type: 'session' },
+    session: null,
+  }),
+  ' added you as a drinking buddy.'
+);
+
 const recordScreenSource = fs.readFileSync(path.resolve(__dirname, '..', 'src/screens/RecordScreen.tsx'), 'utf8');
 assert.match(
   recordScreenSource,
@@ -139,6 +157,31 @@ assert.match(
   notificationsScreenSource,
   /getNotificationPostTarget/,
   'notifications screen should derive typed post navigation targets through the shared helper'
+);
+assert.match(
+  notificationsScreenSource,
+  /drinking_buddy_added/,
+  'notifications screen should know drinking buddy notifications'
+);
+assert.match(
+  notificationsScreenSource,
+  /declineSessionBuddy/,
+  'notifications screen should decline drinking buddy tags through shared API'
+);
+assert.match(
+  notificationsScreenSource,
+  /Not with me/,
+  'drinking buddy notifications should expose the opt-out copy'
+);
+assert.match(
+  notificationsScreenSource,
+  /Removed from this session/,
+  'declined buddy notifications should show removal status'
+);
+assert.match(
+  notificationsScreenSource,
+  /item\.session\?\.status === 'published'/,
+  'drinking buddy notifications should only open posts after the session is published'
 );
 
 const rootNavigatorSource = fs.readFileSync(path.resolve(__dirname, '..', 'src/navigation/RootNavigator.tsx'), 'utf8');
