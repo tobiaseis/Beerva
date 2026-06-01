@@ -1,19 +1,22 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Image,
   Modal,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { Beer, Timer, UserCheck, X } from 'lucide-react-native';
+import { Beer, Search, Timer, UserCheck, X } from 'lucide-react-native';
 
 import { AppButton } from './AppButton';
-import { BeerDraftForm } from './BeerDraftForm';
-import { BeerDraft, getBeerLine, SessionBeer } from '../lib/sessionBeers';
-import { formatChugDuration } from '../lib/chugAttempts';
+import { AutocompleteInput } from './AutocompleteInput';
+import { getBeverageOptionSearchText, getBeerLine, SessionBeer } from '../lib/sessionBeers';
+import { formatChugDuration, getChugBeerOptions } from '../lib/chugAttempts';
+import { useBeverageCatalog } from '../lib/beverageCatalogContext';
 import { colors } from '../theme/colors';
 import { radius, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
@@ -33,47 +36,62 @@ type AnalysisPreview = {
 
 type ChugAttemptModalProps = {
   visible: boolean;
-  eligibleBeers: SessionBeer[];
   mutualFollowers: MutualFollower[];
-  beerDraft: BeerDraft;
-  selectedBeerId: string | null;
+  selectedBeer: SessionBeer | null;
   selectedVerifierId: string | null;
   analysisPreview: AnalysisPreview | null;
+  needsManualTiming: boolean;
+  analyzing: boolean;
   busy: boolean;
   error: string | null;
   onClose: () => void;
-  onBeerDraftChange: (draft: BeerDraft) => void;
-  onSelectBeer: (beerId: string) => void;
-  onCreateBeer: (draft?: BeerDraft) => void;
+  onCreateBeer: (beerName: string) => void;
   onSelectVerifier: (verifierId: string) => void;
   onRecord: () => void;
   onRetry: () => void;
   onAccept: () => void;
+  onSubmitManualTiming: () => void;
 };
 
 export const ChugAttemptModal = ({
   visible,
-  eligibleBeers,
   mutualFollowers,
-  beerDraft,
-  selectedBeerId,
+  selectedBeer,
   selectedVerifierId,
   analysisPreview,
+  needsManualTiming,
+  analyzing,
   busy,
   error,
   onClose,
-  onBeerDraftChange,
-  onSelectBeer,
   onCreateBeer,
   onSelectVerifier,
   onRecord,
   onRetry,
   onAccept,
+  onSubmitManualTiming,
 }: ChugAttemptModalProps) => {
-  const selectedBeer = eligibleBeers.find((beer) => beer.id === selectedBeerId) || null;
+  const { catalog } = useBeverageCatalog();
+  const [beerSearch, setBeerSearch] = useState('');
+  const [verifierSearch, setVerifierSearch] = useState('');
+  const chugBeerOptions = useMemo(() => getChugBeerOptions(catalog), [catalog]);
   const selectedVerifier = mutualFollowers.find((follower) => follower.id === selectedVerifierId) || null;
+  const normalizedVerifierSearch = verifierSearch.trim().toLowerCase();
+  const filteredFollowers = mutualFollowers
+    .filter((follower) => (
+      !normalizedVerifierSearch
+      || (follower.username || '').toLowerCase().includes(normalizedVerifierSearch)
+    ))
+    .slice(0, 20);
   const canRecord = Boolean(selectedBeer && selectedVerifier && !busy);
   const canAccept = Boolean(analysisPreview && selectedBeer && selectedVerifier && !busy);
+  const canSubmitManualTiming = Boolean(needsManualTiming && selectedBeer && selectedVerifier && !busy);
+
+  useEffect(() => {
+    if (!visible) return;
+    setBeerSearch('');
+    setVerifierSearch('');
+  }, [visible]);
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -105,43 +123,28 @@ export const ChugAttemptModal = ({
               </View>
             </View>
 
-            <Text style={styles.sectionTitle}>Choose beer</Text>
-            {eligibleBeers.length === 0 ? (
-              <View style={styles.emptyBox}>
-                <Beer color={colors.textMuted} size={22} />
-                <Text style={styles.emptyText}>Chugs are 33cl bottled beers only for now.</Text>
+            <Text style={styles.ruleText}>Chugs are 33cl bottled beers only for now.</Text>
+
+            <Text style={styles.sectionTitle}>Beer</Text>
+            {selectedBeer ? (
+              <View style={[styles.optionRow, styles.optionRowActive]}>
+                <Beer color={colors.background} size={18} />
+                <View style={styles.optionText}>
+                  <Text style={[styles.optionTitle, styles.optionTitleActive]}>{selectedBeer.beer_name}</Text>
+                  <Text style={[styles.optionMeta, styles.optionMetaActive]}>{getBeerLine(selectedBeer)}</Text>
+                </View>
               </View>
             ) : (
-              eligibleBeers.map((beer) => (
-                <TouchableOpacity
-                  key={beer.id || `${beer.beer_name}-${beer.consumed_at}`}
-                  style={[styles.optionRow, selectedBeerId === beer.id ? styles.optionRowActive : null]}
-                  onPress={() => beer.id && onSelectBeer(beer.id)}
-                  activeOpacity={0.76}
-                >
-                  <Beer color={selectedBeerId === beer.id ? colors.background : colors.primary} size={18} />
-                  <View style={styles.optionText}>
-                    <Text style={[styles.optionTitle, selectedBeerId === beer.id ? styles.optionTitleActive : null]}>
-                      {beer.beer_name}
-                    </Text>
-                    <Text style={[styles.optionMeta, selectedBeerId === beer.id ? styles.optionMetaActive : null]}>
-                      {getBeerLine(beer)}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              ))
-            )}
-
-            <View style={styles.formBox}>
-              <Text style={styles.sectionTitle}>Add a 33cl bottle</Text>
-              <BeerDraftForm
-                draft={beerDraft}
-                onChange={onBeerDraftChange}
-                onSubmit={onCreateBeer}
-                submitLabel="Add 33cl Bottle"
-                loading={busy}
+              <AutocompleteInput
+                value={beerSearch}
+                onChangeText={setBeerSearch}
+                onSelectItem={onCreateBeer}
+                data={chugBeerOptions}
+                placeholder="Search bottled beer"
+                icon={<Beer color={colors.textMuted} size={20} />}
+                getSearchText={(beerName) => getBeverageOptionSearchText(beerName, catalog)}
               />
-            </View>
+            )}
 
             <Text style={styles.sectionTitle}>Verifier</Text>
             {mutualFollowers.length === 0 ? (
@@ -150,22 +153,34 @@ export const ChugAttemptModal = ({
                 <Text style={styles.emptyText}>Add a mutual follower before chug verification.</Text>
               </View>
             ) : (
-              mutualFollowers.map((follower) => (
-                <TouchableOpacity
-                  key={follower.id}
-                  style={[styles.optionRow, selectedVerifierId === follower.id ? styles.optionRowActive : null]}
-                  onPress={() => onSelectVerifier(follower.id)}
-                  activeOpacity={0.76}
-                >
-                  <Image
-                    source={{ uri: follower.avatar_url || `https://i.pravatar.cc/150?u=${follower.id}` }}
-                    style={styles.avatar}
+              <>
+                <View style={styles.searchBox}>
+                  <Search color={colors.textMuted} size={18} />
+                  <TextInput
+                    value={verifierSearch}
+                    onChangeText={setVerifierSearch}
+                    placeholder="Search mutual followers"
+                    placeholderTextColor={colors.textMuted}
+                    style={styles.searchInput}
                   />
-                  <Text style={[styles.optionTitle, selectedVerifierId === follower.id ? styles.optionTitleActive : null]}>
-                    {follower.username || 'Someone'}
-                  </Text>
-                </TouchableOpacity>
-              ))
+                </View>
+                {filteredFollowers.map((follower) => (
+                  <TouchableOpacity
+                    key={follower.id}
+                    style={[styles.optionRow, selectedVerifierId === follower.id ? styles.optionRowActive : null]}
+                    onPress={() => onSelectVerifier(follower.id)}
+                    activeOpacity={0.76}
+                  >
+                    <Image
+                      source={{ uri: follower.avatar_url || `https://i.pravatar.cc/150?u=${follower.id}` }}
+                      style={styles.avatar}
+                    />
+                    <Text style={[styles.optionTitle, selectedVerifierId === follower.id ? styles.optionTitleActive : null]}>
+                      {follower.username || 'Someone'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </>
             )}
 
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -193,10 +208,31 @@ export const ChugAttemptModal = ({
                   <AppButton label="Accept Attempt" onPress={onAccept} loading={busy} disabled={!canAccept} />
                 </View>
               </>
+            ) : needsManualTiming ? (
+              <>
+                <TouchableOpacity style={styles.secondaryButton} onPress={onRetry} disabled={busy}>
+                  <Text style={styles.secondaryButtonText}>Try again</Text>
+                </TouchableOpacity>
+                <View style={styles.primaryWrap}>
+                  <AppButton
+                    label="Send for manual timing"
+                    onPress={onSubmitManualTiming}
+                    loading={busy}
+                    disabled={!canSubmitManualTiming}
+                  />
+                </View>
+              </>
             ) : (
               <AppButton label="Record Chug" onPress={onRecord} loading={busy} disabled={!canRecord} />
             )}
           </View>
+
+          {analyzing ? (
+            <View style={styles.analysisOverlay}>
+              <ActivityIndicator color={colors.primary} size="large" />
+              <Text style={styles.analysisTitle}>Your chug is being analyzed. Be patient...</Text>
+            </View>
+          ) : null}
         </View>
       </View>
     </Modal>
@@ -211,6 +247,7 @@ const styles = StyleSheet.create({
   },
   sheet: {
     maxHeight: '92%',
+    position: 'relative',
     backgroundColor: colors.background,
     borderTopLeftRadius: radius.lg,
     borderTopRightRadius: radius.lg,
@@ -260,7 +297,7 @@ const styles = StyleSheet.create({
   },
   guidanceImage: {
     width: '100%',
-    height: 138,
+    height: 220,
   },
   guidanceCopy: {
     gap: 4,
@@ -272,6 +309,11 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   guidanceText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    lineHeight: 18,
+  },
+  ruleText: {
     ...typography.caption,
     color: colors.textMuted,
     lineHeight: 18,
@@ -331,9 +373,21 @@ const styles = StyleSheet.create({
     height: 34,
     borderRadius: 17,
   },
-  formBox: {
-    marginTop: 4,
-    gap: spacing.sm,
+  searchBox: {
+    minHeight: 52,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.surface,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 12,
+  },
+  searchInput: {
+    flex: 1,
+    ...typography.body,
+    color: colors.text,
   },
   errorText: {
     ...typography.caption,
@@ -380,5 +434,19 @@ const styles = StyleSheet.create({
   },
   primaryWrap: {
     flex: 1,
+  },
+  analysisOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 24,
+    backgroundColor: colors.overlay,
+  },
+  analysisTitle: {
+    ...typography.h3,
+    color: colors.text,
+    textAlign: 'center',
   },
 });
