@@ -20,7 +20,12 @@
       "Bash(echo \"EOF-$?\")",
       "Bash(echo \"EOFMARK-$?\")",
       "Bash(echo \"DONE-$?\")",
-      "Bash(echo \"FIN-$?\")"
+      "Bash(echo \"FIN-$?\")",
+      "Skill(ai-image-generation)",
+      "Skill(ai-image-generation:*)",
+      "Bash(curl -s https://raw.githubusercontent.com/inference-sh/skills/refs/heads/main/cli-install.md)",
+      "Bash(curl -fsSL cli.inference.sh)",
+      "Bash(sh)"
     ]
   }
 }

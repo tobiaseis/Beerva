@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "ai-image-generation": {
+      "source": "skills-shell/skills",
+      "sourceType": "github",
+      "skillPath": "tools/image/ai-image-generation/SKILL.md",
+      "computedHash": "cf0b7e45b1e915e0782b3ec9734c0f1f580f08b88b5ccd2a80e7a582123eaa8f"
+    },
     "bencium-controlled-ux-designer": {
       "source": "bencium/bencium-claude-code-design-skill",
       "sourceType": "github",
