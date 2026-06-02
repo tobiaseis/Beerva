@@ -64,6 +64,24 @@ const assertStartupImageUsesFlatAppBackground = (relativePath) => {
   }
 };
 
+const assertManifestIconUsesAppBackground = (relativePath) => {
+  const png = readPngPixels(relativePath);
+  const samples = [
+    [Math.round(png.width * 0.12), Math.round(png.height * 0.12)],
+    [Math.round(png.width * 0.88), Math.round(png.height * 0.12)],
+    [Math.round(png.width * 0.12), Math.round(png.height * 0.88)],
+    [Math.round(png.width * 0.88), Math.round(png.height * 0.88)],
+  ];
+
+  for (const [x, y] of samples) {
+    assertRgbNear(
+      getPixelRgb(png, x, y),
+      APP_BACKGROUND_RGB,
+      `${relativePath} should match the Android PWA splash background at (${x}, ${y})`
+    );
+  }
+};
+
 const getExportedAsyncFunctionBody = (source, name) => {
   const marker = `export const ${name} = async`;
   const start = source.indexOf(marker);
@@ -170,7 +188,7 @@ assert.doesNotMatch(
 
 assert.match(
   serviceWorkerSource,
-  /const CACHE_NAME = 'beerva-cache-v13'/,
+  /const CACHE_NAME = 'beerva-cache-v14'/,
   'service worker cache should be bumped when startup caching behavior changes'
 );
 
@@ -232,7 +250,9 @@ for (const icon of manifest.icons) {
   assert.notEqual(icon.type, 'image/x-icon', 'manifest icons should not include .ico files');
   assert.doesNotMatch(icon.src, /\.ico$/i, 'manifest icon sources should not point to .ico files');
   assert.equal(icon.type, 'image/png', `${icon.src} should be declared as image/png`);
-  assert.ok(fs.existsSync(path.join(root, 'public', icon.src.replace(/^\//, ''))), `${icon.src} should exist in public`);
+  const iconPath = path.join('public', icon.src.replace(/^\//, ''));
+  assert.ok(fs.existsSync(path.join(root, iconPath)), `${icon.src} should exist in public`);
+  assertManifestIconUsesAppBackground(iconPath);
 }
 
 const startupImagePaths = [

@@ -10,6 +10,8 @@ const logo = PNG.sync.read(fs.readFileSync(path.join(publicDir, 'beerva-logo-tra
 const BACKGROUND = { red: 0x0d, green: 0x12, blue: 0x1a };
 const LOGO_WIDTH_CSS_PX = 96;
 const LOGO_CENTER_Y_OFFSET_CSS_PX = -32;
+const ANY_ICON_LOGO_SCALE = 0.7;
+const MASKABLE_ICON_LOGO_SCALE = 0.56;
 
 const startupLinkPattern = /<link rel="apple-touch-startup-image" href="\/(apple-splash-(\d+)-(\d+)\.png)" media="[^"]*-webkit-device-pixel-ratio:\s*(\d+)[^"]*">/g;
 
@@ -77,6 +79,20 @@ const compositeLogo = (png, resizedLogo, logoWidth, logoHeight, left, top) => {
   }
 };
 
+const generateIcon = (fileName, size, logoScale) => {
+  const png = new PNG({ width: size, height: size });
+  const logoWidth = Math.round(size * logoScale);
+  const logoHeight = Math.round(logoWidth * logo.height / logo.width);
+  const logoLeft = Math.round((size - logoWidth) / 2);
+  const logoTop = Math.round((size - logoHeight) / 2);
+  const resizedLogo = resizeBilinear(logo, logoWidth, logoHeight);
+
+  paintBackground(png);
+  compositeLogo(png, resizedLogo, logoWidth, logoHeight, logoLeft, logoTop);
+  fs.writeFileSync(path.join(publicDir, fileName), PNG.sync.write(png));
+  console.log(`Generated ${fileName}`);
+};
+
 const startupImages = [];
 let match = startupLinkPattern.exec(indexHtml);
 
@@ -110,3 +126,10 @@ for (const startupImage of startupImages) {
   fs.writeFileSync(path.join(publicDir, startupImage.fileName), PNG.sync.write(png));
   console.log(`Generated ${startupImage.fileName}`);
 }
+
+generateIcon('beerva-icon-192.png', 192, ANY_ICON_LOGO_SCALE);
+generateIcon('beerva-icon-512.png', 512, ANY_ICON_LOGO_SCALE);
+generateIcon('beerva-maskable-192.png', 192, MASKABLE_ICON_LOGO_SCALE);
+generateIcon('beerva-maskable-512.png', 512, MASKABLE_ICON_LOGO_SCALE);
+generateIcon('logo192.png', 192, ANY_ICON_LOGO_SCALE);
+generateIcon('logo512.png', 512, ANY_ICON_LOGO_SCALE);
