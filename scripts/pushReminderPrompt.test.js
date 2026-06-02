@@ -137,4 +137,41 @@ assert.equal(
   'package script should run the push reminder checks'
 );
 
-console.log('push reminder helper checks passed');
+const componentPath = path.join(root, 'src/components/PushReminderPrompt.tsx');
+assert.ok(fs.existsSync(componentPath), 'PushReminderPrompt component should exist');
+const componentSource = fs.readFileSync(componentPath, 'utf8');
+
+assert.match(
+  componentSource,
+  /export const PushReminderPrompt = \(\{ onShowProfileHint \}: PushReminderPromptProps\)/,
+  'push reminder prompt should accept a profile-hint callback'
+);
+
+assert.match(
+  componentSource,
+  /isCurrentlySubscribed\(\)/,
+  'push reminder prompt should check the current push subscription before showing'
+);
+
+assert.match(
+  componentSource,
+  /enablePushNotifications\(\)/,
+  'Enable now should reuse the existing push enable flow'
+);
+
+assert.match(
+  componentSource,
+  /rememberPushReminderSeen\(getPushReminderStorage\(\), userId\)/,
+  'dismissal actions should record the one-time seen state'
+);
+
+assert.match(componentSource, />Enable now</, 'prompt should expose an Enable now action');
+assert.match(componentSource, />Show me where</, 'prompt should expose a Show me where action');
+assert.match(componentSource, />Not now</, 'prompt should expose a Not now action');
+assert.match(
+  componentSource,
+  /Notifications blocked/,
+  'failed permission requests should reuse the blocked notifications copy style'
+);
+
+console.log('push reminder checks passed');
