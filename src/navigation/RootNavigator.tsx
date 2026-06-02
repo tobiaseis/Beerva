@@ -25,6 +25,7 @@ import { HangoverRatingScreen } from '../screens/HangoverRatingScreen';
 import { ChugVerificationScreen } from '../screens/ChugVerificationScreen';
 import { FakeBeerScreen } from '../screens/FakeBeerScreen';
 import { AdminToolsScreen } from '../screens/AdminToolsScreen';
+import { PushReminderPrompt } from '../components/PushReminderPrompt';
 import { colors } from '../theme/colors';
 import { floatingTabBarMetrics, radius, shadows } from '../theme/layout';
 import { NotificationsProvider, useNotifications } from '../lib/notificationsContext';
@@ -326,6 +327,15 @@ export const RootNavigator = () => {
   const sessionUserId = session?.user?.id ?? null;
   const sessionHasCachedUsername = hasCachedUsername(session);
 
+  const openPushReminderProfileHint = useCallback(() => {
+    if (!navigationRef.isReady()) return;
+
+    navigationRef.navigate('MainTabs', {
+      screen: 'Profile',
+      params: { showPushReminderHint: true },
+    });
+  }, []);
+
   const checkProfileSetup = useCallback(async (activeSession: Session | null, showLoading = false) => {
     const requestId = profileCheckRequestIdRef.current + 1;
     profileCheckRequestIdRef.current = requestId;
@@ -522,25 +532,28 @@ export const RootNavigator = () => {
         ) : (
           <BeverageCatalogProvider>
             <NotificationsProvider>
-              <Stack.Navigator
-                screenOptions={{
-                  headerShown: false,
-                  contentStyle: { backgroundColor: colors.background },
-                  animation: 'slide_from_right',
-                }}
-              >
-                <Stack.Screen name="MainTabs" component={MainTabs} />
-                <Stack.Screen name="UserProfile" component={UserProfileScreen} />
-                <Stack.Screen name="PubLegendDetail" component={PubLegendDetailScreen} />
-                <Stack.Screen name="ChallengeDetail" component={ChallengeDetailScreen} />
-                <Stack.Screen name="Notifications" component={NotificationsScreen} />
-                <Stack.Screen name="PostDetail" component={PostDetailScreen} />
-                <Stack.Screen name="EditSession" component={EditSessionScreen} />
-                <Stack.Screen name="HangoverRating" component={HangoverRatingScreen} />
-                <Stack.Screen name="ChugVerification" component={ChugVerificationScreen} />
-                <Stack.Screen name="FakeBeer" component={FakeBeerScreen} options={{ animation: 'none' }} />
-                <Stack.Screen name="AdminTools" component={AdminToolsScreen} />
-              </Stack.Navigator>
+              <>
+                <Stack.Navigator
+                  screenOptions={{
+                    headerShown: false,
+                    contentStyle: { backgroundColor: colors.background },
+                    animation: 'slide_from_right',
+                  }}
+                >
+                  <Stack.Screen name="MainTabs" component={MainTabs} />
+                  <Stack.Screen name="UserProfile" component={UserProfileScreen} />
+                  <Stack.Screen name="PubLegendDetail" component={PubLegendDetailScreen} />
+                  <Stack.Screen name="ChallengeDetail" component={ChallengeDetailScreen} />
+                  <Stack.Screen name="Notifications" component={NotificationsScreen} />
+                  <Stack.Screen name="PostDetail" component={PostDetailScreen} />
+                  <Stack.Screen name="EditSession" component={EditSessionScreen} />
+                  <Stack.Screen name="HangoverRating" component={HangoverRatingScreen} />
+                  <Stack.Screen name="ChugVerification" component={ChugVerificationScreen} />
+                  <Stack.Screen name="FakeBeer" component={FakeBeerScreen} options={{ animation: 'none' }} />
+                  <Stack.Screen name="AdminTools" component={AdminToolsScreen} />
+                </Stack.Navigator>
+                <PushReminderPrompt onShowProfileHint={openPushReminderProfileHint} />
+              </>
             </NotificationsProvider>
           </BeverageCatalogProvider>
         )

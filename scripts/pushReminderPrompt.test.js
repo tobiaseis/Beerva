@@ -174,4 +174,43 @@ assert.match(
   'failed permission requests should reuse the blocked notifications copy style'
 );
 
+const rootNavigatorSource = fs.readFileSync(path.join(root, 'src/navigation/RootNavigator.tsx'), 'utf8');
+assert.match(
+  rootNavigatorSource,
+  /import \{ PushReminderPrompt \} from '\.\.\/components\/PushReminderPrompt';/,
+  'root navigator should import the push reminder prompt'
+);
+assert.match(
+  rootNavigatorSource,
+  /navigationRef\.navigate\('MainTabs', \{\s*screen: 'Profile',\s*params: \{ showPushReminderHint: true \},\s*\}\)/,
+  'Show me where should navigate to the Profile tab with the hint param'
+);
+assert.match(
+  rootNavigatorSource,
+  /<PushReminderPrompt onShowProfileHint=\{openPushReminderProfileHint\} \/>/,
+  'authenticated root navigation should mount the push reminder prompt'
+);
+
+const profileScreenSource = fs.readFileSync(path.join(root, 'src/screens/ProfileScreen.tsx'), 'utf8');
+assert.match(
+  profileScreenSource,
+  /route\?\.params\?\.showPushReminderHint/,
+  'Profile screen should read the push reminder hint route param'
+);
+assert.match(
+  profileScreenSource,
+  /navigation\.setParams\(\{ showPushReminderHint: undefined \}\)/,
+  'Profile screen should clear the one-shot push reminder hint param'
+);
+assert.match(
+  profileScreenSource,
+  /This is the button/,
+  'Profile screen should show contextual copy beside the push button'
+);
+assert.match(
+  profileScreenSource,
+  /pushReminderHintVisible && pushSupported && !pushSubscribed/,
+  'Profile hint should only appear around an available unsubscribed push button'
+);
+
 console.log('push reminder checks passed');

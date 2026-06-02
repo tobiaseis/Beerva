@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator, Platform, FlatList } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { colors } from '../theme/colors';
@@ -95,7 +95,7 @@ const formatPints = (session: PublicSession) => {
   return Math.round(pints * 10) / 10;
 };
 
-export const ProfileScreen = () => {
+export const ProfileScreen = ({ route }: any) => {
   const navigation = useNavigation<any>();
   const [profile, setProfile] = useState<any>(null);
   const [stats, setStats] = useState<Stats>(emptyStats);
@@ -123,6 +123,15 @@ export const ProfileScreen = () => {
   const [pushUnsupportedReason, setPushUnsupportedReason] = useState<string | null>(null);
   const [pushSubscribed, setPushSubscribed] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
+  const [pushReminderHintVisible, setPushReminderHintVisible] = useState(false);
+  const showPushReminderHint = Boolean(route?.params?.showPushReminderHint);
+
+  useEffect(() => {
+    if (!showPushReminderHint) return;
+
+    setPushReminderHintVisible(true);
+    navigation.setParams({ showPushReminderHint: undefined });
+  }, [navigation, showPushReminderHint]);
 
   const refreshPushState = useCallback(async () => {
     const support = getPushSupportInfo();
@@ -147,6 +156,7 @@ export const ProfileScreen = () => {
         const result = await enablePushNotifications();
         if (result.ok) {
           setPushSubscribed(true);
+          setPushReminderHintVisible(false);
           showAlert('🍻 Push notifications on', 'We\'ll buzz you when someone cheers or invites you.');
         } else {
           const status = getPushPermissionStatus();
@@ -533,6 +543,25 @@ export const ProfileScreen = () => {
         )}
       </View>
 
+      {pushReminderHintVisible && pushSupported && !pushSubscribed ? (
+        <View style={styles.pushReminderHint}>
+          <Bell color={colors.primary} size={18} />
+          <View style={styles.pushReminderHintTextWrap}>
+            <Text style={styles.pushReminderHintTitle}>This is the button</Text>
+            <Text style={styles.pushReminderHintText}>Tap it here whenever you want Beerva to buzz you about cheers, comments, invites, and updates.</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.pushReminderHintClose}
+            onPress={() => setPushReminderHintVisible(false)}
+            activeOpacity={0.75}
+            accessibilityRole="button"
+            accessibilityLabel="Hide push notification hint"
+          >
+            <X color={colors.textMuted} size={16} />
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
       {pushSupported ? (
         <TouchableOpacity
           style={[styles.pushButton, pushSubscribed ? styles.pushButtonOn : styles.pushButtonOff]}
@@ -915,6 +944,43 @@ const styles = StyleSheet.create({
   },
   pushButtonTextOn: {
     color: colors.primary,
+  },
+  pushReminderHint: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginHorizontal: 16,
+    marginTop: 16,
+    padding: 14,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    backgroundColor: colors.primarySoft,
+  },
+  pushReminderHintTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  pushReminderHintTitle: {
+    ...typography.body,
+    color: colors.primary,
+    fontWeight: '900',
+  },
+  pushReminderHintText: {
+    ...typography.caption,
+    color: colors.text,
+    lineHeight: 18,
+    marginTop: 3,
+  },
+  pushReminderHintClose: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
   },
   pushHint: {
     flexDirection: 'row',
