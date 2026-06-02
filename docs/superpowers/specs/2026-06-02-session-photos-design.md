@@ -1,7 +1,7 @@
 # Session Photos Design Specification
 
 ## Overview
-Currently, the "Record a session" page only allows a single photo (`image_url`) per session. The goal is to allow up to 5 photos per session to increase engagement without bloating database storage on the free tier. One photo is designated as a "keeper" (permanent), and up to 4 photos are "temporary" (deleted after 48 hours). The UI will display these using a photo carousel on the session posts in the feed.
+Currently, the "Record a session" page only allows a single photo (`image_url`) per session. The goal is to allow up to 5 photos per session to increase engagement without bloating database storage on the free tier. One photo is designated as a "keeper" (permanent), and up to 4 photos are "temporary" (deleted after 24 hours). The UI will display these using a photo carousel on the session posts in the feed.
 
 ## Architecture
 
@@ -13,7 +13,7 @@ We will create a new table `session_photos` in Supabase to track all photos asso
 - `session_id`: UUID (Foreign Key to `sessions.id`)
 - `image_url`: Text (URL of the uploaded photo in Supabase Storage)
 - `is_keeper`: Boolean (Indicates if this is the permanent photo)
-- `expires_at`: Timestampz (Nullable. Set to 48 hours after creation for temporary photos, or `null` for the keeper photo)
+- `expires_at`: Timestampz (Nullable. Set to 24 hours after creation for temporary photos, or `null` for the keeper photo)
 - `created_at`: Timestampz
 
 **Data Migration**: 
@@ -32,7 +32,7 @@ A migration script will be created to move existing `sessions.image_url` data in
 - **Photo Picker Update**: Modify `expo-image-picker` to allow multiple selection (up to 5 images).
 - **Selection UI**: Display selected photos in a horizontal scroll view.
 - **Keeper Designation**: By default, the first photo is the keeper. The user can tap a "star" icon on any selected photo to change the keeper. The selected keeper will be highlighted.
-- **Contextual Text**: Display a small label explaining: *"The starred photo stays forever. Others disappear after 48 hours."*
+- **Contextual Text**: Display a small label explaining: *"The starred photo stays forever. Others disappear after 24 hours."*
 - **Upload Flow**: On save, all photos are uploaded to Supabase Storage, and their respective records are inserted into `session_photos` with appropriate `is_keeper` and `expires_at` metadata.
 
 ### Feed Display (`FeedScreen` / Session Cards)
@@ -43,7 +43,7 @@ A migration script will be created to move existing `sessions.image_url` data in
 ## Error Handling & Edge Cases
 - **Deletion Failures**: If the cleanup edge function fails to delete a file from Storage, it should log the error and skip deleting the database row so it can be retried on the next run.
 - **Legacy Posts**: Existing posts without multiple photos will naturally render a single photo (no carousel navigation needed), as they will be migrated to have one keeper photo in the `session_photos` table.
-- **Storage Limits**: By enforcing the 48-hour expiration via automated cleanup, we prevent temporary photos from accumulating and hitting Supabase storage limits.
+- **Storage Limits**: By enforcing the 24-hour expiration via automated cleanup, we prevent temporary photos from accumulating and hitting Supabase storage limits.
 
 ## Testing Strategy
 - Verify that selecting multiple photos correctly assigns exactly one keeper.
