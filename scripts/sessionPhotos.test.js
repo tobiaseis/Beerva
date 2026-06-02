@@ -38,6 +38,10 @@ const feedScreenSource = fs.readFileSync(
   path.resolve(__dirname, '..', 'src/screens/FeedScreen.tsx'),
   'utf8'
 );
+const pubCrawlCarouselSource = fs.readFileSync(
+  path.resolve(__dirname, '..', 'src/components/PubCrawlMediaCarousel.tsx'),
+  'utf8'
+);
 const cleanupFunctionSource = fs.readFileSync(
   path.resolve(__dirname, '..', 'supabase/functions/cleanup-temporary-photos/index.ts'),
   'utf8'
@@ -140,6 +144,26 @@ assert.match(
   feedScreenSource,
   /getVisibleSessionPhotoUrls\(item\.session_photos,\s*item\.image_url\)/,
   'feed card should render the keeper-first visible photo list'
+);
+assert.match(
+  feedScreenSource,
+  /onScroll=\{handlePhotoScroll\}/,
+  'session carousel should update its active dot while scrolling'
+);
+assert.match(
+  feedScreenSource,
+  /<View pointerEvents="none" style=\{styles\.photoIndicatorContainer\}>/,
+  'session carousel dots should not intercept swipe gestures'
+);
+assert.match(
+  pubCrawlCarouselSource,
+  /onScroll=\{handleScroll\}/,
+  'pub crawl carousel should update its active dot while scrolling'
+);
+assert.match(
+  pubCrawlCarouselSource,
+  /<View pointerEvents="none" style=\{styles\.indicatorContainer\}>/,
+  'pub crawl carousel dots should not intercept swipe gestures'
 );
 assert.match(
   cleanupFunctionSource,

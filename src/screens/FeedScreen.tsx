@@ -409,7 +409,8 @@ export const FeedSessionCard = React.memo(({
     if (!mediaWidth) return;
     const offsetX = event.nativeEvent.contentOffset.x;
     const nextIndex = Math.round(offsetX / mediaWidth);
-    setActivePhotoIndex(Math.max(0, Math.min(nextIndex, sessionPhotoUrls.length - 1)));
+    const clampedIndex = Math.max(0, Math.min(nextIndex, sessionPhotoUrls.length - 1));
+    setActivePhotoIndex((currentIndex) => currentIndex === clampedIndex ? currentIndex : clampedIndex);
   }, [mediaWidth, sessionPhotoUrls.length]);
 
   return (
@@ -472,6 +473,7 @@ export const FeedSessionCard = React.memo(({
               horizontal
               pagingEnabled
               showsHorizontalScrollIndicator={false}
+              onScroll={handlePhotoScroll}
               onMomentumScrollEnd={handlePhotoScroll}
               scrollEventThrottle={16}
               snapToInterval={mediaWidth || undefined}
@@ -510,7 +512,7 @@ export const FeedSessionCard = React.memo(({
               <Image source={beervaLogo} style={styles.cheerOverlayLogo} />
             </Animated.View>
             {sessionPhotoUrls.length > 1 ? (
-              <View style={styles.photoIndicatorContainer}>
+              <View pointerEvents="none" style={styles.photoIndicatorContainer}>
                 {sessionPhotoUrls.map((imageUrl, index) => (
                   <View
                     key={`dot-${item.id}-${imageUrl}`}

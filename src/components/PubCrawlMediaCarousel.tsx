@@ -27,9 +27,8 @@ export const PubCrawlMediaCarousel = ({ crawl, onImagePress }: Props & { onImage
   const handleScroll = (event: any) => {
     const offsetX = event.nativeEvent.contentOffset.x;
     const index = Math.round(offsetX / slideWidth);
-    if (index !== activeIndex) {
-      setActiveIndex(index);
-    }
+    const clampedIndex = Math.max(0, Math.min(index, slides.length - 1));
+    setActiveIndex((currentIndex) => currentIndex === clampedIndex ? currentIndex : clampedIndex);
   };
 
   return (
@@ -39,6 +38,7 @@ export const PubCrawlMediaCarousel = ({ crawl, onImagePress }: Props & { onImage
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
+        onScroll={handleScroll}
         onMomentumScrollEnd={handleScroll}
         scrollEventThrottle={16}
         snapToInterval={slideWidth}
@@ -67,7 +67,7 @@ export const PubCrawlMediaCarousel = ({ crawl, onImagePress }: Props & { onImage
       </ScrollView>
 
       {slides.length > 1 && (
-        <View style={styles.indicatorContainer}>
+        <View pointerEvents="none" style={styles.indicatorContainer}>
           {slides.map((slide, index) => (
             <View
               key={slide.id}
