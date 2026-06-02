@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { PNG } = require('pngjs');
 
 const root = path.resolve(__dirname, '..');
 const appSource = fs.readFileSync(path.join(root, 'App.tsx'), 'utf8');
@@ -10,6 +11,8 @@ const rootNavigatorSource = fs.readFileSync(path.join(root, 'src/navigation/Root
 const serviceWorkerSource = fs.readFileSync(path.join(root, 'public/sw.js'), 'utf8');
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'public/manifest.webmanifest'), 'utf8'));
 const manifestJson = JSON.parse(fs.readFileSync(path.join(root, 'public/manifest.json'), 'utf8'));
+const APP_BACKGROUND_RGB = { red: 0x0d, green: 0x12, blue: 0x1a };
+const MAX_BACKGROUND_CHANNEL_DELTA = 3;
 
 const readPngSize = (relativePath) => {
   const buffer = fs.readFileSync(path.join(root, relativePath));
@@ -18,6 +21,47 @@ const readPngSize = (relativePath) => {
     width: buffer.readUInt32BE(16),
     height: buffer.readUInt32BE(20),
   };
+};
+
+const readPngPixels = (relativePath) => PNG.sync.read(fs.readFileSync(path.join(root, relativePath)));
+
+const getPixelRgb = (png, x, y) => {
+  const index = ((y * png.width) + x) * 4;
+  return {
+    red: png.data[index],
+    green: png.data[index + 1],
+    blue: png.data[index + 2],
+  };
+};
+
+const assertRgbNear = (actual, expected, message) => {
+  assert.ok(
+    Math.abs(actual.red - expected.red) <= MAX_BACKGROUND_CHANNEL_DELTA
+      && Math.abs(actual.green - expected.green) <= MAX_BACKGROUND_CHANNEL_DELTA
+      && Math.abs(actual.blue - expected.blue) <= MAX_BACKGROUND_CHANNEL_DELTA,
+    `${message}; expected rgb(${expected.red}, ${expected.green}, ${expected.blue}), got rgb(${actual.red}, ${actual.green}, ${actual.blue})`
+  );
+};
+
+const assertStartupImageUsesFlatAppBackground = (relativePath) => {
+  const png = readPngPixels(relativePath);
+  const shortSide = Math.min(png.width, png.height);
+  const samples = [
+    [-0.28, -0.28],
+    [0.28, -0.28],
+    [-0.28, 0.28],
+    [0.28, 0.28],
+  ];
+
+  for (const [xOffset, yOffset] of samples) {
+    const x = Math.round((png.width / 2) + (xOffset * shortSide));
+    const y = Math.round((png.height / 2) + (yOffset * shortSide));
+    assertRgbNear(
+      getPixelRgb(png, x, y),
+      APP_BACKGROUND_RGB,
+      `${relativePath} should not contain a second icon background at (${x}, ${y})`
+    );
+  }
 };
 
 const getExportedAsyncFunctionBody = (source, name) => {
@@ -126,7 +170,7 @@ assert.doesNotMatch(
 
 assert.match(
   serviceWorkerSource,
-  /const CACHE_NAME = 'beerva-cache-v12'/,
+  /const CACHE_NAME = 'beerva-cache-v13'/,
   'service worker cache should be bumped when startup caching behavior changes'
 );
 
@@ -189,6 +233,16 @@ for (const icon of manifest.icons) {
   assert.doesNotMatch(icon.src, /\.ico$/i, 'manifest icon sources should not point to .ico files');
   assert.equal(icon.type, 'image/png', `${icon.src} should be declared as image/png`);
   assert.ok(fs.existsSync(path.join(root, 'public', icon.src.replace(/^\//, ''))), `${icon.src} should exist in public`);
+}
+
+const startupImagePaths = [
+  ...indexHtmlSource.matchAll(/<link rel="apple-touch-startup-image" href="\/(apple-splash-\d+-\d+\.png)"/g),
+].map((match) => path.join('public', match[1]));
+
+assert.ok(startupImagePaths.length > 0, 'index.html should include generated iOS startup images');
+
+for (const startupImagePath of startupImagePaths) {
+  assertStartupImageUsesFlatAppBackground(startupImagePath);
 }
 
 assert.ok(Array.isArray(manifest.screenshots), 'manifest should include screenshots');

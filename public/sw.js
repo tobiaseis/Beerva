@@ -1,6 +1,6 @@
 // Beerva Service Worker (Push + Offline Caching)
 
-const CACHE_NAME = 'beerva-cache-v12';
+const CACHE_NAME = 'beerva-cache-v13';
 const OFFLINE_URLS = [
   '/',
   '/index.html',
