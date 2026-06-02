@@ -212,7 +212,8 @@ export const RecordScreen = ({ navigation }: any) => {
   const [comment, setComment] = useState('');
   const commentFocus = useFocused();
 
-  const [selectedImage, setSelectedImage] = useState<SelectedImage | null>(null);
+  const [selectedImages, setSelectedImages] = useState<SelectedImage[]>([]);
+  const [keeperIndex, setKeeperIndex] = useState(0);
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
   const [photoChoiceVisible, setPhotoChoiceVisible] = useState(false);
   const [pubCategoryChoiceVisible, setPubCategoryChoiceVisible] = useState(false);
@@ -397,7 +398,8 @@ export const RecordScreen = ({ navigation }: any) => {
     setSessionBeers([]);
     setBeerDraft(createEmptyBeerDraft());
     setComment('');
-    setSelectedImage(null);
+    setSelectedImages([]);
+    setKeeperIndex(0);
     setExistingImageUrl(null);
     setSavingPhoto(false);
     setChugVisible(false);
@@ -463,7 +465,8 @@ export const RecordScreen = ({ navigation }: any) => {
         comment: (session.comment || '').trim(),
       };
       setExistingImageUrl(session.image_url || null);
-      setSelectedImage(null);
+      setSelectedImages([]);
+    setKeeperIndex(0);
       setSavingPhoto(false);
       await fetchSessionBeers(session.id);
       if (session.pub_crawl_id) {
@@ -869,7 +872,8 @@ export const RecordScreen = ({ navigation }: any) => {
       setSessionBeers([]);
       setComment('');
       lastSavedComment.current = { sessionId: session.id, comment: '' };
-      setSelectedImage(null);
+      setSelectedImages([]);
+    setKeeperIndex(0);
       setExistingImageUrl(null);
       setSavingPhoto(false);
       setPub('');
@@ -1266,51 +1270,13 @@ export const RecordScreen = ({ navigation }: any) => {
       };
     }
 
-    setSelectedImage(preparedImage);
+    setSelectedImages(prev => {
+      const next = [...prev, preparedImage].slice(0, 5);
+      return next;
+    });
     photoWarningBypassAction.current = null;
 
-    if (!activeSession) return;
-
-    setSavingPhoto(true);
-    let uploadedUrl: string | null = null;
-    const previousImageUrl = existingImageUrl;
-
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not logged in!');
-
-      uploadedUrl = await uploadImageToBucket('session_images', preparedImage, `users/${user.id}/sessions`);
-
-      const { error } = await supabase
-        .from('sessions')
-        .update({ image_url: uploadedUrl })
-        .eq('id', activeSession.id)
-        .eq('user_id', user.id)
-        .eq('status', 'active');
-
-      if (error) throw error;
-
-      setExistingImageUrl(uploadedUrl);
-      setSelectedImage(null);
-      setActiveSession((current) => (
-        current?.id === activeSession.id
-          ? { ...current, image_url: uploadedUrl }
-          : current
-      ));
-
-      if (previousImageUrl && previousImageUrl !== uploadedUrl) {
-        deletePublicImageUrl('session_images', previousImageUrl);
-      }
-    } catch (error: any) {
-      console.error('Draft photo save error:', error);
-      if (uploadedUrl) {
-        deletePublicImageUrl('session_images', uploadedUrl);
-      }
-      hapticError();
-      showAlert('Photo not saved yet', error?.message || 'The photo will stay here until you post, but it may be lost if you close the app.');
-    } finally {
-      setSavingPhoto(false);
-    }
+    // Auto-save logic removed to allow batch uploading and keeper selection on End Session.
   };
 
   const chooseFromLibrary = async () => {
@@ -1376,7 +1342,7 @@ export const RecordScreen = ({ navigation }: any) => {
       showAlert('Add a drink first', 'The current stop needs at least one drink before moving on.');
       return;
     }
-    if (!existingImageUrl && !selectedImage && photoWarningBypassAction.current !== 'next') {
+    if (!existingImageUrl && selectedImages.length === 0 && photoWarningBypassAction.current !== 'next') {
       setPhotoWarningAction('next');
       return;
     }
@@ -1393,15 +1359,34 @@ export const RecordScreen = ({ navigation }: any) => {
     setCrawlBusy(true);
     try {
       let uploadedUrl: string | null = null;
-      if (selectedImage) {
+      if (selectedImages.length > 0) {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          uploadedUrl = await uploadImageToBucket('session_images', selectedImage, `users/${user.id}/sessions`);
-          const { error } = await supabase
-            .from('sessions')
-            .update({ image_url: uploadedUrl })
-            .eq('id', activeSession.id);
-          if (error) throw error;
+          const uploadPromises = selectedImages.map((img, idx) => 
+            uploadImageToBucket('session_images', img, `users/${user.id}/sessions`).then(url => ({ url, isKeeper: idx === keeperIndex }))
+          );
+          const uploadedPhotos = await Promise.all(uploadPromises);
+          
+          const photoRecords = uploadedPhotos.map(photo => ({
+            session_id: activeSession.id,
+            image_url: photo.url,
+            is_keeper: photo.isKeeper,
+            expires_at: photo.isKeeper ? null : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+          }));
+          
+          if (photoRecords.length > 0) {
+            const { error: photoError } = await supabase.from('session_photos').insert(photoRecords);
+            if (photoError) console.error('Failed to save session photos:', photoError);
+            
+            const keeper = photoRecords.find(p => p.is_keeper);
+            if (keeper) uploadedUrl = keeper.image_url;
+            
+            const { error } = await supabase
+              .from('sessions')
+              .update({ image_url: uploadedUrl })
+              .eq('id', activeSession.id);
+            if (error) throw error;
+          }
         }
       }
 
@@ -1433,7 +1418,7 @@ export const RecordScreen = ({ navigation }: any) => {
       showAlert('Add a drink first', 'The current stop needs at least one drink before ending the crawl.');
       return;
     }
-    if (!existingImageUrl && !selectedImage && photoWarningBypassAction.current !== 'end') {
+    if (!existingImageUrl && selectedImages.length === 0 && photoWarningBypassAction.current !== 'end') {
       setPhotoWarningAction('end');
       return;
     }
@@ -1441,15 +1426,34 @@ export const RecordScreen = ({ navigation }: any) => {
     setCrawlBusy(true);
     try {
       let uploadedUrl: string | null = null;
-      if (selectedImage) {
+      if (selectedImages.length > 0) {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          uploadedUrl = await uploadImageToBucket('session_images', selectedImage, `users/${user.id}/sessions`);
-          const { error } = await supabase
-            .from('sessions')
-            .update({ image_url: uploadedUrl })
-            .eq('id', activeSession.id);
-          if (error) throw error;
+          const uploadPromises = selectedImages.map((img, idx) => 
+            uploadImageToBucket('session_images', img, `users/${user.id}/sessions`).then(url => ({ url, isKeeper: idx === keeperIndex }))
+          );
+          const uploadedPhotos = await Promise.all(uploadPromises);
+          
+          const photoRecords = uploadedPhotos.map(photo => ({
+            session_id: activeSession.id,
+            image_url: photo.url,
+            is_keeper: photo.isKeeper,
+            expires_at: photo.isKeeper ? null : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+          }));
+          
+          if (photoRecords.length > 0) {
+            const { error: photoError } = await supabase.from('session_photos').insert(photoRecords);
+            if (photoError) console.error('Failed to save session photos:', photoError);
+            
+            const keeper = photoRecords.find(p => p.is_keeper);
+            if (keeper) uploadedUrl = keeper.image_url;
+            
+            const { error } = await supabase
+              .from('sessions')
+              .update({ image_url: uploadedUrl })
+              .eq('id', activeSession.id);
+            if (error) throw error;
+          }
         }
       }
 
@@ -1514,20 +1518,42 @@ export const RecordScreen = ({ navigation }: any) => {
 
     setEnding(true);
     let uploadedUrl: string | null = null;
+    let keeperImageUrl = existingImageUrl;
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not logged in!');
 
-      if (selectedImage) {
-        uploadedUrl = await uploadImageToBucket('session_images', selectedImage, `users/${user.id}/sessions`);
+      if (selectedImages.length > 0) {
+        const uploadPromises = selectedImages.map((img, idx) => 
+          uploadImageToBucket('session_images', img, `users/${user.id}/sessions`).then(url => ({ url, isKeeper: idx === keeperIndex }))
+        );
+        const uploadedPhotos = await Promise.all(uploadPromises);
+        
+        const photoRecords = uploadedPhotos.map(photo => ({
+          session_id: activeSession.id,
+          image_url: photo.url,
+          is_keeper: photo.isKeeper,
+          expires_at: photo.isKeeper ? null : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+        }));
+        
+        if (photoRecords.length > 0) {
+          const { error: photoError } = await supabase.from('session_photos').insert(photoRecords);
+          if (photoError) console.error('Failed to save session photos:', photoError);
+          
+          const keeper = photoRecords.find(p => p.is_keeper);
+          if (keeper) {
+            keeperImageUrl = keeper.image_url;
+            uploadedUrl = keeperImageUrl;
+          }
+        }
       }
 
       const oldStats = await fetchProfileStats(user.id);
       const oldTrophies = getTrophies(oldStats);
 
       const now = new Date().toISOString();
-      const imageUrl = uploadedUrl || existingImageUrl;
+      const imageUrl = keeperImageUrl;
       const { error } = await supabase
         .from('sessions')
         .update({
@@ -1604,7 +1630,7 @@ export const RecordScreen = ({ navigation }: any) => {
     });
   };
 
-  const previewImageUri = selectedImage?.uri || existingImageUrl;
+  const previewImageUri = selectedImages.length > 0 ? selectedImages[keeperIndex]?.uri : existingImageUrl;
   const cleanPub = pub.trim();
   const pubOptionLabels = pubOptions.map(formatPubLabel);
   const hasExactPubOption = cleanPub.length >= 2 && pubOptions.some((option) => labelsMatchPub(cleanPub, option));
