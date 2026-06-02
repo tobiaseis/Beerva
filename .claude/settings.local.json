@@ -40,7 +40,10 @@
       "Bash(git --no-pager diff --stat)",
       "Bash(git add *)",
       "Bash(git commit -m 'perf: speed up feed by cutting getUser round-trips and consolidating detail fetch' -m 'Two feed performance fixes from the code review: *)",
-      "Bash(git --no-pager log --oneline -1)"
+      "Bash(git --no-pager log --oneline -1)",
+      "Bash(git --no-pager show ae8e865 --stat --format=\"%an | %ae | %ad | %s\")",
+      "Bash(git --no-pager show ae8e865 -- src/ supabase/ scripts/ package.json App.tsx index.ts public/)",
+      "Bash(git stash *)"
     ]
   }
 }
