@@ -6,12 +6,8 @@ const recordSource = fs.readFileSync(path.resolve(__dirname, '..', 'src/screens/
 const modalSource = fs.readFileSync(path.resolve(__dirname, '..', 'src/components/ChugAttemptModal.tsx'), 'utf8');
 
 assert.match(recordSource, /ChugAttemptModal/, 'record screen should render the chug modal');
-assert.match(recordSource, /How fast can you chug\?/, 'record screen should expose the chug entry point');
-assert.match(recordSource, /chugBottleButton/, 'record screen should render the chug entry point as a bottle button');
-assert.match(recordSource, /chugBottleBody/, 'chug button should include a beer bottle body');
-assert.match(recordSource, /chugBottleNeck/, 'chug button should include a beer bottle neck');
-assert.match(recordSource, /chugBottleCap/, 'chug button should include a beer bottle cap');
-assert.match(recordSource, /chugBottleLabel/, 'chug button should include a label area for the text');
+assert.match(recordSource, /import \{ ChugBottleButton \} from '\.\.\/components\/ChugBottleButton';/, 'record screen should import the shared bottle button');
+assert.match(recordSource, /<ChugBottleButton onPress=\{openChugFlow\} \/>/, 'record screen should render the shared bottle button');
 assert.match(recordSource, /ImagePicker\.launchCameraAsync\(\{[\s\S]*mediaTypes:\s*\['videos'\]/, 'record flow should launch camera in video mode');
 assert.match(recordSource, /videoMaxDuration:\s*CHUG_VIDEO_MAX_SECONDS/, 'record flow should cap chug video length');
 assert.match(recordSource, /analyzeChugVideo/, 'record flow should analyze chug video locally');
@@ -53,7 +49,7 @@ assert.match(recordSource, /duration_ms:\s*durationMs/, 'record insert should al
 assert.match(recordSource, /onSubmitManualTiming=\{sendChugForManualTiming\}/, 'modal should submit preserved failed-analysis proof');
 
 const addBoozeIndex = recordSource.indexOf('submitLabel="Add Booze"');
-const chugPanelIndex = recordSource.indexOf('styles.chugBottleButton');
+const chugPanelIndex = recordSource.indexOf('<ChugBottleButton');
 const postDetailsIndex = recordSource.indexOf('<Text style={styles.sectionTitle}>Post Details</Text>');
 assert.ok(
   addBoozeIndex !== -1 && chugPanelIndex > addBoozeIndex && postDetailsIndex > chugPanelIndex,

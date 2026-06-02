@@ -5,12 +5,8 @@ const path = require('node:path');
 const editSource = fs.readFileSync(path.resolve(__dirname, '..', 'src/screens/EditSessionScreen.tsx'), 'utf8');
 
 assert.match(editSource, /ChugAttemptModal/, 'edit screen should render the chug modal');
-assert.match(editSource, /How fast can you chug\?/, 'edit screen should expose the chug entry point');
-assert.match(editSource, /chugBottleButton/, 'edit screen should render the chug entry point as a bottle button');
-assert.match(editSource, /chugBottleBody/, 'chug button should include a beer bottle body');
-assert.match(editSource, /chugBottleNeck/, 'chug button should include a beer bottle neck');
-assert.match(editSource, /chugBottleCap/, 'chug button should include a beer bottle cap');
-assert.match(editSource, /chugBottleLabel/, 'chug button should include a label area for the text');
+assert.match(editSource, /import \{ ChugBottleButton \} from '\.\.\/components\/ChugBottleButton';/, 'edit screen should import the shared bottle button');
+assert.match(editSource, /<ChugBottleButton onPress=\{openChugFlow\} disabled=\{saving\} style=\{styles\.chugBottleMargin\} \/>/, 'edit screen should render the shared bottle button');
 assert.match(editSource, /loadMutualFollowers/, 'edit chug flow should load mutual followers for verification');
 assert.match(editSource, /ImagePicker\.launchCameraAsync\(\{[\s\S]*mediaTypes:\s*\['videos'\]/, 'edit chug flow should launch camera in video mode');
 assert.match(editSource, /videoMaxDuration:\s*CHUG_VIDEO_MAX_SECONDS/, 'edit chug flow should cap chug video length');
@@ -26,7 +22,7 @@ assert.match(editSource, /type:\s*'chug_verification'/, 'edit chug flow should n
 assert.match(editSource, /onSubmitManualTiming=\{sendChugForManualTiming\}/, 'edit modal should submit preserved failed-analysis proof');
 
 const addBoozeIndex = editSource.indexOf('submitLabel="Add Booze"');
-const chugPanelIndex = editSource.indexOf('styles.chugBottleButton');
+const chugPanelIndex = editSource.indexOf('<ChugBottleButton');
 const detailsIndex = editSource.indexOf('<Text style={styles.sectionTitle}>Details</Text>');
 assert.ok(
   addBoozeIndex !== -1 && chugPanelIndex > addBoozeIndex && detailsIndex > chugPanelIndex,
