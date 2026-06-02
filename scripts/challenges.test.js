@@ -37,6 +37,8 @@ const navigatorPath = 'src/navigation/RootNavigator.tsx';
 const migrationPath = 'supabase/migrations/20260514170000_add_official_challenges.sql';
 const karnevalsdrukMigrationPath = 'supabase/migrations/20260520120000_add_karnevalsdruk_challenge.sql';
 const challengeLeaderboardWindowFixPath = 'supabase/migrations/20260521100000_fix_challenge_leaderboard_window.sql';
+const localChallengeLeaderboardsMigrationPath = 'supabase/migrations/20260602120000_add_local_challenge_leaderboards.sql';
+const adminChallengesMigrationPath = 'supabase/migrations/20260531170000_add_admin_challenges_and_beverages.sql';
 const karnevalTestMigrationPath = 'supabase/migrations/20260521110000_add_karneval_test_challenge.sql';
 const removeKarnevalTestMigrationPath = 'supabase/migrations/20260521120000_remove_karneval_test_challenge.sql';
 const karnevalsdrukDualAwardsMigrationPath = 'supabase/migrations/20260522110000_add_karnevalsdruk_dual_awards.sql';
@@ -52,6 +54,7 @@ assert.ok(exists(detailScreenPath), 'challenge detail screen should exist');
 assert.ok(exists(migrationPath), 'official challenge migration should exist');
 assert.ok(exists(karnevalsdrukMigrationPath), 'KarnevalsDruk migration should exist');
 assert.ok(exists(challengeLeaderboardWindowFixPath), 'challenge leaderboard window fix migration should exist');
+assert.ok(exists(localChallengeLeaderboardsMigrationPath), 'local challenge leaderboards migration should exist');
 assert.ok(exists(karnevalTestMigrationPath), 'Karneval test challenge migration should exist');
 assert.ok(exists(removeKarnevalTestMigrationPath), 'Karneval test cleanup migration should exist');
 assert.ok(exists(karnevalsdrukDualAwardsMigrationPath), 'KarnevalsDruk dual awards migration should exist');
@@ -308,6 +311,70 @@ assert.match(
   challengeLeaderboardWindowFixSql,
   /notify pgrst,\s*'reload schema'/i,
   'schema cache should be reloaded after challenge RPC changes'
+);
+
+const localChallengeLeaderboardsMigrationSql = read(localChallengeLeaderboardsMigrationPath);
+assert.match(
+  localChallengeLeaderboardsMigrationSql,
+  /create or replace function public\.get_local_challenge_leaderboard\(target_challenge_id uuid\)/i,
+  'local leaderboard migration should expose a viewer-aware local RPC'
+);
+assert.match(
+  localChallengeLeaderboardsMigrationSql,
+  /from public\.get_challenge_leaderboard\(target_challenge_id\) as global_leaderboard/i,
+  'local leaderboard should derive progress and order from the canonical global RPC'
+);
+assert.match(
+  localChallengeLeaderboardsMigrationSql,
+  /global_leaderboard\.user_id\s*=\s*\(select auth\.uid\(\)\)[\s\S]*public\.is_mutual_follower\(\(select auth\.uid\(\)\), global_leaderboard\.user_id\)/i,
+  'local leaderboard should include the signed-in joined user and joined mutual followers'
+);
+assert.match(
+  localChallengeLeaderboardsMigrationSql,
+  /row_number\(\) over \(\s*order by local_entries\.rank asc\s*\)::integer as rank/i,
+  'local leaderboard should recalculate rank inside the filtered comparison group'
+);
+assert.match(
+  localChallengeLeaderboardsMigrationSql,
+  /create or replace function public\.get_official_challenges\(\)[\s\S]*public\.get_local_challenge_leaderboard\(challenges\.id\)/i,
+  'compact challenge summaries should use local leaderboard defaults'
+);
+assert.match(
+  localChallengeLeaderboardsMigrationSql,
+  /create or replace function public\.get_challenge_detail\(target_challenge_slug text\)[\s\S]*'leaderboards'[\s\S]*'local'[\s\S]*'global'/i,
+  'detail RPC should return both leaderboard scopes in one response'
+);
+assert.match(
+  localChallengeLeaderboardsMigrationSql,
+  /'current_user_progress', global_scope\.current_user_progress/i,
+  'shared detail progress should remain independent of the selected local or global scope'
+);
+assert.match(
+  localChallengeLeaderboardsMigrationSql,
+  /'leaderboard', local_scope\.leaderboard/i,
+  'detail RPC should keep a top-level local leaderboard alias for cached older clients'
+);
+assert.doesNotMatch(
+  localChallengeLeaderboardsMigrationSql,
+  /create or replace function public\.get_challenge_leaderboard\(/i,
+  'local scopes must not replace the canonical global leaderboard RPC'
+);
+assert.match(
+  localChallengeLeaderboardsMigrationSql,
+  /notify pgrst,\s*'reload schema'/i,
+  'local leaderboard migration should reload the PostgREST schema cache'
+);
+
+const adminChallengesMigrationSql = read(adminChallengesMigrationPath);
+assert.match(
+  adminChallengesMigrationSql,
+  /create or replace function public\.finalize_generic_due_challenges[\s\S]*from public\.get_challenge_leaderboard\(challenge_row\.id\) as leaderboard/i,
+  'generic finalization should continue using the canonical global leaderboard'
+);
+assert.doesNotMatch(
+  adminChallengesMigrationSql,
+  /get_local_challenge_leaderboard/i,
+  'generic finalization must not use viewer-specific local ranks'
 );
 
 const karnevalTestMigrationSql = read(karnevalTestMigrationPath);
