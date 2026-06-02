@@ -289,6 +289,19 @@ assert.equal(detail.leaderboards.global.currentUserRank, 3);
 assert.equal(detail.leaderboards.global.entries.length, 4);
 assert.equal(detail.leaderboards.global.entries[2].userId, 'user-1');
 
+const emptyScopedDetail = mapChallengeDetailRow({
+  ...summaryRow,
+  leaderboards: {
+    local: null,
+  },
+});
+assert.equal(emptyScopedDetail.leaderboards.local.entrantsCount, 0);
+assert.equal(emptyScopedDetail.leaderboards.local.currentUserRank, null);
+assert.deepEqual(emptyScopedDetail.leaderboards.local.entries, []);
+assert.equal(emptyScopedDetail.leaderboards.global.entrantsCount, 0);
+assert.equal(emptyScopedDetail.leaderboards.global.currentUserRank, null);
+assert.deepEqual(emptyScopedDetail.leaderboards.global.entries, []);
+
 const migrationSql = read(migrationPath);
 assert.match(migrationSql, /create table if not exists public\.challenges/i, 'migration should create challenges table');
 assert.match(migrationSql, /create table if not exists public\.challenge_entries/i, 'migration should create challenge entries table');
@@ -644,6 +657,56 @@ assert.match(detailScreenSource, /challengeType\s*===\s*CHALLENGE_TYPE\.LEADERBO
 assert.match(detailScreenSource, /status\s*===\s*CHALLENGE_STATUS\.ACTIVE/, 'auto-refresh should only poll while the challenge is active');
 assert.match(detailScreenSource, /silent:\s*true/, 'auto-refresh should avoid showing manual refresh errors');
 assert.match(detailScreenSource, /skipIfInFlight:\s*true/, 'auto-refresh should not overlap challenge detail requests');
+assert.match(
+  detailScreenSource,
+  /useState<ChallengeLeaderboardScope>\(CHALLENGE_LEADERBOARD_SCOPE\.LOCAL\)/,
+  'detail leaderboard scope should default to local'
+);
+assert.match(
+  detailScreenSource,
+  /challenge\?\.leaderboards\[leaderboardScope\]/,
+  'detail screen should render the selected scoped leaderboard'
+);
+assert.match(
+  detailScreenSource,
+  /Local[\s\S]*Global/,
+  'detail screen should expose Local and Global leaderboard controls'
+);
+assert.match(
+  detailScreenSource,
+  /setLeaderboardScope\(scope\.key\)/,
+  'detail scope controls should switch the selected leaderboard'
+);
+assert.match(
+  detailScreenSource,
+  /formatChallengeRank\(activeLeaderboard\?\.currentUserRank\)/,
+  'detail rank summary should follow the selected leaderboard'
+);
+assert.match(
+  detailScreenSource,
+  /\{activeLeaderboard\?\.entrantsCount \?\? 0\}/,
+  'detail entrant summary should follow the selected leaderboard'
+);
+assert.match(
+  detailScreenSource,
+  /No local entrants yet[\s\S]*Mutual followers who join this challenge will appear here\./,
+  'detail local scope should explain an empty mutual-follower leaderboard'
+);
+assert.match(
+  detailScreenSource,
+  /useEffect\(\(\) => \{\s*setLeaderboardScope\(CHALLENGE_LEADERBOARD_SCOPE\.LOCAL\);\s*\}, \[challengeSlug\]\);/,
+  'detail leaderboard scope should reset only when the challenge route changes'
+);
+assert.equal(
+  (detailScreenSource.match(/\bfetchChallengeDetail\(/g) || []).length,
+  1,
+  'detail polling should continue through the single existing challenge detail request'
+);
+assert.match(
+  detailScreenSource,
+  /const renderLeader = useCallback\([\s\S]*?\), \[challenge\]\);/,
+  'detail leaderboard row renderer should remain independent of selected scope'
+);
 
 const feedScreenSource = read(feedScreenPath);
 assert.match(feedScreenSource, /fetchJoinedActiveChallengeSummary/, 'Feed should load joined active challenge summary');

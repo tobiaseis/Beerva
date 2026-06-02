@@ -1,14 +1,16 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Platform, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { ArrowLeft, Check, Trophy, Users, X } from 'lucide-react-native';
 
 import { CachedImage } from '../components/CachedImage';
 import {
+  CHALLENGE_LEADERBOARD_SCOPE,
   CHALLENGE_STATUS,
   CHALLENGE_TYPE,
   ChallengeDetail,
   ChallengeLeaderboardEntry,
+  ChallengeLeaderboardScope,
   formatChallengeProgress,
   formatChallengeRank,
   getChallengePreJoinCopy,
@@ -24,6 +26,10 @@ type ChallengeDetailRouteParams = {
 };
 
 const CHALLENGE_AUTO_REFRESH_INTERVAL_MS = 20000;
+const CHALLENGE_LEADERBOARD_SCOPES: { key: ChallengeLeaderboardScope; label: string }[] = [
+  { key: CHALLENGE_LEADERBOARD_SCOPE.LOCAL, label: 'Local' },
+  { key: CHALLENGE_LEADERBOARD_SCOPE.GLOBAL, label: 'Global' },
+];
 
 type LoadChallengeOptions = {
   silent?: boolean;
@@ -33,6 +39,7 @@ type LoadChallengeOptions = {
 export const ChallengeDetailScreen = ({ navigation, route }: any) => {
   const { challengeSlug } = (route?.params || {}) as ChallengeDetailRouteParams;
   const [challenge, setChallenge] = useState<ChallengeDetail | null>(null);
+  const [leaderboardScope, setLeaderboardScope] = useState<ChallengeLeaderboardScope>(CHALLENGE_LEADERBOARD_SCOPE.LOCAL);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [joining, setJoining] = useState(false);
@@ -41,6 +48,12 @@ export const ChallengeDetailScreen = ({ navigation, route }: any) => {
   const hasLoadedOnce = useRef(false);
   const challengeRef = useRef<ChallengeDetail | null>(null);
   const requestInFlightRef = useRef(false);
+
+  const activeLeaderboard = challenge?.leaderboards[leaderboardScope] || null;
+
+  useEffect(() => {
+    setLeaderboardScope(CHALLENGE_LEADERBOARD_SCOPE.LOCAL);
+  }, [challengeSlug]);
 
   const loadChallenge = useCallback(async (options: LoadChallengeOptions = {}) => {
     if (options.skipIfInFlight && requestInFlightRef.current) {
@@ -188,18 +201,18 @@ export const ChallengeDetailScreen = ({ navigation, route }: any) => {
               </View>
               <View style={styles.summaryPill}>
                 <Text style={styles.summaryLabel}>Rank</Text>
-                <Text style={styles.summaryValue}>{formatChallengeRank(challenge.currentUserRank)}</Text>
+                <Text style={styles.summaryValue}>{formatChallengeRank(activeLeaderboard?.currentUserRank)}</Text>
               </View>
               <View style={styles.summaryPill}>
                 <Text style={styles.summaryLabel}>Entered</Text>
-                <Text style={styles.summaryValue}>{challenge.entrantsCount}</Text>
+                <Text style={styles.summaryValue}>{activeLeaderboard?.entrantsCount ?? 0}</Text>
               </View>
             </View>
           ) : challenge.joinOpen ? (
             <View style={styles.preJoinSummary}>
               <View style={styles.summaryPill}>
                 <Text style={styles.summaryLabel}>Entered</Text>
-                <Text style={styles.summaryValue}>{challenge.entrantsCount}</Text>
+                <Text style={styles.summaryValue}>{activeLeaderboard?.entrantsCount ?? 0}</Text>
               </View>
               <Text style={styles.preJoinText}>
                 {getChallengePreJoinCopy(challenge)}
@@ -208,7 +221,7 @@ export const ChallengeDetailScreen = ({ navigation, route }: any) => {
           ) : (
             <View style={styles.summaryPill}>
               <Text style={styles.summaryLabel}>Entered</Text>
-              <Text style={styles.summaryValue}>{challenge.entrantsCount}</Text>
+              <Text style={styles.summaryValue}>{activeLeaderboard?.entrantsCount ?? 0}</Text>
             </View>
           )}
 
@@ -234,6 +247,26 @@ export const ChallengeDetailScreen = ({ navigation, route }: any) => {
             </View>
           )}
 
+          <View style={styles.leaderboardScopeControl}>
+            {CHALLENGE_LEADERBOARD_SCOPES.map((scope) => {
+              const selected = leaderboardScope === scope.key;
+              return (
+                <Pressable
+                  key={scope.key}
+                  style={[styles.leaderboardScopeButton, selected ? styles.leaderboardScopeButtonActive : null]}
+                  onPress={() => setLeaderboardScope(scope.key)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Show ${scope.label.toLowerCase()} leaderboard`}
+                  accessibilityState={{ selected }}
+                >
+                  <Text style={[styles.leaderboardScopeText, selected ? styles.leaderboardScopeTextActive : null]}>
+                    {scope.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
           <View style={styles.leaderboardHeading}>
             <Users color={colors.primary} size={18} />
             <Text style={styles.leaderboardTitle}>Leaderboard</Text>
@@ -243,7 +276,19 @@ export const ChallengeDetailScreen = ({ navigation, route }: any) => {
 
       {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
     </View>
-  ), [challenge, errorMessage, handleJoin, joining, navigation]);
+  ), [activeLeaderboard, challenge, errorMessage, handleJoin, joining, leaderboardScope, navigation]);
+
+  const emptyTitle = errorMessage
+    ? 'Could not load leaderboard'
+    : leaderboardScope === CHALLENGE_LEADERBOARD_SCOPE.LOCAL
+      ? 'No local entrants yet'
+      : 'No entrants yet';
+  const emptyText = errorMessage
+    || (
+      leaderboardScope === CHALLENGE_LEADERBOARD_SCOPE.LOCAL
+        ? 'Mutual followers who join this challenge will appear here.'
+        : 'Joined users will appear here.'
+    );
 
   if (loading && !refreshing) {
     return (
@@ -256,7 +301,7 @@ export const ChallengeDetailScreen = ({ navigation, route }: any) => {
   return (
     <View style={styles.container}>
       <FlatList
-        data={challenge?.leaderboard || []}
+        data={activeLeaderboard?.entries || []}
         keyExtractor={(item) => item.userId}
         renderItem={renderLeader}
         initialNumToRender={10}
@@ -264,13 +309,13 @@ export const ChallengeDetailScreen = ({ navigation, route }: any) => {
         windowSize={5}
         removeClippedSubviews={Platform.OS !== 'web'}
         contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={[styles.content, !challenge?.leaderboard?.length ? styles.emptyContent : null]}
+        contentContainerStyle={[styles.content, !activeLeaderboard?.entries.length ? styles.emptyContent : null]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>{errorMessage ? 'Could not load leaderboard' : 'No entrants yet'}</Text>
-            <Text style={styles.emptyText}>{errorMessage || 'Joined users will appear here.'}</Text>
+            <Text style={styles.emptyTitle}>{emptyTitle}</Text>
+            <Text style={styles.emptyText}>{emptyText}</Text>
           </View>
         }
       />
@@ -437,6 +482,33 @@ const styles = StyleSheet.create({
     ...typography.tiny,
     color: colors.textMuted,
     fontWeight: '800',
+  },
+  leaderboardScopeControl: {
+    minHeight: 36,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    padding: 3,
+    flexDirection: 'row',
+  },
+  leaderboardScopeButton: {
+    flex: 1,
+    minHeight: 28,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  leaderboardScopeButtonActive: {
+    backgroundColor: colors.primarySoft,
+  },
+  leaderboardScopeText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontWeight: '800',
+  },
+  leaderboardScopeTextActive: {
+    color: colors.primary,
   },
   leaderboardHeading: {
     flexDirection: 'row',
