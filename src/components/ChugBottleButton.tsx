@@ -1,52 +1,105 @@
-import React from 'react';
-import { DimensionValue, StyleSheet, Text, TouchableOpacity, View, StyleProp, ViewStyle } from 'react-native';
-import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
-import { fontFamily } from '../theme/typography';
+import React, { useState } from 'react';
+import { StyleSheet, TouchableOpacity, StyleProp, ViewStyle } from 'react-native';
+import { SvgXml } from 'react-native-svg';
 import { spacing } from '../theme/layout';
 
-// SVG viewBox coordinate system
+// ViewBox dimensions — aspect ratio drives the rendered height
 const VW = 320;
-const VH = 68;
-const RENDER_HEIGHT = 70;
+const VH = 72;
 
-// Bottle geometry (viewBox units)
-const LR = 34;   // left-end arc radius
-const BE = 220;  // body end x
-const SE = 254;  // shoulder end x
-const NE = 297;  // neck end / cap start x
-const CE = 315;  // cap outer right edge x
-const NT = 15;   // neck/cap top y
-const NB = 53;   // neck/cap bottom y
-const CR = 6;    // cap corner radius
+// Bottle geometry (all in viewBox units)
+//   Left end: semicircle, radius 36, center (36, 36)
+//   Body:     x 0–222, full height
+//   Shoulder: x 222–258, tapers from full height to neck height
+//   Neck:     x 258–300, y 17–55
+//   Cap:      x 300–318, y 17–55, rounded right corners (r=6)
+const BODY_END = 222;
+const NECK_TOP = 17;
+const NECK_BOT = 55;
+const NECK_START = 258;
+const NECK_END = 300;
+const CAP_END = 318;
+const CAP_R = 6;
 
-// Full bottle silhouette path (clockwise)
-const BOTTLE_PATH = [
-  `M ${LR},2`,
-  `L ${BE},2`,
-  `L ${SE},${NT}`,
-  `L ${NE},${NT}`,
-  `L ${CE - CR},${NT} Q ${CE},${NT} ${CE},${NT + CR}`,
-  `L ${CE},${NB - CR} Q ${CE},${NB} ${CE - CR},${NB}`,
-  `L ${NE},${NB}`,
-  `L ${SE},${NB}`,
-  `L ${BE},${VH - 2}`,
-  `L ${LR},${VH - 2}`,
-  `A ${LR - 2},${LR - 2} 0 1 1 ${LR},2`,
-  `Z`,
-].join(' ');
+// Full bottle silhouette — traced clockwise
+//   arc: from (36,70) through (2,36) back to (36,2)
+//   sweep-flag=1 goes through the left side (confirmed via SVG θ-increase direction)
+const BOTTLE = `M 36,2
+  L ${BODY_END},2
+  L ${NECK_START},${NECK_TOP}
+  L ${NECK_END},${NECK_TOP}
+  L ${CAP_END - CAP_R},${NECK_TOP} Q ${CAP_END},${NECK_TOP} ${CAP_END},${NECK_TOP + CAP_R}
+  L ${CAP_END},${NECK_BOT - CAP_R} Q ${CAP_END},${NECK_BOT} ${CAP_END - CAP_R},${NECK_BOT}
+  L ${NECK_END},${NECK_BOT}
+  L ${NECK_START},${NECK_BOT}
+  L ${BODY_END},${VH - 2}
+  L 36,${VH - 2}
+  A 34,34 0 0 1 36,2 Z`;
 
-// Cap-only path for separate gold fill
-const CAP_PATH = [
-  `M ${NE},${NT}`,
-  `L ${CE - CR},${NT} Q ${CE},${NT} ${CE},${NT + CR}`,
-  `L ${CE},${NB - CR} Q ${CE},${NB} ${CE - CR},${NB}`,
-  `L ${NE},${NB}`,
-  `Z`,
-].join(' ');
+// Cap-only path for the separate gold gradient
+const CAP = `M ${NECK_END},${NECK_TOP}
+  L ${CAP_END - CAP_R},${NECK_TOP} Q ${CAP_END},${NECK_TOP} ${CAP_END},${NECK_TOP + CAP_R}
+  L ${CAP_END},${NECK_BOT - CAP_R} Q ${CAP_END},${NECK_BOT} ${CAP_END - CAP_R},${NECK_BOT}
+  L ${NECK_END},${NECK_BOT} Z`;
 
-// Body section as percentage of total viewBox width (for text centering)
-// Body spans x: 0 → BE (220 out of 320), neck+cap takes the rest (~31%)
-const NECK_CAP_PCT: DimensionValue = `${Math.round((1 - BE / VW) * 100)}%` as DimensionValue;
+// Body centre for text — midpoint of the wide body section
+const TEXT_CX = Math.round((36 + BODY_END) / 2);   // ≈ 129
+const TEXT_CY = Math.round(VH / 2);                  // 36
+
+// Build the SVG string once at module level (stable reference)
+const BOTTLE_SVG = `<svg viewBox="0 0 ${VW} ${VH}" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Amber glass: dark at edges, warm amber in the middle like light through beer -->
+    <linearGradient id="gl" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#190700"/>
+      <stop offset="18%"  stop-color="#371104"/>
+      <stop offset="50%"  stop-color="#7C3212"/>
+      <stop offset="78%"  stop-color="#4A1807"/>
+      <stop offset="100%" stop-color="#190700"/>
+    </linearGradient>
+    <!-- Warm left-edge glow: light bouncing off the rounded bottle base -->
+    <linearGradient id="sh" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%"   stop-color="rgba(255,165,60,0.32)"/>
+      <stop offset="28%"  stop-color="rgba(255,165,60,0)"/>
+    </linearGradient>
+    <!-- Gold bottle cap -->
+    <linearGradient id="cp" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#FDE68A"/>
+      <stop offset="48%"  stop-color="#F59E0B"/>
+      <stop offset="100%" stop-color="#92400E"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Bottle silhouette filled with amber glass gradient -->
+  <path d="${BOTTLE}" fill="url(#gl)" stroke="#6B2A0C" stroke-width="1.5"/>
+
+  <!-- Warm glow overlay on left/base side -->
+  <path d="${BOTTLE}" fill="url(#sh)"/>
+
+  <!-- Glass surface highlight near top -->
+  <rect x="52" y="5" width="152" height="5" rx="2.5" fill="rgba(255,255,255,0.11)"/>
+
+  <!-- Inner amber beer-colour glow along bottom -->
+  <rect x="46" y="${VH - 16}" width="162" height="9" rx="3.5" fill="rgba(245,158,11,0.20)"/>
+
+  <!-- Gold cap -->
+  <path d="${CAP}" fill="url(#cp)" stroke="#FDE68A" stroke-width="0.75"/>
+
+  <!-- Cap shine stripe -->
+  <rect x="${NECK_END + 4}" y="${NECK_TOP + 4}" width="5" height="${NECK_BOT - NECK_TOP - 8}" rx="2.5" fill="rgba(255,255,255,0.44)"/>
+
+  <!-- Button label — text shadow rendered as a slightly-offset dark copy, then gold on top -->
+  <text x="${TEXT_CX + 0.6}" y="${TEXT_CY + 0.8}"
+    text-anchor="middle" dominant-baseline="middle"
+    font-family="system-ui, -apple-system, Helvetica Neue, sans-serif"
+    font-weight="900" font-size="12.5" letter-spacing="1.4"
+    fill="rgba(0,0,0,0.82)">HOW FAST CAN YOU CHUG?  &gt;</text>
+  <text x="${TEXT_CX}" y="${TEXT_CY}"
+    text-anchor="middle" dominant-baseline="middle"
+    font-family="system-ui, -apple-system, Helvetica Neue, sans-serif"
+    font-weight="900" font-size="12.5" letter-spacing="1.4"
+    fill="#FDE68A">HOW FAST CAN YOU CHUG?  &gt;</text>
+</svg>`;
 
 interface Props {
   onPress: () => void;
@@ -55,6 +108,9 @@ interface Props {
 }
 
 export function ChugBottleButton({ onPress, disabled, style }: Props) {
+  const [width, setWidth] = useState(0);
+  const height = width > 0 ? Math.round((width * VH) / VW) : 0;
+
   return (
     <TouchableOpacity
       style={[styles.wrapper, style, disabled && styles.disabled]}
@@ -63,81 +119,9 @@ export function ChugBottleButton({ onPress, disabled, style }: Props) {
       activeOpacity={0.76}
       accessibilityRole="button"
       accessibilityLabel="Record a 33cl bottle chug attempt"
+      onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))}
     >
-      <Svg
-        width="100%"
-        height={RENDER_HEIGHT}
-        viewBox={`0 0 ${VW} ${VH}`}
-        preserveAspectRatio="none"
-      >
-        <Defs>
-          {/* Amber glass — vertical gradient simulating light through dark glass */}
-          <LinearGradient id="cgGlass" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0%" stopColor="#1C0800" />
-            <Stop offset="20%" stopColor="#3B1205" />
-            <Stop offset="48%" stopColor="#7A3010" />
-            <Stop offset="75%" stopColor="#4E1A08" />
-            <Stop offset="100%" stopColor="#1C0800" />
-          </LinearGradient>
-          {/* Left-edge warm glow (light bouncing off the rounded base) */}
-          <LinearGradient id="cgShine" x1="0" y1="0" x2="1" y2="0">
-            <Stop offset="0%" stopColor="rgba(255,170,70,0.30)" />
-            <Stop offset="26%" stopColor="rgba(255,170,70,0)" />
-          </LinearGradient>
-          {/* Gold bottle cap */}
-          <LinearGradient id="cgCap" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0%" stopColor="#FDE68A" />
-            <Stop offset="50%" stopColor="#F59E0B" />
-            <Stop offset="100%" stopColor="#92400E" />
-          </LinearGradient>
-        </Defs>
-
-        {/* Bottle glass body */}
-        <Path d={BOTTLE_PATH} fill="url(#cgGlass)" stroke="#6B2A0C" strokeWidth="1.5" />
-
-        {/* Warm reflection on left/base */}
-        <Path d={BOTTLE_PATH} fill="url(#cgShine)" />
-
-        {/* Top highlight streak */}
-        <Rect
-          x={LR + 14}
-          y={5}
-          width={BE - LR - 28}
-          height={5}
-          rx={2.5}
-          fill="rgba(255,255,255,0.12)"
-        />
-
-        {/* Bottom amber inner-glow (beer colour showing through) */}
-        <Rect
-          x={LR + 8}
-          y={VH - 14}
-          width={BE - LR - 16}
-          height={8}
-          rx={3}
-          fill="rgba(245,158,11,0.22)"
-        />
-
-        {/* Gold cap */}
-        <Path d={CAP_PATH} fill="url(#cgCap)" stroke="#FDE68A" strokeWidth="0.75" />
-
-        {/* Cap shine stripe */}
-        <Rect
-          x={NE + 4}
-          y={NT + 4}
-          width={5}
-          height={NB - NT - 8}
-          rx={2.5}
-          fill="rgba(255,255,255,0.45)"
-        />
-      </Svg>
-
-      {/* Text overlay — centered inside the bottle body section */}
-      <View style={[styles.textOverlay, { right: NECK_CAP_PCT }]} pointerEvents="none">
-        <Text style={styles.label} numberOfLines={1} adjustsFontSizeToFit>
-          HOW FAST CAN YOU CHUG?{'  >'}
-        </Text>
-      </View>
+      {width > 0 && <SvgXml xml={BOTTLE_SVG} width={width} height={height} />}
     </TouchableOpacity>
   );
 }
@@ -153,22 +137,5 @@ const styles = StyleSheet.create({
   },
   disabled: {
     opacity: 0.68,
-  },
-  textOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    paddingLeft: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  label: {
-    fontFamily: fontFamily.bodyBold,
-    color: '#FDE68A',
-    fontSize: 13,
-    fontWeight: '900',
-    letterSpacing: 1.1,
-    textTransform: 'uppercase',
-    textShadowColor: 'rgba(0,0,0,0.85)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
   },
 });
