@@ -4,6 +4,21 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const SESSION_PHOTO_BUCKET = 'session_images';
+
+const getPublicStoragePath = (bucket: string, publicUrl?: string | null) => {
+  if (!publicUrl) return null;
+
+  try {
+    const url = new URL(publicUrl);
+    const marker = `/storage/v1/object/public/${bucket}/`;
+    const markerIndex = url.pathname.indexOf(marker);
+    if (markerIndex === -1) return null;
+    return decodeURIComponent(url.pathname.slice(markerIndex + marker.length));
+  } catch {
+    return null;
+  }
+};
 
 serve(async (req) => {
   try {
@@ -31,24 +46,20 @@ serve(async (req) => {
 
     // 2. Delete each photo from storage and db
     for (const photo of expiredPhotos) {
-      // Extract file path from image_url
-      // Typically URL is: https://<project>.supabase.co/storage/v1/object/public/photos/<file_path>
-      const urlParts = photo.image_url.split('/public/photos/');
-      if (urlParts.length === 2) {
-        const filePath = urlParts[1];
-        
-        // Delete from storage
-        const { error: storageError } = await supabase
-          .storage
-          .from('photos')
-          .remove([filePath]);
+      const filePath = getPublicStoragePath(SESSION_PHOTO_BUCKET, photo.image_url);
+      if (!filePath) {
+        console.error(`Could not parse session photo URL ${photo.image_url}`);
+        continue;
+      }
 
-        if (storageError) {
-          console.error(`Failed to delete storage object ${filePath}:`, storageError);
-          // We can still try to delete DB row if storage object is somehow missing or already deleted,
-          // but if it's an auth/permissions error, we might want to skip.
-          // For safety, we will continue and delete the DB row so it doesn't get stuck forever.
-        }
+      const { error: storageError } = await supabase
+        .storage
+        .from(SESSION_PHOTO_BUCKET)
+        .remove([filePath]);
+
+      if (storageError) {
+        console.error(`Failed to delete storage object ${filePath}:`, storageError);
+        continue;
       }
 
       // Delete from DB

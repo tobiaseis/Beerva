@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, Image, ActivityIndicator, RefreshControl, TouchableOpacity, Pressable, Alert, Platform, Animated, Modal, TextInput, KeyboardAvoidingView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Image, ActivityIndicator, RefreshControl, TouchableOpacity, Pressable, Alert, Platform, Animated, Modal, TextInput, KeyboardAvoidingView, ScrollView } from 'react-native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { Beer, ChevronDown, ChevronUp, Edit3, MapPin, Trash2, Bell, AlertTriangle, RefreshCw, MessageCircle, Send, Trophy, X } from 'lucide-react-native';
@@ -44,6 +44,11 @@ import {
   formatDrinkingBuddyNames,
   SessionBuddy,
 } from '../lib/sessionBuddies';
+import {
+  getAllSessionPhotoUrls,
+  getVisibleSessionPhotoUrls,
+  SessionPhoto,
+} from '../lib/sessionPhotos';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
 const cheersLogoSource = beervaLogo;
@@ -93,6 +98,7 @@ export type FeedSession = {
   hangover_score?: number | null;
   created_at: string;
   session_beers: SessionBeer[];
+  session_photos: SessionPhoto[];
   session_chug_attempts: SessionChugAttempt[];
   drinking_buddies: SessionBuddy[];
   profiles?: {
@@ -323,12 +329,23 @@ export const FeedSessionCard = React.memo(({
   const overlayScale = React.useRef(new Animated.Value(0.6)).current;
   const lastTapRef = React.useRef(0);
   const pendingImageOpenRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [mediaWidth, setMediaWidth] = React.useState(0);
+  const [activePhotoIndex, setActivePhotoIndex] = React.useState(0);
+  const sessionPhotoUrls = React.useMemo(
+    () => getVisibleSessionPhotoUrls(item.session_photos, item.image_url),
+    [item.image_url, item.session_photos]
+  );
+  const sessionPhotoSignature = sessionPhotoUrls.join('|');
 
   React.useEffect(() => () => {
     if (pendingImageOpenRef.current) {
       clearTimeout(pendingImageOpenRef.current);
     }
   }, []);
+
+  React.useEffect(() => {
+    setActivePhotoIndex(0);
+  }, [sessionPhotoSignature]);
 
   const playOverlay = React.useCallback(() => {
     overlayOpacity.setValue(0);
@@ -359,8 +376,8 @@ export const FeedSessionCard = React.memo(({
     setStatsExpanded((previous) => !previous);
   }, []);
 
-  const handleImagePress = React.useCallback(() => {
-    if (!item.image_url) return;
+  const handleImagePress = React.useCallback((imageUrl: string) => {
+    if (!imageUrl) return;
 
     const now = Date.now();
     if (now - lastTapRef.current < 280) {
@@ -383,10 +400,17 @@ export const FeedSessionCard = React.memo(({
       pendingImageOpenRef.current = setTimeout(() => {
         pendingImageOpenRef.current = null;
         lastTapRef.current = 0;
-        onImagePress(item.image_url as string);
+        onImagePress(imageUrl);
       }, 280);
     }
-  }, [currentUserId, isOwnPost, item.has_cheered, item.image_url, onImagePress, playOverlay, triggerCheers]);
+  }, [currentUserId, isOwnPost, item.has_cheered, onImagePress, playOverlay, triggerCheers]);
+
+  const handlePhotoScroll = React.useCallback((event: any) => {
+    if (!mediaWidth) return;
+    const offsetX = event.nativeEvent.contentOffset.x;
+    const nextIndex = Math.round(offsetX / mediaWidth);
+    setActivePhotoIndex(Math.max(0, Math.min(nextIndex, sessionPhotoUrls.length - 1)));
+  }, [mediaWidth, sessionPhotoUrls.length]);
 
   return (
     <Surface padded={false} style={styles.card}>
@@ -438,21 +462,44 @@ export const FeedSessionCard = React.memo(({
         </View>
       ) : null}
 
-      {item.image_url ? (
-        <Pressable
-          onPress={handleImagePress}
-          style={({ pressed }) => [styles.imagePressable, pressed ? styles.imagePressed : null]}
-          accessibilityRole="button"
-          accessibilityLabel={`Open ${username}'s session photo`}
-          accessibilityHint="Tap to view the full image. Press twice quickly to give cheers."
-        >
-          <View style={styles.imageWrap}>
-            <CachedImage
-              uri={item.image_url}
-              style={styles.feedImage}
-              recyclingKey={`session-${item.id}-${item.image_url}`}
-              accessibilityLabel={`${username}'s beer session photo`}
-            />
+      {sessionPhotoUrls.length > 0 ? (
+        <View style={styles.imagePressable}>
+          <View
+            style={styles.imageWrap}
+            onLayout={(event) => setMediaWidth(event.nativeEvent.layout.width)}
+          >
+            <ScrollView
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={handlePhotoScroll}
+              scrollEventThrottle={16}
+              snapToInterval={mediaWidth || undefined}
+              decelerationRate="fast"
+              style={styles.sessionPhotoScroller}
+            >
+              {sessionPhotoUrls.map((imageUrl, index) => (
+                <Pressable
+                  key={`${item.id}-${imageUrl}`}
+                  onPress={() => handleImagePress(imageUrl)}
+                  style={({ pressed }) => [
+                    styles.sessionPhotoSlide,
+                    { width: mediaWidth || 1 },
+                    pressed ? styles.imagePressed : null,
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Open ${username}'s session photo ${index + 1}`}
+                  accessibilityHint="Tap to view the full image. Press twice quickly to give cheers."
+                >
+                  <CachedImage
+                    uri={imageUrl}
+                    style={styles.feedImage}
+                    recyclingKey={`session-${item.id}-${index}-${imageUrl}`}
+                    accessibilityLabel={`${username}'s beer session photo ${index + 1}`}
+                  />
+                </Pressable>
+              ))}
+            </ScrollView>
             <Animated.View
               pointerEvents="none"
               style={[
@@ -462,8 +509,21 @@ export const FeedSessionCard = React.memo(({
             >
               <Image source={beervaLogo} style={styles.cheerOverlayLogo} />
             </Animated.View>
+            {sessionPhotoUrls.length > 1 ? (
+              <View style={styles.photoIndicatorContainer}>
+                {sessionPhotoUrls.map((imageUrl, index) => (
+                  <View
+                    key={`dot-${item.id}-${imageUrl}`}
+                    style={[
+                      styles.photoDot,
+                      index === activePhotoIndex ? styles.photoDotActive : null,
+                    ]}
+                  />
+                ))}
+              </View>
+            ) : null}
           </View>
-        </Pressable>
+        </View>
       ) : null}
 
       <View style={styles.cardContent}>
@@ -876,7 +936,7 @@ export const FeedScreen = ({ route }: any) => {
 
       const sessionIds = sessionRows.map((session) => session.id);
 
-      const [cheersResult, beersResult, commentsResult, chugsResult, buddiesBySession] = await withTimeout(
+      const [cheersResult, beersResult, commentsResult, chugsResult, photosResult, buddiesBySession] = await withTimeout(
         Promise.all([
           sessionIds.length > 0
             ? supabase
@@ -902,6 +962,14 @@ export const FeedScreen = ({ route }: any) => {
             ? supabase.rpc('get_session_chug_attempt_summaries', { session_ids: sessionIds })
             : Promise.resolve({ data: [] as SessionChugAttemptRow[], error: null }),
           sessionIds.length > 0
+            ? supabase
+                .from('session_photos')
+                .select('id, session_id, image_url, is_keeper, expires_at, created_at')
+                .in('session_id', sessionIds)
+                .order('is_keeper', { ascending: false })
+                .order('created_at', { ascending: true })
+            : Promise.resolve({ data: [] as SessionPhoto[], error: null }),
+          sessionIds.length > 0
             ? fetchSessionBuddySummaries(sessionIds).catch((error) => {
                 console.error('Session buddies fetch error:', error);
                 return new Map<string, SessionBuddy[]>();
@@ -926,11 +994,15 @@ export const FeedScreen = ({ route }: any) => {
       if (chugsResult.error) {
         console.error('Session chugs fetch error:', chugsResult.error);
       }
+      if (photosResult.error) {
+        console.error('Session photos fetch error:', photosResult.error);
+      }
 
       const cheers: SessionCheer[] = (cheersResult.data || []) as SessionCheer[];
       const beerRows: SessionBeer[] = (beersResult.data || []) as SessionBeer[];
       const commentRows: FeedComment[] = (commentsResult.data || []) as FeedComment[];
       const chugRows = ((chugsResult.data || []) as SessionChugAttemptRow[]).map(mapChugAttemptRow);
+      const photoRows = (photosResult.data || []) as SessionPhoto[];
 
       const profileIds = Array.from(new Set([
         ...sessionRows.map((session) => session.user_id),
@@ -997,6 +1069,14 @@ export const FeedScreen = ({ route }: any) => {
         return acc;
       }, new Map<string, SessionChugAttempt[]>());
 
+      const photosBySession = photoRows.reduce((acc, photo) => {
+        if (!photo.session_id) return acc;
+        const existing = acc.get(photo.session_id) || [];
+        existing.push(photo);
+        acc.set(photo.session_id, existing);
+        return acc;
+      }, new Map<string, SessionPhoto[]>());
+
       const pageSessions = sessionRows.map((session): FeedItem => {
         const sessionCheers = cheersBySession.get(session.id) || [];
         const sessionComments = commentsBySession.get(session.id) || [];
@@ -1019,7 +1099,7 @@ export const FeedScreen = ({ route }: any) => {
           publishedAt: session.published_at || session.created_at,
           session: {
             ...session,
-            session_photos: session.session_photos || [],
+            session_photos: photosBySession.get(session.id) || [],
             session_beers: sessionBeers,
             session_chug_attempts: chugsBySession.get(session.id) || [],
             drinking_buddies: buddiesBySession.get(session.id) || [],
@@ -1547,9 +1627,9 @@ export const FeedScreen = ({ route }: any) => {
       });
       loadedSessionCountRef.current = Math.max(0, loadedSessionCountRef.current - 1);
 
-      if (session.image_url) {
-        deletePublicImageUrl('session_images', session.image_url);
-      }
+      getAllSessionPhotoUrls(session.session_photos, session.image_url).forEach((imageUrl) => {
+        deletePublicImageUrl('session_images', imageUrl);
+      });
     });
   }, [currentUserId]);
 
@@ -2252,6 +2332,14 @@ const styles = StyleSheet.create({
     aspectRatio: 4 / 5,
     maxHeight: Platform.OS === 'web' ? 540 : undefined,
   },
+  sessionPhotoScroller: {
+    width: '100%',
+    height: '100%',
+  },
+  sessionPhotoSlide: {
+    height: '100%',
+    backgroundColor: colors.cardMuted,
+  },
   feedImage: {
     width: '100%',
     height: '100%',
@@ -2270,6 +2358,28 @@ const styles = StyleSheet.create({
     width: 110,
     height: 104,
     resizeMode: 'contain',
+  },
+  photoIndicatorContainer: {
+    position: 'absolute',
+    bottom: 12,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  photoDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(248, 250, 252, 0.48)',
+  },
+  photoDotActive: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.primary,
   },
   inlineLogoSmall: {
     width: 18,

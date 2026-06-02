@@ -30,6 +30,7 @@ import { colors } from '../theme/colors';
 import { radius } from '../theme/layout';
 import { typography } from '../theme/typography';
 import { fetchSessionBuddySummaries, SessionBuddy } from '../lib/sessionBuddies';
+import { getAllSessionPhotoUrls, SessionPhoto } from '../lib/sessionPhotos';
 
 type ProfilePreview = {
   id: string;
@@ -190,7 +191,7 @@ export const PostDetailScreen = () => {
         return;
       }
 
-      const [beersResult, cheersResult, commentsResult, chugsResult, buddiesBySession] = await Promise.all([
+      const [beersResult, cheersResult, commentsResult, chugsResult, photosResult, buddiesBySession] = await Promise.all([
         supabase
           .from('session_beers')
           .select('id, session_id, beer_name, volume, quantity, abv, note, consumed_at, created_at')
@@ -206,6 +207,12 @@ export const PostDetailScreen = () => {
           .eq('session_id', sessionId)
           .order('created_at', { ascending: true }),
         supabase.rpc('get_session_chug_attempt_summaries', { session_ids: [sessionId] }),
+        supabase
+          .from('session_photos')
+          .select('id, session_id, image_url, is_keeper, expires_at, created_at')
+          .eq('session_id', sessionId)
+          .order('is_keeper', { ascending: false })
+          .order('created_at', { ascending: true }),
         fetchSessionBuddySummaries([sessionId]).catch((error) => {
           console.error('Post buddies fetch error:', error);
           return new Map<string, SessionBuddy[]>();
@@ -216,11 +223,13 @@ export const PostDetailScreen = () => {
       if (cheersResult.error) console.error('Post cheers fetch error:', cheersResult.error);
       if (commentsResult.error) console.error('Post comments fetch error:', commentsResult.error);
       if (chugsResult.error) console.error('Post chugs fetch error:', chugsResult.error);
+      if (photosResult.error) console.error('Post photos fetch error:', photosResult.error);
 
       const beerRows = (beersResult.data || []) as SessionBeer[];
       const cheerRows = (cheersResult.data || []) as { user_id: string }[];
       const commentRows = (commentsResult.data || []) as PostComment[];
       const chugRows = ((chugsResult.data || []) as SessionChugAttemptRow[]).map(mapChugAttemptRow);
+      const photoRows = (photosResult.data || []) as SessionPhoto[];
 
       const profileIds = Array.from(new Set([
         sessionRow.user_id,
@@ -269,6 +278,7 @@ export const PostDetailScreen = () => {
       const assembled: FeedSession = {
         ...sessionRow,
         session_beers: sessionBeers,
+        session_photos: photoRows,
         session_chug_attempts: chugRows,
         drinking_buddies: buddiesBySession.get(sessionId) || [],
         profiles: profilesById.get(sessionRow.user_id) || null,
@@ -440,9 +450,9 @@ export const PostDetailScreen = () => {
         return;
       }
 
-      if (target.image_url) {
-        deletePublicImageUrl('session_images', target.image_url);
-      }
+      getAllSessionPhotoUrls(target.session_photos, target.image_url).forEach((imageUrl) => {
+        deletePublicImageUrl('session_images', imageUrl);
+      });
       navigation.goBack();
     });
   }, [currentUserId, navigation]);

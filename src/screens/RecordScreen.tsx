@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Beer, Camera, CheckCircle2, Clock, Home, Images, LocateFixed, Lock, MapPin, MessageSquare, PlusCircle, Sparkles, Trash2, X } from 'lucide-react-native';
+import { Beer, Camera, CheckCircle2, Clock, Home, Images, LocateFixed, Lock, MapPin, MessageSquare, PlusCircle, Sparkles, Star, Trash2, X } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 
 import { AppButton } from '../components/AppButton';
@@ -31,6 +31,10 @@ import {
   UPLOAD_IMAGE_MAX_WIDTH,
   uploadImageToBucket,
 } from '../lib/imageUpload';
+import {
+  buildSessionPhotoRecords,
+  MAX_SESSION_PHOTOS,
+} from '../lib/sessionPhotos';
 import {
   beerDraftToPayload,
   createEmptyBeerDraft,
@@ -466,7 +470,7 @@ export const RecordScreen = ({ navigation }: any) => {
       };
       setExistingImageUrl(session.image_url || null);
       setSelectedImages([]);
-    setKeeperIndex(0);
+      setKeeperIndex(0);
       setSavingPhoto(false);
       await fetchSessionBeers(session.id);
       if (session.pub_crawl_id) {
@@ -873,7 +877,7 @@ export const RecordScreen = ({ navigation }: any) => {
       setComment('');
       lastSavedComment.current = { sessionId: session.id, comment: '' };
       setSelectedImages([]);
-    setKeeperIndex(0);
+      setKeeperIndex(0);
       setExistingImageUrl(null);
       setSavingPhoto(false);
       setPub('');
@@ -1252,50 +1256,77 @@ export const RecordScreen = ({ navigation }: any) => {
   const acceptChugAttempt = () => saveChugAttempt('ai');
   const sendChugForManualTiming = () => saveChugAttempt('pending_manual');
 
-  const handleImageAsset = async (asset: ImagePicker.ImagePickerAsset) => {
-    let preparedImage: SelectedImage;
-
+  const prepareSessionImageAsset = async (asset: ImagePicker.ImagePickerAsset): Promise<SelectedImage> => {
     if (Platform.OS === 'web') {
-      preparedImage = await prepareWebImageFromPickerAsset(asset);
-    } else {
-      const ImageManipulator = await import('expo-image-manipulator');
-      const manipResult = await ImageManipulator.manipulateAsync(
-        asset.uri,
-        [{ resize: { width: UPLOAD_IMAGE_MAX_WIDTH } }],
-        { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG }
-      );
-      preparedImage = {
-        uri: manipResult.uri,
-        mimeType: 'image/jpeg',
-      };
+      return prepareWebImageFromPickerAsset(asset);
     }
 
+    const ImageManipulator = await import('expo-image-manipulator');
+    const manipResult = await ImageManipulator.manipulateAsync(
+      asset.uri,
+      [{ resize: { width: UPLOAD_IMAGE_MAX_WIDTH } }],
+      { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG }
+    );
+    return {
+      uri: manipResult.uri,
+      mimeType: 'image/jpeg',
+    };
+  };
+
+  const handleImageAssets = async (assets: ImagePicker.ImagePickerAsset[]) => {
+    const availableSlots = MAX_SESSION_PHOTOS - selectedImages.length;
+    if (availableSlots <= 0) {
+      showAlert('Photo limit reached', `A session can have up to ${MAX_SESSION_PHOTOS} photos.`);
+      return;
+    }
+
+    const preparedImages = await Promise.all(
+      assets.slice(0, availableSlots).map(prepareSessionImageAsset)
+    );
+
+    if (preparedImages.length === 0) return;
+
     setSelectedImages(prev => {
-      const next = [...prev, preparedImage].slice(0, 5);
+      const next = [...prev, ...preparedImages].slice(0, MAX_SESSION_PHOTOS);
       return next;
     });
+    setKeeperIndex((current) => Math.min(current, MAX_SESSION_PHOTOS - 1));
     photoWarningBypassAction.current = null;
-
-    // Auto-save logic removed to allow batch uploading and keeper selection on End Session.
   };
 
   const chooseFromLibrary = async () => {
     setPhotoChoiceVisible(false);
+    const availableSlots = MAX_SESSION_PHOTOS - selectedImages.length;
+    if (availableSlots <= 0) {
+      showAlert('Photo limit reached', `Remove a photo before adding another one.`);
+      return;
+    }
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      allowsEditing: true,
+      allowsEditing: availableSlots === 1,
+      allowsMultipleSelection: availableSlots > 1,
+      orderedSelection: true,
+      selectionLimit: availableSlots,
       aspect: [4, 3],
       quality: 1,
     });
 
-    if (!result.canceled && result.assets[0]) {
-      await handleImageAsset(result.assets[0]);
+    if (!result.canceled && result.assets?.length) {
+      try {
+        await handleImageAssets(result.assets);
+      } catch (error: any) {
+        showAlert('Could not add photo', error?.message || 'Please try again.');
+      }
     }
   };
 
   const takePhoto = async () => {
     setPhotoChoiceVisible(false);
+    if (selectedImages.length >= MAX_SESSION_PHOTOS) {
+      showAlert('Photo limit reached', `Remove a photo before adding another one.`);
+      return;
+    }
 
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
@@ -1312,7 +1343,68 @@ export const RecordScreen = ({ navigation }: any) => {
     });
 
     if (!result.canceled && result.assets[0]) {
-      await handleImageAsset(result.assets[0]);
+      try {
+        await handleImageAssets([result.assets[0]]);
+      } catch (error: any) {
+        showAlert('Could not add photo', error?.message || 'Please try again.');
+      }
+    }
+  };
+
+  const removeSelectedImage = (index: number) => {
+    const nextImages = selectedImages.filter((_, imageIndex) => imageIndex !== index);
+    setSelectedImages(nextImages);
+
+    if (nextImages.length === 0) {
+      setKeeperIndex(0);
+      return;
+    }
+
+    if (index === keeperIndex) {
+      setKeeperIndex(Math.min(index, nextImages.length - 1));
+    } else if (index < keeperIndex) {
+      setKeeperIndex(keeperIndex - 1);
+    } else {
+      setKeeperIndex(Math.min(keeperIndex, nextImages.length - 1));
+    }
+  };
+
+  const saveSelectedSessionPhotos = async (sessionId: string, userId: string) => {
+    if (selectedImages.length === 0) {
+      return {
+        keeperImageUrl: existingImageUrl,
+        uploadedUrls: [] as string[],
+      };
+    }
+
+    const uploadedUrls: string[] = [];
+
+    try {
+      for (const image of selectedImages) {
+        const url = await uploadImageToBucket('session_images', image, `users/${userId}/sessions`);
+        uploadedUrls.push(url);
+      }
+
+      const photoRecords = buildSessionPhotoRecords(sessionId, uploadedUrls, keeperIndex);
+      const { error: deleteError } = await supabase
+        .from('session_photos')
+        .delete()
+        .eq('session_id', sessionId);
+      if (deleteError) throw deleteError;
+
+      const { error: photoError } = await supabase
+        .from('session_photos')
+        .insert(photoRecords);
+      if (photoError) throw photoError;
+
+      const keeper = photoRecords.find((record) => record.is_keeper);
+      return {
+        keeperImageUrl: keeper?.image_url || existingImageUrl,
+        uploadedUrls,
+      };
+    } catch (error) {
+      uploadedUrls.forEach((url) => deletePublicImageUrl('session_images', url));
+      throw error;
     }
   };
 
@@ -1361,33 +1453,16 @@ export const RecordScreen = ({ navigation }: any) => {
       let uploadedUrl: string | null = null;
       if (selectedImages.length > 0) {
         const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const uploadPromises = selectedImages.map((img, idx) => 
-            uploadImageToBucket('session_images', img, `users/${user.id}/sessions`).then(url => ({ url, isKeeper: idx === keeperIndex }))
-          );
-          const uploadedPhotos = await Promise.all(uploadPromises);
-          
-          const photoRecords = uploadedPhotos.map(photo => ({
-            session_id: activeSession.id,
-            image_url: photo.url,
-            is_keeper: photo.isKeeper,
-            expires_at: photo.isKeeper ? null : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-          }));
-          
-          if (photoRecords.length > 0) {
-            const { error: photoError } = await supabase.from('session_photos').insert(photoRecords);
-            if (photoError) console.error('Failed to save session photos:', photoError);
-            
-            const keeper = photoRecords.find(p => p.is_keeper);
-            if (keeper) uploadedUrl = keeper.image_url;
-            
-            const { error } = await supabase
-              .from('sessions')
-              .update({ image_url: uploadedUrl })
-              .eq('id', activeSession.id);
-            if (error) throw error;
-          }
-        }
+        if (!user) throw new Error('Not logged in!');
+
+        const savedPhotos = await saveSelectedSessionPhotos(activeSession.id, user.id);
+        uploadedUrl = savedPhotos.keeperImageUrl;
+
+        const { error } = await supabase
+          .from('sessions')
+          .update({ image_url: uploadedUrl })
+          .eq('id', activeSession.id);
+        if (error) throw error;
       }
 
       const pubRecord = selectedPub || pubOptions.find(o => labelsMatchPub(cleanDraft, o)) || null;
@@ -1428,33 +1503,16 @@ export const RecordScreen = ({ navigation }: any) => {
       let uploadedUrl: string | null = null;
       if (selectedImages.length > 0) {
         const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const uploadPromises = selectedImages.map((img, idx) => 
-            uploadImageToBucket('session_images', img, `users/${user.id}/sessions`).then(url => ({ url, isKeeper: idx === keeperIndex }))
-          );
-          const uploadedPhotos = await Promise.all(uploadPromises);
-          
-          const photoRecords = uploadedPhotos.map(photo => ({
-            session_id: activeSession.id,
-            image_url: photo.url,
-            is_keeper: photo.isKeeper,
-            expires_at: photo.isKeeper ? null : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-          }));
-          
-          if (photoRecords.length > 0) {
-            const { error: photoError } = await supabase.from('session_photos').insert(photoRecords);
-            if (photoError) console.error('Failed to save session photos:', photoError);
-            
-            const keeper = photoRecords.find(p => p.is_keeper);
-            if (keeper) uploadedUrl = keeper.image_url;
-            
-            const { error } = await supabase
-              .from('sessions')
-              .update({ image_url: uploadedUrl })
-              .eq('id', activeSession.id);
-            if (error) throw error;
-          }
-        }
+        if (!user) throw new Error('Not logged in!');
+
+        const savedPhotos = await saveSelectedSessionPhotos(activeSession.id, user.id);
+        uploadedUrl = savedPhotos.keeperImageUrl;
+
+        const { error } = await supabase
+          .from('sessions')
+          .update({ image_url: uploadedUrl })
+          .eq('id', activeSession.id);
+        if (error) throw error;
       }
 
       const { data: { user } } = await supabase.auth.getUser();
@@ -1525,28 +1583,9 @@ export const RecordScreen = ({ navigation }: any) => {
       if (!user) throw new Error('Not logged in!');
 
       if (selectedImages.length > 0) {
-        const uploadPromises = selectedImages.map((img, idx) => 
-          uploadImageToBucket('session_images', img, `users/${user.id}/sessions`).then(url => ({ url, isKeeper: idx === keeperIndex }))
-        );
-        const uploadedPhotos = await Promise.all(uploadPromises);
-        
-        const photoRecords = uploadedPhotos.map(photo => ({
-          session_id: activeSession.id,
-          image_url: photo.url,
-          is_keeper: photo.isKeeper,
-          expires_at: photo.isKeeper ? null : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-        }));
-        
-        if (photoRecords.length > 0) {
-          const { error: photoError } = await supabase.from('session_photos').insert(photoRecords);
-          if (photoError) console.error('Failed to save session photos:', photoError);
-          
-          const keeper = photoRecords.find(p => p.is_keeper);
-          if (keeper) {
-            keeperImageUrl = keeper.image_url;
-            uploadedUrl = keeperImageUrl;
-          }
-        }
+        const savedPhotos = await saveSelectedSessionPhotos(activeSession.id, user.id);
+        keeperImageUrl = savedPhotos.keeperImageUrl;
+        uploadedUrl = keeperImageUrl;
       }
 
       const oldStats = await fetchProfileStats(user.id);
@@ -1631,6 +1670,7 @@ export const RecordScreen = ({ navigation }: any) => {
   };
 
   const previewImageUri = selectedImages.length > 0 ? selectedImages[keeperIndex]?.uri : existingImageUrl;
+  const selectedPhotoCountLabel = `${selectedImages.length}/${MAX_SESSION_PHOTOS}`;
   const cleanPub = pub.trim();
   const pubOptionLabels = pubOptions.map(formatPubLabel);
   const hasExactPubOption = cleanPub.length >= 2 && pubOptions.some((option) => labelsMatchPub(cleanPub, option));
@@ -1997,6 +2037,66 @@ export const RecordScreen = ({ navigation }: any) => {
                   </View>
                 ) : null}
               </TouchableOpacity>
+
+              {selectedImages.length > 0 ? (
+                <View style={styles.photoStripBlock}>
+                  <View style={styles.photoStripHeader}>
+                    <Text style={styles.photoStripTitle}>Session photos</Text>
+                    <Text style={styles.photoStripCount}>{selectedPhotoCountLabel}</Text>
+                  </View>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.photoStripContent}
+                  >
+                    {selectedImages.map((image, index) => {
+                      const isKeeper = index === keeperIndex;
+                      return (
+                        <View
+                          key={`${image.uri}-${index}`}
+                          style={[styles.photoTile, isKeeper ? styles.photoTileKeeper : null]}
+                        >
+                          <Image source={{ uri: image.uri }} style={styles.photoTileImage} />
+                          <TouchableOpacity
+                            style={[styles.keeperButton, isKeeper ? styles.keeperButtonActive : null]}
+                            onPress={() => setKeeperIndex(index)}
+                            activeOpacity={0.78}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Make photo ${index + 1} the keeper`}
+                          >
+                            <Star
+                              color={isKeeper ? colors.background : colors.primary}
+                              fill={isKeeper ? colors.background : 'transparent'}
+                              size={15}
+                            />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.removePhotoChip}
+                            onPress={() => removeSelectedImage(index)}
+                            activeOpacity={0.78}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Remove photo ${index + 1}`}
+                          >
+                            <X color={colors.background} size={14} />
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    })}
+                    {selectedImages.length < MAX_SESSION_PHOTOS ? (
+                      <TouchableOpacity
+                        style={styles.addPhotoTile}
+                        onPress={() => setPhotoChoiceVisible(true)}
+                        activeOpacity={0.76}
+                        accessibilityRole="button"
+                        accessibilityLabel="Add another session photo"
+                      >
+                        <PlusCircle color={colors.primary} size={22} />
+                      </TouchableOpacity>
+                    ) : null}
+                  </ScrollView>
+                  <Text style={styles.photoKeeperHint}>Starred photo stays. Others disappear after 24 hours.</Text>
+                </View>
+              ) : null}
 
               {activeCrawl && crawlPubAction !== 'next' ? (
                 <View style={{ marginBottom: 12 }}>
@@ -2787,6 +2887,91 @@ const styles = StyleSheet.create({
     color: colors.primary,
     marginLeft: 8,
     fontWeight: '600',
+  },
+  photoStripBlock: {
+    marginTop: -4,
+    marginBottom: spacing.md,
+  },
+  photoStripHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  photoStripTitle: {
+    ...typography.caption,
+    color: colors.text,
+    fontWeight: '800',
+  },
+  photoStripCount: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontWeight: '800',
+  },
+  photoStripContent: {
+    gap: 10,
+    paddingRight: 4,
+  },
+  photoTile: {
+    width: 82,
+    height: 82,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.surface,
+  },
+  photoTileKeeper: {
+    borderColor: colors.primary,
+  },
+  photoTileImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  keeperButton: {
+    position: 'absolute',
+    left: 6,
+    bottom: 6,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+  },
+  keeperButtonActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  removePhotoChip: {
+    position: 'absolute',
+    right: 6,
+    top: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.82)',
+  },
+  addPhotoTile: {
+    width: 82,
+    height: 82,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.primaryBorder,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoKeeperHint: {
+    ...typography.caption,
+    marginTop: 8,
+    color: colors.textMuted,
   },
   endActions: {
     flexDirection: 'row',
