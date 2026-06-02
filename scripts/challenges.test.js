@@ -211,30 +211,83 @@ assert.equal(formatOfficialWinnerStat('Average ABV', 5.2, '%'), 'Average ABV 5.2
 
 const detail = mapChallengeDetailRow({
   ...summaryRow,
-  leaderboard: [
-    {
-      rank: '1',
-      user_id: 'user-1',
-      username: 'Mads',
-      avatar_url: null,
-      progress_value: '15.4',
-      completed: true,
+  entrants_count: '2',
+  current_user_rank: '2',
+  leaderboards: {
+    local: {
+      entrants_count: '2',
+      current_user_rank: '2',
+      leaderboard: [
+        {
+          rank: '1',
+          user_id: 'user-2',
+          username: 'Mads',
+          avatar_url: null,
+          progress_value: '15.4',
+          completed: true,
+        },
+        {
+          rank: '2',
+          user_id: 'user-1',
+          username: null,
+          avatar_url: 'https://example.com/avatar.png',
+          progress_value: '8',
+          completed: false,
+        },
+      ],
     },
-    {
-      rank: '2',
-      user_id: 'user-2',
-      username: null,
-      avatar_url: 'https://example.com/avatar.png',
-      progress_value: '8',
-      completed: false,
+    global: {
+      entrants_count: '4',
+      current_user_rank: '3',
+      leaderboard: [
+        {
+          rank: '1',
+          user_id: 'user-3',
+          username: 'Line',
+          avatar_url: null,
+          progress_value: '18',
+          completed: true,
+        },
+        {
+          rank: '2',
+          user_id: 'user-2',
+          username: 'Mads',
+          avatar_url: null,
+          progress_value: '15.4',
+          completed: true,
+        },
+        {
+          rank: '3',
+          user_id: 'user-1',
+          username: null,
+          avatar_url: 'https://example.com/avatar.png',
+          progress_value: '8',
+          completed: false,
+        },
+        {
+          rank: '4',
+          user_id: 'user-4',
+          username: 'Sofie',
+          avatar_url: null,
+          progress_value: '4',
+          completed: false,
+        },
+      ],
     },
-  ],
+  },
 });
 
-assert.equal(detail.leaderboard.length, 2);
-assert.equal(detail.leaderboard[0].rank, 1);
-assert.equal(detail.leaderboard[0].completed, true);
-assert.equal(detail.leaderboard[1].username, null);
+assert.equal(detail.entrantsCount, 2);
+assert.equal(detail.currentUserRank, 2);
+assert.equal(detail.leaderboards.local.entrantsCount, 2);
+assert.equal(detail.leaderboards.local.currentUserRank, 2);
+assert.equal(detail.leaderboards.local.entries.length, 2);
+assert.equal(detail.leaderboards.local.entries[0].rank, 1);
+assert.equal(detail.leaderboards.local.entries[1].username, null);
+assert.equal(detail.leaderboards.global.entrantsCount, 4);
+assert.equal(detail.leaderboards.global.currentUserRank, 3);
+assert.equal(detail.leaderboards.global.entries.length, 4);
+assert.equal(detail.leaderboards.global.entries[2].userId, 'user-1');
 
 const migrationSql = read(migrationPath);
 assert.match(migrationSql, /create table if not exists public\.challenges/i, 'migration should create challenges table');

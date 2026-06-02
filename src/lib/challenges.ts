@@ -9,8 +9,14 @@ export const CHALLENGE_TYPE = {
   LEADERBOARD: 'leaderboard',
 } as const;
 
+export const CHALLENGE_LEADERBOARD_SCOPE = {
+  LOCAL: 'local',
+  GLOBAL: 'global',
+} as const;
+
 export type ChallengeStatus = typeof CHALLENGE_STATUS[keyof typeof CHALLENGE_STATUS];
 export type ChallengeType = typeof CHALLENGE_TYPE[keyof typeof CHALLENGE_TYPE];
+export type ChallengeLeaderboardScope = typeof CHALLENGE_LEADERBOARD_SCOPE[keyof typeof CHALLENGE_LEADERBOARD_SCOPE];
 export type ChallengeMetricType = 'true_pints';
 
 export type ChallengeSummaryRow = {
@@ -39,8 +45,17 @@ export type ChallengeLeaderboardRow = {
   completed?: boolean | null;
 };
 
-export type ChallengeDetailRow = ChallengeSummaryRow & {
+export type ChallengeLeaderboardScopeRow = {
+  entrants_count?: number | string | null;
+  current_user_rank?: number | string | null;
   leaderboard?: ChallengeLeaderboardRow[] | null;
+};
+
+export type ChallengeDetailRow = ChallengeSummaryRow & {
+  leaderboards?: {
+    local?: ChallengeLeaderboardScopeRow | null;
+    global?: ChallengeLeaderboardScopeRow | null;
+  } | null;
 };
 
 export type ChallengeSummary = {
@@ -73,8 +88,14 @@ export type ChallengeLeaderboardEntry = {
   completed: boolean;
 };
 
+export type ChallengeLeaderboard = {
+  entrantsCount: number;
+  currentUserRank: number | null;
+  entries: ChallengeLeaderboardEntry[];
+};
+
 export type ChallengeDetail = ChallengeSummary & {
-  leaderboard: ChallengeLeaderboardEntry[];
+  leaderboards: Record<ChallengeLeaderboardScope, ChallengeLeaderboard>;
 };
 
 const toNumber = (value: number | string | null | undefined) => {
@@ -216,7 +237,18 @@ export const mapChallengeLeaderboardRow = (row: ChallengeLeaderboardRow): Challe
   completed: row.completed === true,
 });
 
+const mapChallengeLeaderboardScopeRow = (
+  row: ChallengeLeaderboardScopeRow | null | undefined
+): ChallengeLeaderboard => ({
+  entrantsCount: toInteger(row?.entrants_count),
+  currentUserRank: toIntegerOrNull(row?.current_user_rank),
+  entries: (row?.leaderboard || []).map(mapChallengeLeaderboardRow),
+});
+
 export const mapChallengeDetailRow = (row: ChallengeDetailRow): ChallengeDetail => ({
   ...mapChallengeSummaryRow(row),
-  leaderboard: (row.leaderboard || []).map(mapChallengeLeaderboardRow),
+  leaderboards: {
+    [CHALLENGE_LEADERBOARD_SCOPE.LOCAL]: mapChallengeLeaderboardScopeRow(row.leaderboards?.local),
+    [CHALLENGE_LEADERBOARD_SCOPE.GLOBAL]: mapChallengeLeaderboardScopeRow(row.leaderboards?.global),
+  },
 });
