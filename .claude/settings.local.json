@@ -25,7 +25,22 @@
       "Skill(ai-image-generation:*)",
       "Bash(curl -s https://raw.githubusercontent.com/inference-sh/skills/refs/heads/main/cli-install.md)",
       "Bash(curl -fsSL cli.inference.sh)",
-      "Bash(sh)"
+      "Bash(sh)",
+      "Bash(grep -E \"\\\\.\\(ts|tsx|js|jsx\\)$\")",
+      "Bash(grep -E \"\\\\.\\(ts|tsx|js\\)$\")",
+      "Bash(xargs wc -l)",
+      "Bash(echo \"---EXIT: $?---\")",
+      "Bash(xargs grep -lE \"session_cheers|session_photos|session_comments|from\\\\\\('profiles'\\\\\\)\")",
+      "Bash(git checkout *)",
+      "Bash(node scripts/authSession.test.js)",
+      "Bash(node scripts/drinkingBuddies.test.js)",
+      "Bash(node scripts/sessionFeedDetails.test.js)",
+      "Bash(node scripts/sessionPhotos.test.js)",
+      "Bash(node scripts/pubCrawl.test.js)",
+      "Bash(git --no-pager diff --stat)",
+      "Bash(git add *)",
+      "Bash(git commit -m 'perf: speed up feed by cutting getUser round-trips and consolidating detail fetch' -m 'Two feed performance fixes from the code review: *)",
+      "Bash(git --no-pager log --oneline -1)"
     ]
   }
 }
