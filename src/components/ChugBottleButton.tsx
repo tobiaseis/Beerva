@@ -11,7 +11,7 @@ const VIEW_HEIGHT = 360;
 const TEXT_CENTER_X = 580;
 const TEXT_CENTER_Y = 185;
 const TEXT_MAX_WIDTH = 820;
-const LABEL = 'HOW FAST CAN YOU CHUG?  >';
+const LABEL = 'HOW FAST CAN YOU CHUG?';
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -89,11 +89,6 @@ export function ChugBottleButton({ onPress, disabled, style }: Props) {
 const styles = StyleSheet.create({
   wrapper: {
     marginVertical: spacing.md,
-    shadowColor: '#F59E0B',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.32,
-    shadowRadius: 15,
-    elevation: 7,
   },
   disabled: {
     opacity: 0.68,

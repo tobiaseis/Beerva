@@ -42,7 +42,8 @@ assert.match(componentSource, /Text as SvgText/, 'component should render the ed
 assert.match(componentSource, /const renderedFontSize = clamp\(width \* 0\.044, 13, 18\)/, 'label size should adapt to phone width within readable bounds');
 assert.match(componentSource, /const renderedLetterSpacing = clamp\(width \* 0\.004, 0\.6, 1\.5\)/, 'label spacing should tighten on narrow phones');
 assert.match(componentSource, /textLength=\{TEXT_MAX_WIDTH\}/, 'label should be constrained to the text-safe bottle body width');
-assert.match(componentSource, /HOW FAST CAN YOU CHUG\?  >/, 'component should preserve the chug action label');
+assert.match(componentSource, /const LABEL = 'HOW FAST CAN YOU CHUG\?';/, 'component should keep the editable chug action label without a trailing chevron');
+assert.doesNotMatch(componentSource, /shadowColor|shadowOffset|shadowOpacity|shadowRadius|elevation/, 'component wrapper should not add an exterior glow box');
 assert.doesNotMatch(componentSource, /SvgXml|BOTTLE_SVG|<path/, 'component should no longer draw the bottle with authored SVG paths');
 
 console.log('responsive chug bottle asset checks passed');
