@@ -4,6 +4,8 @@ import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { Beer, ChevronDown, ChevronUp, Edit3, MapPin, Trash2, Bell, AlertTriangle, RefreshCw, MessageCircle, Send, Trophy, X } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
+import { getCurrentUser } from '../lib/authSession';
+import { fetchSessionFeedDetails, SessionFeedDetail } from '../lib/sessionFeedDetails';
 import { confirmDestructive } from '../lib/dialogs';
 import { useFocusEffect, useNavigation, useScrollToTop } from '@react-navigation/native';
 import { CachedImage } from '../components/CachedImage';
@@ -827,11 +829,7 @@ export const FeedScreen = ({ route }: any) => {
     }
 
     try {
-      const { data: { user } } = await withTimeout(
-        supabase.auth.getUser(),
-        FEED_REQUEST_TIMEOUT_MS,
-        'Feed sign-in check is taking too long.'
-      );
+      const user = await getCurrentUser();
       if (!isLatestRequest()) return;
 
       setCurrentUserId(user?.id || null);
@@ -918,65 +916,26 @@ export const FeedScreen = ({ route }: any) => {
       setHasMore(hasNextPage);
       hasMoreRef.current = hasNextPage;
 
-      let officialPostChallengeSummaries = new Map<string, ChallengeSummary>();
-      try {
-        officialPostChallengeSummaries = await withTimeout(
-          fetchOfficialPostLinkedChallengeSummaries(officialPosts),
-          FEED_REQUEST_TIMEOUT_MS,
-          'Official challenge actions are taking too long.'
-        );
-      } catch (error) {
-        console.error('Official challenge actions fetch error:', error);
-      }
-      if (!isLatestRequest()) return;
-
-      setOfficialPostChallengesById((previous) => {
-        const next = reset ? new Map<string, ChallengeSummary>() : new Map(previous);
-        officialPostChallengeSummaries.forEach((challenge, id) => next.set(id, challenge));
-        return next;
-      });
-
       const sessionIds = sessionRows.map((session) => session.id);
 
-      const [cheersResult, beersResult, commentsResult, chugsResult, photosResult, buddiesBySession] = await withTimeout(
+      const [detailsBySession, chugsResult, buddiesBySession, officialPostChallengeSummaries] = await withTimeout(
         Promise.all([
           sessionIds.length > 0
-            ? supabase
-                .from('session_cheers')
-                .select('session_id, user_id, created_at')
-                .in('session_id', sessionIds)
-            : Promise.resolve({ data: [] as SessionCheer[], error: null }),
-          sessionIds.length > 0
-            ? supabase
-                .from('session_beers')
-                .select('id, session_id, beer_name, volume, quantity, abv, note, consumed_at, created_at')
-                .in('session_id', sessionIds)
-                .order('consumed_at', { ascending: true })
-            : Promise.resolve({ data: [] as SessionBeer[], error: null }),
-          sessionIds.length > 0
-            ? supabase
-                .from('session_comments')
-                .select('id, session_id, user_id, body, created_at, updated_at')
-                .in('session_id', sessionIds)
-                .order('created_at', { ascending: true })
-            : Promise.resolve({ data: [] as FeedComment[], error: null }),
+            ? fetchSessionFeedDetails(sessionIds)
+            : Promise.resolve(new Map<string, SessionFeedDetail>()),
           sessionIds.length > 0
             ? supabase.rpc('get_session_chug_attempt_summaries', { session_ids: sessionIds })
             : Promise.resolve({ data: [] as SessionChugAttemptRow[], error: null }),
-          sessionIds.length > 0
-            ? supabase
-                .from('session_photos')
-                .select('id, session_id, image_url, is_keeper, expires_at, created_at')
-                .in('session_id', sessionIds)
-                .order('is_keeper', { ascending: false })
-                .order('created_at', { ascending: true })
-            : Promise.resolve({ data: [] as SessionPhoto[], error: null }),
           sessionIds.length > 0
             ? fetchSessionBuddySummaries(sessionIds).catch((error) => {
                 console.error('Session buddies fetch error:', error);
                 return new Map<string, SessionBuddy[]>();
               })
             : Promise.resolve(new Map<string, SessionBuddy[]>()),
+          fetchOfficialPostLinkedChallengeSummaries(officialPosts).catch((error) => {
+            console.error('Official challenge actions fetch error:', error);
+            return new Map<string, ChallengeSummary>();
+          }),
         ]),
         FEED_REQUEST_TIMEOUT_MS,
         'Feed details are taking too long.'
@@ -984,86 +943,17 @@ export const FeedScreen = ({ route }: any) => {
 
       if (!isLatestRequest()) return;
 
-      if (cheersResult.error) {
-        console.error('Cheers fetch error:', cheersResult.error);
-      }
-      if (beersResult.error) {
-        console.error('Session beers fetch error:', beersResult.error);
-      }
-      if (commentsResult.error) {
-        console.error('Session comments fetch error:', commentsResult.error);
-      }
       if (chugsResult.error) {
         console.error('Session chugs fetch error:', chugsResult.error);
       }
-      if (photosResult.error) {
-        console.error('Session photos fetch error:', photosResult.error);
-      }
 
-      const cheers: SessionCheer[] = (cheersResult.data || []) as SessionCheer[];
-      const beerRows: SessionBeer[] = (beersResult.data || []) as SessionBeer[];
-      const commentRows: FeedComment[] = (commentsResult.data || []) as FeedComment[];
+      setOfficialPostChallengesById((previous) => {
+        const next = reset ? new Map<string, ChallengeSummary>() : new Map(previous);
+        officialPostChallengeSummaries.forEach((challenge, id) => next.set(id, challenge));
+        return next;
+      });
+
       const chugRows = ((chugsResult.data || []) as SessionChugAttemptRow[]).map(mapChugAttemptRow);
-      const photoRows = (photosResult.data || []) as SessionPhoto[];
-
-      const profileIds = Array.from(new Set([
-        ...sessionRows.map((session) => session.user_id),
-        ...cheers.map((cheer) => cheer.user_id),
-        ...commentRows.map((comment) => comment.user_id),
-      ].filter(Boolean)));
-
-      const profilesResult = profileIds.length > 0
-        ? await withTimeout(
-            supabase
-              .from('profiles')
-              .select('id, username, avatar_url')
-              .in('id', profileIds),
-            FEED_REQUEST_TIMEOUT_MS,
-            'Feed profiles are taking too long.'
-          )
-        : { data: [] as any[], error: null };
-
-      if (!isLatestRequest()) return;
-
-      if (profilesResult.error) {
-        console.error('Feed profiles fetch error:', profilesResult.error);
-      }
-
-      const profilesById = new Map<string, ProfilePreview>();
-      for (const profile of (profilesResult.data || []) as any[]) {
-        profilesById.set(profile.id, {
-          id: profile.id,
-          username: profile.username,
-          avatar_url: profile.avatar_url,
-        });
-      }
-
-      const cheersBySession = cheers.reduce((acc, cheer) => {
-        const existing = acc.get(cheer.session_id) || [];
-        existing.push(cheer);
-        acc.set(cheer.session_id, existing);
-        return acc;
-      }, new Map<string, SessionCheer[]>());
-
-      const beersBySession = beerRows.reduce((acc, beer) => {
-        if (!beer.session_id) return acc;
-        const existing = acc.get(beer.session_id) || [];
-        existing.push(beer);
-        acc.set(beer.session_id, existing);
-        return acc;
-      }, new Map<string, SessionBeer[]>());
-
-      const commentsBySession = commentRows.reduce((acc, comment) => {
-        if (!comment.session_id) return acc;
-        const existing = acc.get(comment.session_id) || [];
-        existing.push({
-          ...comment,
-          profiles: profilesById.get(comment.user_id) || null,
-        });
-        acc.set(comment.session_id, existing);
-        return acc;
-      }, new Map<string, FeedComment[]>());
-
       const chugsBySession = chugRows.reduce((acc, attempt) => {
         const existing = acc.get(attempt.sessionId) || [];
         existing.push(attempt);
@@ -1071,29 +961,22 @@ export const FeedScreen = ({ route }: any) => {
         return acc;
       }, new Map<string, SessionChugAttempt[]>());
 
-      const photosBySession = photoRows.reduce((acc, photo) => {
-        if (!photo.session_id) return acc;
-        const existing = acc.get(photo.session_id) || [];
-        existing.push(photo);
-        acc.set(photo.session_id, existing);
-        return acc;
-      }, new Map<string, SessionPhoto[]>());
-
       const pageSessions = sessionRows.map((session): FeedItem => {
-        const sessionCheers = cheersBySession.get(session.id) || [];
-        const sessionComments = commentsBySession.get(session.id) || [];
-        const sessionBeers = beersBySession.get(session.id) || (
-          session.beer_name
-            ? [{
-                session_id: session.id,
-                beer_name: session.beer_name,
-                volume: session.volume,
-                quantity: session.quantity,
-                abv: session.abv ?? null,
-                consumed_at: session.created_at,
-              }]
-            : []
-        );
+        const detail = detailsBySession.get(session.id);
+        const detailCheers = detail?.cheers || [];
+        const detailComments = detail?.comments || [];
+        const sessionBeers = (detail?.beers && detail.beers.length > 0)
+          ? detail.beers
+          : (session.beer_name
+              ? [{
+                  session_id: session.id,
+                  beer_name: session.beer_name,
+                  volume: session.volume,
+                  quantity: session.quantity,
+                  abv: session.abv ?? null,
+                  consumed_at: session.created_at,
+                }]
+              : []);
 
         return {
           type: 'session',
@@ -1101,16 +984,34 @@ export const FeedScreen = ({ route }: any) => {
           publishedAt: session.published_at || session.created_at,
           session: {
             ...session,
-            session_photos: photosBySession.get(session.id) || [],
+            session_photos: detail?.photos || [],
             session_beers: sessionBeers,
             session_chug_attempts: chugsBySession.get(session.id) || [],
             drinking_buddies: buddiesBySession.get(session.id) || [],
-            profiles: profilesById.get(session.user_id) || null,
-            cheer_profiles: sessionCheers.map((cheer) => profilesById.get(cheer.user_id)).filter(Boolean) as ProfilePreview[],
-            comments: sessionComments,
-            comments_count: sessionComments.length,
-            cheers_count: sessionCheers.length,
-            has_cheered: user ? sessionCheers.some((cheer) => cheer.user_id === user.id) : false,
+            profiles: detail?.author
+              ? { username: detail.author.username, avatar_url: detail.author.avatarUrl }
+              : null,
+            cheer_profiles: detailCheers.map((cheer) => ({
+              id: cheer.userId,
+              username: cheer.username,
+              avatar_url: cheer.avatarUrl,
+            })),
+            comments: detailComments.map((comment) => ({
+              id: comment.id,
+              session_id: session.id,
+              user_id: comment.userId,
+              body: comment.body,
+              created_at: comment.createdAt,
+              updated_at: comment.updatedAt,
+              profiles: {
+                id: comment.userId,
+                username: comment.username,
+                avatar_url: comment.avatarUrl,
+              },
+            })),
+            comments_count: detail?.commentsCount ?? detailComments.length,
+            cheers_count: detail?.cheersCount ?? detailCheers.length,
+            has_cheered: user ? detailCheers.some((cheer) => cheer.userId === user.id) : false,
           }
         };
       });

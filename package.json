@@ -54,7 +54,9 @@
     "test:official-posts": "node scripts/officialBeervaPosts.test.js",
     "test:timeouts": "node scripts/timeouts.test.js",
     "test:serve-dist": "node scripts/serveDist.test.js",
-    "test:github-pages": "node scripts/githubPages.test.js"
+    "test:github-pages": "node scripts/githubPages.test.js",
+    "test:auth-session": "node scripts/authSession.test.js",
+    "test:session-feed-details": "node scripts/sessionFeedDetails.test.js"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",

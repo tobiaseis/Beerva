@@ -10,6 +10,7 @@ import {
   PubCrawlStopRow,
 } from './pubCrawls';
 import { supabase } from './supabase';
+import { getCurrentUser } from './authSession';
 import { getErrorMessage, withTimeout } from './timeouts';
 
 const PUB_CRAWL_TIMEOUT_MS = 15000;
@@ -277,7 +278,7 @@ const hydratePubCrawls = async (crawlRows: PubCrawlBaseRow[], currentUserId?: st
 };
 
 export const fetchActivePubCrawl = async (): Promise<ActivePubCrawlState | null> => {
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) return null;
 
   const { data, error } = await withTimeout(
@@ -427,7 +428,7 @@ export const fetchPublishedPubCrawlsForFeedPage = async (
   );
 
   if (error) throw error;
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   const rows = (data || []) as PubCrawlBaseRow[];
   const pageRows = rows.slice(0, pageSize);
   const crawls = await hydratePubCrawls(pageRows, user?.id || null);
@@ -505,7 +506,7 @@ export const addPubCrawlComment = async (crawlId: string, body: string) => {
   const cleanBody = body.trim();
   if (!cleanBody) throw new Error('Write a comment first.');
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
   if (!user) throw new Error('Not logged in!');
 
   const { data, error } = await supabase

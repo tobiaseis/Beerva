@@ -137,8 +137,8 @@ assert.match(
 );
 assert.match(
   feedScreenSource,
-  /\.from\('session_photos'\)/,
-  'feed should fetch session_photos for the normal session carousel'
+  /fetchSessionFeedDetails/,
+  'feed should fetch session photos through the consolidated feed details RPC'
 );
 assert.match(
   feedScreenSource,

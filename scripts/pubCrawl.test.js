@@ -443,6 +443,9 @@ const runAsyncRegressionTests = async () => {
       incrementPubUseCount: () => {},
     },
     './pubCrawls': helpersModule,
+    './authSession': {
+      getCurrentUser: async () => ({ id: 'user-1' }),
+    },
     './supabase': {
       supabase: createHydrationFailingSupabaseMock(),
     },
@@ -497,6 +500,9 @@ const runAsyncRegressionTests = async () => {
       incrementPubUseCount: () => {},
     },
     './pubCrawls': helpersModule,
+    './authSession': {
+      getCurrentUser: async () => ({ id: 'user-1' }),
+    },
     './supabase': {
       supabase: createHydrationSuccessfulSupabaseMock(),
     },
