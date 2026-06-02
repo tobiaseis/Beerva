@@ -27,6 +27,21 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('ErrorBoundary caught:', error, info);
+
+    // Auto-recover from deployment mismatches (old JS requesting new chunks, or vice versa)
+    const isChunkError =
+      error.name === 'ChunkLoadError' ||
+      error.message.includes('Loading chunk') ||
+      error.message.includes('Unexpected token \'<\''); // HTML fallback from Vercel
+
+    if (isChunkError && Platform.OS === 'web' && typeof window !== 'undefined') {
+      // Prevent reload loops if the error persists across reloads
+      const reloads = parseInt(sessionStorage.getItem('beerva_chunk_reload_count') || '0', 10);
+      if (reloads < 3) {
+        sessionStorage.setItem('beerva_chunk_reload_count', String(reloads + 1));
+        window.location.reload();
+      }
+    }
   }
 
   handleReload = () => {

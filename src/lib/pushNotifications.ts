@@ -76,6 +76,7 @@ export const getPushPermissionStatus = (): 'unsupported' | NotificationPermissio
   return Notification.permission;
 };
 
+let waitingServiceWorker: ServiceWorker | null = null;
 let serviceWorkerUpdateFlowAttached = false;
 
 const attachServiceWorkerUpdateFlow = (registration: ServiceWorkerRegistration) => {
@@ -101,10 +102,19 @@ const attachServiceWorkerUpdateFlow = (registration: ServiceWorkerRegistration) 
 
     newWorker.addEventListener('statechange', () => {
       if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-        newWorker.postMessage({ type: 'SKIP_WAITING' });
+        waitingServiceWorker = newWorker;
+        window.dispatchEvent(new Event('appUpdateAvailable'));
       }
     });
   });
+};
+
+export const applyServiceWorkerUpdate = () => {
+  if (waitingServiceWorker) {
+    waitingServiceWorker.postMessage({ type: 'SKIP_WAITING' });
+  } else if (typeof window !== 'undefined') {
+    window.location.reload();
+  }
 };
 
 export const registerServiceWorker = async (): Promise<ServiceWorkerRegistration | null> => {

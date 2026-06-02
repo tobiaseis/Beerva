@@ -14,6 +14,7 @@ import { Animated, Image, Platform, StyleSheet, View } from 'react-native';
 import { registerServiceWorker } from './src/lib/pushNotifications';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { PwaInstallPrompt } from './src/components/PwaInstallPrompt';
+import { UpdateAvailableBanner } from './src/components/UpdateAvailableBanner';
 
 const beervaLogo = require('./assets/beerva-header-logo.png');
 
@@ -74,6 +75,7 @@ export default function App() {
           {fontsReady && splashDone ? (
             <>
               <RootNavigator />
+              <UpdateAvailableBanner />
               <PwaInstallPrompt />
             </>
           ) : null}
