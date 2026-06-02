@@ -102,7 +102,9 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   title: {
-    ...typography.label,
+    fontFamily: 'Inter_600SemiBold',
+    fontSize: 14,
+    fontWeight: '600',
     color: colors.text,
     marginBottom: 2,
   },
