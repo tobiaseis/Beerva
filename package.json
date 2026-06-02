@@ -12,6 +12,7 @@
     "test:stats": "node scripts/profileStats.test.js",
     "test:roulette": "node scripts/pubRoulette.test.js",
     "test:notifications": "node scripts/notifications.test.js",
+    "test:push-reminder": "node scripts/pushReminderPrompt.test.js",
     "test:pub-legends": "node scripts/pubLegends.test.js",
     "test:challenges": "node scripts/challenges.test.js",
     "test:pub-directory": "node scripts/pubDirectory.test.js",
