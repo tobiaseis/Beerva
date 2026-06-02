@@ -18,6 +18,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { AppButton } from '../components/AppButton';
 import { BeerDraftForm } from '../components/BeerDraftForm';
 import { ChugAttemptModal } from '../components/ChugAttemptModal';
+import { ChugBottleButton } from '../components/ChugBottleButton';
 import { DrinkingBuddiesPicker } from '../components/DrinkingBuddiesPicker';
 import { Surface } from '../components/Surface';
 import { showAlert } from '../lib/dialogs';
@@ -696,29 +697,7 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
         />
       </Surface>
 
-      <TouchableOpacity
-        style={[styles.chugBottleButton, saving ? styles.chugBottleButtonDisabled : null]}
-        onPress={openChugFlow}
-        disabled={saving}
-        activeOpacity={0.76}
-        accessibilityRole="button"
-        accessibilityLabel="Record a 33cl bottle chug attempt"
-      >
-        <View style={styles.chugBottleBody}>
-          <View style={styles.chugBottleHighlightTop} />
-          <View style={styles.chugBottleHighlightBottom} />
-          <View style={styles.chugBottleLabel}>
-            <Text style={styles.chugButtonTitle}>How fast can you chug? {'>'}</Text>
-          </View>
-        </View>
-        <View style={styles.chugBottleNeck}>
-          <View style={styles.chugBottleHighlightTop} />
-          <View style={styles.chugBottleHighlightBottom} />
-        </View>
-        <View style={styles.chugBottleCap}>
-          <View style={styles.chugBottleCapHighlight} />
-        </View>
-      </TouchableOpacity>
+      <ChugBottleButton onPress={openChugFlow} disabled={saving} style={styles.chugBottleMargin} />
 
       <Surface style={styles.formSurface}>
         <Text style={styles.sectionTitle}>Details</Text>
@@ -964,101 +943,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(239, 68, 68, 0.24)',
   },
-  chugBottleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: spacing.md,
+  chugBottleMargin: {
     marginHorizontal: 16,
-    shadowColor: '#F59E0B',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  chugBottleButtonDisabled: {
-    opacity: 0.68,
-  },
-  chugBottleBody: {
-    flex: 1,
-    height: 64,
-    backgroundColor: '#381404',
-    borderTopLeftRadius: 32,
-    borderBottomLeftRadius: 32,
-    borderTopRightRadius: 12,
-    borderBottomRightRadius: 12,
-    borderWidth: 1,
-    borderColor: '#92400E',
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-  },
-  chugBottleNeck: {
-    width: 48,
-    height: 28,
-    backgroundColor: '#381404',
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#92400E',
-    marginLeft: -4,
-    zIndex: -1,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  chugBottleCap: {
-    width: 14,
-    height: 32,
-    backgroundColor: '#F59E0B',
-    borderTopRightRadius: 4,
-    borderBottomRightRadius: 4,
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-    marginLeft: -1,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  chugBottleHighlightTop: {
-    position: 'absolute',
-    top: 2,
-    left: '10%',
-    right: '10%',
-    height: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 3,
-  },
-  chugBottleHighlightBottom: {
-    position: 'absolute',
-    bottom: 0,
-    left: '15%',
-    right: '15%',
-    height: 12,
-    backgroundColor: 'rgba(245, 158, 11, 0.25)',
-    borderTopLeftRadius: 6,
-    borderTopRightRadius: 6,
-  },
-  chugBottleCapHighlight: {
-    position: 'absolute',
-    top: 2,
-    bottom: 2,
-    left: 2,
-    width: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.4)',
-    borderRadius: 2,
-  },
-  chugButtonTitle: {
-    ...typography.body,
-    color: '#FDE68A',
-    fontSize: 15,
-    fontWeight: '900',
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
-  },
-  chugBottleLabel: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    zIndex: 1,
   },
   sectionLabel: {
     ...typography.body,
