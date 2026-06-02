@@ -26,6 +26,7 @@
     "test:chug-mediapipe-bundle": "node scripts/chugMediaPipeBundle.test.js",
     "test:chug-manual-timing": "node scripts/chugManualTiming.test.js",
     "test:chug-proof-storage": "node scripts/chugProofStorage.test.js",
+    "test:chug-button": "node scripts/chugBottleButton.test.js",
     "test:chug-record": "node scripts/chugRecordScreen.test.js",
     "test:chug-edit": "node scripts/chugEditSession.test.js",
     "test:chug-review": "node scripts/chugVerificationScreen.test.js",
