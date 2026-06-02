@@ -51,38 +51,121 @@ language sql
 stable
 set search_path = public
 as $$
-  with all_local_leaderboards as (
+  with viewer as (
+    select (select auth.uid()) as user_id
+  ),
+  local_users as (
+    select viewer.user_id
+    from viewer
+    where viewer.user_id is not null
+    union
+    select outgoing_follow.following_id
+    from viewer
+    join public.follows as outgoing_follow
+      on outgoing_follow.follower_id = viewer.user_id
+    join public.follows as incoming_follow
+      on incoming_follow.follower_id = outgoing_follow.following_id
+     and incoming_follow.following_id = viewer.user_id
+  ),
+  local_entries as (
     select
-      challenges.id as challenge_id,
-      local_leaderboard.rank,
-      local_leaderboard.user_id,
-      local_leaderboard.progress_value
-    from public.challenges
-    cross join lateral public.get_local_challenge_leaderboard(challenges.id) as local_leaderboard
+      challenge_entries.challenge_id,
+      challenge_entries.user_id,
+      challenge_entries.joined_at
+    from local_users
+    join public.challenge_entries as challenge_entries
+      on challenge_entries.user_id = local_users.user_id
+  ),
+  beer_events as (
+    select
+      local_entries.challenge_id,
+      local_entries.user_id,
+      public.beerva_serving_volume_ml(session_beers.volume)
+        * greatest(coalesce(session_beers.quantity, 1), 0)
+        / 568.0 as true_pints
+    from local_entries
+    join public.challenges as challenges
+      on challenges.id = local_entries.challenge_id
+    join public.sessions as sessions
+      on sessions.user_id = local_entries.user_id
+     and sessions.status = 'published'
+    join public.session_beers as session_beers
+      on session_beers.session_id = sessions.id
+    where coalesce(session_beers.consumed_at, sessions.started_at, sessions.created_at) >= challenges.starts_at
+      and coalesce(session_beers.consumed_at, sessions.started_at, sessions.created_at) < challenges.ends_at
+  ),
+  legacy_session_events as (
+    select
+      local_entries.challenge_id,
+      local_entries.user_id,
+      public.beerva_serving_volume_ml(sessions.volume)
+        * greatest(coalesce(sessions.quantity, 1), 0)
+        / 568.0 as true_pints
+    from local_entries
+    join public.challenges as challenges
+      on challenges.id = local_entries.challenge_id
+    join public.sessions as sessions
+      on sessions.user_id = local_entries.user_id
+     and sessions.status = 'published'
+    where coalesce(sessions.started_at, sessions.created_at) >= challenges.starts_at
+      and coalesce(sessions.started_at, sessions.created_at) < challenges.ends_at
+      and not exists (
+        select 1
+        from public.session_beers
+        where session_beers.session_id = sessions.id
+      )
+  ),
+  beverage_progress as (
+    select
+      drink_events.challenge_id,
+      drink_events.user_id,
+      sum(drink_events.true_pints) as progress_value
+    from (
+      select beer_events.challenge_id, beer_events.user_id, beer_events.true_pints
+      from beer_events
+      union all
+      select legacy_session_events.challenge_id, legacy_session_events.user_id, legacy_session_events.true_pints
+      from legacy_session_events
+    ) as drink_events
+    group by drink_events.challenge_id, drink_events.user_id
+  ),
+  ranked_local_entries as (
+    select
+      local_entries.challenge_id,
+      row_number() over (
+        partition by local_entries.challenge_id
+        order by coalesce(beverage_progress.progress_value, 0) desc, local_entries.joined_at asc, local_entries.user_id asc
+      )::integer as rank,
+      local_entries.user_id,
+      coalesce(beverage_progress.progress_value, 0)::double precision as progress_value
+    from local_entries
+    left join beverage_progress
+      on beverage_progress.challenge_id = local_entries.challenge_id
+     and beverage_progress.user_id = local_entries.user_id
   ),
   local_challenge_rollups as (
     select
       challenges.id,
-      count(all_local_leaderboards.user_id)::integer as entrants_count
+      count(ranked_local_entries.user_id)::integer as entrants_count
     from public.challenges
-    left join all_local_leaderboards
-      on all_local_leaderboards.challenge_id = challenges.id
+    left join ranked_local_entries
+      on ranked_local_entries.challenge_id = challenges.id
     group by challenges.id
   ),
   current_user_entries as (
     select
-      challenge_entries.challenge_id,
-      challenge_entries.joined_at
-    from public.challenge_entries
-    where challenge_entries.user_id = (select auth.uid())
+      local_entries.challenge_id,
+      local_entries.joined_at
+    from local_entries
+    where local_entries.user_id = (select viewer.user_id from viewer)
   ),
   local_current_user_ranks as (
     select
-      all_local_leaderboards.challenge_id,
-      all_local_leaderboards.rank,
-      all_local_leaderboards.progress_value
-    from all_local_leaderboards
-    where all_local_leaderboards.user_id = (select auth.uid())
+      ranked_local_entries.challenge_id,
+      ranked_local_entries.rank,
+      ranked_local_entries.progress_value
+    from ranked_local_entries
+    where ranked_local_entries.user_id = (select viewer.user_id from viewer)
   )
   select
     challenges.id,
@@ -141,9 +224,18 @@ as $$
     cross join lateral public.get_challenge_leaderboard(target_challenge.id) as global_rows
   ),
   local_leaderboard as (
-    select local_rows.*
-    from target_challenge
-    cross join lateral public.get_local_challenge_leaderboard(target_challenge.id) as local_rows
+    select
+      row_number() over (
+        order by global_leaderboard.rank asc
+      )::integer as rank,
+      global_leaderboard.user_id,
+      global_leaderboard.username,
+      global_leaderboard.avatar_url,
+      global_leaderboard.progress_value,
+      global_leaderboard.completed
+    from global_leaderboard
+    where global_leaderboard.user_id = (select auth.uid())
+       or public.is_mutual_follower((select auth.uid()), global_leaderboard.user_id)
   ),
   local_scope as (
     select
@@ -224,6 +316,8 @@ as $$
 $$;
 
 revoke execute on function public.get_local_challenge_leaderboard(uuid) from public, anon;
+revoke execute on function public.get_official_challenges() from public, anon;
+revoke execute on function public.get_challenge_detail(text) from public, anon;
 grant execute on function public.get_local_challenge_leaderboard(uuid) to authenticated;
 grant execute on function public.get_official_challenges() to authenticated;
 grant execute on function public.get_challenge_detail(text) to authenticated;

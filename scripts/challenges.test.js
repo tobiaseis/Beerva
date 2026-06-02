@@ -334,15 +334,50 @@ assert.match(
   /row_number\(\) over \(\s*order by local_entries\.rank asc\s*\)::integer as rank/i,
   'local leaderboard should recalculate rank inside the filtered comparison group'
 );
+
+const officialChallengesSql = localChallengeLeaderboardsMigrationSql.match(
+  /create or replace function public\.get_official_challenges\(\)[\s\S]*?(?=\ncreate or replace function public\.get_challenge_detail\(target_challenge_slug text\))/i
+);
+assert.ok(officialChallengesSql, 'local leaderboard migration should replace the official challenge summary RPC');
 assert.match(
-  localChallengeLeaderboardsMigrationSql,
-  /create or replace function public\.get_official_challenges\(\)[\s\S]*public\.get_local_challenge_leaderboard\(challenges\.id\)/i,
-  'compact challenge summaries should use local leaderboard defaults'
+  officialChallengesSql[0],
+  /local_users as \([\s\S]*from viewer[\s\S]*join public\.follows as outgoing_follow[\s\S]*join public\.follows as incoming_follow/i,
+  'compact challenge summaries should calculate viewer-local users once with set-wise follow joins'
 );
 assert.match(
-  localChallengeLeaderboardsMigrationSql,
-  /create or replace function public\.get_challenge_detail\(target_challenge_slug text\)[\s\S]*'leaderboards'[\s\S]*'local'[\s\S]*'global'/i,
+  officialChallengesSql[0],
+  /row_number\(\) over \(\s*partition by local_entries\.challenge_id\s*order by coalesce\(beverage_progress\.progress_value,\s*0\) desc,\s*local_entries\.joined_at asc,\s*local_entries\.user_id asc\s*\)::integer as rank/i,
+  'compact challenge summaries should rerank local entries independently inside each challenge'
+);
+assert.doesNotMatch(
+  officialChallengesSql[0],
+  /public\.get_local_challenge_leaderboard\(challenges\.id\)/i,
+  'compact challenge summaries should avoid invoking the local leaderboard RPC per challenge'
+);
+assert.doesNotMatch(
+  officialChallengesSql[0],
+  /public\.get_challenge_leaderboard\(challenges\.id\)/i,
+  'compact challenge summaries should avoid ranking every global entrant per challenge'
+);
+
+const challengeDetailSql = localChallengeLeaderboardsMigrationSql.match(
+  /create or replace function public\.get_challenge_detail\(target_challenge_slug text\)[\s\S]*?(?=\nrevoke execute on function public\.get_local_challenge_leaderboard\(uuid\))/i
+);
+assert.ok(challengeDetailSql, 'local leaderboard migration should replace the challenge detail RPC');
+assert.match(
+  challengeDetailSql[0],
+  /'leaderboards'[\s\S]*'local'[\s\S]*'global'/i,
   'detail RPC should return both leaderboard scopes in one response'
+);
+assert.match(
+  challengeDetailSql[0],
+  /local_leaderboard as \(\s*select\s+row_number\(\) over \(\s*order by global_leaderboard\.rank asc\s*\)::integer as rank,[\s\S]*from global_leaderboard\s+where global_leaderboard\.user_id\s*=\s*\(select auth\.uid\(\)\)[\s\S]*or public\.is_mutual_follower\(\(select auth\.uid\(\)\), global_leaderboard\.user_id\)/i,
+  'detail local leaderboard should reuse canonical rows, filter viewer-local users, and rerank the subset'
+);
+assert.doesNotMatch(
+  challengeDetailSql[0],
+  /cross join lateral public\.get_local_challenge_leaderboard\(target_challenge\.id\)/i,
+  'detail RPC should not aggregate canonical global progress twice'
 );
 assert.match(
   localChallengeLeaderboardsMigrationSql,
@@ -363,6 +398,16 @@ assert.match(
   localChallengeLeaderboardsMigrationSql,
   /notify pgrst,\s*'reload schema'/i,
   'local leaderboard migration should reload the PostgREST schema cache'
+);
+assert.match(
+  localChallengeLeaderboardsMigrationSql,
+  /revoke execute on function public\.get_official_challenges\(\) from public,\s*anon;/i,
+  'official challenge summaries should explicitly revoke public and anon execution'
+);
+assert.match(
+  localChallengeLeaderboardsMigrationSql,
+  /revoke execute on function public\.get_challenge_detail\(text\) from public,\s*anon;/i,
+  'challenge detail should explicitly revoke public and anon execution'
 );
 
 const adminChallengesMigrationSql = read(adminChallengesMigrationPath);
