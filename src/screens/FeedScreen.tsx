@@ -1019,6 +1019,7 @@ export const FeedScreen = ({ route }: any) => {
           publishedAt: session.published_at || session.created_at,
           session: {
             ...session,
+            session_photos: session.session_photos || [],
             session_beers: sessionBeers,
             session_chug_attempts: chugsBySession.get(session.id) || [],
             drinking_buddies: buddiesBySession.get(session.id) || [],
