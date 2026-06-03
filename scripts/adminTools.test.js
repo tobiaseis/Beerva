@@ -29,8 +29,10 @@ const loadTypeScriptModule = (relativePath) => {
 
 const migrationPath = 'supabase/migrations/20260531170000_add_admin_challenges_and_beverages.sql';
 const retryMigrationPath = 'supabase/migrations/20260531180000_make_admin_challenge_save_retryable.sql';
+const archiveMigrationPath = 'supabase/migrations/20260603120000_add_admin_challenge_archive.sql';
 assert.ok(exists(migrationPath), 'admin migration should exist');
 assert.ok(exists(retryMigrationPath), 'admin challenge retry migration should exist');
+assert.ok(exists(archiveMigrationPath), 'admin challenge archive migration should exist');
 assert.ok(exists('src/lib/adminApi.ts'), 'admin API should exist');
 assert.ok(exists('src/lib/beverageCatalogContext.tsx'), 'beverage catalog provider should exist');
 assert.ok(exists('src/lib/adminTools.ts'), 'admin form helpers should exist');
@@ -64,6 +66,20 @@ assert.match(retryMigrationSql, /create unique index if not exists challenges_ad
 assert.match(retryMigrationSql, /challenge_request_key uuid default null/i);
 assert.match(retryMigrationSql, /where challenges\.admin_request_key = challenge_request_key/i);
 assert.match(retryMigrationSql, /admin_request_key\s*\)\s*values/i);
+
+const archiveMigrationSql = read(archiveMigrationPath);
+assert.match(archiveMigrationSql, /add column if not exists archived_at timestamp with time zone/i);
+assert.match(archiveMigrationSql, /add column if not exists archived_by uuid references auth\.users\(id\) on delete set null/i);
+assert.match(archiveMigrationSql, /create index if not exists challenges_unarchived_window_idx/i);
+assert.match(archiveMigrationSql, /create or replace function public\.admin_archive_challenge\(target_challenge_id uuid\)/i);
+assert.match(archiveMigrationSql, /create or replace function public\.admin_restore_challenge\(target_challenge_id uuid\)/i);
+assert.match(archiveMigrationSql, /raise exception 'Only ended challenges can be archived\.'/i);
+assert.match(archiveMigrationSql, /public\.is_current_user_admin\(\)/i);
+assert.match(archiveMigrationSql, /archived_at is null/i);
+assert.match(archiveMigrationSql, /revoke execute on function public\.admin_archive_challenge\(uuid\) from public, anon;/i);
+assert.match(archiveMigrationSql, /revoke execute on function public\.admin_restore_challenge\(uuid\) from public, anon;/i);
+assert.match(archiveMigrationSql, /grant execute on function public\.admin_archive_challenge\(uuid\) to authenticated;/i);
+assert.match(archiveMigrationSql, /grant execute on function public\.admin_restore_challenge\(uuid\) to authenticated;/i);
 
 const sessionBeers = loadTypeScriptModule('src/lib/sessionBeers.ts');
 const mergedCatalog = sessionBeers.mergeBeverageCatalog([
@@ -109,6 +125,15 @@ assert.match(profileSource, /Admin tools/);
 assert.match(adminScreenSource, /Challenges/);
 assert.match(adminScreenSource, /Beers/);
 assert.match(adminScreenSource, /Winner trophy/);
+assert.match(adminApiSource, /archived_at\?: string \| null;/);
+assert.match(adminApiSource, /archivedBy: toStringOrNull\(row\.archived_by\)/);
+assert.match(adminApiSource, /archiveAdminChallenge/);
+assert.match(adminApiSource, /supabase\.rpc\('admin_archive_challenge'/);
+assert.match(adminApiSource, /restoreAdminChallenge/);
+assert.match(adminApiSource, /supabase\.rpc\('admin_restore_challenge'/);
+assert.match(adminScreenSource, /Archive Challenge/);
+assert.match(adminScreenSource, /Restore Challenge/);
+assert.match(adminScreenSource, /confirmDestructive/);
 assert.doesNotMatch(adminScreenSource, /Delete challenge|Delete beer/);
 assert.match(adminApiSource, /withRetryableTimeout/);
 assert.match(adminApiSource, /challenge_request_key/);

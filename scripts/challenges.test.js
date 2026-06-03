@@ -39,6 +39,7 @@ const karnevalsdrukMigrationPath = 'supabase/migrations/20260520120000_add_karne
 const challengeLeaderboardWindowFixPath = 'supabase/migrations/20260521100000_fix_challenge_leaderboard_window.sql';
 const localChallengeLeaderboardsMigrationPath = 'supabase/migrations/20260602120000_add_local_challenge_leaderboards.sql';
 const adminChallengesMigrationPath = 'supabase/migrations/20260531170000_add_admin_challenges_and_beverages.sql';
+const archiveMigrationPath = 'supabase/migrations/20260603120000_add_admin_challenge_archive.sql';
 const karnevalTestMigrationPath = 'supabase/migrations/20260521110000_add_karneval_test_challenge.sql';
 const removeKarnevalTestMigrationPath = 'supabase/migrations/20260521120000_remove_karneval_test_challenge.sql';
 const karnevalsdrukDualAwardsMigrationPath = 'supabase/migrations/20260522110000_add_karnevalsdruk_dual_awards.sql';
@@ -55,6 +56,7 @@ assert.ok(exists(migrationPath), 'official challenge migration should exist');
 assert.ok(exists(karnevalsdrukMigrationPath), 'KarnevalsDruk migration should exist');
 assert.ok(exists(challengeLeaderboardWindowFixPath), 'challenge leaderboard window fix migration should exist');
 assert.ok(exists(localChallengeLeaderboardsMigrationPath), 'local challenge leaderboards migration should exist');
+assert.ok(exists(archiveMigrationPath), 'admin challenge archive migration should exist');
 assert.ok(exists(karnevalTestMigrationPath), 'Karneval test challenge migration should exist');
 assert.ok(exists(removeKarnevalTestMigrationPath), 'Karneval test cleanup migration should exist');
 assert.ok(exists(karnevalsdrukDualAwardsMigrationPath), 'KarnevalsDruk dual awards migration should exist');
@@ -486,6 +488,43 @@ assert.doesNotMatch(
   adminChallengesMigrationSql,
   /get_local_challenge_leaderboard/i,
   'generic finalization must not use viewer-specific local ranks'
+);
+
+const archiveMigrationSql = read(archiveMigrationPath);
+assert.match(
+  archiveMigrationSql,
+  /create or replace function public\.get_official_challenges\(\)[\s\S]*where challenges\.archived_at is null/i,
+  'official challenge summaries should exclude archived challenges'
+);
+assert.match(
+  archiveMigrationSql,
+  /create or replace function public\.get_challenge_detail\(target_challenge_slug text\)[\s\S]*and challenges\.archived_at is null/i,
+  'challenge detail should not resolve archived challenges'
+);
+assert.match(
+  archiveMigrationSql,
+  /create or replace function public\.join_challenge\(target_challenge_id uuid\)[\s\S]*and challenges\.archived_at is null/i,
+  'joining should reject archived challenges'
+);
+assert.match(
+  archiveMigrationSql,
+  /create or replace function public\.get_challenge_leaderboard\(target_challenge_id uuid\)[\s\S]*where challenges\.id = target_challenge_id[\s\S]*and challenges\.archived_at is null/i,
+  'direct leaderboard calls should not expose archived challenge rows'
+);
+assert.match(
+  archiveMigrationSql,
+  /finalize_generic_due_challenges[\s\S]*and challenges\.archived_at is null/i,
+  'generic finalization should skip archived challenges'
+);
+assert.match(
+  archiveMigrationSql,
+  /finalize_due_challenges[\s\S]*and challenges\.archived_at is null/i,
+  'KarnevalsDruk finalization should skip archived challenges'
+);
+assert.match(
+  archiveMigrationSql,
+  /create policy "Signed-in users can view official challenges"[\s\S]*using \(archived_at is null\)/i,
+  'regular challenge selects should be limited to unarchived rows'
 );
 
 const karnevalTestMigrationSql = read(karnevalTestMigrationPath);
