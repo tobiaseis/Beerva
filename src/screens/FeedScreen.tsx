@@ -6,6 +6,7 @@ import { Beer, ChevronDown, ChevronUp, Edit3, MapPin, Trash2, Bell, AlertTriangl
 import { supabase } from '../lib/supabase';
 import { getCurrentUser } from '../lib/authSession';
 import { fetchSessionFeedDetails, SessionFeedDetail } from '../lib/sessionFeedDetails';
+import { appendFeedPage, sortFeedItemsByPublishedAt } from '../lib/feedPagination';
 import { confirmDestructive } from '../lib/dialogs';
 import { useFocusEffect, useNavigation, useScrollToTop } from '@react-navigation/native';
 import { CachedImage } from '../components/CachedImage';
@@ -121,10 +122,6 @@ export type FeedItem =
 
 const isPubCrawlPost = (item: FeedSession | PubCrawl): item is PubCrawl => (
   'userId' in item && 'stops' in item
-);
-
-const sortFeedItemsByPublishedAt = (items: FeedItem[]) => (
-  [...items].sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
 );
 
 const PULL_REFRESH_THRESHOLD = 65;
@@ -1036,10 +1033,11 @@ export const FeedScreen = ({ route }: any) => {
       const merged = sortFeedItemsByPublishedAt([...pageSessions, ...pageCrawls, ...pageOfficialPosts]);
 
       setSessions((previous) => {
-        // If not reset, we need to filter out duplicates if crawls overlap
-        const existingIds = new Set(previous.map(p => p.id));
-        const uniqueMerged = merged.filter(m => !existingIds.has(m.id));
-        const nextSessions = reset ? merged : sortFeedItemsByPublishedAt([...previous, ...uniqueMerged]);
+        // Append-only: never re-sort items the user has already scrolled past.
+        // Sources paginate independently, so a global re-sort would relocate
+        // already-shown sparse-source items and glitch the scroll. appendFeedPage
+        // de-dupes and appends only the new page.
+        const nextSessions = reset ? merged : appendFeedPage(previous, merged);
         sessionsRef.current = nextSessions;
         return nextSessions;
       });
