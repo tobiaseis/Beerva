@@ -43,7 +43,9 @@
       "Bash(git --no-pager log --oneline -1)",
       "Bash(git --no-pager show ae8e865 --stat --format=\"%an | %ae | %ad | %s\")",
       "Bash(git --no-pager show ae8e865 -- src/ supabase/ scripts/ package.json App.tsx index.ts public/)",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "Bash(node scripts/feedPagination.test.js)",
+      "Bash(git commit -m 'fix: stop feed reordering under scroll on load-more \\(append-only pagination\\)' -m 'Root cause: the feed merges three independently-offset-paginated sources *)"
     ]
   }
 }
