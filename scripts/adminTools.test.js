@@ -134,6 +134,11 @@ assert.match(adminApiSource, /supabase\.rpc\('admin_restore_challenge'/);
 assert.match(adminScreenSource, /Archive Challenge/);
 assert.match(adminScreenSource, /Restore Challenge/);
 assert.match(adminScreenSource, /confirmDestructive/);
+assert.match(
+  adminScreenSource,
+  /const refreshChallengesAfterStateChange = async \(\) => \{[\s\S]*setSelectedChallenge\(null\);[\s\S]*setActiveModal\(null\);[\s\S]*setChallenges\(await fetchAdminChallenges\(\)\)/,
+  'challenge archive and restore should close the modal before refreshing the list'
+);
 assert.doesNotMatch(adminScreenSource, /Delete challenge|Delete beer/);
 assert.match(adminApiSource, /withRetryableTimeout/);
 assert.match(adminApiSource, /challenge_request_key/);

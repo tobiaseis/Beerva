@@ -342,9 +342,13 @@ export const AdminToolsScreen = ({ navigation }: any) => {
   );
 
   const refreshChallengesAfterStateChange = async () => {
-    setChallenges(await fetchAdminChallenges());
     setSelectedChallenge(null);
     setActiveModal(null);
+    try {
+      setChallenges(await fetchAdminChallenges());
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Could not load admin challenges.');
+    }
   };
 
   const handleArchiveChallenge = () => {
