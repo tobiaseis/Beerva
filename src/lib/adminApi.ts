@@ -36,6 +36,8 @@ export type AdminChallengeRow = {
   winner_trophy_title?: string | null;
   winner_trophy_description?: string | null;
   finalized_at?: string | null;
+  archived_at?: string | null;
+  archived_by?: string | null;
 };
 
 export type AdminChallenge = {
@@ -52,6 +54,8 @@ export type AdminChallenge = {
   winnerTrophyTitle: string | null;
   winnerTrophyDescription: string | null;
   finalizedAt: string | null;
+  archivedAt: string | null;
+  archivedBy: string | null;
 };
 
 export type SaveAdminBeverageInput = {
@@ -145,6 +149,8 @@ export const mapAdminChallengeRow = (row: AdminChallengeRow): AdminChallenge => 
   winnerTrophyTitle: toStringOrNull(row.winner_trophy_title),
   winnerTrophyDescription: toStringOrNull(row.winner_trophy_description),
   finalizedAt: toStringOrNull(row.finalized_at),
+  archivedAt: toStringOrNull(row.archived_at),
+  archivedBy: toStringOrNull(row.archived_by),
 });
 
 export const fetchAdminBeverages = async (): Promise<AdminBeverage[]> => {
@@ -195,6 +201,40 @@ export const fetchAdminChallenges = async (): Promise<AdminChallenge[]> => {
     return ((data || []) as AdminChallengeRow[]).map(mapAdminChallengeRow);
   } catch (error) {
     throw new Error(getErrorMessage(error, 'Could not load admin challenges.'));
+  }
+};
+
+export const archiveAdminChallenge = async (challengeId: string): Promise<AdminChallenge> => {
+  try {
+    const { data, error } = await withTimeout(
+      supabase.rpc('admin_archive_challenge', { target_challenge_id: challengeId }),
+      ADMIN_TIMEOUT_MS,
+      'Archiving the challenge is taking too long.'
+    );
+
+    if (error) throw error;
+    const row = firstRow(data as AdminChallengeRow | AdminChallengeRow[] | null);
+    if (!row) throw new Error('The updated challenge was not returned.');
+    return mapAdminChallengeRow(row);
+  } catch (error) {
+    throw new Error(getErrorMessage(error, 'Could not archive challenge.'));
+  }
+};
+
+export const restoreAdminChallenge = async (challengeId: string): Promise<AdminChallenge> => {
+  try {
+    const { data, error } = await withTimeout(
+      supabase.rpc('admin_restore_challenge', { target_challenge_id: challengeId }),
+      ADMIN_TIMEOUT_MS,
+      'Restoring the challenge is taking too long.'
+    );
+
+    if (error) throw error;
+    const row = firstRow(data as AdminChallengeRow | AdminChallengeRow[] | null);
+    if (!row) throw new Error('The updated challenge was not returned.');
+    return mapAdminChallengeRow(row);
+  } catch (error) {
+    throw new Error(getErrorMessage(error, 'Could not restore challenge.'));
   }
 };
 
