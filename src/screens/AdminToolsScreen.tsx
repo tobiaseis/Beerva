@@ -17,18 +17,20 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
-import { ArrowLeft, Beer, Camera, Edit3, ImagePlus, Megaphone, Plus, ShieldCheck, Trophy, X } from 'lucide-react-native';
+import { Archive, ArrowLeft, Beer, Camera, Edit3, ImagePlus, Megaphone, Plus, RotateCcw, ShieldCheck, Trophy, X } from 'lucide-react-native';
 
 import { AppButton } from '../components/AppButton';
 import {
   AdminBeverage,
   AdminChallenge,
   AdminOfficialPostPublishError,
+  archiveAdminChallenge,
   createAdminRequestKey,
   fetchAdminBeverages,
   fetchAdminChallenges,
   fetchAdminOfficialPosts,
   publishAdminOfficialPost,
+  restoreAdminChallenge,
   saveAdminBeverage,
   saveAdminChallenge,
 } from '../lib/adminApi';
@@ -48,6 +50,7 @@ import {
   validateOfficialPostDraft,
 } from '../lib/adminTools';
 import { useBeverageCatalog } from '../lib/beverageCatalogContext';
+import { confirmDestructive } from '../lib/dialogs';
 import {
   deletePublicImageUrl,
   prepareWebImageFromPickerAsset,
@@ -86,6 +89,7 @@ export const AdminToolsScreen = ({ navigation }: any) => {
   const [activeModal, setActiveModal] = useState<ActiveModal>(null);
   const [beerDraft, setBeerDraft] = useState<AdminBeerDraft>(createEmptyBeerDraft);
   const [challengeDraft, setChallengeDraft] = useState<AdminChallengeDraft>(createEmptyChallengeDraft);
+  const [selectedChallenge, setSelectedChallenge] = useState<AdminChallenge | null>(null);
   const [officialPostDraft, setOfficialPostDraft] = useState<AdminOfficialPostDraft>(createEmptyOfficialPostDraft);
   const [selectedOfficialPostImage, setSelectedOfficialPostImage] = useState<SelectedImage | null>(null);
   const [officialPostRequestKey, setOfficialPostRequestKey] = useState(createAdminRequestKey);
@@ -129,6 +133,7 @@ export const AdminToolsScreen = ({ navigation }: any) => {
       setPendingOfficialPostImageUrl(null);
       setOfficialPostPublishUncertain(false);
     }
+    setSelectedChallenge(null);
     setActiveModal(null);
     setFormError(null);
   };
@@ -146,12 +151,14 @@ export const AdminToolsScreen = ({ navigation }: any) => {
   };
 
   const openNewChallenge = () => {
+    setSelectedChallenge(null);
     setChallengeDraft(createEmptyChallengeDraft());
     setFormError(null);
     setActiveModal('challenge');
   };
 
   const openChallenge = (challenge: AdminChallenge) => {
+    setSelectedChallenge(challenge);
     setChallengeDraft(adminChallengeToDraft(challenge));
     setFormError(null);
     setActiveModal('challenge');
@@ -309,9 +316,69 @@ export const AdminToolsScreen = ({ navigation }: any) => {
           : null,
       });
       setChallenges(await fetchAdminChallenges());
+      setSelectedChallenge(null);
       setActiveModal(null);
     } catch (error) {
       setFormError(error instanceof Error ? error.message : 'Could not save challenge.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const selectedChallengeEnded = useMemo(() => {
+    if (!selectedChallenge?.endsAt) return false;
+    const endsAt = new Date(selectedChallenge.endsAt);
+    return !Number.isNaN(endsAt.getTime()) && endsAt.getTime() <= Date.now();
+  }, [selectedChallenge]);
+
+  const canArchiveSelectedChallenge = Boolean(
+    selectedChallenge
+      && !selectedChallenge.archivedAt
+      && selectedChallengeEnded
+  );
+
+  const canRestoreSelectedChallenge = Boolean(
+    selectedChallenge?.archivedAt
+  );
+
+  const refreshChallengesAfterStateChange = async () => {
+    setChallenges(await fetchAdminChallenges());
+    setSelectedChallenge(null);
+    setActiveModal(null);
+  };
+
+  const handleArchiveChallenge = () => {
+    if (!selectedChallenge || saving) return;
+
+    confirmDestructive(
+      'Archive Challenge',
+      `Hide "${selectedChallenge.title}" from the app? History, entries, and awards will be kept.`,
+      'Archive',
+      async () => {
+        setSaving(true);
+        setFormError(null);
+        try {
+          await archiveAdminChallenge(selectedChallenge.id);
+          await refreshChallengesAfterStateChange();
+        } catch (error) {
+          setFormError(error instanceof Error ? error.message : 'Could not archive challenge.');
+        } finally {
+          setSaving(false);
+        }
+      }
+    );
+  };
+
+  const handleRestoreChallenge = async () => {
+    if (!selectedChallenge || saving) return;
+
+    setSaving(true);
+    setFormError(null);
+    try {
+      await restoreAdminChallenge(selectedChallenge.id);
+      await refreshChallengesAfterStateChange();
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Could not restore challenge.');
     } finally {
       setSaving(false);
     }
@@ -414,6 +481,9 @@ export const AdminToolsScreen = ({ navigation }: any) => {
         </Text>
         {item.winnerTrophyEnabled ? (
           <Text style={styles.rowAccent} numberOfLines={1}>Winner trophy: {item.winnerTrophyTitle}</Text>
+        ) : null}
+        {item.archivedAt ? (
+          <Text style={styles.rowDanger} numberOfLines={1}>Archived</Text>
         ) : null}
       </View>
       <Edit3 color={colors.textMuted} size={17} />
@@ -760,7 +830,7 @@ export const AdminToolsScreen = ({ navigation }: any) => {
                   >
                     <Text style={styles.challengeChoiceText}>No linked challenge</Text>
                   </TouchableOpacity>
-                  {challenges.map((challenge) => (
+                  {challenges.filter((challenge) => !challenge.archivedAt).map((challenge) => (
                     <TouchableOpacity
                       key={challenge.id}
                       style={[styles.challengeChoice, officialPostDraft.linkedChallengeId === challenge.id ? styles.challengeChoiceActive : null]}
@@ -854,6 +924,24 @@ export const AdminToolsScreen = ({ navigation }: any) => {
                     ? <ShieldCheck color={colors.background} size={18} />
                     : <Megaphone color={colors.background} size={18} />}
               />
+              {activeModal === 'challenge' && canArchiveSelectedChallenge ? (
+                <AppButton
+                  label="Archive Challenge"
+                  onPress={handleArchiveChallenge}
+                  loading={saving}
+                  variant="danger"
+                  icon={<Archive color={colors.danger} size={18} />}
+                />
+              ) : null}
+              {activeModal === 'challenge' && canRestoreSelectedChallenge ? (
+                <AppButton
+                  label="Restore Challenge"
+                  onPress={handleRestoreChallenge}
+                  loading={saving}
+                  variant="secondary"
+                  icon={<RotateCcw color={colors.text} size={18} />}
+                />
+              ) : null}
             </ScrollView>
           </View>
         </View>
@@ -1046,6 +1134,12 @@ const styles = StyleSheet.create({
     ...typography.tiny,
     color: colors.primary,
     marginTop: 3,
+  },
+  rowDanger: {
+    ...typography.tiny,
+    color: colors.danger,
+    marginTop: 3,
+    fontWeight: '800',
   },
   modalBackdrop: {
     flex: 1,
