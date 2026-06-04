@@ -60,4 +60,83 @@ assert.match(migrationSql, /create trigger session_beers_live_mate_refresh/, 'se
 assert.match(migrationSql, /create trigger pub_crawls_live_mate_refresh/, 'pub_crawls trigger should maintain crawl rows');
 assert.match(migrationSql, /select public\.repair_live_mate_sessions\(\);/, 'migration should backfill current active live rows');
 
-console.log('live mate database checks passed');
+assert.ok(fs.existsSync(path.join(root, 'src/lib/liveMateSessions.ts')), 'live mate client API should exist');
+
+const liveMateSessions = loadTypeScriptModule('src/lib/liveMateSessions.ts', {
+  './supabase': {
+    supabase: {
+      rpc: async () => ({ data: [], error: null }),
+    },
+  },
+});
+
+assert.deepEqual(
+  liveMateSessions.mapLiveMateSessionRow({
+    id: 'live-1',
+    user_id: 'user-2',
+    session_id: 'session-1',
+    pub_crawl_id: null,
+    username: 'Tubpac',
+    avatar_url: 'avatar.png',
+    current_pub_name: 'John Bull Pub',
+    started_at: '2026-06-04T18:00:00Z',
+    last_activity_at: '2026-06-04T19:00:00Z',
+    true_pints: 2.44,
+    is_pub_crawl: false,
+  }),
+  {
+    id: 'live-1',
+    userId: 'user-2',
+    sessionId: 'session-1',
+    pubCrawlId: null,
+    username: 'Tubpac',
+    avatarUrl: 'avatar.png',
+    currentPubName: 'John Bull Pub',
+    startedAt: '2026-06-04T18:00:00Z',
+    lastActivityAt: '2026-06-04T19:00:00Z',
+    truePints: 2.44,
+    isPubCrawl: false,
+  },
+  'RPC rows should map to app shape'
+);
+
+assert.equal(
+  liveMateSessions.mapLiveMateSessionRow({
+    id: 'live-2',
+    user_id: 'user-3',
+    session_id: 'session-2',
+    pub_crawl_id: 'crawl-1',
+    username: '   ',
+    avatar_url: '',
+    current_pub_name: '  ',
+    started_at: null,
+    last_activity_at: null,
+    true_pints: 'bad-number',
+    is_pub_crawl: true,
+  }).username,
+  null,
+  'blank profile names should map to null'
+);
+
+assert.equal(liveMateSessions.formatLiveMateCount(1), '1 drinking now', 'single count copy should be singular');
+assert.equal(liveMateSessions.formatLiveMateCount(3), '3 drinking now', 'multi count copy should be plural-neutral');
+assert.equal(liveMateSessions.formatLiveTruePints(0), '0.0 true pints', 'zero true-pint copy should include one decimal');
+assert.equal(liveMateSessions.formatLiveTruePints(1), '1.0 true pint', 'one true pint should be singular');
+assert.equal(liveMateSessions.formatLiveTruePints(2.44), '2.4 true pints', 'true pints should round to one decimal');
+assert.equal(liveMateSessions.getLiveMateDisplayName({ username: null }), 'Someone', 'missing names should fall back');
+assert.equal(liveMateSessions.getLiveMatePubName({ currentPubName: null }), 'Somewhere', 'missing pub names should fall back');
+assert.equal(
+  liveMateSessions.formatLiveStartedLabel('2026-06-04T17:30:00Z', new Date('2026-06-04T19:00:00Z')),
+  '1h 30m',
+  'elapsed labels should show hours and minutes'
+);
+assert.equal(
+  liveMateSessions.formatLiveStartedLabel('2026-06-04T18:52:00Z', new Date('2026-06-04T19:00:00Z')),
+  '8m',
+  'elapsed labels should show minutes for short sessions'
+);
+
+const liveMateApiSource = fs.readFileSync(path.join(root, 'src/lib/liveMateSessions.ts'), 'utf8');
+assert.match(liveMateApiSource, /rpc\('get_live_mate_sessions'\)/, 'client API should fetch live mates through RPC');
+
+console.log('live mate client checks passed');
