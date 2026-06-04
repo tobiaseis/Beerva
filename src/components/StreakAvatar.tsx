@@ -232,10 +232,10 @@ export const StreakAvatar = React.memo(({
         accessibilityLabel ? `${accessibilityLabel}, ${streak} day streak` : `${streak} day streak`
       }
     >
-      {/* Flame stage is the full flame box but uses a negative margin so it only
-          occupies the avatar's footprint in layout — the flame paints outward
-          around the avatar without depending on a smaller parent overflowing. */}
-      <View style={[styles.flameStage, { width: flameBox, height: flameBox, margin: -inset }]}>
+      {/* Flame stage reserves its full box in layout with the avatar centered
+          inside, so the flame never has to overflow a smaller parent (which can
+          be clipped) — it simply paints within its own bounds. */}
+      <View style={[styles.flameStage, { width: flameBox, height: flameBox }]}>
         <Svg
           pointerEvents="none"
           style={styles.flameSvg}
