@@ -76,3 +76,19 @@ assert.match(migration, /grant execute on function public\.get_current_streaks\(
 assert.match(migration, /notify pgrst, 'reload schema'/);
 
 console.log('streak migration assertions passed');
+
+// --- StreakAvatar component assertions ---
+const streakAvatar = readSource('src/components/StreakAvatar.tsx');
+
+assert.match(streakAvatar, /import \{ CachedImage \} from '\.\/CachedImage'/);
+assert.match(streakAvatar, /from '\.\.\/lib\/streakFlame'/);
+assert.match(streakAvatar, /react-native-svg/);
+assert.match(streakAvatar, /AccessibilityInfo/);
+assert.match(streakAvatar, /isReduceMotionEnabled/);
+// No-op below threshold: returns a plain CachedImage when there is no flame tier.
+assert.match(streakAvatar, /getFlameTierConfig/);
+// Count label is gated behind showCount.
+assert.match(streakAvatar, /showCount/);
+assert.match(streakAvatar, /day streak/);
+
+console.log('StreakAvatar source assertions passed');
