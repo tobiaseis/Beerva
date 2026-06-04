@@ -152,4 +152,31 @@ assert.match(liveMateHookSource, /table: 'live_mate_sessions'/, 'hook should sub
 assert.match(liveMateHookSource, /supabase\.removeChannel\(channel\)/, 'hook should clean up realtime channels');
 assert.match(liveMateHookSource, /setSessions\(\[\]\)/, 'hook should clear sessions when signed out or empty');
 
-console.log('live mate hook checks passed');
+const liveButtonPath = path.join(root, 'src/components/LiveMateButton.tsx');
+assert.ok(fs.existsSync(liveButtonPath), 'LiveMateButton component should exist');
+const liveButtonSource = fs.readFileSync(liveButtonPath, 'utf8');
+
+assert.match(liveButtonSource, /export const LiveMateButton = \(\{ count, onPress \}: LiveMateButtonProps\)/, 'live button should expose count and press props');
+assert.match(liveButtonSource, /Animated\.loop/, 'live button should use looped animation');
+assert.match(liveButtonSource, /Easing\.inOut\(Easing\.sin\)/, 'live button pulse should use smooth easing');
+assert.match(liveButtonSource, /coreCircle/, 'live button should keep a stable core circle');
+assert.match(liveButtonSource, /pulseRing/, 'live button should render pulse rings');
+assert.match(liveButtonSource, /animationRef\.current\?\.stop\(\)/, 'live button should stop animation loops on cleanup');
+assert.match(liveButtonSource, /AccessibilityInfo\.isReduceMotionEnabled/, 'live button should respect reduced motion on initial render');
+assert.match(liveButtonSource, /accessibilityLabel=\{`Open live mates, \$\{count\} drinking now`\}/, 'live button should expose useful accessibility copy');
+
+const liveSheetPath = path.join(root, 'src/components/LiveMateSessionsSheet.tsx');
+assert.ok(fs.existsSync(liveSheetPath), 'LiveMateSessionsSheet component should exist');
+const liveSheetSource = fs.readFileSync(liveSheetPath, 'utf8');
+
+assert.match(liveSheetSource, /export const LiveMateSessionsSheet = \(\{ visible, sessions, onClose \}: LiveMateSessionsSheetProps\)/, 'live sheet should expose visibility, sessions, and close props');
+assert.match(liveSheetSource, /animationType="none"/, 'live sheet should own its top-drop animation');
+assert.match(liveSheetSource, /translateY/, 'live sheet should animate from the top');
+assert.match(liveSheetSource, />Live mates</, 'live sheet should render the approved title');
+assert.match(liveSheetSource, /formatLiveMateCount\(sessions\.length\)/, 'live sheet should render count copy');
+assert.match(liveSheetSource, /formatLiveTruePints\(session\.truePints\)/, 'live sheet should render true-pint progress');
+assert.match(liveSheetSource, /formatLiveStartedLabel\(session\.startedAt\)/, 'live sheet should render elapsed time');
+assert.match(liveSheetSource, /Pub crawl/, 'live sheet should show a small pub crawl indicator');
+assert.match(liveSheetSource, /CachedImage/, 'live sheet should render avatars through CachedImage');
+
+console.log('live mate component checks passed');
