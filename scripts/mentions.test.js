@@ -143,6 +143,19 @@ mentionNotifications.notifyContentMentions({
   );
 });
 
+const mentionComposerPath = path.join(root, 'src/components/MentionComposer.tsx');
+assert.equal(fs.existsSync(mentionComposerPath), true, 'mention composer component should exist');
+
+const mentionComposerSource = fs.existsSync(mentionComposerPath)
+  ? fs.readFileSync(mentionComposerPath, 'utf8')
+  : '';
+
+assert.match(mentionComposerSource, /getActiveMentionTrigger/, 'mention composer should detect active @ queries');
+assert.match(mentionComposerSource, /searchMentionProfiles/, 'mention composer should search profiles');
+assert.match(mentionComposerSource, /insertMentionAtTrigger/, 'mention composer should insert selected mentions');
+assert.match(mentionComposerSource, /onMentionsChange/, 'mention composer should expose selected mention state');
+assert.match(mentionComposerSource, /limit\(8\)|searchMentionProfiles\([^)]*8/s, 'mention composer should use the eight-result search behavior');
+
 const calls = [];
 const fakeSupabase = {
   from(table) {
