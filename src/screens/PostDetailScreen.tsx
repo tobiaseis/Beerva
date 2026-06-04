@@ -16,10 +16,13 @@ import { ArrowLeft, MessageCircle, Send } from 'lucide-react-native';
 
 import { CachedImage } from '../components/CachedImage';
 import { ImageViewerModal } from '../components/ImageViewerModal';
+import { MentionComposer } from '../components/MentionComposer';
 import { PubCrawlFeedCard } from '../components/PubCrawlFeedCard';
 import { FeedSessionCard, FeedSession } from './FeedScreen';
 import { PubCrawl, PubCrawlComment } from '../lib/pubCrawls';
 import { addPubCrawlComment, fetchPublishedPubCrawlById, togglePubCrawlCheers } from '../lib/pubCrawlsApi';
+import { MentionCandidate } from '../lib/mentions';
+import { notifyContentMentionsSafely } from '../lib/mentionNotifications';
 import { SessionBeer } from '../lib/sessionBeers';
 import { mapChugAttemptRow, SessionChugAttemptRow } from '../lib/chugAttempts';
 import { supabase } from '../lib/supabase';
@@ -103,6 +106,7 @@ export const PostDetailScreen = () => {
   const [notFound, setNotFound] = useState(false);
   const [cheering, setCheering] = useState(false);
   const [commentDraft, setCommentDraft] = useState('');
+  const [commentMentions, setCommentMentions] = useState<MentionCandidate[]>([]);
   const [submittingComment, setSubmittingComment] = useState(false);
   const [viewingImageUrl, setViewingImageUrl] = useState<string | null>(null);
   const composerRef = useRef<TextInput>(null);
@@ -502,7 +506,17 @@ export const PostDetailScreen = () => {
           };
         });
         setCommentDraft('');
+        setCommentMentions([]);
         hapticLight();
+
+        notifyContentMentionsSafely({
+          targetType: 'pub_crawl',
+          targetId: crawl.id,
+          surface: 'comment',
+          sourceId: data.id,
+          text: cleanComment,
+          mentions: commentMentions,
+        });
 
         if (crawl.userId !== currentUserId) {
           const { error: notifError } = await supabase.from('notifications').insert({
@@ -542,7 +556,17 @@ export const PostDetailScreen = () => {
         comments_count: prev.comments_count + 1,
       } : prev));
       setCommentDraft('');
+      setCommentMentions([]);
       hapticLight();
+
+      notifyContentMentionsSafely({
+        targetType: 'session',
+        targetId: session.id,
+        surface: 'comment',
+        sourceId: data.id,
+        text: cleanComment,
+        mentions: commentMentions,
+      });
 
       if (session.user_id !== currentUserId) {
         const { error: notifError } = await supabase.from('notifications').insert({
@@ -560,7 +584,7 @@ export const PostDetailScreen = () => {
     } finally {
       setSubmittingComment(false);
     }
-  }, [commentDraft, crawl, currentUserId, session, submittingComment]);
+  }, [commentDraft, commentMentions, crawl, currentUserId, session, submittingComment]);
 
   const renderComment = useCallback(({ item }: { item: DetailComment }) => {
     const userId = getDetailCommentUserId(item);
@@ -678,11 +702,15 @@ export const PostDetailScreen = () => {
             }
           />
           <View style={styles.commentComposer}>
-            <TextInput
-              ref={composerRef}
-              style={styles.commentComposerInput}
+            <MentionComposer
+              inputRef={composerRef}
               value={commentDraft}
               onChangeText={setCommentDraft}
+              mentions={commentMentions}
+              onMentionsChange={setCommentMentions}
+              currentUserId={currentUserId}
+              containerStyle={styles.commentComposerInputContainer}
+              inputStyle={styles.commentComposerInput}
               placeholder="Add a comment..."
               placeholderTextColor={colors.textMuted}
               maxLength={500}
@@ -828,6 +856,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     gap: 10,
     backgroundColor: colors.card,
+  },
+  commentComposerInputContainer: {
+    flex: 1,
   },
   commentComposerInput: {
     ...typography.body,

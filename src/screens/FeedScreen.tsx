@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, Image, ActivityIndicator, RefreshControl, TouchableOpacity, Pressable, Alert, Platform, Animated, Modal, TextInput, KeyboardAvoidingView, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Image, ActivityIndicator, RefreshControl, TouchableOpacity, Pressable, Alert, Platform, Animated, Modal, KeyboardAvoidingView, ScrollView } from 'react-native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { Beer, ChevronDown, ChevronUp, Edit3, MapPin, Trash2, Bell, AlertTriangle, RefreshCw, MessageCircle, Send, Trophy, X } from 'lucide-react-native';
@@ -10,6 +10,7 @@ import { appendFeedPage, sortFeedItemsByPublishedAt } from '../lib/feedPaginatio
 import { confirmDestructive } from '../lib/dialogs';
 import { useFocusEffect, useNavigation, useScrollToTop } from '@react-navigation/native';
 import { CachedImage } from '../components/CachedImage';
+import { MentionComposer } from '../components/MentionComposer';
 import { deletePublicImageUrl } from '../lib/imageUpload';
 import { Surface } from '../components/Surface';
 import { SkeletonFeedCard } from '../components/Skeleton';
@@ -35,6 +36,8 @@ import { getErrorMessage, withTimeout } from '../lib/timeouts';
 import { PubCrawlFeedCard } from '../components/PubCrawlFeedCard';
 import { PubCrawl, PubCrawlComment } from '../lib/pubCrawls';
 import { fetchPublishedPubCrawlsForFeedPage, togglePubCrawlCheers, addPubCrawlComment } from '../lib/pubCrawlsApi';
+import { MentionCandidate } from '../lib/mentions';
+import { notifyContentMentionsSafely } from '../lib/mentionNotifications';
 import { ChallengeSummary, formatChallengeProgress, formatChallengeRank } from '../lib/challenges';
 import { fetchJoinedActiveChallengeSummary, joinChallenge } from '../lib/challengesApi';
 import { OfficialFeedPost } from '../lib/officialFeedPosts';
@@ -769,6 +772,7 @@ export const FeedScreen = ({ route }: any) => {
   const [commentingSession, setCommentingSession] = useState<FeedSession | PubCrawl | null>(null);
   const [cheersSession, setCheersSession] = useState<FeedSession | PubCrawl | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
+  const [commentMentions, setCommentMentions] = useState<MentionCandidate[]>([]);
   const [viewingImageUrl, setViewingImageUrl] = useState<string | null>(null);
   const [submittingComment, setSubmittingComment] = useState(false);
   const [activeChallengeSummary, setActiveChallengeSummary] = useState<ChallengeSummary | null>(null);
@@ -1208,11 +1212,13 @@ export const FeedScreen = ({ route }: any) => {
   const openComments = useCallback((session: FeedSession | PubCrawl) => {
     setCommentingSession(session);
     setCommentDraft('');
+    setCommentMentions([]);
   }, []);
 
   const closeComments = useCallback(() => {
     setCommentingSession(null);
     setCommentDraft('');
+    setCommentMentions([]);
     setSubmittingComment(false);
   }, []);
 
@@ -1292,7 +1298,17 @@ export const FeedScreen = ({ route }: any) => {
         });
 
         setCommentDraft('');
+        setCommentMentions([]);
         hapticLight();
+
+        notifyContentMentionsSafely({
+          targetType: 'pub_crawl',
+          targetId: commentingSession.id,
+          surface: 'comment',
+          sourceId: data.id,
+          text: cleanComment,
+          mentions: commentMentions,
+        });
 
         if (commentingSession.userId !== currentUserId) {
           const { error: notifError } = await supabase.from('notifications').insert({
@@ -1350,7 +1366,17 @@ export const FeedScreen = ({ route }: any) => {
         } as FeedSession;
       });
       setCommentDraft('');
+      setCommentMentions([]);
       hapticLight();
+
+      notifyContentMentionsSafely({
+        targetType: 'session',
+        targetId: commentingSession.id,
+        surface: 'comment',
+        sourceId: data.id,
+        text: cleanComment,
+        mentions: commentMentions,
+      });
 
       if ('user_id' in commentingSession && commentingSession.user_id !== currentUserId) {
         const { error: notifError } = await supabase.from('notifications').insert({
@@ -1368,7 +1394,7 @@ export const FeedScreen = ({ route }: any) => {
     } finally {
       setSubmittingComment(false);
     }
-  }, [commentDraft, commentingSession, currentUserId, submittingComment]);
+  }, [commentDraft, commentMentions, commentingSession, currentUserId, submittingComment]);
 
   const toggleCheers = useCallback(async (item: FeedSession) => {
     if (!currentUserId || item.user_id === currentUserId || cheeringSessionIdsRef.current.has(item.id)) {
@@ -2031,15 +2057,19 @@ export const FeedScreen = ({ route }: any) => {
                   }
                 />
                 <View style={styles.commentComposer}>
-              <TextInput
-                style={styles.commentComposerInput}
-                value={commentDraft}
-                onChangeText={setCommentDraft}
-                placeholder="Add a comment..."
-                placeholderTextColor={colors.textMuted}
-                maxLength={500}
-                multiline
-              />
+                  <MentionComposer
+                    value={commentDraft}
+                    onChangeText={setCommentDraft}
+                    mentions={commentMentions}
+                    onMentionsChange={setCommentMentions}
+                    currentUserId={currentUserId}
+                    containerStyle={styles.commentComposerInputContainer}
+                    inputStyle={styles.commentComposerInput}
+                    placeholder="Add a comment..."
+                    placeholderTextColor={colors.textMuted}
+                    maxLength={500}
+                    multiline
+                  />
                   <TouchableOpacity
                     style={[
                       styles.commentSendButton,
@@ -2794,6 +2824,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     gap: 10,
     backgroundColor: colors.card,
+  },
+  commentComposerInputContainer: {
+    flex: 1,
   },
   commentComposerInput: {
     ...typography.body,

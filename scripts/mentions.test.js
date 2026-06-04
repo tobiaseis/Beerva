@@ -156,6 +156,18 @@ assert.match(mentionComposerSource, /insertMentionAtTrigger/, 'mention composer 
 assert.match(mentionComposerSource, /onMentionsChange/, 'mention composer should expose selected mention state');
 assert.match(mentionComposerSource, /limit\(8\)|searchMentionProfiles\([^)]*8/s, 'mention composer should use the eight-result search behavior');
 
+const feedScreenSource = fs.readFileSync(path.join(root, 'src/screens/FeedScreen.tsx'), 'utf8');
+assert.match(feedScreenSource, /MentionComposer/, 'feed comment modal should use MentionComposer');
+assert.match(feedScreenSource, /commentMentions/, 'feed should track selected comment mentions');
+assert.match(feedScreenSource, /notifyContentMentionsSafely\(\{[\s\S]*surface:\s*'comment'/, 'feed comments should create comment mention notifications');
+assert.match(feedScreenSource, /targetType:\s*'pub_crawl'/, 'feed should create pub crawl mention targets');
+assert.match(feedScreenSource, /targetType:\s*'session'/, 'feed should create session mention targets');
+
+const postDetailSource = fs.readFileSync(path.join(root, 'src/screens/PostDetailScreen.tsx'), 'utf8');
+assert.match(postDetailSource, /MentionComposer/, 'post detail comment composer should use MentionComposer');
+assert.match(postDetailSource, /commentMentions/, 'post detail should track selected comment mentions');
+assert.match(postDetailSource, /notifyContentMentionsSafely\(\{[\s\S]*surface:\s*'comment'/, 'post detail comments should create comment mention notifications');
+
 const calls = [];
 const fakeSupabase = {
   from(table) {
