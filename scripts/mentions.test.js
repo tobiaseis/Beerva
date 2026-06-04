@@ -98,6 +98,51 @@ assert.match(mentionSql, /target_owner_id is null[\s\S]*target_owner_id <> inser
 assert.match(mentionSql, /grant execute on function public\.create_content_mentions/i, 'authenticated users should execute mention RPC');
 assert.match(mentionSql, /notify pgrst, 'reload schema'/i, 'migration should reload PostgREST schema');
 
+const rpcCalls = [];
+const mentionNotifications = loadTypeScriptModule('src/lib/mentionNotifications.ts', {
+  './supabase': {
+    supabase: {
+      rpc(name, payload) {
+        rpcCalls.push([name, payload]);
+        return Promise.resolve({ data: 2, error: null });
+      },
+    },
+  },
+  './mentions': mentions,
+});
+
+mentionNotifications.notifyContentMentions({
+  targetType: 'pub_crawl',
+  targetId: 'crawl-1',
+  surface: 'comment',
+  sourceId: 'comment-1',
+  text: 'hello @Line and @Mads Mikkelsen',
+  mentions: [
+    { userId: 'u2', label: '@Line' },
+    { userId: 'u3', label: '@Mads Mikkelsen' },
+    { userId: 'u4', label: '@Missing' },
+  ],
+}).then((createdCount) => {
+  assert.equal(createdCount, 2, 'mention notification helper should return RPC count');
+  assert.deepEqual(
+    rpcCalls[0],
+    [
+      'create_content_mentions',
+      {
+        target_type_input: 'pub_crawl',
+        target_id_input: 'crawl-1',
+        surface_input: 'comment',
+        source_id_input: 'comment-1',
+        mention_candidates: [
+          { userId: 'u2', label: '@Line' },
+          { userId: 'u3', label: '@Mads Mikkelsen' },
+        ],
+      },
+    ],
+    'mention notification helper should call RPC with sanitized selected mentions'
+  );
+});
+
 const calls = [];
 const fakeSupabase = {
   from(table) {
