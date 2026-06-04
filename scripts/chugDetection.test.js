@@ -77,6 +77,70 @@ assert.equal(jitteryNearContactResult.detectedStartMs, 0);
 assert.equal(jitteryNearContactResult.detectedEndMs, 1950);
 assert.equal(jitteryNearContactResult.durationMs, 1950);
 
+const occludedMouthFrames = [
+  {
+    timeMs: 0,
+    mouthBox: null,
+    lowerFaceBox: { x: 90, y: 95, width: 140, height: 105 },
+    faceAnchor: { x: 155, y: 112 },
+    mouthVisibility: 0.18,
+    bottleBox: { x: 122, y: 130, width: 62, height: 120 },
+    bottleScore: 0.78,
+  },
+  {
+    timeMs: 100,
+    mouthBox: null,
+    lowerFaceBox: { x: 90, y: 95, width: 140, height: 105 },
+    faceAnchor: { x: 155, y: 112 },
+    mouthVisibility: 0.12,
+    bottleBox: { x: 124, y: 128, width: 62, height: 120 },
+    bottleScore: 0.81,
+  },
+  {
+    timeMs: 250,
+    mouthBox: null,
+    lowerFaceBox: { x: 90, y: 95, width: 140, height: 105 },
+    faceAnchor: { x: 155, y: 112 },
+    mouthVisibility: 0.2,
+    bottleBox: { x: 121, y: 126, width: 64, height: 120 },
+    bottleScore: 0.79,
+  },
+  {
+    timeMs: 1500,
+    mouthBox: null,
+    lowerFaceBox: { x: 90, y: 95, width: 140, height: 105 },
+    faceAnchor: { x: 155, y: 112 },
+    mouthVisibility: 0.16,
+    bottleBox: { x: 126, y: 130, width: 62, height: 120 },
+    bottleScore: 0.76,
+  },
+  {
+    timeMs: 1720,
+    mouthBox: null,
+    lowerFaceBox: { x: 90, y: 95, width: 140, height: 105 },
+    faceAnchor: { x: 155, y: 112 },
+    mouthVisibility: 0.88,
+    bottleBox: { x: 280, y: 135, width: 60, height: 120 },
+    bottleScore: 0.74,
+  },
+  {
+    timeMs: 2070,
+    mouthBox: null,
+    lowerFaceBox: { x: 90, y: 95, width: 140, height: 105 },
+    faceAnchor: { x: 155, y: 112 },
+    mouthVisibility: 0.9,
+    bottleBox: { x: 280, y: 135, width: 60, height: 120 },
+    bottleScore: 0.72,
+  },
+];
+
+const occludedMouthResult = analyzeChugContactFrames(occludedMouthFrames);
+assert.equal(occludedMouthResult.ok, true);
+assert.equal(occludedMouthResult.detectedStartMs, 0);
+assert.equal(occludedMouthResult.detectedEndMs, 1720);
+assert.equal(occludedMouthResult.durationMs, 1720);
+assert.ok(occludedMouthResult.confidenceScore > 0.5);
+
 const failed = analyzeChugContactFrames([{ timeMs: 0, mouthBox: null, bottleBox: null }]);
 assert.equal(failed.ok, false);
 assert.equal(failed.reason, 'No stable mouth and bottle contact detected.');

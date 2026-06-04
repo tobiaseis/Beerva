@@ -13,5 +13,10 @@ assert.match(source, /MEDIAPIPE_MODULE_URL/, 'MediaPipe runtime loader should pi
 assert.match(source, /new Function\(/, 'MediaPipe runtime loader should use a browser-only dynamic import wrapper');
 assert.match(source, /'cup'/, 'MediaPipe detector should accept cup as a bottle-like fallback label');
 assert.match(source, /'wine glass'/, 'MediaPipe detector should accept wine glass as a bottle-like fallback label');
+assert.match(source, /getFaceBoxFromLandmarks/, 'MediaPipe analyzer should derive full-face geometry for occlusion scoring');
+assert.match(source, /getLowerFaceBoxFromFaceBox/, 'MediaPipe analyzer should send lower-face geometry to the detector');
+assert.match(source, /getFaceAnchorFromLandmarks/, 'MediaPipe analyzer should send a stable face anchor to the detector');
+assert.match(source, /getAverageLandmarkVisibility/, 'MediaPipe analyzer should send mouth landmark visibility to the detector');
+assert.match(source, /bottleScore/, 'MediaPipe analyzer should send object detector confidence to the detector');
 
 console.log('chug MediaPipe bundle guard passed');

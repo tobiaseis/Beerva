@@ -3,6 +3,10 @@ import { Platform } from 'react-native';
 import {
   analyzeChugContactFrames,
   ChugDetectionFrame,
+  getAverageLandmarkVisibility,
+  getFaceAnchorFromLandmarks,
+  getFaceBoxFromLandmarks,
+  getLowerFaceBoxFromFaceBox,
   getMouthBoxFromLandmarks,
 } from './chugDetection';
 
@@ -41,7 +45,22 @@ type MediaPipeDetection = {
   };
 };
 
+type MediaPipeNormalizedLandmark = {
+  x: number;
+  y: number;
+  visibility?: number;
+};
+
 let mediaPipeVisionPromise: Promise<MediaPipeVisionModule> | null = null;
+
+const getBottleDetectionScore = (detection: MediaPipeDetection) => (
+  Math.max(
+    0,
+    ...(detection.categories || [])
+      .filter((category) => BOTTLE_LABELS.has((category.categoryName || '').toLowerCase()))
+      .map((category) => category.score || 0)
+  )
+);
 
 const loadMediaPipeVision = () => {
   if (!mediaPipeVisionPromise) {
@@ -104,22 +123,30 @@ export const analyzeChugVideo = async (input: ChugVideoAnalysisInput) => {
 
       const faceResult = faceLandmarker.detectForVideo(video, timeMs);
       const objectResult = objectDetector.detectForVideo(video, timeMs);
-      const faceLandmarks = faceResult.faceLandmarks?.[0] || [];
+      const faceLandmarks = (faceResult.faceLandmarks?.[0] || []) as MediaPipeNormalizedLandmark[];
+      const normalizedFaceLandmarks = faceLandmarks
+        .filter(Boolean)
+        .map((landmark) => ({ x: landmark.x, y: landmark.y, visibility: landmark.visibility }));
       const mouthLandmarks = MOUTH_LANDMARK_IDS
         .map((index) => faceLandmarks[index])
         .filter(Boolean)
-        .map((landmark) => ({ x: landmark.x, y: landmark.y }));
+        .map((landmark) => ({ x: landmark.x, y: landmark.y, visibility: landmark.visibility }));
 
       const mouthBox = getMouthBoxFromLandmarks(mouthLandmarks, video.videoWidth, video.videoHeight);
+      const faceBox = getFaceBoxFromLandmarks(normalizedFaceLandmarks, video.videoWidth, video.videoHeight);
+      const lowerFaceBox = getLowerFaceBoxFromFaceBox(faceBox);
+      const faceAnchor = getFaceAnchorFromLandmarks(normalizedFaceLandmarks, video.videoWidth, video.videoHeight);
+      const mouthVisibility = getAverageLandmarkVisibility(mouthLandmarks);
       const bottle = (objectResult.detections as MediaPipeDetection[] | undefined)
-        ?.filter((detection) => detection.categories?.some((category) => BOTTLE_LABELS.has((category.categoryName || '').toLowerCase())))
-        .sort((a, b) => (b.categories?.[0]?.score || 0) - (a.categories?.[0]?.score || 0))[0];
+        ?.filter((detection) => getBottleDetectionScore(detection) > 0)
+        .sort((a, b) => getBottleDetectionScore(b) - getBottleDetectionScore(a))[0];
       const box = bottle?.boundingBox;
       const bottleBox = box
         ? { x: box.originX, y: box.originY, width: box.width, height: box.height }
         : null;
+      const bottleScore = bottle ? getBottleDetectionScore(bottle) : null;
 
-      frames.push({ timeMs, mouthBox, bottleBox });
+      frames.push({ timeMs, mouthBox, bottleBox, lowerFaceBox, faceAnchor, mouthVisibility, bottleScore });
     }
 
     faceLandmarker.close();
