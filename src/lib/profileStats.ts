@@ -9,6 +9,7 @@ export type Stats = {
   maxPubsInOneDay: number;
   maxSessionsAtSamePub: number;
   longestDayStreak: number;
+  currentStreak: number;
   maxTwoPintWeekStreak: number;
   uniqueBeers: number;
   maxBeersInOneDay: number;
@@ -76,6 +77,7 @@ export const emptyStats: Stats = {
   maxPubsInOneDay: 0,
   maxSessionsAtSamePub: 0,
   longestDayStreak: 0,
+  currentStreak: 0,
   maxTwoPintWeekStreak: 0,
   uniqueBeers: 0,
   maxBeersInOneDay: 0,
@@ -387,7 +389,7 @@ export const calculateTopPubVisits = (
     .slice(0, Math.max(0, limit));
 };
 
-export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats => {
+export const calculateStats = (sessions: ProfileSessionStatsRow[] = [], referenceDate: Date = new Date()): Stats => {
   if (sessions.length === 0) {
     return emptyStats;
   }
@@ -544,21 +546,46 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
   // Longest consecutive-day streak
   const sortedDays = Array.from(sessionsPerDay.keys()).sort();
   let longestDayStreak = 0;
-  let currentStreak = 0;
+  let runLength = 0;
   let prevTime = -Infinity;
   const ONE_DAY_MS = 86400000;
   for (const key of sortedDays) {
     const [y, m, d] = key.split('-').map(Number);
     const t = new Date(y, m - 1, d).getTime();
-    if (currentStreak === 0) {
-      currentStreak = 1;
+    if (runLength === 0) {
+      runLength = 1;
     } else if (Math.round((t - prevTime) / ONE_DAY_MS) === 1) {
-      currentStreak += 1;
+      runLength += 1;
     } else {
-      currentStreak = 1;
+      runLength = 1;
     }
-    if (currentStreak > longestDayStreak) longestDayStreak = currentStreak;
+    if (runLength > longestDayStreak) longestDayStreak = runLength;
     prevTime = t;
+  }
+
+  // Current streak: consecutive drinking days ending at the most recent day,
+  // counted only if that most recent day is today or yesterday (drinking-day).
+  let currentStreak = 0;
+  const todayKey = localDateKey(referenceDate.toISOString());
+  if (sortedDays.length > 0 && todayKey) {
+    const [ty, tm, td] = todayKey.split('-').map(Number);
+    const todayTime = new Date(ty, tm - 1, td).getTime();
+    const lastKey = sortedDays[sortedDays.length - 1];
+    const [ly, lm, ld] = lastKey.split('-').map(Number);
+    const lastTime = new Date(ly, lm - 1, ld).getTime();
+    const daysSinceLast = Math.round((todayTime - lastTime) / ONE_DAY_MS);
+    if (daysSinceLast === 0 || daysSinceLast === 1) {
+      currentStreak = 1;
+      for (let i = sortedDays.length - 1; i > 0; i -= 1) {
+        const [y1, m1, d1] = sortedDays[i].split('-').map(Number);
+        const [y0, m0, d0] = sortedDays[i - 1].split('-').map(Number);
+        const gap = Math.round(
+          (new Date(y1, m1 - 1, d1).getTime() - new Date(y0, m0 - 1, d0).getTime()) / ONE_DAY_MS
+        );
+        if (gap === 1) currentStreak += 1;
+        else break;
+      }
+    }
   }
 
   const qualifyingWeeks = Array.from(pintsPerWeek.entries())
@@ -594,6 +621,7 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = []): Stats =
     maxPubsInOneDay,
     maxSessionsAtSamePub,
     longestDayStreak,
+    currentStreak,
     maxTwoPintWeekStreak,
     uniqueBeers: uniqueBeerSet.size,
     maxBeersInOneDay,

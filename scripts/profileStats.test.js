@@ -898,4 +898,53 @@ assert.match(
   'ending a session should pass the all-trophies prize flag to the feed'
 );
 
+// --- Current streak ---
+// All rows use 20:00 UTC (= 22:00 Copenhagen, same calendar date, well past the 6am rollover),
+// so each row's drinking day equals its UTC calendar date. referenceDate is passed explicitly
+// so tests do not depend on the real clock.
+const dayRow = (isoDate, id) => baseRow({
+  session_id: id,
+  created_at: `${isoDate}T20:00:00.000Z`,
+  session_started_at: `${isoDate}T20:00:00.000Z`,
+});
+const REF = new Date('2026-05-10T20:00:00.000Z'); // "today" drinking day = 2026-05-10
+
+// Two consecutive days ending today -> streak 2 (active)
+assert.equal(
+  calculateStats([dayRow('2026-05-09', 's1'), dayRow('2026-05-10', 's2')], REF).currentStreak,
+  2
+);
+
+// Ends yesterday (grace day) -> still active
+assert.equal(
+  calculateStats([dayRow('2026-05-08', 's1'), dayRow('2026-05-09', 's2')], REF).currentStreak,
+  2
+);
+
+// Ends two days ago -> decayed to 0
+assert.equal(
+  calculateStats([dayRow('2026-05-07', 's1'), dayRow('2026-05-08', 's2')], REF).currentStreak,
+  0
+);
+
+// Gap inside the run: only the run ending today counts (08 broken by missing 09... here 10 only)
+assert.equal(
+  calculateStats([dayRow('2026-05-07', 's1'), dayRow('2026-05-10', 's2')], REF).currentStreak,
+  1
+);
+
+// Longer active run with an earlier gap -> counts only the trailing consecutive run
+assert.equal(
+  calculateStats(
+    [dayRow('2026-05-05', 's0'), dayRow('2026-05-08', 's1'), dayRow('2026-05-09', 's2'), dayRow('2026-05-10', 's3')],
+    REF
+  ).currentStreak,
+  3
+);
+
+// No sessions -> 0
+assert.equal(calculateStats([], REF).currentStreak, 0);
+
+console.log('current streak tests passed');
+
 console.log('profileStats trophy tests passed');
