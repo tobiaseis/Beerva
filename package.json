@@ -58,7 +58,8 @@
     "test:auth-session": "node scripts/authSession.test.js",
     "test:session-feed-details": "node scripts/sessionFeedDetails.test.js",
     "test:feed-pagination": "node scripts/feedPagination.test.js",
-    "test:live-mates": "node scripts/liveMateSessions.test.js"
+    "test:live-mates": "node scripts/liveMateSessions.test.js",
+    "test:mentions": "node scripts/mentions.test.js"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",
