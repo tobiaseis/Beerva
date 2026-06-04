@@ -397,6 +397,16 @@ assert.match(
   /colors\.primarySoft/,
   'Hottest streak tile should use the light yellow primary treatment'
 );
+assert.match(
+  legendsScreenSource,
+  /getMsUntilNextHour/,
+  'Pub Legends screen should calculate the next whole-hour refresh boundary'
+);
+assert.match(
+  legendsScreenSource,
+  /setInterval\(loadFriendLeaderboards,\s*60 \* 60 \* 1000\)/,
+  'friend watch leaderboards should refresh hourly while the screen is focused'
+);
 
 const legendDetailSource = fs.readFileSync(path.resolve(__dirname, '..', legendDetailScreenPath), 'utf8');
 assert.match(legendDetailSource, /Exclude from Pub Legends/, 'Pub Legend detail should expose a cleanup action for wrongly categorized private places');

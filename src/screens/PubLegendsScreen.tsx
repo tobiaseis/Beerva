@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Platform, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { ArrowLeft, Beer, ChevronRight, Clock, Crown, Flame, MapPin, Trophy, Users } from 'lucide-react-native';
@@ -58,12 +58,20 @@ const formatLastDrinkDate = (value?: string | null) => {
   })}`;
 };
 
+const getMsUntilNextHour = () => {
+  const now = new Date();
+  const nextHour = new Date(now);
+  nextHour.setHours(now.getHours() + 1, 0, 0, 0);
+  return Math.max(1000, nextHour.getTime() - now.getTime());
+};
+
 export const PubLegendsScreen = ({ navigation }: any) => {
   const [activeSegment, setActiveSegment] = useState<'pub-legends' | 'challenges'>('pub-legends');
   const [legends, setLegends] = useState<PubLegend[]>([]);
   const [challenges, setChallenges] = useState<ChallengeSummary[]>([]);
   const [friendLeaderboards, setFriendLeaderboards] = useState<FriendPubWatchLeaderboards>(emptyFriendLeaderboards);
   const [friendLeaderboardMode, setFriendLeaderboardMode] = useState<FriendLeaderboardMode>('pubs');
+  const [screenFocused, setScreenFocused] = useState(false);
   const [friendLoading, setFriendLoading] = useState(false);
   const [friendErrorMessage, setFriendErrorMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -144,11 +152,28 @@ export const PubLegendsScreen = ({ navigation }: any) => {
 
   useFocusEffect(
     useCallback(() => {
+      setScreenFocused(true);
       loadLegends();
       loadChallenges();
       loadFriendLeaderboards();
+      return () => setScreenFocused(false);
     }, [loadChallenges, loadFriendLeaderboards, loadLegends])
   );
+
+  useEffect(() => {
+    if (!screenFocused || activeSegment !== 'pub-legends') return undefined;
+
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    const timeoutId = setTimeout(() => {
+      loadFriendLeaderboards();
+      intervalId = setInterval(loadFriendLeaderboards, 60 * 60 * 1000);
+    }, getMsUntilNextHour());
+
+    return () => {
+      clearTimeout(timeoutId);
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [activeSegment, loadFriendLeaderboards, screenFocused]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
