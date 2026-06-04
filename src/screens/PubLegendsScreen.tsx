@@ -1,8 +1,9 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Platform, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Beer, ChevronRight, Crown, MapPin, Trophy, Users } from 'lucide-react-native';
+import { ArrowLeft, Beer, ChevronRight, Clock, Crown, Flame, MapPin, Trophy, Users } from 'lucide-react-native';
 
+import { CachedImage } from '../components/CachedImage';
 import { EmptyIllustration } from '../components/EmptyIllustration';
 import {
   ChallengeSummary,
@@ -12,8 +13,14 @@ import {
   isLeaderboardChallenge,
 } from '../lib/challenges';
 import { fetchOfficialChallenges, joinChallenge } from '../lib/challengesApi';
-import { formatTruePints, PubLegend } from '../lib/pubLegends';
-import { fetchPubLegends } from '../lib/pubLegendsApi';
+import {
+  formatHoursSinceLastDrink,
+  formatTruePints,
+  FriendPubWatchEntry,
+  FriendPubWatchLeaderboards,
+  PubLegend,
+} from '../lib/pubLegends';
+import { fetchFriendPubWatchLeaderboards, fetchPubLegends } from '../lib/pubLegendsApi';
 import { hapticLight } from '../lib/haptics';
 import { colors } from '../theme/colors';
 import { floatingTabBarMetrics, radius, shadows, spacing } from '../theme/layout';
@@ -26,10 +33,39 @@ const formatChampion = (item: PubLegend) => {
   return `${item.championUsername || 'Beer Lover'} - ${formatTruePints(item.topTruePints)}`;
 };
 
+type FriendLeaderboardMode = 'pubs' | 'active-streaks' | 'most-overdue';
+
+const emptyFriendLeaderboards: FriendPubWatchLeaderboards = {
+  activeStreaks: [],
+  mostOverdue: [],
+};
+
+const getDisplayName = (entry?: FriendPubWatchEntry | null) => entry?.username || 'Beer Lover';
+
+const formatStreakDays = (value: number) => `${value} ${value === 1 ? 'day' : 'days'}`;
+
+const formatLastDrinkDate = (value?: string | null) => {
+  if (!value) return 'Last beer unknown';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Last beer unknown';
+  return `Last beer: ${date.toLocaleDateString('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  })} ${date.toLocaleTimeString('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+  })}`;
+};
+
 export const PubLegendsScreen = ({ navigation }: any) => {
   const [activeSegment, setActiveSegment] = useState<'pub-legends' | 'challenges'>('pub-legends');
   const [legends, setLegends] = useState<PubLegend[]>([]);
   const [challenges, setChallenges] = useState<ChallengeSummary[]>([]);
+  const [friendLeaderboards, setFriendLeaderboards] = useState<FriendPubWatchLeaderboards>(emptyFriendLeaderboards);
+  const [friendLeaderboardMode, setFriendLeaderboardMode] = useState<FriendLeaderboardMode>('pubs');
+  const [friendLoading, setFriendLoading] = useState(false);
+  const [friendErrorMessage, setFriendErrorMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [challengesLoading, setChallengesLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -38,6 +74,19 @@ export const PubLegendsScreen = ({ navigation }: any) => {
   const [joiningChallengeIds, setJoiningChallengeIds] = useState<Set<string>>(() => new Set());
   const requestIdRef = useRef(0);
   const hasLoadedOnce = useRef(false);
+
+  const hottestStreak = useMemo(
+    () => friendLeaderboards.activeStreaks.find((entry) => entry.currentStreak > 0) || null,
+    [friendLeaderboards.activeStreaks]
+  );
+
+  const mostOverdue = friendLeaderboards.mostOverdue[0] || null;
+
+  const activeFriendRows = friendLeaderboardMode === 'active-streaks'
+    ? friendLeaderboards.activeStreaks
+    : friendLeaderboardMode === 'most-overdue'
+      ? friendLeaderboards.mostOverdue
+      : [];
 
   const loadLegends = useCallback(async () => {
     const requestId = requestIdRef.current + 1;
@@ -79,17 +128,33 @@ export const PubLegendsScreen = ({ navigation }: any) => {
     }
   }, []);
 
+  const loadFriendLeaderboards = useCallback(async () => {
+    try {
+      setFriendLoading(true);
+      setFriendErrorMessage(null);
+      const rows = await fetchFriendPubWatchLeaderboards();
+      setFriendLeaderboards(rows);
+    } catch (error) {
+      console.error('Friend leaderboards fetch error:', error);
+      setFriendErrorMessage(error instanceof Error ? error.message : 'Could not load friend leaderboards.');
+    } finally {
+      setFriendLoading(false);
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       loadLegends();
       loadChallenges();
-    }, [loadChallenges, loadLegends])
+      loadFriendLeaderboards();
+    }, [loadChallenges, loadFriendLeaderboards, loadLegends])
   );
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     loadLegends();
-  }, [loadLegends]);
+    loadFriendLeaderboards();
+  }, [loadFriendLeaderboards, loadLegends]);
 
   const handleJoinChallenge = useCallback(async (challenge: ChallengeSummary) => {
     if (challenge.joined || !challenge.joinOpen || joiningChallengeIds.has(challenge.id)) return;
@@ -123,6 +188,79 @@ export const PubLegendsScreen = ({ navigation }: any) => {
     hapticLight();
     navigation.getParent()?.navigate('ChallengeDetail', { challengeSlug: challenge.slug });
   }, [navigation]);
+
+  const openFriendLeaderboard = useCallback((mode: Exclude<FriendLeaderboardMode, 'pubs'>) => {
+    hapticLight();
+    setFriendLeaderboardMode(mode);
+  }, []);
+
+  const closeFriendLeaderboard = useCallback(() => {
+    hapticLight();
+    setFriendLeaderboardMode('pubs');
+  }, []);
+
+  const renderFriendSpotlightTile = useCallback((
+    mode: Exclude<FriendLeaderboardMode, 'pubs'>,
+    label: string,
+    entry: FriendPubWatchEntry | null,
+    emptyLabel: string
+  ) => {
+    const isStreak = mode === 'active-streaks';
+    const Icon = isStreak ? Flame : Clock;
+    const metric = entry
+      ? isStreak
+        ? formatStreakDays(entry.currentStreak)
+        : formatHoursSinceLastDrink(entry.hoursSinceLastDrink)
+      : emptyLabel;
+
+    return (
+      <Pressable
+        onPress={() => openFriendLeaderboard(mode)}
+        style={({ pressed }) => [
+          styles.friendSpotlightTile,
+          isStreak ? styles.friendSpotlightTileStreak : styles.friendSpotlightTileOverdue,
+          pressed ? styles.pressed : null,
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel={`${label}, ${entry ? `${getDisplayName(entry)}, ${metric}` : emptyLabel}`}
+      >
+        <View style={styles.friendTileLabelRow}>
+          <Icon color={isStreak ? colors.primary : colors.danger} size={13} />
+          <Text style={[styles.friendTileLabel, isStreak ? styles.friendTileLabelStreak : styles.friendTileLabelOverdue]}>
+            {label}
+          </Text>
+        </View>
+        <View style={styles.friendTileMain}>
+          {entry ? (
+            <CachedImage
+              uri={entry.avatarUrl}
+              fallbackUri={`https://i.pravatar.cc/150?u=${entry.userId}`}
+              style={styles.friendTileAvatar}
+              recyclingKey={`friend-watch-${mode}-${entry.userId}-${entry.avatarUrl || 'fallback'}`}
+              accessibilityLabel={`${getDisplayName(entry)}'s avatar`}
+            />
+          ) : (
+            <View style={styles.friendTileAvatarEmpty}>
+              <Icon color={isStreak ? colors.primary : colors.danger} size={16} />
+            </View>
+          )}
+          <View style={styles.friendTileCopy}>
+            <Text style={styles.friendTileName} numberOfLines={1}>
+              {entry ? getDisplayName(entry) : emptyLabel}
+            </Text>
+            {entry ? (
+              <Text
+                style={[styles.friendTileMetric, isStreak ? styles.friendTileMetricStreak : styles.friendTileMetricOverdue]}
+                numberOfLines={1}
+              >
+                {metric}
+              </Text>
+            ) : null}
+          </View>
+        </View>
+      </Pressable>
+    );
+  }, [openFriendLeaderboard]);
 
   const renderLegend = useCallback(({ item, index }: { item: PubLegend; index: number }) => {
     const isFirst = index === 0;
@@ -172,6 +310,48 @@ export const PubLegendsScreen = ({ navigation }: any) => {
       </Pressable>
     );
   }, [openLegend]);
+
+  const renderFriendLeader = useCallback(({ item }: { item: FriendPubWatchEntry }) => {
+    const isStreak = friendLeaderboardMode === 'active-streaks';
+    const metric = isStreak
+      ? formatStreakDays(item.currentStreak)
+      : formatHoursSinceLastDrink(item.hoursSinceLastDrink);
+    const secondary = formatLastDrinkDate(item.latestDrinkAt);
+
+    return (
+      <Pressable
+        onPress={() => {
+          if (item.userId === 'unknown') return;
+          hapticLight();
+          navigation.getParent()?.navigate('UserProfile', { userId: item.userId });
+        }}
+        style={({ pressed }) => [styles.friendLeaderRow, pressed ? styles.pressed : null]}
+        accessibilityRole="button"
+        accessibilityLabel={`${getDisplayName(item)}, rank ${item.rank}, ${metric}`}
+      >
+        <View style={styles.rankBadge}>
+          <Text style={styles.rankText}>{item.rank}</Text>
+        </View>
+        <CachedImage
+          uri={item.avatarUrl}
+          fallbackUri={`https://i.pravatar.cc/150?u=${item.userId}`}
+          style={styles.friendLeaderAvatar}
+          recyclingKey={`friend-leader-${friendLeaderboardMode}-${item.userId}-${item.avatarUrl || 'fallback'}`}
+          accessibilityLabel={`${getDisplayName(item)}'s avatar`}
+        />
+        <View style={styles.friendLeaderBody}>
+          <Text style={styles.username} numberOfLines={1}>{getDisplayName(item)}</Text>
+          <Text style={styles.metaText} numberOfLines={1}>{secondary}</Text>
+        </View>
+        <Text
+          style={[styles.friendLeaderMetric, isStreak ? styles.friendTileMetricStreak : styles.friendTileMetricOverdue]}
+          numberOfLines={1}
+        >
+          {metric}
+        </Text>
+      </Pressable>
+    );
+  }, [friendLeaderboardMode, navigation]);
 
   const renderChallenge = useCallback(({ item }: { item: ChallengeSummary }) => {
     const isJoining = joiningChallengeIds.has(item.id);
@@ -253,6 +433,24 @@ export const PubLegendsScreen = ({ navigation }: any) => {
           </Text>
         </Pressable>
       </View>
+      {activeSegment === 'pub-legends' ? (
+        <View style={styles.friendWatchBlock}>
+          <View style={styles.friendWatchHeader}>
+            <Text style={styles.friendWatchTitle}>Friends on Watch</Text>
+            {friendLoading ? <ActivityIndicator size="small" color={colors.primary} /> : null}
+          </View>
+          {friendErrorMessage ? (
+            <View style={styles.friendWatchError}>
+              <Text style={styles.friendWatchErrorText}>{friendErrorMessage}</Text>
+            </View>
+          ) : (
+            <View style={styles.friendSpotlightGrid}>
+              {renderFriendSpotlightTile('active-streaks', 'Hottest streak', hottestStreak, 'No active streaks')}
+              {renderFriendSpotlightTile('most-overdue', 'Most overdue', mostOverdue, 'No one exposed')}
+            </View>
+          )}
+        </View>
+      ) : null}
       {legends[0] ? (
         <View style={styles.heroStrip}>
           <View style={styles.heroIcon}>
@@ -266,7 +464,38 @@ export const PubLegendsScreen = ({ navigation }: any) => {
         </View>
       ) : null}
     </View>
-  ), [activeSegment, legends]);
+  ), [
+    activeSegment,
+    friendErrorMessage,
+    friendLoading,
+    hottestStreak,
+    legends,
+    mostOverdue,
+    renderFriendSpotlightTile,
+  ]);
+
+  const renderFriendListHeader = useCallback(() => {
+    const title = friendLeaderboardMode === 'active-streaks'
+      ? 'Active streaks among friends'
+      : 'Most overdue among friends';
+    return (
+      <View style={styles.friendListHeader}>
+        {renderHeader()}
+        <View style={styles.friendListToolbar}>
+          <Pressable
+            onPress={closeFriendLeaderboard}
+            style={({ pressed }) => [styles.backToPubsChip, pressed ? styles.pressed : null]}
+            accessibilityRole="button"
+            accessibilityLabel="Back to pubs"
+          >
+            <ArrowLeft color={colors.primary} size={15} />
+            <Text style={styles.backToPubsText}>Back to pubs</Text>
+          </Pressable>
+          <Text style={styles.friendListTitle}>{title}</Text>
+        </View>
+      </View>
+    );
+  }, [closeFriendLeaderboard, friendLeaderboardMode, renderHeader]);
 
   return (
     <View style={styles.container}>
@@ -274,6 +503,27 @@ export const PubLegendsScreen = ({ navigation }: any) => {
         <View style={styles.loader}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
+      ) : activeSegment === 'pub-legends' && friendLeaderboardMode !== 'pubs' ? (
+        <FlatList
+          data={activeFriendRows}
+          keyExtractor={(item) => `${item.leaderboardType}-${item.userId}`}
+          renderItem={renderFriendLeader}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={Platform.OS !== 'web'}
+          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={[styles.listContent, activeFriendRows.length === 0 ? styles.emptyContent : null]}
+          refreshControl={<RefreshControl refreshing={refreshing || friendLoading} onRefresh={onRefresh} tintColor={colors.primary} />}
+          ListHeaderComponent={renderFriendListHeader}
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <EmptyIllustration kind="trophy" size={170} />
+              <Text style={styles.emptyTitle}>{friendErrorMessage ? 'Could not load friend leaderboards' : 'No friend data yet'}</Text>
+              <Text style={styles.emptyText}>{friendErrorMessage || 'Follow friends to start the watchlist.'}</Text>
+            </View>
+          }
+        />
       ) : activeSegment === 'pub-legends' ? (
         <FlatList
           data={legends}
@@ -567,6 +817,180 @@ const styles = StyleSheet.create({
   championLabel: {
     color: colors.primary,
     fontWeight: '800',
+  },
+  friendWatchBlock: {
+    gap: 8,
+  },
+  friendWatchHeader: {
+    minHeight: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  friendWatchTitle: {
+    ...typography.tiny,
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+  },
+  friendWatchError: {
+    minHeight: 42,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.cardMuted,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  friendWatchErrorText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    textAlign: 'center',
+  },
+  friendSpotlightGrid: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  friendSpotlightTile: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 92,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    padding: 10,
+    gap: 8,
+  },
+  friendSpotlightTileStreak: {
+    backgroundColor: colors.primarySoft,
+    borderColor: colors.primaryBorder,
+  },
+  friendSpotlightTileOverdue: {
+    backgroundColor: colors.dangerSoft,
+    borderColor: 'rgba(239, 68, 68, 0.28)',
+  },
+  friendTileLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  friendTileLabel: {
+    ...typography.tiny,
+    textTransform: 'uppercase',
+    fontWeight: '900',
+    flex: 1,
+    minWidth: 0,
+  },
+  friendTileLabelStreak: {
+    color: colors.primary,
+  },
+  friendTileLabelOverdue: {
+    color: colors.danger,
+  },
+  friendTileMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  friendTileAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 2,
+    borderColor: colors.primaryBorder,
+  },
+  friendTileAvatarEmpty: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  friendTileCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  friendTileName: {
+    ...typography.caption,
+    color: colors.text,
+    fontWeight: '800',
+  },
+  friendTileMetric: {
+    ...typography.h3,
+    marginTop: 1,
+    fontVariant: ['tabular-nums'],
+  },
+  friendTileMetricStreak: {
+    color: colors.primary,
+  },
+  friendTileMetricOverdue: {
+    color: colors.danger,
+  },
+  friendListHeader: {
+    gap: spacing.md,
+  },
+  friendListToolbar: {
+    gap: 8,
+  },
+  backToPubsChip: {
+    alignSelf: 'flex-start',
+    minHeight: 32,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  backToPubsText: {
+    ...typography.tiny,
+    color: colors.primary,
+    fontWeight: '900',
+  },
+  friendListTitle: {
+    ...typography.tiny,
+    color: colors.textMuted,
+    textTransform: 'uppercase',
+  },
+  friendLeaderRow: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    ...shadows.card,
+  },
+  friendLeaderAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 2,
+    borderColor: colors.primaryBorder,
+  },
+  friendLeaderBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+  username: {
+    ...typography.h3,
+    fontSize: 16,
+  },
+  metaText: {
+    ...typography.caption,
+    color: colors.textMuted,
+  },
+  friendLeaderMetric: {
+    ...typography.h3,
+    minWidth: 54,
+    textAlign: 'right',
+    fontVariant: ['tabular-nums'],
   },
   emptyState: {
     flex: 1,
