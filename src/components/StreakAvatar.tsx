@@ -18,6 +18,11 @@ import { typography } from '../theme/typography';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
+// Monotonic counter so each mounted StreakAvatar gets unique SVG gradient ids.
+// Duplicate ids across instances make `fill="url(#id)"` resolve to the wrong
+// (or a hidden) gradient on web, which renders the flame with no fill.
+let flameInstanceCounter = 0;
+
 type StreakAvatarProps = {
   uri?: string | null;
   fallbackUri?: string;
@@ -139,6 +144,12 @@ export const StreakAvatar = React.memo(({
   const tier = getFlameTierConfig(streak);
   const [reduceMotion, setReduceMotion] = useState(false);
   const flicker = useRef(new Animated.Value(0)).current;
+  const instanceIdRef = useRef<number | null>(null);
+  if (instanceIdRef.current === null) {
+    flameInstanceCounter += 1;
+    instanceIdRef.current = flameInstanceCounter;
+  }
+  const uid = instanceIdRef.current;
 
   useEffect(() => {
     let mounted = true;
@@ -220,8 +231,8 @@ export const StreakAvatar = React.memo(({
   // so the authored tongue geometry lines up at every avatar size.
   const inset = Math.round(size * 0.34);
   const flameBox = size + inset * 2;
-  const gradientId = `flame-grad-${tier.tier}`;
-  const glowId = `flame-glow-${tier.tier}`;
+  const gradientId = `flame-grad-${tier.tier}-${uid}`;
+  const glowId = `flame-glow-${tier.tier}-${uid}`;
 
   const streakLabel = `${streak} day${streak === 1 ? '' : 's'}`;
 
@@ -232,10 +243,10 @@ export const StreakAvatar = React.memo(({
         accessibilityLabel ? `${accessibilityLabel}, ${streak} day streak` : `${streak} day streak`
       }
     >
-      {/* Flame stage reserves its full box in layout with the avatar centered
-          inside, so the flame never has to overflow a smaller parent (which can
-          be clipped) — it simply paints within its own bounds. */}
-      <View style={[styles.flameStage, { width: flameBox, height: flameBox }]}>
+      {/* Flame stage is the full flame box but uses a negative margin so it only
+          occupies the avatar's footprint in layout — the flame paints around the
+          avatar without reserving extra space. */}
+      <View style={[styles.flameStage, { width: flameBox, height: flameBox, margin: -inset }]}>
         <Svg
           pointerEvents="none"
           style={styles.flameSvg}
