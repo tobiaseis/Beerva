@@ -139,4 +139,17 @@ assert.equal(
 const liveMateApiSource = fs.readFileSync(path.join(root, 'src/lib/liveMateSessions.ts'), 'utf8');
 assert.match(liveMateApiSource, /rpc\('get_live_mate_sessions'\)/, 'client API should fetch live mates through RPC');
 
-console.log('live mate client checks passed');
+const liveMateHookPath = path.join(root, 'src/lib/useLiveMateSessions.ts');
+assert.ok(fs.existsSync(liveMateHookPath), 'live mate hook should exist');
+const liveMateHookSource = fs.readFileSync(liveMateHookPath, 'utf8');
+
+assert.match(liveMateHookSource, /export const useLiveMateSessions = \(\)/, 'hook should export useLiveMateSessions');
+assert.match(liveMateHookSource, /fetchLiveMateSessions\(\)/, 'hook should fetch live sessions through the shared client API');
+assert.match(liveMateHookSource, /supabase\.auth\.getSession\(\)/, 'hook should avoid RPC calls when no user session exists');
+assert.match(liveMateHookSource, /supabase\.auth\.onAuthStateChange/, 'hook should refresh on auth state changes');
+assert.match(liveMateHookSource, /\.channel\(`live-mate-sessions-\$\{userId\}`\)/, 'hook should create a user-scoped realtime channel');
+assert.match(liveMateHookSource, /table: 'live_mate_sessions'/, 'hook should subscribe to live_mate_sessions changes');
+assert.match(liveMateHookSource, /supabase\.removeChannel\(channel\)/, 'hook should clean up realtime channels');
+assert.match(liveMateHookSource, /setSessions\(\[\]\)/, 'hook should clear sessions when signed out or empty');
+
+console.log('live mate hook checks passed');
