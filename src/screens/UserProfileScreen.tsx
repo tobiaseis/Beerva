@@ -392,16 +392,18 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
       </View>
 
       <View style={styles.header}>
-        <StreakAvatar
-          uri={profile.avatar_url}
-          fallbackUri={`https://i.pravatar.cc/150?u=${profile.id}`}
-          size={Platform.OS === 'web' ? 104 : 120}
-          style={styles.avatar}
-          recyclingKey={`profile-${profile.id}-${profile.avatar_url || 'fallback'}`}
-          accessibilityLabel={`${profile.username || 'Beer Lover'}'s avatar`}
-          streak={stats.currentStreak}
-          showCount
-        />
+        <View style={styles.avatarContainer}>
+          <StreakAvatar
+            uri={profile.avatar_url}
+            fallbackUri={`https://i.pravatar.cc/150?u=${profile.id}`}
+            size={Platform.OS === 'web' ? 104 : 120}
+            style={styles.avatar}
+            recyclingKey={`profile-${profile.id}-${profile.avatar_url || 'fallback'}`}
+            accessibilityLabel={`${profile.username || 'Beer Lover'}'s avatar`}
+            streak={stats.currentStreak}
+            showCount
+          />
+        </View>
         <Text style={typography.h1}>{profile.username || 'Beer Lover'}</Text>
         <Text style={typography.bodyMuted}>Joined {joinDate}</Text>
 
@@ -565,6 +567,10 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'web' ? 22 : 28,
     paddingBottom: 22,
     paddingHorizontal: 16,
+  },
+  avatarContainer: {
+    position: 'relative',
+    alignItems: 'center',
   },
   avatar: {
     width: Platform.OS === 'web' ? 104 : 120,
