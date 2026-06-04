@@ -37,51 +37,56 @@ type AvatarFlamePath = {
 };
 
 // --- Side-view flame geometry --------------------------------------------
-// Everything is authored in a fixed 100x100 viewBox. The avatar is centered
-// and (because `inset` is a constant fraction of `size`) always occupies a
-// circle of radius ~30. Each flame "tongue" has its base tucked behind the
-// avatar (radius 24, hidden) and licks UP-and-out so only its pointed tip
-// shows past the avatar edge — fire seen from the side, wrapping the avatar's
-// top and upper sides rather than radiating evenly like a top-down ring.
+// Authored in a fixed 100x100 viewBox. Because `inset` is a constant fraction
+// of `size`, the avatar always sits as a circle of radius ~30 at the center.
+// Each flame "tongue" starts hidden behind the avatar (radius 22) and curls
+// UP-and-out to a tip that hugs just past the avatar edge — so the avatar
+// looks wrapped in fire seen from the side, with the licks taller over the top
+// and shorter down the sides, rather than radiating evenly like a top-down ring.
 const CENTER = 50;
-const BASE_RADIUS = 24;
+const BASE_RADIUS = 22;
 const toRad = (deg: number) => (deg * Math.PI) / 180;
 const r1 = (n: number) => Math.round(n * 10) / 10;
 
 const buildTongue = (
-  angleDeg: number,
-  length: number,
+  baseAngleDeg: number,
+  tipRadius: number,
+  curl: number,
   halfWidth: number,
-  lean: number,
   wiggle: number
 ): string => {
-  const a = toRad(angleDeg);
-  const ox = Math.sin(a); // 0deg points straight up, positive = clockwise
-  const oy = -Math.cos(a);
+  const ba = toRad(baseAngleDeg); // 0deg = straight up, positive = clockwise
+  const ox = Math.sin(ba);
+  const oy = -Math.cos(ba);
   const baseX = CENTER + ox * BASE_RADIUS;
   const baseY = CENTER + oy * BASE_RADIUS;
 
-  // Tip direction: blend the radial-outward vector toward straight-up so every
-  // tongue rises, regardless of where it sits around the circle.
-  let dx = ox * (1 - lean);
-  let dy = oy * (1 - lean) + -1 * lean;
+  // Tip sits at a smaller angle (rotated toward the top) so every tongue leans
+  // upward — the defining trait of a side-view flame.
+  const ta = toRad(baseAngleDeg * (1 - curl));
+  const trx = Math.sin(ta);
+  const try_ = -Math.cos(ta);
+  const tpx = -try_; // tangent at tip, for the flame-tip wiggle
+  const tpy = trx;
+  const tipX = CENTER + trx * tipRadius + tpx * wiggle;
+  const tipY = CENTER + try_ * tipRadius + tpy * wiggle;
+
+  let dx = tipX - baseX;
+  let dy = tipY - baseY;
   const dlen = Math.hypot(dx, dy) || 1;
   dx /= dlen;
   dy /= dlen;
-
-  const px = -dy; // perpendicular (for width)
+  const px = -dy; // perpendicular (width)
   const py = dx;
 
-  const tipX = baseX + dx * length + px * wiggle;
-  const tipY = baseY + dy * length + py * wiggle;
   const blX = baseX - px * halfWidth;
   const blY = baseY - py * halfWidth;
   const brX = baseX + px * halfWidth;
   const brY = baseY + py * halfWidth;
-  const clX = baseX - px * halfWidth * 0.85 + dx * length * 0.55;
-  const clY = baseY - py * halfWidth * 0.85 + dy * length * 0.55;
-  const crX = baseX + px * halfWidth * 0.85 + dx * length * 0.55;
-  const crY = baseY + py * halfWidth * 0.85 + dy * length * 0.55;
+  const clX = baseX - px * halfWidth * 0.8 + dx * dlen * 0.5;
+  const clY = baseY - py * halfWidth * 0.8 + dy * dlen * 0.5;
+  const crX = baseX + px * halfWidth * 0.8 + dx * dlen * 0.5;
+  const crY = baseY + py * halfWidth * 0.8 + dy * dlen * 0.5;
 
   return (
     `M${r1(blX)} ${r1(blY)} ` +
@@ -91,32 +96,35 @@ const buildTongue = (
   );
 };
 
-// Top hemisphere + sides only (skip the very bottom so no fire points down).
-const TONGUE_SPECS = [
-  { a: 0, len: 23, w: 8.5 },
-  { a: -24, len: 23, w: 8 },
-  { a: 24, len: 23, w: 8 },
-  { a: -48, len: 20, w: 7.5 },
-  { a: 48, len: 20, w: 7.5 },
-  { a: -72, len: 18, w: 7 },
-  { a: 72, len: 18, w: 7 },
-  { a: -94, len: 16, w: 6.5 },
-  { a: 94, len: 16, w: 6.5 },
-];
+// Wrap the top and both sides (skip the very bottom so no flame points down).
+const FLAME_BASE_ANGLES = [0, -30, 30, -60, 60, -90, 90, -120, 120, -150, 150, -170, 170];
 
-const AVATAR_FLAME_PATHS: AvatarFlamePath[] = TONGUE_SPECS.map((spec, index) => {
-  const lean = Math.min(0.82, 0.18 + Math.abs(spec.a) / 165);
-  const wiggle = (index % 2 === 0 ? 1 : -1) * 2.2;
+const AVATAR_FLAME_PATHS: AvatarFlamePath[] = FLAME_BASE_ANGLES.map((angle, index) => {
+  const upFactor = (1 + Math.cos(toRad(angle))) / 2; // 1 at top, 0 at bottom
+  const tipRadius = 34 + 12 * upFactor; // taller licks over the top
+  const halfWidth = 5.4 + 2.6 * upFactor;
+  const wiggle = (index % 2 === 0 ? 1 : -1) * 1.8;
   const rising = index % 2 === 0;
   return {
-    key: `tongue-${spec.a}`,
-    d: buildTongue(spec.a, spec.len, spec.w, lean, wiggle),
-    // Alternating ranges desync the flicker so neighbouring tongues never
-    // pulse in unison off a single driver.
-    opacity: rising ? [0.6, 0.98] : [0.85, 0.55],
-    scaleY: rising ? [0.9, 1.16] : [1.12, 0.92],
+    key: `tongue-${angle}`,
+    d: buildTongue(angle, tipRadius, 0.3, halfWidth, wiggle),
+    // Alternating ranges desync the flicker off a single driver.
+    opacity: rising ? [0.62, 0.98] : [0.86, 0.58],
+    scaleY: rising ? [0.92, 1.14] : [1.12, 0.94],
   };
 });
+
+const MARGIN_KEYS = [
+  'margin',
+  'marginTop',
+  'marginBottom',
+  'marginLeft',
+  'marginRight',
+  'marginHorizontal',
+  'marginVertical',
+  'marginStart',
+  'marginEnd',
+] as const;
 
 export const StreakAvatar = React.memo(({
   uri,
@@ -180,11 +188,24 @@ export const StreakAvatar = React.memo(({
     animatedScaleY: flicker.interpolate({ inputRange: [0, 1], outputRange: path.scaleY }),
   })), [flicker]);
 
+  // Split the caller's layout margins onto the wrapper so they never offset the
+  // avatar inside the frame (which would push the flame off-center).
+  const flatStyle = (StyleSheet.flatten(style) || {}) as Record<string, unknown>;
+  const wrapMargin: Record<string, unknown> = {};
+  const imageStyle: Record<string, unknown> = {};
+  Object.keys(flatStyle).forEach((key) => {
+    if ((MARGIN_KEYS as readonly string[]).includes(key)) {
+      wrapMargin[key] = flatStyle[key];
+    } else {
+      imageStyle[key] = flatStyle[key];
+    }
+  });
+
   const avatar = (
     <CachedImage
       uri={uri}
       fallbackUri={fallbackUri}
-      style={style}
+      style={tier ? imageStyle : style}
       recyclingKey={recyclingKey}
       accessibilityLabel={accessibilityLabel}
     />
@@ -204,7 +225,7 @@ export const StreakAvatar = React.memo(({
 
   return (
     <View
-      style={styles.wrap}
+      style={[styles.wrap, wrapMargin]}
       accessibilityLabel={
         accessibilityLabel ? `${accessibilityLabel}, ${streak} day streak` : `${streak} day streak`
       }
@@ -223,24 +244,24 @@ export const StreakAvatar = React.memo(({
               <LinearGradient
                 id={gradientId}
                 x1="50"
-                y1="80"
+                y1="78"
                 x2="50"
-                y2="6"
+                y2="8"
                 gradientUnits="userSpaceOnUse"
               >
                 <Stop offset="0" stopColor={tier.colors.core} stopOpacity="1" />
                 <Stop offset="0.5" stopColor={tier.colors.mid} stopOpacity="0.95" />
                 <Stop offset="1" stopColor={tier.colors.outer} stopOpacity="0.92" />
               </LinearGradient>
-              <RadialGradient id={glowId} cx="50" cy="54" r="48" gradientUnits="userSpaceOnUse">
-                <Stop offset="0.5" stopColor={tier.colors.mid} stopOpacity="0" />
-                <Stop offset="0.78" stopColor={tier.colors.mid} stopOpacity="0.32" />
+              <RadialGradient id={glowId} cx="50" cy="50" r="46" gradientUnits="userSpaceOnUse">
+                <Stop offset="0.58" stopColor={tier.colors.mid} stopOpacity="0" />
+                <Stop offset="0.82" stopColor={tier.colors.mid} stopOpacity="0.22" />
                 <Stop offset="1" stopColor={tier.colors.outer} stopOpacity="0" />
               </RadialGradient>
             </Defs>
 
             {/* Soft aura grounding the flame around the avatar. */}
-            <Circle cx="50" cy="54" r="48" fill={`url(#${glowId})`} />
+            <Circle cx="50" cy="50" r="46" fill={`url(#${glowId})`} />
 
             {flames.map((flame) => (
               <AnimatedPath
@@ -248,7 +269,7 @@ export const StreakAvatar = React.memo(({
                 d={flame.d}
                 fill={`url(#${gradientId})`}
                 opacity={flame.animatedOpacity}
-                origin="50, 74"
+                origin="50, 68"
                 scaleY={flame.animatedScaleY}
               />
             ))}
@@ -259,10 +280,10 @@ export const StreakAvatar = React.memo(({
       </View>
 
       {showCount ? (
-        <View pointerEvents="none" style={styles.countAnchor}>
+        <View pointerEvents="none" style={[styles.countAnchor, { left: size + Math.round(inset * 0.5) }]}>
           <View style={styles.countSide}>
-            <Flame color={colors.primary} fill={colors.primary} size={12} strokeWidth={2.5} />
-            <Text style={styles.countText}>{`${streak} day streak`}</Text>
+            <Flame color={colors.primary} fill={colors.primary} size={13} strokeWidth={2.5} />
+            <Text style={styles.countText} numberOfLines={1}>{`${streak} day streak`}</Text>
           </View>
         </View>
       ) : null}
@@ -287,22 +308,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 0,
   },
-  // Absolute + centered so the streak label never shifts the avatar layout
-  // (keeps the profile edit badge anchored to the avatar, not the label).
+  // Anchored to the avatar's right edge, vertically centered — beside the
+  // avatar (not underneath), absolute so it never shifts the avatar layout.
   countAnchor: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: -14,
-    alignItems: 'center',
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
     zIndex: 3,
   },
   countSide: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 999,
     backgroundColor: colors.background,
     borderWidth: 1,
