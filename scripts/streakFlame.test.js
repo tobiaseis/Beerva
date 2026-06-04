@@ -90,6 +90,14 @@ assert.match(streakAvatar, /getFlameTierConfig/);
 // Count label is gated behind showCount.
 assert.match(streakAvatar, /showCount/);
 assert.match(streakAvatar, /day streak/);
+// Profile count label should attach beside the avatar, not overlap the
+// username/edit button with a negative absolute bottom offset.
+assert.match(streakAvatar, /countSide/);
+assert.doesNotMatch(streakAvatar, /countPill:[\s\S]*?bottom:\s*-10/);
+// Flame geometry should use side-view layered shapes rather than a radial
+// top-down ring of identical tongues.
+assert.match(streakAvatar, /AVATAR_FLAME_PATHS/);
+assert.doesNotMatch(streakAvatar, /TONGUE_ANGLES\s*=\s*\[0,\s*45,\s*90/);
 
 console.log('StreakAvatar source assertions passed');
 
@@ -109,10 +117,16 @@ const profileScreen = readSource('src/screens/ProfileScreen.tsx');
 assert.match(profileScreen, /StreakAvatar/);
 assert.match(profileScreen, /showCount/);
 assert.match(profileScreen, /stats\.currentStreak|stats\?\.currentStreak/);
+assert.match(profileScreen, /followStatText/);
+assert.match(profileScreen, /followStat:\s*\{[\s\S]*?minHeight:\s*34/);
+assert.doesNotMatch(profileScreen, /minWidth:\s*216/);
 
 const userProfileScreen = readSource('src/screens/UserProfileScreen.tsx');
 assert.match(userProfileScreen, /StreakAvatar/);
 assert.match(userProfileScreen, /showCount/);
 assert.match(userProfileScreen, /stats\.currentStreak|stats\?\.currentStreak/);
+assert.match(userProfileScreen, /followStatText/);
+assert.match(userProfileScreen, /followStat:\s*\{[\s\S]*?minHeight:\s*34/);
+assert.doesNotMatch(userProfileScreen, /minWidth:\s*216/);
 
 console.log('profile wiring assertions passed');

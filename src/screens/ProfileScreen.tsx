@@ -468,26 +468,28 @@ export const ProfileScreen = ({ route }: any) => {
             style={styles.followStat}
             onPress={() => openFollowModal('followers')}
             activeOpacity={0.76}
+            hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel="Show followers"
+            accessibilityLabel={`Show ${followCounts.followers} followers`}
           >
-            <Text style={styles.followStatValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
-              {followCounts.followers}
+            <Text style={styles.followStatText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
+              <Text style={styles.followStatValue}>{followCounts.followers}</Text>
+              <Text style={styles.followStatLabel}> Followers</Text>
             </Text>
-            <Text style={styles.followStatLabel} numberOfLines={1}>Followers</Text>
           </TouchableOpacity>
           <View style={styles.followDivider} />
           <TouchableOpacity
             style={styles.followStat}
             onPress={() => openFollowModal('following')}
             activeOpacity={0.76}
+            hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel="Show following"
+            accessibilityLabel={`Show ${followCounts.following} following`}
           >
-            <Text style={styles.followStatValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
-              {followCounts.following}
+            <Text style={styles.followStatText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
+              <Text style={styles.followStatValue}>{followCounts.following}</Text>
+              <Text style={styles.followStatLabel}> Following</Text>
             </Text>
-            <Text style={styles.followStatLabel} numberOfLines={1}>Following</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -763,36 +765,40 @@ const styles = StyleSheet.create({
   },
   followStats: {
     flexDirection: 'row',
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.borderSoft,
-    borderRadius: radius.lg,
-    marginTop: 14,
-    minWidth: 216,
-    overflow: 'hidden',
-  },
-  followStat: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 50,
-    paddingVertical: 7,
-    paddingHorizontal: 12,
+    gap: 12,
+    marginTop: 14,
+  },
+  followStat: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 34,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+    borderRadius: radius.pill,
+  },
+  followStatText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    lineHeight: 20,
   },
   followStatValue: {
-    ...typography.h3,
-    color: colors.primary,
-    fontFamily: 'Righteous_400Regular',
-    lineHeight: 26,
+    color: colors.text,
+    fontFamily: typography.h3.fontFamily,
+    fontSize: 16,
+    lineHeight: 20,
+    fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
   followStatLabel: {
-    ...typography.caption,
-    marginTop: 0,
-    textAlign: 'center',
+    color: colors.textMuted,
+    fontSize: 14,
+    lineHeight: 20,
   },
   followDivider: {
     width: 1,
+    height: 16,
     backgroundColor: colors.borderSoft,
   },
   statsContainer: {
