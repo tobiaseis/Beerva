@@ -1,6 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createNavigationContainerRef, DefaultTheme, NavigationContainer, type Theme } from '@react-navigation/native';
+import {
+  createNavigationContainerRef,
+  DefaultTheme,
+  NavigationContainer,
+  type LinkingOptions,
+  type NavigatorScreenParams,
+  type Theme,
+} from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { PlusCircle, Trophy, User, Users } from 'lucide-react-native';
 import { View, ActivityIndicator, Platform, Image, useWindowDimensions } from 'react-native';
@@ -36,9 +43,47 @@ import { BeverageCatalogProvider } from '../lib/beverageCatalogContext';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
 
-const Tab = createBottomTabNavigator();
-const Stack = createNativeStackNavigator();
-const navigationRef = createNavigationContainerRef<Record<string, object | undefined>>();
+type MainTabParamList = {
+  Feed: undefined;
+  People: undefined;
+  Record: undefined;
+  Legends: undefined;
+  Profile: { showPushReminderHint?: boolean } | undefined;
+};
+
+type HangoverLaunchParams = {
+  targetType: 'session' | 'pub_crawl';
+  targetId: string;
+  notificationId?: string | null;
+};
+
+type ChugVerificationLaunchParams = {
+  attemptId: string;
+  notificationId?: string | null;
+};
+
+type RootStackParamList = {
+  MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;
+  UserProfile: { userId: string };
+  PubLegendDetail: { pubKey: string; pubId?: string | null; pubName?: string };
+  ChallengeDetail: { challengeSlug: string };
+  Notifications: undefined;
+  PostDetail: {
+    targetType?: 'session' | 'pub_crawl';
+    targetId?: string;
+    sessionId?: string;
+    notificationId?: string | null;
+  };
+  EditSession: { sessionId: string };
+  HangoverRating: HangoverLaunchParams;
+  ChugVerification: ChugVerificationLaunchParams;
+  FakeBeer: undefined;
+  AdminTools: undefined;
+};
+
+const Tab = createBottomTabNavigator<MainTabParamList>();
+const Stack = createNativeStackNavigator<RootStackParamList>();
+const navigationRef = createNavigationContainerRef<RootStackParamList>();
 const AUTH_BOOTSTRAP_TIMEOUT_MS = 12000;
 const PROFILE_CHECK_TIMEOUT_MS = 12000;
 const floatingTabBarBackground = '#172238';
@@ -61,6 +106,37 @@ const navigationTheme: Theme = {
   },
 };
 
+const linking: LinkingOptions<RootStackParamList> = {
+  enabled: Platform.OS === 'web',
+  prefixes: [],
+  config: {
+    initialRouteName: 'MainTabs',
+    screens: {
+      MainTabs: {
+        path: '',
+        initialRouteName: 'Feed',
+        screens: {
+          Feed: '',
+          People: 'people',
+          Record: 'record',
+          Legends: 'legends',
+          Profile: 'profile',
+        },
+      },
+      UserProfile: 'users/:userId',
+      PubLegendDetail: 'pub-legends/:pubKey',
+      ChallengeDetail: 'challenges/:challengeSlug',
+      Notifications: 'notifications',
+      PostDetail: 'posts/:targetType/:targetId',
+      EditSession: 'sessions/:sessionId/edit',
+      HangoverRating: 'hangover/:targetType/:targetId',
+      ChugVerification: 'chug-verification/:attemptId',
+      FakeBeer: 'fake-beer',
+      AdminTools: 'admin',
+    },
+  },
+};
+
 const shouldOpenNotificationsFromUrl = () => {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
   const params = new URLSearchParams(window.location.search);
@@ -71,17 +147,6 @@ const shouldOpenRecordFromUrl = () => {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return false;
   const params = new URLSearchParams(window.location.search);
   return params.get('tab') === 'record';
-};
-
-type HangoverLaunchParams = {
-  targetType: 'session' | 'pub_crawl';
-  targetId: string;
-  notificationId?: string | null;
-};
-
-type ChugVerificationLaunchParams = {
-  attemptId: string;
-  notificationId?: string | null;
 };
 
 const getHangoverLaunchParamsFromUrl = (): HangoverLaunchParams | null => {
@@ -200,6 +265,7 @@ const MainTabs = () => {
 
   return (
   <Tab.Navigator
+    backBehavior="history"
     screenOptions={{
       headerShown: false,
       sceneStyle: { backgroundColor: colors.background },
@@ -525,7 +591,7 @@ export const RootNavigator = () => {
   }
 
   return (
-    <NavigationContainer ref={navigationRef} onReady={() => setNavigationReady(true)} theme={navigationTheme}>
+    <NavigationContainer ref={navigationRef} linking={linking} onReady={() => setNavigationReady(true)} theme={navigationTheme}>
       {session && session.user ? (
         needsProfileSetup ? (
           <ProfileSetupScreen onComplete={() => checkProfileSetup(session, true)} />
@@ -538,6 +604,7 @@ export const RootNavigator = () => {
                     headerShown: false,
                     contentStyle: { backgroundColor: colors.background },
                     animation: 'slide_from_right',
+                    gestureEnabled: true,
                   }}
                 >
                   <Stack.Screen name="MainTabs" component={MainTabs} />
