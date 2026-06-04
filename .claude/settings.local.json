@@ -46,7 +46,16 @@
       "Bash(git stash *)",
       "Bash(node scripts/feedPagination.test.js)",
       "Bash(git commit -m 'fix: stop feed reordering under scroll on load-more \\(append-only pagination\\)' -m 'Root cause: the feed merges three independently-offset-paginated sources *)",
-      "Bash(git --no-pager log --oneline -2 -- src/lib/sessionFeedDetails.ts)"
+      "Bash(git --no-pager log --oneline -2 -- src/lib/sessionFeedDetails.ts)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); const d={...p.dependencies}; for \\(const k of Object.keys\\(d\\)\\) if\\(/reanimat|lottie|svg|skia|animat|moti|gif|expo-image/i.test\\(k\\)\\) console.log\\(k, d[k]\\);\")",
+      "Bash(node -e \"const a=require\\('./app.json'\\); console.log\\('platforms:', JSON.stringify\\(a.expo&&a.expo.platforms\\)\\); console.log\\('web:', JSON.stringify\\(a.expo&&a.expo.web\\)\\);\")",
+      "Bash(git commit -m ' *)",
+      "Bash(findstr /R \"profile_stats feed_details session_feed get_profile\")",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(JSON.stringify\\(p.scripts,null,1\\)\\)\")",
+      "Bash(node -e ' *)",
+      "Bash(node scripts/profileStats.test.js)",
+      "Bash(node scripts/streakFlame.test.js)",
+      "Bash(node -e \"const ts=require\\('typescript'\\);const fs=require\\('fs'\\);const src=fs.readFileSync\\('src/theme/typography.ts','utf8'\\);const {outputText}=ts.transpileModule\\(src,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}\\);const m=new \\(require\\('module'\\)\\)\\(\\);m._compile\\(outputText,''\\);console.log\\(Object.keys\\(m.exports.typography||{}\\)\\);\")"
     ]
   }
 }
