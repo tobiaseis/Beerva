@@ -4,6 +4,9 @@ import {
   PlaceCategory,
 } from './pubDirectory';
 import {
+  FriendPubWatchLeaderboards,
+  FriendPubWatchRow,
+  mapFriendPubWatchRows,
   mapPubKingSessionRow,
   mapPubLegendRow,
   PubKingSession,
@@ -44,6 +47,21 @@ export const fetchKingOfThePub = async (pubKey: string): Promise<PubKingSession[
     return ((data || []) as PubKingSessionRow[]).map(mapPubKingSessionRow);
   } catch (error) {
     throw new Error(getErrorMessage(error, 'Could not load King of the Pub.'));
+  }
+};
+
+export const fetchFriendPubWatchLeaderboards = async (): Promise<FriendPubWatchLeaderboards> => {
+  try {
+    const { data, error } = await withTimeout(
+      supabase.rpc('get_friend_pub_watch_leaderboards', { result_limit: 25 }),
+      PUB_LEGENDS_TIMEOUT_MS,
+      'Friend leaderboards are taking too long to load.'
+    );
+
+    if (error) throw error;
+    return mapFriendPubWatchRows((data || []) as FriendPubWatchRow[]);
+  } catch (error) {
+    throw new Error(getErrorMessage(error, 'Could not load friend leaderboards.'));
   }
 };
 
