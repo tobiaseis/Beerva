@@ -19,4 +19,10 @@ assert.match(
   'feed header should use tighter bottom padding around the Beerva logo'
 );
 
+assert.match(
+  feedScreenSource,
+  /<View style=\{styles\.logoContainer\}>[\s\S]*<View style=\{styles\.headerActions\}>[\s\S]*<LiveMateButton[\s\S]*<TouchableOpacity\s+style=\{styles\.bellButton\}/,
+  'feed header should place the live button between the Beerva logo area and notification bell'
+);
+
 console.log('feed header spacing checks passed');

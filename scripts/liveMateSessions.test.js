@@ -179,4 +179,16 @@ assert.match(liveSheetSource, /formatLiveStartedLabel\(session\.startedAt\)/, 'l
 assert.match(liveSheetSource, /Pub crawl/, 'live sheet should show a small pub crawl indicator');
 assert.match(liveSheetSource, /CachedImage/, 'live sheet should render avatars through CachedImage');
 
-console.log('live mate component checks passed');
+const feedScreenSource = fs.readFileSync(path.join(root, 'src/screens/FeedScreen.tsx'), 'utf8');
+
+assert.match(feedScreenSource, /import \{ LiveMateButton \} from '\.\.\/components\/LiveMateButton';/, 'Feed should import LiveMateButton');
+assert.match(feedScreenSource, /import \{ LiveMateSessionsSheet \} from '\.\.\/components\/LiveMateSessionsSheet';/, 'Feed should import LiveMateSessionsSheet');
+assert.match(feedScreenSource, /import \{ useLiveMateSessions \} from '\.\.\/lib\/useLiveMateSessions';/, 'Feed should import live mate hook');
+assert.match(feedScreenSource, /const \{ sessions: liveMateSessions,[\s\S]*refresh: refreshLiveMateSessions \} = useLiveMateSessions\(\);/, 'Feed should read live mate hook state');
+assert.match(feedScreenSource, /useFocusEffect\(\s*useCallback\(\(\) => \{\s*refreshLiveMateSessions\(\);/, 'Feed should refresh live mates on focus');
+assert.match(feedScreenSource, /liveMateSessions\.length === 0[\s\S]*setLiveMateSheetVisible\(false\)/, 'Feed should close the sheet when the live list empties');
+assert.match(feedScreenSource, /<LiveMateButton\s+count=\{liveMateSessions\.length\}\s+onPress=\{\(\) => setLiveMateSheetVisible\(true\)\}/, 'Feed should render the button only when live mates exist');
+assert.match(feedScreenSource, /<LiveMateSessionsSheet\s+visible=\{liveMateSheetVisible\}\s+sessions=\{liveMateSessions\}/, 'Feed should mount the top sheet');
+assert.match(feedScreenSource, /styles\.headerActions/, 'Feed header should group live button and bell actions');
+
+console.log('live mate feed wiring checks passed');

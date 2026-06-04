@@ -41,7 +41,10 @@ import { OfficialFeedPost } from '../lib/officialFeedPosts';
 import { fetchOfficialFeedPostsForFeedPage, fetchOfficialPostLinkedChallengeSummaries } from '../lib/officialFeedPostsApi';
 import { OfficialFeedPostCard } from '../components/OfficialFeedPostCard';
 import { FakeBeerUnlockOverlay } from '../components/FakeBeerUnlockOverlay';
+import { LiveMateButton } from '../components/LiveMateButton';
+import { LiveMateSessionsSheet } from '../components/LiveMateSessionsSheet';
 import { requestWebMotionPermission } from '../lib/webMotionPermission';
+import { useLiveMateSessions } from '../lib/useLiveMateSessions';
 import {
   fetchSessionBuddySummaries,
   formatDrinkingBuddyNames,
@@ -774,6 +777,8 @@ export const FeedScreen = ({ route }: any) => {
   const [pullDistance, setPullDistance] = useState(0);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [fakeBeerUnlocking, setFakeBeerUnlocking] = useState(false);
+  const [liveMateSheetVisible, setLiveMateSheetVisible] = useState(false);
+  const { sessions: liveMateSessions, refresh: refreshLiveMateSessions } = useLiveMateSessions();
   const sessionsRef = useRef<FeedItem[]>([]);
   const loadedSessionCountRef = useRef(0);
   const loadedCrawlCountRef = useRef(0);
@@ -801,6 +806,12 @@ export const FeedScreen = ({ route }: any) => {
   useEffect(() => {
     cheeringSessionIdsRef.current = cheeringSessionIds;
   }, [cheeringSessionIds]);
+
+  useEffect(() => {
+    if (liveMateSessions.length === 0) {
+      setLiveMateSheetVisible(false);
+    }
+  }, [liveMateSessions.length]);
 
   const fetchSessions = useCallback(async ({ reset = false }: { reset?: boolean } = {}) => {
     if (!reset && (loadingMoreRef.current || refreshingRef.current || !hasMoreRef.current)) {
@@ -1079,6 +1090,12 @@ export const FeedScreen = ({ route }: any) => {
       fetchSessions({ reset: true });
       fetchActiveChallengeSummary();
     }, [fetchActiveChallengeSummary, fetchSessions])
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshLiveMateSessions();
+    }, [refreshLiveMateSessions])
   );
 
   useEffect(() => {
@@ -1776,18 +1793,34 @@ export const FeedScreen = ({ route }: any) => {
             <Text style={styles.logoText}>Beerva</Text>
           </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={styles.bellButton}
-          onPress={() => navigation.navigate('Notifications')}
-        >
-          <Bell color={colors.text} size={24} />
-          {unreadCount > 0 && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          {liveMateSessions.length > 0 ? (
+            <LiveMateButton
+              count={liveMateSessions.length}
+              onPress={() => setLiveMateSheetVisible(true)}
+            />
+          ) : null}
+          <TouchableOpacity
+            style={styles.bellButton}
+            onPress={() => navigation.navigate('Notifications')}
+            accessibilityRole="button"
+            accessibilityLabel="Open notifications"
+          >
+            <Bell color={colors.text} size={24} />
+            {unreadCount > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
+
+      <LiveMateSessionsSheet
+        visible={liveMateSheetVisible}
+        sessions={liveMateSessions}
+        onClose={() => setLiveMateSheetVisible(false)}
+      />
 
       {fetchError && !loading ? (
         <View style={styles.errorBanner}>
@@ -2057,6 +2090,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   bellButton: {
     padding: 8,
     position: 'relative',
@@ -2087,6 +2125,8 @@ const styles = StyleSheet.create({
   logoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexShrink: 1,
+    minWidth: 0,
   },
   logoTextTrigger: {
     minHeight: 44,
