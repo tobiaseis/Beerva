@@ -23,7 +23,7 @@ type NotificationRow = {
   id: string;
   user_id: string;
   actor_id: string | null;
-  type: 'cheer' | 'invite' | 'session_started' | 'comment' | 'invite_response' | 'pub_crawl_started' | 'hangover_check' | 'follow' | 'chug_verification' | 'drinking_buddy_added' | 'official_post';
+  type: 'cheer' | 'invite' | 'session_started' | 'comment' | 'mention' | 'invite_response' | 'pub_crawl_started' | 'hangover_check' | 'follow' | 'chug_verification' | 'drinking_buddy_added' | 'official_post';
   reference_id: string | null;
   metadata?: {
     pub_name?: string | null;
@@ -37,6 +37,9 @@ type NotificationRow = {
     push_title?: string | null;
     push_body?: string | null;
     challenge_slug?: string | null;
+    surface?: 'post' | 'comment' | string | null;
+    mention_id?: string | null;
+    source_id?: string | null;
   } | null;
 };
 
@@ -151,6 +154,11 @@ Deno.serve(async (req) => {
   } else if (record.type === 'comment') {
     title = 'New comment';
     bodyText = `${actorName} commented on your beer session`;
+  } else if (record.type === 'mention') {
+    title = 'New mention';
+    bodyText = record.metadata?.surface === 'post'
+      ? `${actorName} mentioned you in a post`
+      : `${actorName} mentioned you in a comment`;
   } else if (record.type === 'follow') {
     title = 'New follower';
     bodyText = `${actorName} started following you`;
@@ -197,8 +205,8 @@ Deno.serve(async (req) => {
     url = `/?post=${encodeURIComponent(buddySessionId)}&post_type=session&notificationId=${encodeURIComponent(record.id)}`;
   } else if (record.type === 'drinking_buddy_added') {
     url = `/?notifications=1&notificationId=${encodeURIComponent(record.id)}`;
-  } else if ((record.type === 'cheer' || record.type === 'comment') && record.reference_id) {
-    // Deep-link straight to the post that was cheered/commented on.
+  } else if ((record.type === 'cheer' || record.type === 'comment' || record.type === 'mention') && record.reference_id) {
+    // Deep-link straight to the post that was cheered, commented on, or mentioned the user.
     url = `/?post=${encodeURIComponent(record.reference_id)}&post_type=${encodeURIComponent(postTargetType)}&notificationId=${encodeURIComponent(record.id)}`;
   } else {
     url = `/?notifications=1&notificationId=${encodeURIComponent(record.id)}`;

@@ -26,6 +26,7 @@ type NotificationType =
   | 'invite'
   | 'session_started'
   | 'comment'
+  | 'mention'
   | 'invite_response'
   | 'pub_crawl_started'
   | 'hangover_check'
@@ -361,6 +362,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
     if (item.type === 'cheer') return <Beer color={colors.primary} size={24} />;
     if (item.type === 'hangover_check') return <Coffee color={colors.primary} size={24} />;
     if (item.type === 'comment') return <MessageCircle color={colors.primary} size={24} />;
+    if (item.type === 'mention') return <MessageCircle color={colors.primary} size={24} />;
     if (item.type === 'follow') return <UserPlus color={colors.primary} size={24} />;
     if (item.type === 'drinking_buddy_added') return <UserPlus color={colors.primary} size={24} />;
     if (item.type === 'chug_verification') return <Timer color={colors.primary} size={24} />;
@@ -413,7 +415,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
     const decliningBuddy = Boolean(item.buddy?.id && decliningBuddyIds.has(item.buddy.id));
     const opensBuddyPost = item.type === 'drinking_buddy_added'
       && item.session?.status === 'published';
-    const postTarget = (item.type === 'cheer' || item.type === 'comment' || opensBuddyPost)
+    const postTarget = (item.type === 'cheer' || item.type === 'comment' || item.type === 'mention' || opensBuddyPost)
       ? getNotificationPostTarget(item)
       : null;
     const opensPost = Boolean(postTarget);

@@ -209,6 +209,30 @@ assert.match(updatedPostDetailSource, /MentionText/, 'post detail comments shoul
 const pubCrawlCardSource = fs.readFileSync(path.join(root, 'src/components/PubCrawlFeedCard.tsx'), 'utf8');
 assert.match(pubCrawlCardSource, /MentionText/, 'pub crawl card should render stop captions with MentionText');
 
+const notificationMessages = loadTypeScriptModule('src/lib/notificationMessages.ts');
+assert.equal(
+  notificationMessages.getNotificationMessage({ type: 'mention', metadata: { surface: 'comment' } }),
+  ' mentioned you in a comment.',
+  'mention comment notifications should use comment copy'
+);
+assert.equal(
+  notificationMessages.getNotificationMessage({ type: 'mention', metadata: { surface: 'post' } }),
+  ' mentioned you in a post.',
+  'mention post notifications should use post copy'
+);
+
+const notificationsScreenSourceForMention = fs.readFileSync(path.join(root, 'src/screens/NotificationsScreen.tsx'), 'utf8');
+assert.match(notificationsScreenSourceForMention, /\| 'mention'/, 'notifications screen should include mention type');
+assert.match(notificationsScreenSourceForMention, /item\.type === 'mention'/, 'notifications screen should route mention rows');
+assert.match(notificationsScreenSourceForMention, /Open this post/, 'mention notifications should open the referenced post');
+
+const sendPushSource = fs.readFileSync(path.join(root, 'supabase/functions/send-push/index.ts'), 'utf8');
+assert.match(sendPushSource, /\| 'mention'/, 'push delivery should include mention type');
+assert.match(sendPushSource, /record\.type === 'mention'/, 'push delivery should branch on mention');
+assert.match(sendPushSource, /New mention/, 'mention push should use New mention title');
+assert.match(sendPushSource, /mentioned you in a comment|mentioned you in a post/, 'mention push should include surface-specific body');
+assert.match(sendPushSource, /record\.type === 'cheer' \|\| record\.type === 'comment' \|\| record\.type === 'mention'/, 'mention push should deep-link to posts with cheer/comment routing');
+
 const calls = [];
 const fakeSupabase = {
   from(table) {

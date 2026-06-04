@@ -14,6 +14,9 @@ export type NotificationMetadata = {
   push_body?: string | null;
   challenge_id?: string | null;
   challenge_slug?: string | null;
+  surface?: 'post' | 'comment' | string | null;
+  mention_id?: string | null;
+  source_id?: string | null;
 };
 
 export type NotificationMessageInput = {
@@ -48,6 +51,11 @@ export const getOfficialNotificationBody = (item: NotificationMessageInput) => (
 export const getNotificationMessage = (item: NotificationMessageInput) => {
   if (item.type === 'cheer') return ' cheered your session!';
   if (item.type === 'comment') return ' commented on your session.';
+  if (item.type === 'mention') {
+    return item.metadata?.surface === 'post'
+      ? ' mentioned you in a post.'
+      : ' mentioned you in a comment.';
+  }
   if (item.type === 'follow') return ' started following you.';
   if (item.type === 'session_started') {
     const pubName = getNotificationPubName(item);
