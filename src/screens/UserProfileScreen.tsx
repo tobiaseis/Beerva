@@ -570,7 +570,7 @@ const styles = StyleSheet.create({
   },
   avatarContainer: {
     position: 'relative',
-    alignItems: 'center',
+    marginBottom: 16,
   },
   avatar: {
     width: Platform.OS === 'web' ? 104 : 120,
@@ -578,7 +578,6 @@ const styles = StyleSheet.create({
     borderRadius: Platform.OS === 'web' ? 52 : 60,
     borderWidth: 3,
     borderColor: colors.primaryBorder,
-    marginBottom: 16,
   },
   followStats: {
     flexDirection: 'row',

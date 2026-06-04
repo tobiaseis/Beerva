@@ -300,11 +300,13 @@ const styles = StyleSheet.create({
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'visible',
   },
   flameStage: {
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'visible',
   },
   flameSvg: {
     ...StyleSheet.absoluteFillObject,
