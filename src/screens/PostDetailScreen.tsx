@@ -27,6 +27,7 @@ import { notifyContentMentionsSafely } from '../lib/mentionNotifications';
 import { SessionBeer } from '../lib/sessionBeers';
 import { mapChugAttemptRow, SessionChugAttemptRow } from '../lib/chugAttempts';
 import { supabase } from '../lib/supabase';
+import { fetchCurrentStreaks } from '../lib/currentStreaks';
 import { confirmDestructive } from '../lib/dialogs';
 import { deletePublicImageUrl } from '../lib/imageUpload';
 import { hapticLight, hapticWarning } from '../lib/haptics';
@@ -295,6 +296,9 @@ export const PostDetailScreen = () => {
         }
       }
 
+      const authorStreaks = await fetchCurrentStreaks([sessionRow.user_id]);
+      const authorCurrentStreak = authorStreaks.get(sessionRow.user_id) || 0;
+
       const sessionBeers = beerRows.length > 0
         ? beerRows
         : (sessionRow.beer_name
@@ -321,6 +325,7 @@ export const PostDetailScreen = () => {
         session_chug_attempts: chugRows,
         drinking_buddies: buddiesBySession.get(sessionId) || [],
         profiles: profilesById.get(sessionRow.user_id) || null,
+        author_current_streak: authorCurrentStreak,
         mentions: postMentionsBySource.get(sessionRow.id) || [],
         cheer_profiles: cheerRows
           .map((cheer) => profilesById.get(cheer.user_id))

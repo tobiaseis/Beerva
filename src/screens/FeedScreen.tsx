@@ -10,6 +10,7 @@ import { appendFeedPage, sortFeedItemsByPublishedAt } from '../lib/feedPaginatio
 import { confirmDestructive } from '../lib/dialogs';
 import { useFocusEffect, useNavigation, useScrollToTop } from '@react-navigation/native';
 import { CachedImage } from '../components/CachedImage';
+import { StreakAvatar } from '../components/StreakAvatar';
 import { MentionComposer } from '../components/MentionComposer';
 import { MentionText } from '../components/MentionText';
 import { deletePublicImageUrl } from '../lib/imageUpload';
@@ -116,6 +117,7 @@ export type FeedSession = {
     username?: string | null;
     avatar_url?: string | null;
   } | null;
+  author_current_streak?: number | null;
   cheer_profiles: ProfilePreview[];
   comments: FeedComment[];
   mentions?: ContentMention[];
@@ -429,12 +431,14 @@ export const FeedSessionCard = React.memo(({
           onPress={() => onOpenProfile(item.user_id)}
           activeOpacity={0.75}
         >
-          <CachedImage
+          <StreakAvatar
             uri={item.profiles?.avatar_url}
             fallbackUri={`https://i.pravatar.cc/150?u=${item.user_id}`}
+            size={38}
             style={styles.avatar}
             recyclingKey={`avatar-${item.user_id}-${item.profiles?.avatar_url || 'fallback'}`}
             accessibilityLabel={`${username}'s avatar`}
+            streak={item.author_current_streak || 0}
           />
           <View style={styles.userInfo}>
             <Text style={styles.userName} numberOfLines={1}>{username}</Text>
@@ -1011,6 +1015,7 @@ export const FeedScreen = ({ route }: any) => {
             profiles: detail?.author
               ? { username: detail.author.username, avatar_url: detail.author.avatarUrl }
               : null,
+            author_current_streak: detail?.authorCurrentStreak ?? 0,
             cheer_profiles: detailCheers.map((cheer) => ({
               id: cheer.userId,
               username: cheer.username,

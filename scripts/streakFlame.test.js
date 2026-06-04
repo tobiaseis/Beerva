@@ -92,3 +92,14 @@ assert.match(streakAvatar, /showCount/);
 assert.match(streakAvatar, /day streak/);
 
 console.log('StreakAvatar source assertions passed');
+
+// --- Surface wiring assertions ---
+const feedScreen = readSource('src/screens/FeedScreen.tsx');
+assert.match(feedScreen, /StreakAvatar/);
+assert.match(feedScreen, /author_current_streak/);
+
+const postDetail = readSource('src/screens/PostDetailScreen.tsx');
+assert.match(postDetail, /fetchCurrentStreaks/);
+assert.match(postDetail, /author_current_streak/);
+
+console.log('feed/post wiring assertions passed');
