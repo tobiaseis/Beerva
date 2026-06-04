@@ -114,3 +114,31 @@ assert.match(feedScreenSource, /fetchSessionBuddySummaries/, 'feed should still 
 assert.match(feedScreenSource, /get_session_chug_attempt_summaries/, 'feed should still fetch chug summaries');
 
 console.log('session feed details checks passed');
+
+// author_current_streak maps through, defaulting to 0 when absent
+const streakRow = feedDetails.mapSessionFeedDetailRow({
+  session_id: 's-streak',
+  author_username: 'streaker',
+  author_avatar_url: null,
+  cheers_count: 0,
+  cheers: [],
+  beers: [],
+  comments: [],
+  photos: [],
+  author_current_streak: 5,
+});
+assert.equal(streakRow.authorCurrentStreak, 5);
+
+const noStreakRow = feedDetails.mapSessionFeedDetailRow({
+  session_id: 's-nostreak',
+  author_username: 'casual',
+  author_avatar_url: null,
+  cheers_count: 0,
+  cheers: [],
+  beers: [],
+  comments: [],
+  photos: [],
+});
+assert.equal(noStreakRow.authorCurrentStreak, 0);
+
+console.log('author current streak mapping passed');

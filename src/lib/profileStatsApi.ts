@@ -24,6 +24,7 @@ type ProfileStatsRpcRow = {
   max_jagerbombs_in_one_day?: number | null;
   sambuca_count?: number | null;
   max_sambucas_in_one_day?: number | null;
+  current_streak?: number | null;
 };
 
 export type PintTimelinePoint = {
@@ -60,6 +61,7 @@ const statsFromRpcRow = (row?: ProfileStatsRpcRow | null): Stats => {
     maxJagerbombsInOneDay: numberOrZero(row.max_jagerbombs_in_one_day),
     sambucaCount: numberOrZero(row.sambuca_count),
     maxSambucasInOneDay: numberOrZero(row.max_sambucas_in_one_day),
+    currentStreak: numberOrZero(row.current_streak),
   };
 };
 

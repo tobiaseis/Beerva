@@ -36,6 +36,7 @@ export type SessionFeedDetail = {
   commentsCount: number;
   beers: SessionBeer[];
   photos: SessionPhoto[];
+  authorCurrentStreak: number;
 };
 
 type SessionFeedDetailRow = {
@@ -47,6 +48,7 @@ type SessionFeedDetailRow = {
   beers: unknown;
   comments: unknown;
   photos: unknown;
+  author_current_streak?: number | null;
 };
 
 const asArray = <T>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);
@@ -82,6 +84,7 @@ export const mapSessionFeedDetailRow = (row: SessionFeedDetailRow): SessionFeedD
     commentsCount: comments.length,
     beers: asArray<SessionBeer>(row.beers),
     photos: asArray<SessionPhoto>(row.photos),
+    authorCurrentStreak: Number(row.author_current_streak || 0),
   };
 };
 
