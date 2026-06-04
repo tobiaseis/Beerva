@@ -28,6 +28,7 @@ const apiPath = 'src/lib/pubLegendsApi.ts';
 const legendsScreenPath = 'src/screens/PubLegendsScreen.tsx';
 const legendDetailScreenPath = 'src/screens/PubLegendDetailScreen.tsx';
 const migrationPath = 'supabase/migrations/20260510133000_add_pub_legends_leaderboards.sql';
+const friendLeaderboardsMigrationPath = 'supabase/migrations/20260604160000_add_pub_legends_friend_leaderboards.sql';
 const placeCategoryMigrationPath = 'supabase/migrations/20260513120000_add_pub_place_category.sql';
 const placeCategoryRepairMigrationPath = 'supabase/migrations/20260518113000_add_pub_place_category_repair_rpc.sql';
 const legacySessionRepairMigrationPath = 'supabase/migrations/20260518114500_link_legacy_sessions_on_place_exclusion.sql';
@@ -39,6 +40,10 @@ assert.ok(
 assert.ok(
   fs.existsSync(path.resolve(__dirname, '..', migrationPath)),
   'Pub Legends should add Supabase leaderboard RPCs'
+);
+assert.ok(
+  fs.existsSync(path.resolve(__dirname, '..', friendLeaderboardsMigrationPath)),
+  'Pub Legends should add follows-only friend leaderboard RPCs'
 );
 assert.ok(
   fs.existsSync(path.resolve(__dirname, '..', placeCategoryMigrationPath)),
@@ -53,7 +58,14 @@ assert.ok(
   'A follow-up migration should update already-applied place repair RPCs for legacy name-only sessions'
 );
 
-const { formatTruePints, mapPubKingSessionRow, mapPubLegendRow } = loadTypeScriptModule(helpersPath);
+const {
+  formatHoursSinceLastDrink,
+  formatTruePints,
+  mapFriendPubWatchRow,
+  mapFriendPubWatchRows,
+  mapPubKingSessionRow,
+  mapPubLegendRow,
+} = loadTypeScriptModule(helpersPath);
 
 assert.deepEqual(
   mapPubLegendRow({
@@ -115,11 +127,95 @@ assert.deepEqual(
   'King of the Pub rows should preserve the winning session metadata'
 );
 
+assert.deepEqual(
+  mapFriendPubWatchRow({
+    leaderboard_type: 'active_streak',
+    rank: '1',
+    user_id: 'user-3',
+    username: 'Sofie',
+    avatar_url: 'https://example.com/sofie.png',
+    current_streak: '8',
+    latest_drink_at: '2026-06-04T18:00:00.000Z',
+    hours_since_last_drink: null,
+  }),
+  {
+    leaderboardType: 'active_streak',
+    rank: 1,
+    userId: 'user-3',
+    username: 'Sofie',
+    avatarUrl: 'https://example.com/sofie.png',
+    currentStreak: 8,
+    latestDrinkAt: '2026-06-04T18:00:00.000Z',
+    hoursSinceLastDrink: 0,
+  },
+  'friend active-streak rows should map snake_case Supabase results to app-friendly data'
+);
+
+assert.deepEqual(
+  mapFriendPubWatchRows([
+    {
+      leaderboard_type: 'active_streak',
+      rank: 1,
+      user_id: 'user-1',
+      username: 'Mads',
+      avatar_url: null,
+      current_streak: 4,
+      latest_drink_at: '2026-06-04T19:00:00.000Z',
+      hours_since_last_drink: null,
+    },
+    {
+      leaderboard_type: 'most_overdue',
+      rank: 1,
+      user_id: 'user-2',
+      username: 'Nora',
+      avatar_url: null,
+      current_streak: 0,
+      latest_drink_at: '2026-05-30T19:00:00.000Z',
+      hours_since_last_drink: '142',
+    },
+  ]),
+  {
+    activeStreaks: [
+      {
+        leaderboardType: 'active_streak',
+        rank: 1,
+        userId: 'user-1',
+        username: 'Mads',
+        avatarUrl: null,
+        currentStreak: 4,
+        latestDrinkAt: '2026-06-04T19:00:00.000Z',
+        hoursSinceLastDrink: 0,
+      },
+    ],
+    mostOverdue: [
+      {
+        leaderboardType: 'most_overdue',
+        rank: 1,
+        userId: 'user-2',
+        username: 'Nora',
+        avatarUrl: null,
+        currentStreak: 0,
+        latestDrinkAt: '2026-05-30T19:00:00.000Z',
+        hoursSinceLastDrink: 142,
+      },
+    ],
+  },
+  'friend leaderboard rows should split into active streak and most overdue lists'
+);
+
 assert.equal(formatTruePints(8.25), '8.3 true pints');
 assert.equal(formatTruePints(1), '1.0 true pint');
 assert.equal(formatTruePints(Number.NaN), '0.0 true pints');
+assert.equal(formatHoursSinceLastDrink(0), '0h');
+assert.equal(formatHoursSinceLastDrink(1), '1h');
+assert.equal(formatHoursSinceLastDrink(142), '142h');
+assert.equal(formatHoursSinceLastDrink(Number.NaN), '0h');
 
 const migrationSql = fs.readFileSync(path.resolve(__dirname, '..', migrationPath), 'utf8');
+const friendLeaderboardsMigrationSql = fs.readFileSync(
+  path.resolve(__dirname, '..', friendLeaderboardsMigrationPath),
+  'utf8'
+);
 const placeCategoryMigrationSql = fs.readFileSync(path.resolve(__dirname, '..', placeCategoryMigrationPath), 'utf8');
 const placeCategoryRepairMigrationSql = fs.readFileSync(path.resolve(__dirname, '..', placeCategoryRepairMigrationPath), 'utf8');
 const legacySessionRepairMigrationSql = fs.readFileSync(path.resolve(__dirname, '..', legacySessionRepairMigrationPath), 'utf8');
@@ -153,6 +249,41 @@ assert.match(migrationSql, /get_pub_legends/, 'migration should create get_pub_l
 assert.match(migrationSql, /get_pub_king_of_the_pub/, 'migration should create get_pub_king_of_the_pub');
 assert.match(migrationSql, /status\s*=\s*'published'/, 'leaderboards should only use published sessions');
 assert.match(migrationSql, /beerva_serving_volume_ml/, 'leaderboards should calculate true pints from serving volume');
+assert.match(
+  friendLeaderboardsMigrationSql,
+  /create or replace function public\.get_friend_pub_watch_leaderboards\(result_limit integer default 25\)/i,
+  'friend watch migration should create get_friend_pub_watch_leaderboards'
+);
+assert.match(
+  friendLeaderboardsMigrationSql,
+  /follows\.follower_id\s*=\s*\(select auth\.uid\(\)\)/i,
+  'friend watch leaderboard should scope rows to people the viewer follows'
+);
+assert.doesNotMatch(
+  friendLeaderboardsMigrationSql,
+  /following_id\s*=\s*\(select auth\.uid\(\)\)/i,
+  'friend watch leaderboard should not include the current viewer as a ranked friend'
+);
+assert.match(
+  friendLeaderboardsMigrationSql,
+  /public\.get_current_streaks/i,
+  'active streak leaderboard should reuse the canonical current streak function'
+);
+assert.match(
+  friendLeaderboardsMigrationSql,
+  /coalesce\(session_beers\.consumed_at,\s*sessions\.started_at,\s*sessions\.created_at\)/i,
+  'most overdue leaderboard should prefer consumed_at with session timestamp fallbacks'
+);
+assert.match(
+  friendLeaderboardsMigrationSql,
+  /round\(extract\(epoch from \(now\(\) - latest_drink_at\)\) \/ 3600\.0\)::integer/i,
+  'most overdue leaderboard should round time since last drink to whole hours'
+);
+assert.match(
+  friendLeaderboardsMigrationSql,
+  /grant execute on function public\.get_friend_pub_watch_leaderboards\(integer\) to authenticated/i,
+  'authenticated users should be able to call friend watch leaderboard RPC'
+);
 
 assert.match(
   placeCategoryRepairMigrationSql,
@@ -218,9 +349,54 @@ assert.match(
 const apiSource = fs.readFileSync(path.resolve(__dirname, '..', apiPath), 'utf8');
 assert.match(apiSource, /setPubPlaceCategory/, 'Pub Legends API should expose a place reclassification helper');
 assert.match(apiSource, /set_pub_place_category/, 'Pub Legends API helper should call the repair RPC');
+assert.match(
+  apiSource,
+  /fetchFriendPubWatchLeaderboards/,
+  'Pub Legends API should expose a friend watch leaderboard fetch helper'
+);
+assert.match(
+  apiSource,
+  /get_friend_pub_watch_leaderboards/,
+  'Pub Legends API helper should call the friend watch RPC'
+);
 
 const legendsScreenSource = fs.readFileSync(path.resolve(__dirname, '..', legendsScreenPath), 'utf8');
 assert.match(legendsScreenSource, /pubId: item\.pubId/, 'Pub Legends list should pass pubId into the detail screen');
+assert.match(
+  legendsScreenSource,
+  /Friends on Watch/,
+  'Pub Legends screen should label the compact friend watch strip'
+);
+assert.match(
+  legendsScreenSource,
+  /Hottest streak/,
+  'Pub Legends screen should render the hottest streak spotlight tile'
+);
+assert.match(
+  legendsScreenSource,
+  /Most overdue/,
+  'Pub Legends screen should render the most overdue spotlight tile'
+);
+assert.match(
+  legendsScreenSource,
+  /Back to pubs/,
+  'friend leaderboard view should provide a same-screen return control'
+);
+assert.doesNotMatch(
+  legendsScreenSource,
+  /your rank|own rank|current user rank/i,
+  'spotlight tiles should not render the viewer rank copy'
+);
+assert.match(
+  legendsScreenSource,
+  /colors\.dangerSoft/,
+  'Most overdue tile should use the light red danger treatment'
+);
+assert.match(
+  legendsScreenSource,
+  /colors\.primarySoft/,
+  'Hottest streak tile should use the light yellow primary treatment'
+);
 
 const legendDetailSource = fs.readFileSync(path.resolve(__dirname, '..', legendDetailScreenPath), 'utf8');
 assert.match(legendDetailSource, /Exclude from Pub Legends/, 'Pub Legend detail should expose a cleanup action for wrongly categorized private places');
