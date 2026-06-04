@@ -76,6 +76,28 @@ assert.deepEqual(
   'RPC payload should contain only selected mentions still present in text'
 );
 
+const mentionMigrationPath = path.join(root, 'supabase/migrations/20260604140000_add_content_mentions.sql');
+assert.equal(fs.existsSync(mentionMigrationPath), true, 'content mentions migration should exist');
+
+const mentionSql = fs.existsSync(mentionMigrationPath)
+  ? fs.readFileSync(mentionMigrationPath, 'utf8')
+  : '';
+
+assert.match(mentionSql, /create table if not exists public\.content_mentions/i, 'migration should create content_mentions');
+assert.match(mentionSql, /mentioned_user_id uuid not null references auth\.users\(id\) on delete cascade/i, 'mentions should reference mentioned users');
+assert.match(mentionSql, /actor_id uuid not null references auth\.users\(id\) on delete cascade/i, 'mentions should reference actors');
+assert.match(mentionSql, /target_type text not null/i, 'mentions should store typed post targets');
+assert.match(mentionSql, /surface text not null/i, 'mentions should store post or comment surface');
+assert.match(mentionSql, /unique index if not exists content_mentions_user_source_idx/i, 'mentions should dedupe per mentioned user and source');
+assert.match(mentionSql, /alter table public\.content_mentions enable row level security/i, 'mentions should enable RLS');
+assert.match(mentionSql, /create or replace function public\.create_content_mentions/i, 'migration should create the mention RPC');
+assert.match(mentionSql, /security definer/i, 'mention RPC should run as definer');
+assert.match(mentionSql, /jsonb_array_length\(mention_candidates\) > 10/i, 'mention RPC should cap mention candidates');
+assert.match(mentionSql, /insert into public\.notifications[\s\S]*'mention'/i, 'mention RPC should insert mention notifications');
+assert.match(mentionSql, /target_owner_id is null[\s\S]*target_owner_id <> inserted_mention\.mentioned_user_id/i, 'mention RPC should skip duplicate comment-owner notifications');
+assert.match(mentionSql, /grant execute on function public\.create_content_mentions/i, 'authenticated users should execute mention RPC');
+assert.match(mentionSql, /notify pgrst, 'reload schema'/i, 'migration should reload PostgREST schema');
+
 const calls = [];
 const fakeSupabase = {
   from(table) {
