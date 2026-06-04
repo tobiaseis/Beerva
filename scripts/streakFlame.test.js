@@ -52,3 +52,27 @@ for (const t of [1, 2, 3, 4]) {
 }
 
 console.log('streakFlame tier tests passed');
+
+// --- Migration assertions ---
+const migration = readSource('supabase/migrations/20260604150000_add_current_streaks.sql');
+
+assert.match(migration, /create or replace function public\.get_current_streaks\(user_ids uuid\[\]\)/);
+// Reuses the 6am Copenhagen drinking-day definition.
+assert.match(migration, /timezone\('Europe\/Copenhagen'/);
+assert.match(migration, /interval '6 hours'/);
+// Active-window guard: most recent drinking day is today or yesterday.
+assert.match(migration, /- 1\)\s*\n?\s*then/);
+// Only published sessions count.
+assert.match(migration, /status = 'published'/);
+// Both read RPCs are redefined and reference the canonical function.
+assert.match(migration, /create or replace function public\.get_profile_stats\(target_user_id uuid\)/);
+assert.match(migration, /current_streak integer/);
+assert.match(migration, /create or replace function public\.get_session_feed_details\(session_ids uuid\[\]\)/);
+assert.match(migration, /author_current_streak integer/);
+assert.ok((migration.match(/public\.get_current_streaks\(/g) || []).length >= 3,
+  'get_current_streaks should be defined once and called from both read RPCs');
+// Grants follow existing conventions.
+assert.match(migration, /grant execute on function public\.get_current_streaks\(uuid\[\]\) to authenticated/);
+assert.match(migration, /notify pgrst, 'reload schema'/);
+
+console.log('streak migration assertions passed');
