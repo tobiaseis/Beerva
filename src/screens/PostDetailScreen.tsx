@@ -17,11 +17,12 @@ import { ArrowLeft, MessageCircle, Send } from 'lucide-react-native';
 import { CachedImage } from '../components/CachedImage';
 import { ImageViewerModal } from '../components/ImageViewerModal';
 import { MentionComposer } from '../components/MentionComposer';
+import { MentionText } from '../components/MentionText';
 import { PubCrawlFeedCard } from '../components/PubCrawlFeedCard';
 import { FeedSessionCard, FeedSession } from './FeedScreen';
 import { PubCrawl, PubCrawlComment } from '../lib/pubCrawls';
 import { addPubCrawlComment, fetchPublishedPubCrawlById, togglePubCrawlCheers } from '../lib/pubCrawlsApi';
-import { MentionCandidate } from '../lib/mentions';
+import { ContentMention, fetchContentMentionsForSources, MentionCandidate } from '../lib/mentions';
 import { notifyContentMentionsSafely } from '../lib/mentionNotifications';
 import { SessionBeer } from '../lib/sessionBeers';
 import { mapChugAttemptRow, SessionChugAttemptRow } from '../lib/chugAttempts';
@@ -49,6 +50,7 @@ type PostComment = {
   created_at: string;
   updated_at?: string | null;
   profiles?: ProfilePreview | null;
+  mentions?: ContentMention[];
 };
 
 type PostTargetType = 'session' | 'pub_crawl';
@@ -137,8 +139,31 @@ export const PostDetailScreen = () => {
           return;
         }
 
+        const [commentMentionsBySource, postMentionsBySource] = await Promise.all([
+          fetchContentMentionsForSources(
+            supabase,
+            'comment',
+            nextCrawl.comments.map((comment) => comment.id)
+          ),
+          fetchContentMentionsForSources(
+            supabase,
+            'post',
+            nextCrawl.stops.map((stop) => stop.id)
+          ),
+        ]);
+
         setSession(null);
-        setCrawl(nextCrawl);
+        setCrawl({
+          ...nextCrawl,
+          comments: nextCrawl.comments.map((comment) => ({
+            ...comment,
+            mentions: commentMentionsBySource.get(comment.id) || [],
+          })),
+          stops: nextCrawl.stops.map((stop) => ({
+            ...stop,
+            mentions: postMentionsBySource.get(stop.id) || [],
+          })),
+        });
       } catch (error) {
         console.error('Pub crawl detail fetch error:', error);
         setSession(null);
@@ -235,6 +260,15 @@ export const PostDetailScreen = () => {
       const chugRows = ((chugsResult.data || []) as SessionChugAttemptRow[]).map(mapChugAttemptRow);
       const photoRows = (photosResult.data || []) as SessionPhoto[];
 
+      const [commentMentionsBySource, postMentionsBySource] = await Promise.all([
+        fetchContentMentionsForSources(
+          supabase,
+          'comment',
+          commentRows.map((comment) => comment.id)
+        ),
+        fetchContentMentionsForSources(supabase, 'post', [sessionRow.id]),
+      ]);
+
       const profileIds = Array.from(new Set([
         sessionRow.user_id,
         ...cheerRows.map((cheer) => cheer.user_id),
@@ -277,6 +311,7 @@ export const PostDetailScreen = () => {
       const comments = commentRows.map((comment) => ({
         ...comment,
         profiles: profilesById.get(comment.user_id) || null,
+        mentions: commentMentionsBySource.get(comment.id) || [],
       }));
 
       const assembled: FeedSession = {
@@ -286,6 +321,7 @@ export const PostDetailScreen = () => {
         session_chug_attempts: chugRows,
         drinking_buddies: buddiesBySession.get(sessionId) || [],
         profiles: profilesById.get(sessionRow.user_id) || null,
+        mentions: postMentionsBySource.get(sessionRow.id) || [],
         cheer_profiles: cheerRows
           .map((cheer) => profilesById.get(cheer.user_id))
           .filter(Boolean) as any,
@@ -488,6 +524,7 @@ export const PostDetailScreen = () => {
           body: data.body,
           createdAt: data.created_at,
           updatedAt: data.updated_at,
+          mentions: [],
           profile: currentProfile
             ? {
                 id: currentProfile.id,
@@ -548,6 +585,7 @@ export const PostDetailScreen = () => {
       const nextComment: PostComment = {
         ...(data as Omit<PostComment, 'profiles'>),
         profiles: currentProfile,
+        mentions: [],
       };
 
       setSession((prev) => (prev ? {
@@ -603,7 +641,12 @@ export const PostDetailScreen = () => {
         </TouchableOpacity>
         <View style={styles.commentBubble}>
           <Text style={styles.commentBubbleName}>{profile?.username || 'Someone'}</Text>
-          <Text style={styles.commentBubbleText}>{getDetailCommentBody(item)}</Text>
+          <MentionText
+            text={getDetailCommentBody(item)}
+            mentions={(item as { mentions?: ContentMention[] }).mentions || []}
+            style={styles.commentBubbleText}
+            onMentionPress={openProfile}
+          />
           <Text style={styles.commentTime}>{getTimeAgo(getDetailCommentCreatedAt(item))}</Text>
         </View>
       </View>

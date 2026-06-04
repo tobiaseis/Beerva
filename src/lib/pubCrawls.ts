@@ -1,3 +1,5 @@
+import type { ContentMention } from './mentions';
+
 export type PubCrawlBeerRow = {
   id?: string | null;
   session_id?: string | null;
@@ -75,6 +77,7 @@ export type PubCrawlStop = {
   city: string | null;
   address: string | null;
   beers: PubCrawlBeer[];
+  mentions?: ContentMention[];
 };
 
 export type PubCrawl = {
@@ -109,6 +112,7 @@ export type PubCrawlComment = {
   createdAt: string;
   updatedAt: string | null;
   profile: PubCrawlProfile | null;
+  mentions?: ContentMention[];
 };
 
 export type PubCrawlSummary = {

@@ -9,6 +9,7 @@ import { feedCardColors, feedCardMetrics, getCompactFeedActionCount } from '../t
 import { radius, shadows } from '../theme/layout';
 import { typography } from '../theme/typography';
 import { CachedImage } from './CachedImage';
+import { MentionText } from './MentionText';
 import { PubCrawlMediaCarousel } from './PubCrawlMediaCarousel';
 import { Surface } from './Surface';
 
@@ -211,7 +212,13 @@ export const PubCrawlFeedCard = ({
                     </View>
 
                     {stop.comment ? (
-                      <Text style={styles.stopComment} numberOfLines={2}>{stop.comment}</Text>
+                      <MentionText
+                        text={stop.comment}
+                        mentions={stop.mentions || []}
+                        style={styles.stopComment}
+                        numberOfLines={2}
+                        onMentionPress={onOpenProfile}
+                      />
                     ) : null}
 
                     {beerBreakdownLines.length > 0 ? (

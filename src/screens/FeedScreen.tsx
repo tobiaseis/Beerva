@@ -11,6 +11,7 @@ import { confirmDestructive } from '../lib/dialogs';
 import { useFocusEffect, useNavigation, useScrollToTop } from '@react-navigation/native';
 import { CachedImage } from '../components/CachedImage';
 import { MentionComposer } from '../components/MentionComposer';
+import { MentionText } from '../components/MentionText';
 import { deletePublicImageUrl } from '../lib/imageUpload';
 import { Surface } from '../components/Surface';
 import { SkeletonFeedCard } from '../components/Skeleton';
@@ -36,7 +37,7 @@ import { getErrorMessage, withTimeout } from '../lib/timeouts';
 import { PubCrawlFeedCard } from '../components/PubCrawlFeedCard';
 import { PubCrawl, PubCrawlComment } from '../lib/pubCrawls';
 import { fetchPublishedPubCrawlsForFeedPage, togglePubCrawlCheers, addPubCrawlComment } from '../lib/pubCrawlsApi';
-import { MentionCandidate } from '../lib/mentions';
+import { ContentMention, fetchContentMentionsForSources, MentionCandidate } from '../lib/mentions';
 import { notifyContentMentionsSafely } from '../lib/mentionNotifications';
 import { ChallengeSummary, formatChallengeProgress, formatChallengeRank } from '../lib/challenges';
 import { fetchJoinedActiveChallengeSummary, joinChallenge } from '../lib/challengesApi';
@@ -86,6 +87,7 @@ type FeedComment = {
   created_at: string;
   updated_at?: string | null;
   profiles?: ProfilePreview | null;
+  mentions?: ContentMention[];
 };
 
 export type FeedSession = {
@@ -116,6 +118,7 @@ export type FeedSession = {
   } | null;
   cheer_profiles: ProfilePreview[];
   comments: FeedComment[];
+  mentions?: ContentMention[];
   comments_count: number;
   cheers_count: number;
   has_cheered: boolean;
@@ -464,7 +467,12 @@ export const FeedSessionCard = React.memo(({
 
       {item.comment ? (
         <View style={styles.commentTop}>
-          <Text style={styles.commentText}>{item.comment}</Text>
+          <MentionText
+            text={item.comment}
+            mentions={item.mentions || []}
+            style={styles.commentText}
+            onMentionPress={onOpenProfile}
+          />
         </View>
       ) : null}
 
@@ -1045,7 +1053,74 @@ export const FeedScreen = ({ route }: any) => {
         post,
       }));
 
-      const merged = sortFeedItemsByPublishedAt([...pageSessions, ...pageCrawls, ...pageOfficialPosts]);
+      const commentSourceIds = [
+        ...pageSessions.flatMap((feedItem) => (
+          feedItem.type === 'session'
+            ? feedItem.session.comments.map((comment) => comment.id)
+            : []
+        )),
+        ...pageCrawls.flatMap((feedItem) => (
+          feedItem.type === 'pub_crawl'
+            ? feedItem.crawl.comments.map((comment) => comment.id)
+            : []
+        )),
+      ];
+      const postSourceIds = [
+        ...pageSessions.flatMap((feedItem) => (
+          feedItem.type === 'session' ? [feedItem.session.id] : []
+        )),
+        ...pageCrawls.flatMap((feedItem) => (
+          feedItem.type === 'pub_crawl'
+            ? feedItem.crawl.stops.map((stop) => stop.id)
+            : []
+        )),
+      ];
+
+      const [commentMentionsBySource, postMentionsBySource] = await withTimeout(
+        Promise.all([
+          fetchContentMentionsForSources(supabase, 'comment', commentSourceIds),
+          fetchContentMentionsForSources(supabase, 'post', postSourceIds),
+        ]),
+        FEED_REQUEST_TIMEOUT_MS,
+        'Feed mentions are taking too long.'
+      );
+
+      if (!isLatestRequest()) return;
+
+      const hydratedPageSessions = pageSessions.map((feedItem): FeedItem => {
+        if (feedItem.type !== 'session') return feedItem;
+        return {
+          ...feedItem,
+          session: {
+            ...feedItem.session,
+            mentions: postMentionsBySource.get(feedItem.session.id) || [],
+            comments: feedItem.session.comments.map((comment) => ({
+              ...comment,
+              mentions: commentMentionsBySource.get(comment.id) || [],
+            })),
+          },
+        };
+      });
+
+      const hydratedPageCrawls = pageCrawls.map((feedItem): FeedItem => {
+        if (feedItem.type !== 'pub_crawl') return feedItem;
+        return {
+          ...feedItem,
+          crawl: {
+            ...feedItem.crawl,
+            comments: feedItem.crawl.comments.map((comment) => ({
+              ...comment,
+              mentions: commentMentionsBySource.get(comment.id) || [],
+            })),
+            stops: feedItem.crawl.stops.map((stop) => ({
+              ...stop,
+              mentions: postMentionsBySource.get(stop.id) || [],
+            })),
+          },
+        };
+      });
+
+      const merged = sortFeedItemsByPublishedAt([...hydratedPageSessions, ...hydratedPageCrawls, ...pageOfficialPosts]);
 
       setSessions((previous) => {
         // Append-only: never re-sort items the user has already scrolled past.
@@ -1263,6 +1338,7 @@ export const FeedScreen = ({ route }: any) => {
           body: data.body,
           createdAt: data.created_at,
           updatedAt: data.updated_at,
+          mentions: [],
           profile: currentProfile
             ? {
                 id: currentProfile.id,
@@ -1338,6 +1414,7 @@ export const FeedScreen = ({ route }: any) => {
       const nextComment: FeedComment = {
         ...(data as Omit<FeedComment, 'profiles'>),
         profiles: currentProfile,
+        mentions: [],
       };
 
       setSessions((previous) => {
@@ -1996,7 +2073,7 @@ export const FeedScreen = ({ route }: any) => {
       {(() => {
         const normalizedComments = commentingSession 
           ? (isPubCrawlPost(commentingSession)
-              ? (commentingSession.comments as any[]).map(c => ({ id: c.id, user_id: c.userId, body: c.body, created_at: c.createdAt, profiles: c.profile ? { id: c.profile.id, username: c.profile.username, avatar_url: c.profile.avatarUrl } : null } as FeedComment))
+              ? (commentingSession.comments as any[]).map(c => ({ id: c.id, user_id: c.userId, body: c.body, created_at: c.createdAt, profiles: c.profile ? { id: c.profile.id, username: c.profile.username, avatar_url: c.profile.avatarUrl } : null, mentions: c.mentions || [] } as FeedComment))
               : commentingSession.comments) 
           : [];
         return (
@@ -2044,7 +2121,15 @@ export const FeedScreen = ({ route }: any) => {
                       </TouchableOpacity>
                       <View style={styles.commentBubble}>
                         <Text style={styles.commentBubbleName}>{item.profiles?.username || 'Someone'}</Text>
-                        <Text style={styles.commentBubbleText}>{item.body}</Text>
+                        <MentionText
+                          text={item.body}
+                          mentions={item.mentions || []}
+                          style={styles.commentBubbleText}
+                          onMentionPress={(userId) => {
+                            closeComments();
+                            openProfile(userId);
+                          }}
+                        />
                         <Text style={styles.commentTime}>{getTimeAgo(item.created_at)}</Text>
                       </View>
                     </View>

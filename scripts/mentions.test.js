@@ -184,6 +184,31 @@ assert.doesNotMatch(saveActiveBody, /notifyContentMentionsSafely/, 'active capti
 const pubCrawlsApiSource = fs.readFileSync(path.join(root, 'src/lib/pubCrawlsApi.ts'), 'utf8');
 assert.match(pubCrawlsApiSource, /finishedStop/, 'pub crawl stop helper should expose the finished stop for mention notification source ids');
 
+const mentionTextPath = path.join(root, 'src/components/MentionText.tsx');
+assert.equal(fs.existsSync(mentionTextPath), true, 'MentionText component should exist');
+
+const mentionTextSource = fs.existsSync(mentionTextPath)
+  ? fs.readFileSync(mentionTextPath, 'utf8')
+  : '';
+
+assert.match(mentionTextSource, /onMentionPress/, 'MentionText should expose mention press handling');
+assert.match(mentionTextSource, /mention_label|mentionLabel/, 'MentionText should render persisted mention labels');
+assert.match(mentionTextSource, /mentionedUserId/, 'MentionText should keep stable mentioned user ids');
+
+const updatedMentionsSource = fs.readFileSync(path.join(root, 'src/lib/mentions.ts'), 'utf8');
+assert.match(updatedMentionsSource, /fetchContentMentionsForSources/, 'mentions lib should fetch persisted mention metadata');
+
+const updatedFeedSource = fs.readFileSync(path.join(root, 'src/screens/FeedScreen.tsx'), 'utf8');
+assert.match(updatedFeedSource, /fetchContentMentionsForSources/, 'feed should hydrate persisted mention metadata');
+assert.match(updatedFeedSource, /MentionText/, 'feed comment and caption text should render MentionText');
+
+const updatedPostDetailSource = fs.readFileSync(path.join(root, 'src/screens/PostDetailScreen.tsx'), 'utf8');
+assert.match(updatedPostDetailSource, /fetchContentMentionsForSources/, 'post detail should hydrate persisted mention metadata');
+assert.match(updatedPostDetailSource, /MentionText/, 'post detail comments should render MentionText');
+
+const pubCrawlCardSource = fs.readFileSync(path.join(root, 'src/components/PubCrawlFeedCard.tsx'), 'utf8');
+assert.match(pubCrawlCardSource, /MentionText/, 'pub crawl card should render stop captions with MentionText');
+
 const calls = [];
 const fakeSupabase = {
   from(table) {

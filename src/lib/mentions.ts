@@ -15,6 +15,17 @@ export type MentionTrigger = {
   query: string;
 };
 
+export type ContentMention = {
+  id: string;
+  mentionedUserId: string;
+  actorId: string;
+  targetType: 'session' | 'pub_crawl';
+  targetId: string;
+  surface: 'post' | 'comment';
+  sourceId: string;
+  mentionLabel: string;
+};
+
 const MENTION_LIMIT = 10;
 const SEARCH_LIMIT = 8;
 
@@ -116,4 +127,42 @@ export const searchMentionProfiles = async (
       avatarUrl: row.avatar_url || null,
     }))
     .filter((profile) => profile.id && profile.username);
+};
+
+export const mapContentMentionRow = (row: any): ContentMention => ({
+  id: String(row.id),
+  mentionedUserId: String(row.mentioned_user_id),
+  actorId: String(row.actor_id),
+  targetType: row.target_type === 'pub_crawl' ? 'pub_crawl' : 'session',
+  targetId: String(row.target_id),
+  surface: row.surface === 'post' ? 'post' : 'comment',
+  sourceId: String(row.source_id),
+  mentionLabel: String(row.mention_label),
+});
+
+export const fetchContentMentionsForSources = async (
+  supabaseClient: any,
+  surface: 'post' | 'comment',
+  sourceIds: string[]
+): Promise<Map<string, ContentMention[]>> => {
+  const cleanIds = Array.from(new Set(sourceIds.filter(Boolean)));
+  const bySource = new Map<string, ContentMention[]>();
+  if (cleanIds.length === 0) return bySource;
+
+  const { data, error } = await supabaseClient
+    .from('content_mentions')
+    .select('id, mentioned_user_id, actor_id, target_type, target_id, surface, source_id, mention_label')
+    .eq('surface', surface)
+    .in('source_id', cleanIds);
+
+  if (error) throw error;
+
+  ((data || []) as any[]).forEach((row) => {
+    const mention = mapContentMentionRow(row);
+    const existing = bySource.get(mention.sourceId) || [];
+    existing.push(mention);
+    bySource.set(mention.sourceId, existing);
+  });
+
+  return bySource;
 };
