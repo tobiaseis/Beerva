@@ -54,6 +54,35 @@ export type PubKingSession = {
   publishedAt: string | null;
 };
 
+export type FriendPubWatchLeaderboardType = 'active_streak' | 'most_overdue';
+
+export type FriendPubWatchRow = {
+  leaderboard_type?: string | null;
+  rank?: number | string | null;
+  user_id?: string | null;
+  username?: string | null;
+  avatar_url?: string | null;
+  current_streak?: number | string | null;
+  latest_drink_at?: string | null;
+  hours_since_last_drink?: number | string | null;
+};
+
+export type FriendPubWatchEntry = {
+  leaderboardType: FriendPubWatchLeaderboardType;
+  rank: number;
+  userId: string;
+  username: string | null;
+  avatarUrl: string | null;
+  currentStreak: number;
+  latestDrinkAt: string | null;
+  hoursSinceLastDrink: number;
+};
+
+export type FriendPubWatchLeaderboards = {
+  activeStreaks: FriendPubWatchEntry[];
+  mostOverdue: FriendPubWatchEntry[];
+};
+
 const toNumber = (value: number | string | null | undefined) => {
   const parsed = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -66,6 +95,12 @@ const toStringOrNull = (value: string | null | undefined) => {
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
 };
+
+const toFriendPubWatchLeaderboardType = (
+  value: string | null | undefined
+): FriendPubWatchLeaderboardType => (
+  value === 'most_overdue' ? 'most_overdue' : 'active_streak'
+);
 
 export const formatTruePints = (value: number | string | null | undefined) => {
   const rounded = toNumber(value).toFixed(1);
@@ -99,3 +134,34 @@ export const mapPubKingSessionRow = (row: PubKingSessionRow): PubKingSession => 
   sessionStartedAt: toStringOrNull(row.session_started_at),
   publishedAt: toStringOrNull(row.published_at),
 });
+
+export const formatHoursSinceLastDrink = (value: number | string | null | undefined) => {
+  const hours = Math.max(0, toInteger(value));
+  return `${hours}h`;
+};
+
+export const mapFriendPubWatchRow = (row: FriendPubWatchRow): FriendPubWatchEntry => ({
+  leaderboardType: toFriendPubWatchLeaderboardType(toStringOrNull(row.leaderboard_type)),
+  rank: toInteger(row.rank),
+  userId: toStringOrNull(row.user_id) || 'unknown',
+  username: toStringOrNull(row.username),
+  avatarUrl: toStringOrNull(row.avatar_url),
+  currentStreak: toInteger(row.current_streak),
+  latestDrinkAt: toStringOrNull(row.latest_drink_at),
+  hoursSinceLastDrink: toInteger(row.hours_since_last_drink),
+});
+
+export const mapFriendPubWatchRows = (
+  rows: FriendPubWatchRow[]
+): FriendPubWatchLeaderboards => rows.reduce<FriendPubWatchLeaderboards>(
+  (leaderboards, row) => {
+    const entry = mapFriendPubWatchRow(row);
+    if (entry.leaderboardType === 'most_overdue') {
+      leaderboards.mostOverdue.push(entry);
+    } else {
+      leaderboards.activeStreaks.push(entry);
+    }
+    return leaderboards;
+  },
+  { activeStreaks: [], mostOverdue: [] }
+);
