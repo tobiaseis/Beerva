@@ -55,7 +55,9 @@
       "Bash(node -e ' *)",
       "Bash(node scripts/profileStats.test.js)",
       "Bash(node scripts/streakFlame.test.js)",
-      "Bash(node -e \"const ts=require\\('typescript'\\);const fs=require\\('fs'\\);const src=fs.readFileSync\\('src/theme/typography.ts','utf8'\\);const {outputText}=ts.transpileModule\\(src,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}\\);const m=new \\(require\\('module'\\)\\)\\(\\);m._compile\\(outputText,''\\);console.log\\(Object.keys\\(m.exports.typography||{}\\)\\);\")"
+      "Bash(node -e \"const ts=require\\('typescript'\\);const fs=require\\('fs'\\);const src=fs.readFileSync\\('src/theme/typography.ts','utf8'\\);const {outputText}=ts.transpileModule\\(src,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}\\);const m=new \\(require\\('module'\\)\\)\\(\\);m._compile\\(outputText,''\\);console.log\\(Object.keys\\(m.exports.typography||{}\\)\\);\")",
+      "Bash(node -e \"const ts=require\\('typescript'\\);const fs=require\\('fs'\\);const src=fs.readFileSync\\('src/theme/colors.ts','utf8'\\);const {outputText}=ts.transpileModule\\(src,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}\\);const m=new \\(require\\('module'\\)\\)\\(\\);m._compile\\(outputText,''\\);console.log\\(Object.keys\\(m.exports.colors||{}\\).filter\\(k=>/prim|text|back|border/i.test\\(k\\)\\)\\);\")",
+      "Bash(node -e \"for\\(const p of ['sharp','@resvg/resvg-js','resvg-js','svg2img','canvas','puppeteer']\\){try{require.resolve\\(p\\);console.log\\('FOUND',p\\)}catch{console.log\\('no',p\\)}}\")"
     ]
   }
 }

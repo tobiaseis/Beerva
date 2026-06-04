@@ -93,7 +93,7 @@ const buildTongue = (
 
 // Top hemisphere + sides only (skip the very bottom so no fire points down).
 const TONGUE_SPECS = [
-  { a: 0, len: 25, w: 8.5 },
+  { a: 0, len: 23, w: 8.5 },
   { a: -24, len: 23, w: 8 },
   { a: 24, len: 23, w: 8 },
   { a: -48, len: 20, w: 7.5 },
