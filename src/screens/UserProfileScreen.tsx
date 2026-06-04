@@ -4,6 +4,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { ArrowLeft, Beer, CalendarDays, MapPin, UserCheck, UserPlus } from 'lucide-react-native';
 
 import { CachedImage } from '../components/CachedImage';
+import { StreakAvatar } from '../components/StreakAvatar';
 import { ProfileStatsPanel } from '../components/ProfileStatsPanel';
 import { fetchChallengeAwards } from '../lib/challengeAwardsApi';
 import { emptyStats, getVolumeMl, ProfileSessionStatsRow, Stats, TopPubVisit, TrophyDefinition } from '../lib/profileStats';
@@ -391,12 +392,15 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
       </View>
 
       <View style={styles.header}>
-        <CachedImage
+        <StreakAvatar
           uri={profile.avatar_url}
           fallbackUri={`https://i.pravatar.cc/150?u=${profile.id}`}
+          size={Platform.OS === 'web' ? 104 : 120}
           style={styles.avatar}
           recyclingKey={`profile-${profile.id}-${profile.avatar_url || 'fallback'}`}
           accessibilityLabel={`${profile.username || 'Beer Lover'}'s avatar`}
+          streak={stats.currentStreak}
+          showCount
         />
         <Text style={typography.h1}>{profile.username || 'Beer Lover'}</Text>
         <Text style={typography.bodyMuted}>Joined {joinDate}</Text>

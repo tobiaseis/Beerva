@@ -103,3 +103,16 @@ assert.match(postDetail, /fetchCurrentStreaks/);
 assert.match(postDetail, /author_current_streak/);
 
 console.log('feed/post wiring assertions passed');
+
+// --- Profile wiring assertions ---
+const profileScreen = readSource('src/screens/ProfileScreen.tsx');
+assert.match(profileScreen, /StreakAvatar/);
+assert.match(profileScreen, /showCount/);
+assert.match(profileScreen, /stats\.currentStreak|stats\?\.currentStreak/);
+
+const userProfileScreen = readSource('src/screens/UserProfileScreen.tsx');
+assert.match(userProfileScreen, /StreakAvatar/);
+assert.match(userProfileScreen, /showCount/);
+assert.match(userProfileScreen, /stats\.currentStreak|stats\?\.currentStreak/);
+
+console.log('profile wiring assertions passed');

@@ -14,6 +14,7 @@ import { fetchPintTimeline, fetchProfileStats, fetchTopPubVisits, PintTimelinePo
 import { getBeerLine, getSessionBeerSummary, SessionBeer } from '../lib/sessionBeers';
 import { openMaps } from '../lib/maps';
 import { CachedImage } from '../components/CachedImage';
+import { StreakAvatar } from '../components/StreakAvatar';
 import { getUsernameSaveErrorMessage, normalizeUsername } from '../lib/usernames';
 import { AppButton } from '../components/AppButton';
 import { AvatarCropModal } from '../components/AvatarCropModal';
@@ -446,12 +447,15 @@ export const ProfileScreen = ({ route }: any) => {
     >
       <View style={styles.header}>
         <View style={styles.avatarContainer}>
-          <CachedImage
+          <StreakAvatar
             uri={profile?.avatar_url}
             fallbackUri={'https://i.pravatar.cc/150?u=' + profile?.id}
+            size={Platform.OS === 'web' ? 104 : 120}
             style={styles.avatar}
             recyclingKey={`profile-${profile?.id}-${profile?.avatar_url || 'fallback'}`}
             accessibilityLabel={`${profile?.username || 'Beer Lover'}'s avatar`}
+            streak={stats.currentStreak}
+            showCount
           />
           <TouchableOpacity style={styles.editBadge} onPress={() => setIsEditing(true)}>
             <Edit2 color={colors.background} size={16} />
