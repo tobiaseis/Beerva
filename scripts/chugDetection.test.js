@@ -61,6 +61,22 @@ assert.equal(result.detectedEndMs, 4300);
 assert.equal(result.durationMs, 4100);
 assert.ok(result.confidenceScore > 0.5);
 
+const jitteryNearContactFrames = [
+  { timeMs: 0, mouthBox: { x: 100, y: 100, width: 60, height: 40 }, bottleBox: { x: 166, y: 96, width: 72, height: 118 } },
+  { timeMs: 100, mouthBox: { x: 100, y: 100, width: 60, height: 40 }, bottleBox: null },
+  { timeMs: 200, mouthBox: { x: 100, y: 100, width: 60, height: 40 }, bottleBox: { x: 168, y: 98, width: 70, height: 118 } },
+  { timeMs: 300, mouthBox: { x: 100, y: 100, width: 60, height: 40 }, bottleBox: { x: 164, y: 98, width: 70, height: 118 } },
+  { timeMs: 1800, mouthBox: { x: 100, y: 100, width: 60, height: 40 }, bottleBox: { x: 166, y: 98, width: 70, height: 118 } },
+  { timeMs: 1950, mouthBox: { x: 100, y: 100, width: 60, height: 40 }, bottleBox: { x: 240, y: 100, width: 80, height: 120 } },
+  { timeMs: 2300, mouthBox: { x: 100, y: 100, width: 60, height: 40 }, bottleBox: { x: 240, y: 100, width: 80, height: 120 } },
+];
+
+const jitteryNearContactResult = analyzeChugContactFrames(jitteryNearContactFrames);
+assert.equal(jitteryNearContactResult.ok, true);
+assert.equal(jitteryNearContactResult.detectedStartMs, 0);
+assert.equal(jitteryNearContactResult.detectedEndMs, 1950);
+assert.equal(jitteryNearContactResult.durationMs, 1950);
+
 const failed = analyzeChugContactFrames([{ timeMs: 0, mouthBox: null, bottleBox: null }]);
 assert.equal(failed.ok, false);
 assert.equal(failed.reason, 'No stable mouth and bottle contact detected.');

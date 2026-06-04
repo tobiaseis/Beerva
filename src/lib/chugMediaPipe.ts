@@ -13,7 +13,7 @@ const MEDIAPIPE_MODULE_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-visi
 const WASM_URL = `${MEDIAPIPE_MODULE_URL}/wasm`;
 const FRAME_STEP_MS = 100;
 const MOUTH_LANDMARK_IDS = [13, 14, 61, 291, 78, 308];
-const BOTTLE_LABELS = new Set(['bottle']);
+const BOTTLE_LABELS = new Set(['bottle', 'cup', 'wine glass']);
 
 export type ChugVideoAnalysisInput = {
   uri: string;

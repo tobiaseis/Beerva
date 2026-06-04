@@ -17,6 +17,11 @@ assert.match(source, /delete from storage\.objects/, 'review RPC should delete t
 assert.match(source, /'chug_verification'/, 'notification type should include chug_verification');
 assert.match(source, /Users can create chug verification notifications/, 'notification policy should allow attempt owner to notify chosen verifier');
 
+const uploadLimitMigrationPath = path.resolve(__dirname, '..', 'supabase/migrations/20260604120000_raise_chug_video_upload_limit.sql');
+assert.ok(fs.existsSync(uploadLimitMigrationPath), 'chug proof storage should have a follow-up migration raising the video object limit');
+const uploadLimitSource = fs.readFileSync(uploadLimitMigrationPath, 'utf8');
+assert.match(uploadLimitSource, /update storage\.buckets[\s\S]*file_size_limit\s*=\s*52428800[\s\S]*where id = 'chug_videos'/, 'chug proof videos should allow temporary objects up to 50MB');
+
 const retimingMigrationPath = path.resolve(__dirname, '..', 'supabase/migrations/20260601130000_add_chug_manual_retiming.sql');
 const retimingSource = fs.readFileSync(retimingMigrationPath, 'utf8');
 

@@ -11,5 +11,7 @@ assert.doesNotMatch(
 );
 assert.match(source, /MEDIAPIPE_MODULE_URL/, 'MediaPipe runtime loader should pin the CDN module URL');
 assert.match(source, /new Function\(/, 'MediaPipe runtime loader should use a browser-only dynamic import wrapper');
+assert.match(source, /'cup'/, 'MediaPipe detector should accept cup as a bottle-like fallback label');
+assert.match(source, /'wine glass'/, 'MediaPipe detector should accept wine glass as a bottle-like fallback label');
 
 console.log('chug MediaPipe bundle guard passed');

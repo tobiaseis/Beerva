@@ -26,9 +26,11 @@ export type ChugDetectionResult = {
 };
 
 const CONTACT_DEBOUNCE_MS = 120;
+const CONTACT_START_GAP_GRACE_MS = 160;
 const CONTACT_END_GRACE_MS = 300;
 const MOUTH_PADDING_X = 20;
 const MOUTH_PADDING_Y = 20;
+const CONTACT_PROXIMITY_PX = 24;
 
 export const boxesOverlap = (a: ChugRect | null, b: ChugRect | null) => {
   if (!a || !b) return false;
@@ -36,6 +38,18 @@ export const boxesOverlap = (a: ChugRect | null, b: ChugRect | null) => {
     && a.x + a.width > b.x
     && a.y < b.y + b.height
     && a.y + a.height > b.y;
+};
+
+const expandRect = (rect: ChugRect, padding: number): ChugRect => ({
+  x: rect.x - padding,
+  y: rect.y - padding,
+  width: rect.width + (padding * 2),
+  height: rect.height + (padding * 2),
+});
+
+const boxesAreInContactRange = (mouthBox: ChugRect | null, bottleBox: ChugRect | null) => {
+  if (!mouthBox || !bottleBox) return false;
+  return boxesOverlap(expandRect(mouthBox, CONTACT_PROXIMITY_PX), bottleBox);
 };
 
 export const getMouthBoxFromLandmarks = (
@@ -63,6 +77,7 @@ export const analyzeChugContactFrames = (frames: ChugDetectionFrame[] = []): Chu
   let firstContactMs: number | null = null;
   let stableStartMs: number | null = null;
   let lastContactMs: number | null = null;
+  let firstContactGapMs: number | null = null;
   let firstNoContactAfterStartMs: number | null = null;
   let usableFrames = 0;
   let contactFrames = 0;
@@ -71,9 +86,10 @@ export const analyzeChugContactFrames = (frames: ChugDetectionFrame[] = []): Chu
     const usable = Boolean(frame.mouthBox && frame.bottleBox);
     if (usable) usableFrames += 1;
 
-    const touching = boxesOverlap(frame.mouthBox, frame.bottleBox);
+    const touching = boxesAreInContactRange(frame.mouthBox, frame.bottleBox);
     if (touching) {
       contactFrames += 1;
+      firstContactGapMs = null;
       firstNoContactAfterStartMs = null;
       if (firstContactMs === null) firstContactMs = frame.timeMs;
       if (stableStartMs === null && frame.timeMs - firstContactMs >= CONTACT_DEBOUNCE_MS) {
@@ -85,7 +101,17 @@ export const analyzeChugContactFrames = (frames: ChugDetectionFrame[] = []): Chu
       continue;
     }
 
+    if (stableStartMs === null && firstContactMs !== null) {
+      if (firstContactGapMs === null) firstContactGapMs = frame.timeMs;
+      if (frame.timeMs - firstContactGapMs > CONTACT_START_GAP_GRACE_MS) {
+        firstContactMs = null;
+        firstContactGapMs = null;
+      }
+      continue;
+    }
+
     firstContactMs = null;
+    firstContactGapMs = null;
     if (stableStartMs !== null && lastContactMs !== null) {
       if (firstNoContactAfterStartMs === null) firstNoContactAfterStartMs = frame.timeMs;
       if (frame.timeMs - firstNoContactAfterStartMs >= CONTACT_END_GRACE_MS) {
