@@ -223,6 +223,8 @@ export const StreakAvatar = React.memo(({
   const gradientId = `flame-grad-${tier.tier}`;
   const glowId = `flame-glow-${tier.tier}`;
 
+  const streakLabel = `${streak} day${streak === 1 ? '' : 's'}`;
+
   return (
     <View
       style={[styles.wrap, wrapMargin]}
@@ -230,63 +232,65 @@ export const StreakAvatar = React.memo(({
         accessibilityLabel ? `${accessibilityLabel}, ${streak} day streak` : `${streak} day streak`
       }
     >
-      <View style={[styles.avatarFrame, { width: size, height: size }]}>
-        <View
+      {/* Flame stage is the full flame box but uses a negative margin so it only
+          occupies the avatar's footprint in layout — the flame paints outward
+          around the avatar without depending on a smaller parent overflowing. */}
+      <View style={[styles.flameStage, { width: flameBox, height: flameBox, margin: -inset }]}>
+        <Svg
           pointerEvents="none"
-          style={[
-            styles.flameLayer,
-            { width: flameBox, height: flameBox, top: -inset, left: -inset },
-          ]}
+          style={styles.flameSvg}
+          width={flameBox}
+          height={flameBox}
+          viewBox="0 0 100 100"
         >
-          <Svg width={flameBox} height={flameBox} viewBox="0 0 100 100">
-            <Defs>
-              {/* Hot colour at the base (behind the avatar), cooler at the tips. */}
-              <LinearGradient
-                id={gradientId}
-                x1="50"
-                y1="78"
-                x2="50"
-                y2="8"
-                gradientUnits="userSpaceOnUse"
-              >
-                <Stop offset="0" stopColor={tier.colors.core} stopOpacity="1" />
-                <Stop offset="0.5" stopColor={tier.colors.mid} stopOpacity="0.95" />
-                <Stop offset="1" stopColor={tier.colors.outer} stopOpacity="0.92" />
-              </LinearGradient>
-              <RadialGradient id={glowId} cx="50" cy="50" r="46" gradientUnits="userSpaceOnUse">
-                <Stop offset="0.58" stopColor={tier.colors.mid} stopOpacity="0" />
-                <Stop offset="0.82" stopColor={tier.colors.mid} stopOpacity="0.22" />
-                <Stop offset="1" stopColor={tier.colors.outer} stopOpacity="0" />
-              </RadialGradient>
-            </Defs>
+          <Defs>
+            {/* Hot colour at the base (behind the avatar), cooler at the tips. */}
+            <LinearGradient
+              id={gradientId}
+              x1="50"
+              y1="78"
+              x2="50"
+              y2="8"
+              gradientUnits="userSpaceOnUse"
+            >
+              <Stop offset="0" stopColor={tier.colors.core} stopOpacity="1" />
+              <Stop offset="0.5" stopColor={tier.colors.mid} stopOpacity="0.95" />
+              <Stop offset="1" stopColor={tier.colors.outer} stopOpacity="0.92" />
+            </LinearGradient>
+            <RadialGradient id={glowId} cx="50" cy="50" r="46" gradientUnits="userSpaceOnUse">
+              <Stop offset="0.58" stopColor={tier.colors.mid} stopOpacity="0" />
+              <Stop offset="0.82" stopColor={tier.colors.mid} stopOpacity="0.24" />
+              <Stop offset="1" stopColor={tier.colors.outer} stopOpacity="0" />
+            </RadialGradient>
+          </Defs>
 
-            {/* Soft aura grounding the flame around the avatar. */}
-            <Circle cx="50" cy="50" r="46" fill={`url(#${glowId})`} />
+          {/* Soft aura grounding the flame around the avatar. */}
+          <Circle cx="50" cy="50" r="46" fill={`url(#${glowId})`} />
 
-            {flames.map((flame) => (
-              <AnimatedPath
-                key={flame.key}
-                d={flame.d}
-                fill={`url(#${gradientId})`}
-                opacity={flame.animatedOpacity}
-                origin="50, 68"
-                scaleY={flame.animatedScaleY}
-              />
-            ))}
-          </Svg>
+          {flames.map((flame) => (
+            <AnimatedPath
+              key={flame.key}
+              d={flame.d}
+              fill={`url(#${gradientId})`}
+              opacity={flame.animatedOpacity}
+              origin="50, 68"
+              scaleY={flame.animatedScaleY}
+            />
+          ))}
+        </Svg>
+
+        {/* Avatar layered on top of the flame. */}
+        <View style={[styles.avatarHolder, { width: size, height: size }]}>
+          {avatar}
+
+          {showCount ? (
+            <View pointerEvents="none" style={styles.countSide}>
+              <Flame color={colors.primary} fill={colors.primary} size={11} strokeWidth={2.5} />
+              <Text style={styles.countText} numberOfLines={1}>{streakLabel}</Text>
+            </View>
+          ) : null}
         </View>
-
-        {avatar}
       </View>
-
-      {showCount ? (
-        <View pointerEvents="none" style={[styles.countAnchor, { left: size + Math.round(inset * 0.5) }]}>
-          <View style={styles.countSide}>
-            <Flame color={colors.primary} fill={colors.primary} size={13} strokeWidth={2.5} />
-            <Text style={styles.countText} numberOfLines={1}>{`${streak} day streak`}</Text>
-          </View>
-        </View>
-      ) : null}
     </View>
   );
 });
@@ -297,41 +301,43 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarFrame: {
+  flameStage: {
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  flameLayer: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
+  flameSvg: {
+    ...StyleSheet.absoluteFillObject,
     zIndex: 0,
   },
-  // Anchored to the avatar's right edge, vertically centered — beside the
-  // avatar (not underneath), absolute so it never shifts the avatar layout.
-  countAnchor: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
+  avatarHolder: {
+    position: 'relative',
+    alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 3,
+    zIndex: 1,
   },
+  // Compact chip pinned to the avatar's lower-left — beside the avatar content,
+  // single line, so it never wraps or runs off the screen edge.
   countSide: {
+    position: 'absolute',
+    bottom: 1,
+    left: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    gap: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
     borderRadius: 999,
     backgroundColor: colors.background,
     borderWidth: 1,
     borderColor: colors.primaryBorder,
+    zIndex: 2,
   },
   countText: {
     ...typography.tiny,
     color: colors.text,
-    fontSize: 12,
-    lineHeight: 14,
+    fontSize: 11,
+    lineHeight: 13,
+    fontWeight: '700',
   },
 });
