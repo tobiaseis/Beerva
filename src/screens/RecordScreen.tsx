@@ -21,6 +21,7 @@ import { BeerDraftForm } from '../components/BeerDraftForm';
 import { ChugAttemptModal } from '../components/ChugAttemptModal';
 import { ChugBottleButton } from '../components/ChugBottleButton';
 import { DrinkingBuddiesPicker } from '../components/DrinkingBuddiesPicker';
+import { MentionComposer } from '../components/MentionComposer';
 import { PubRouletteModal } from '../components/PubRouletteModal';
 import { Surface } from '../components/Surface';
 import { confirmDestructive, showAlert } from '../lib/dialogs';
@@ -79,6 +80,8 @@ import { fetchProfileStats } from '../lib/profileStatsApi';
 import { getTrophies } from '../lib/profileStats';
 import { useFocused } from '../lib/useFocused';
 import { useBeverageCatalog } from '../lib/beverageCatalogContext';
+import { MentionCandidate } from '../lib/mentions';
+import { notifyContentMentionsSafely } from '../lib/mentionNotifications';
 import { colors } from '../theme/colors';
 import { floatingTabBarMetrics, radius, shadows, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
@@ -215,6 +218,7 @@ export const RecordScreen = ({ navigation }: any) => {
   const [selectedPub, setSelectedPub] = useState<PubRecord | null>(null);
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [comment, setComment] = useState('');
+  const [postMentions, setPostMentions] = useState<MentionCandidate[]>([]);
   const commentFocus = useFocused();
 
   const [selectedImages, setSelectedImages] = useState<SelectedImage[]>([]);
@@ -403,6 +407,7 @@ export const RecordScreen = ({ navigation }: any) => {
     setSessionBeers([]);
     setBeerDraft(createEmptyBeerDraft());
     setComment('');
+    setPostMentions([]);
     setSelectedImages([]);
     setKeeperIndex(0);
     setExistingImageUrl(null);
@@ -465,6 +470,7 @@ export const RecordScreen = ({ navigation }: any) => {
       setPub('');
       setSelectedPub(null);
       setComment(session.comment || '');
+      setPostMentions([]);
       lastSavedComment.current = {
         sessionId: session.id,
         comment: (session.comment || '').trim(),
@@ -876,6 +882,7 @@ export const RecordScreen = ({ navigation }: any) => {
       setActiveCrawl(null);
       setSessionBeers([]);
       setComment('');
+      setPostMentions([]);
       lastSavedComment.current = { sessionId: session.id, comment: '' };
       setSelectedImages([]);
       setKeeperIndex(0);
@@ -1466,8 +1473,22 @@ export const RecordScreen = ({ navigation }: any) => {
         if (error) throw error;
       }
 
+      await saveActiveSessionComment(comment);
+
       const pubRecord = selectedPub || pubOptions.find(o => labelsMatchPub(cleanDraft, o)) || null;
-      await finishCrawlStopAndStartNext(activeCrawl.crawl.id, pubRecord, cleanDraft);
+      const { finishedStop } = await finishCrawlStopAndStartNext(activeCrawl.crawl.id, pubRecord, cleanDraft);
+
+      if (finishedStop?.id) {
+        notifyContentMentionsSafely({
+          targetType: activeCrawl ? 'pub_crawl' : 'session',
+          targetId: activeCrawl.crawl.id,
+          surface: 'post',
+          sourceId: finishedStop.id,
+          text: comment.trim(),
+          mentions: postMentions,
+        });
+      }
+      setPostMentions([]);
       
       if (uploadedUrl && existingImageUrl && existingImageUrl !== uploadedUrl) {
         deletePublicImageUrl('session_images', existingImageUrl);
@@ -1520,7 +1541,17 @@ export const RecordScreen = ({ navigation }: any) => {
       const oldStats = user ? await fetchProfileStats(user.id) : null;
       const oldTrophies = oldStats ? getTrophies(oldStats) : [];
 
+      await saveActiveSessionComment(comment);
       await publishPubCrawl(activeCrawl.crawl.id);
+      notifyContentMentionsSafely({
+        targetType: activeCrawl ? 'pub_crawl' : 'session',
+        targetId: activeCrawl.crawl.id,
+        surface: 'post',
+        sourceId: activeSession.id,
+        text: comment.trim(),
+        mentions: postMentions,
+      });
+      setPostMentions([]);
 
       if (uploadedUrl && existingImageUrl && existingImageUrl !== uploadedUrl) {
         deletePublicImageUrl('session_images', existingImageUrl);
@@ -1609,6 +1640,16 @@ export const RecordScreen = ({ navigation }: any) => {
         .eq('user_id', user.id);
 
       if (error) throw error;
+
+      notifyContentMentionsSafely({
+        targetType: activeCrawl ? 'pub_crawl' : 'session',
+        targetId: activeCrawl?.crawl.id || activeSession.id,
+        surface: 'post',
+        sourceId: activeSession.id,
+        text: comment.trim(),
+        mentions: postMentions,
+      });
+      setPostMentions([]);
 
       if (uploadedUrl && existingImageUrl && existingImageUrl !== uploadedUrl) {
         deletePublicImageUrl('session_images', existingImageUrl);
@@ -1978,10 +2019,14 @@ export const RecordScreen = ({ navigation }: any) => {
               <Text style={styles.sectionLabel}>Comment</Text>
               <View style={[styles.commentContainer, commentFocus.focused ? styles.inputFocused : null]}>
                 <MessageSquare color={colors.textMuted} size={20} />
-                <TextInput
-                  style={styles.commentInput}
+                <MentionComposer
+                  containerStyle={styles.commentMentionComposer}
+                  inputStyle={styles.commentInput}
                   value={comment}
                   onChangeText={setComment}
+                  mentions={postMentions}
+                  onMentionsChange={setPostMentions}
+                  currentUserId={activeSession?.user_id || null}
                   placeholder="Add a tasting note, rating, or story..."
                   placeholderTextColor={colors.textMuted}
                   multiline
@@ -2709,6 +2754,9 @@ const styles = StyleSheet.create({
   },
   inputFocused: {
     borderColor: colors.primary,
+  },
+  commentMentionComposer: {
+    flex: 1,
   },
   commentInput: {
     flex: 1,

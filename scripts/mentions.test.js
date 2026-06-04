@@ -168,6 +168,22 @@ assert.match(postDetailSource, /MentionComposer/, 'post detail comment composer 
 assert.match(postDetailSource, /commentMentions/, 'post detail should track selected comment mentions');
 assert.match(postDetailSource, /notifyContentMentionsSafely\(\{[\s\S]*surface:\s*'comment'/, 'post detail comments should create comment mention notifications');
 
+const recordScreenSource = fs.readFileSync(path.join(root, 'src/screens/RecordScreen.tsx'), 'utf8');
+assert.match(recordScreenSource, /MentionComposer/, 'record caption input should use MentionComposer');
+assert.match(recordScreenSource, /postMentions/, 'record screen should track selected post mentions');
+assert.match(recordScreenSource, /surface:\s*'post'/, 'record screen should create post mention notifications');
+assert.match(recordScreenSource, /targetType:\s*activeCrawl \? 'pub_crawl' : 'session'/, 'record screen should use pub crawl targets for crawl stop captions');
+
+const saveActiveStart = recordScreenSource.indexOf('const saveActiveSessionComment');
+const saveActiveEnd = recordScreenSource.indexOf('useEffect(() => {', saveActiveStart);
+const saveActiveBody = saveActiveStart >= 0 && saveActiveEnd > saveActiveStart
+  ? recordScreenSource.slice(saveActiveStart, saveActiveEnd)
+  : recordScreenSource;
+assert.doesNotMatch(saveActiveBody, /notifyContentMentionsSafely/, 'active caption autosave should not send mention notifications');
+
+const pubCrawlsApiSource = fs.readFileSync(path.join(root, 'src/lib/pubCrawlsApi.ts'), 'utf8');
+assert.match(pubCrawlsApiSource, /finishedStop/, 'pub crawl stop helper should expose the finished stop for mention notification source ids');
+
 const calls = [];
 const fakeSupabase = {
   from(table) {

@@ -350,7 +350,7 @@ export const finishCrawlStopAndStartNext = async (
   crawlId: string,
   nextPub: PubRecord | null,
   fallbackPubName: string
-) => {
+): Promise<{ nextStop: CrawlSessionRow; finishedStop: CrawlSessionRow | null }> => {
   const { data: finishedStop, error: finishError } = await withTimeout(
     supabase.rpc('finish_active_crawl_stop', { target_crawl_id: crawlId }),
     PUB_CRAWL_TIMEOUT_MS,
@@ -371,7 +371,10 @@ export const finishCrawlStopAndStartNext = async (
   );
 
   if (error) throw error;
-  return data as CrawlSessionRow;
+  return {
+    nextStop: data as CrawlSessionRow,
+    finishedStop: finishedStop as CrawlSessionRow | null,
+  };
 };
 
 export const publishPubCrawl = async (crawlId: string): Promise<PubCrawl> => {
