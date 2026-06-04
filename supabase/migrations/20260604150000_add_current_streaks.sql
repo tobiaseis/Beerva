@@ -388,6 +388,8 @@ grant execute on function public.get_profile_stats(uuid) to authenticated;
 comment on function public.get_profile_stats(uuid) is 'Profile aggregate stats with session-based trophy day buckets, normalized drink uniqueness, parsed beverage serving volumes, RTD/Jagerbomb/Sambuca/special mixed drink counters, wine and cocktail exclusions from beer-only strongest ABV calculation, 2+ true-pint weekly streaks, and current drinking-day streak.';
 
 -- Redefine get_session_feed_details to append author_current_streak.
+drop function if exists public.get_session_feed_details(uuid[]);
+
 create or replace function public.get_session_feed_details(session_ids uuid[])
 returns table (
   session_id uuid,
