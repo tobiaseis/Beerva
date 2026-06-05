@@ -26,6 +26,23 @@ as $$
     left join public.profiles on profiles.id = follows.following_id
     where follows.follower_id = (select auth.uid())
   ),
+  leaderboard_users as (
+    select
+      followed_users.user_id,
+      followed_users.username,
+      followed_users.avatar_url
+    from followed_users
+
+    union
+
+    select
+      (select auth.uid()) as user_id,
+      profiles.username,
+      profiles.avatar_url
+    from (select (select auth.uid()) as user_id) viewer
+    left join public.profiles on profiles.id = viewer.user_id
+    where viewer.user_id is not null
+  ),
   latest_drinks as (
     select
       sessions.user_id,
@@ -33,25 +50,25 @@ as $$
     from public.sessions
     left join public.session_beers on session_beers.session_id = sessions.id
     where sessions.status = 'published'
-      and sessions.user_id in (select followed_users.user_id from followed_users)
+      and sessions.user_id in (select leaderboard_users.user_id from leaderboard_users)
     group by sessions.user_id
   ),
   current_streaks as (
     select *
     from public.get_current_streaks(
-      (select coalesce(array_agg(followed_users.user_id), array[]::uuid[]) from followed_users)
+      (select coalesce(array_agg(leaderboard_users.user_id), array[]::uuid[]) from leaderboard_users)
     )
   ),
   streak_rows as (
     select
-      followed_users.user_id,
-      followed_users.username,
-      followed_users.avatar_url,
+      leaderboard_users.user_id,
+      leaderboard_users.username,
+      leaderboard_users.avatar_url,
       coalesce(current_streaks.current_streak, 0) as current_streak,
       latest_drinks.latest_drink_at
-    from followed_users
-    left join current_streaks on current_streaks.user_id = followed_users.user_id
-    left join latest_drinks on latest_drinks.user_id = followed_users.user_id
+    from leaderboard_users
+    left join current_streaks on current_streaks.user_id = leaderboard_users.user_id
+    left join latest_drinks on latest_drinks.user_id = leaderboard_users.user_id
   ),
   active_streak_ranked as (
     select
@@ -73,15 +90,15 @@ as $$
   ),
   overdue_rows as (
     select
-      followed_users.user_id,
-      followed_users.username,
-      followed_users.avatar_url,
+      leaderboard_users.user_id,
+      leaderboard_users.username,
+      leaderboard_users.avatar_url,
       coalesce(current_streaks.current_streak, 0) as current_streak,
       latest_drinks.latest_drink_at,
       greatest(round(extract(epoch from (now() - latest_drink_at)) / 3600.0)::integer, 0) as hours_since_last_drink
-    from followed_users
-    join latest_drinks on latest_drinks.user_id = followed_users.user_id
-    left join current_streaks on current_streaks.user_id = followed_users.user_id
+    from leaderboard_users
+    join latest_drinks on latest_drinks.user_id = leaderboard_users.user_id
+    left join current_streaks on current_streaks.user_id = leaderboard_users.user_id
   ),
   most_overdue_ranked as (
     select
@@ -134,6 +151,6 @@ revoke execute on function public.get_friend_pub_watch_leaderboards(integer) fro
 grant execute on function public.get_friend_pub_watch_leaderboards(integer) to authenticated;
 
 comment on function public.get_friend_pub_watch_leaderboards(integer) is
-  'Returns follows-only active streak and most-overdue friend leaderboards for the current Pub Legends viewer.';
+  'Returns viewer-plus-followed active streak and most-overdue friend leaderboards for the current Pub Legends viewer.';
 
 notify pgrst, 'reload schema';

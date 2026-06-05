@@ -2,10 +2,10 @@
 
 ## Goal
 
-Add two follows-only friend leaderboards to the Pub Legends screen without making the default page feel crowded:
+Add two friend leaderboards to the Pub Legends screen without making the default page feel crowded. Each leaderboard ranks the current viewer together with the people they follow:
 
-- **Hottest streak**: followed users ranked by longest current active drinking-day streak.
-- **Most overdue**: followed users ranked by longest whole-hour time since their last logged beer/drink.
+- **Hottest streak**: viewer + followed users ranked by longest current active drinking-day streak.
+- **Most overdue**: viewer + followed users ranked by longest whole-hour time since their last logged beer/drink.
 
 The default Pub Legends experience should remain pub-first. The new friend leaderboards should feel like compact social pressure, not a third large content mode.
 
@@ -57,7 +57,7 @@ Do not use a modal for the full friend leaderboard. The same-screen swap keeps t
 
 ## Ranking Rules
 
-Both leaderboards include only users followed by the current viewer. The current viewer is not included unless the app later introduces an explicit self-inclusion rule.
+Both leaderboards include the current viewer plus users followed by the current viewer. The current viewer appears as a normal ranked row with no special highlight or label.
 
 ### Hottest streak
 
@@ -68,7 +68,7 @@ Use the canonical current streak definition already introduced for streak flames
 - the current streak is the consecutive run ending at the user's most recent drinking day
 - the streak is active only when the most recent drinking day is today or yesterday; otherwise it is `0`
 
-Rank followed users by:
+Rank participants by:
 
 1. `current_streak` descending
 2. latest drinking timestamp descending
@@ -84,7 +84,7 @@ Use each followed user's most recent logged drink timestamp:
 2. fall back to `sessions.started_at`
 3. fall back to `sessions.created_at`
 
-Only published sessions count. Rank followed users by whole hours since their last drink, descending. Round to the nearest whole hour for display so the leaderboard does not update every second.
+Only published sessions count. Rank participants by whole hours since their last drink, descending. Round to the nearest whole hour for display so the leaderboard does not update every second.
 
 Users with no published drink history should not rank above people with real drink history. They can be omitted from the MVP leaderboard.
 
@@ -94,8 +94,8 @@ Add one Supabase RPC for the Pub Legends screen, for example `get_friend_pub_wat
 
 The RPC should:
 
-- read the current viewer's follow graph
-- compute current streaks for followed users using the canonical streak logic
+- read the current viewer's follow graph and add the current viewer to the ranked pool
+- compute current streaks for the viewer + followed users using the canonical streak logic
 - compute last drink timestamps from `session_beers` with session timestamp fallbacks
 - return enough rows for both spotlight tiles and the full friend leaderboards
 
@@ -132,7 +132,7 @@ If the viewer follows no one, the spotlight strip can show both empty tile state
 Follow friends to start the watchlist.
 ```
 
-If followed users have no relevant published sessions, show:
+If the viewer and followed users have no relevant published sessions, show:
 
 ```text
 No friend data yet.
@@ -144,8 +144,8 @@ If the friend leaderboard RPC fails, keep the pub leaderboard usable and show a 
 
 Add focused tests that assert:
 
-- friend leaderboards are scoped to followed users
-- current viewer is not included by default
+- friend leaderboards are scoped to the current viewer + followed users
+- current viewer appears as a normal ranked row
 - active streak ranking uses the canonical current-streak definition
 - most-overdue ranking uses `session_beers.consumed_at` with session timestamp fallbacks
 - most-overdue display rounds to whole hours
@@ -158,4 +158,5 @@ Add focused tests that assert:
 - A new bottom navigation tab
 - A modal-based leaderboard detail surface
 - Showing the viewer's own rank inside spotlight tiles
+- Special highlighting or labeling for the viewer's row
 - New trophies, badges, or push notifications for being overdue

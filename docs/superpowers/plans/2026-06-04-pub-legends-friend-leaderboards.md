@@ -2,7 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add compact follows-only Hottest streak and Most overdue friend leaderboards to Pub Legends without crowding the default pub ranking.
+**Goal:** Add compact Hottest streak and Most overdue leaderboards for the current viewer plus people they follow to Pub Legends without crowding the default pub ranking.
+
+**Correction, 2026-06-05:** The ranked pool is now `auth.uid()` plus users followed by `auth.uid()`. The current viewer appears as a normal row in the full leaderboards, with no row highlight or `You` label. Spotlight tiles still do not show viewer rank text.
 
 **Architecture:** Add one Supabase RPC scoped to `auth.uid()` that returns both friend leaderboard datasets. Map the SQL rows in `src/lib/pubLegends.ts`, expose the fetch in `src/lib/pubLegendsApi.ts`, and keep `PubLegendsScreen` responsible only for presentation and state switching between the default pub list and one friend leaderboard.
 
@@ -88,7 +90,7 @@ After the existing assertion for `migrationPath`, add:
 ```js
 assert.ok(
   fs.existsSync(path.resolve(__dirname, '..', friendLeaderboardsMigrationPath)),
-  'Pub Legends should add follows-only friend leaderboard RPCs'
+  'Pub Legends should add viewer-plus-followed friend leaderboard RPCs'
 );
 ```
 
@@ -203,10 +205,10 @@ assert.match(
   /follows\.follower_id\s*=\s*\(select auth\.uid\(\)\)/i,
   'friend watch leaderboard should scope rows to people the viewer follows'
 );
-assert.doesNotMatch(
+assert.match(
   friendLeaderboardsMigrationSql,
-  /following_id\s*=\s*\(select auth\.uid\(\)\)/i,
-  'friend watch leaderboard should not include the current viewer as a ranked friend'
+  /select\s+\(select auth\.uid\(\)\)\s+as user_id/i,
+  'friend watch leaderboard should include the current viewer in the ranked pool'
 );
 assert.match(
   friendLeaderboardsMigrationSql,
@@ -550,7 +552,7 @@ revoke execute on function public.get_friend_pub_watch_leaderboards(integer) fro
 grant execute on function public.get_friend_pub_watch_leaderboards(integer) to authenticated;
 
 comment on function public.get_friend_pub_watch_leaderboards(integer) is
-  'Returns follows-only active streak and most-overdue friend leaderboards for the current Pub Legends viewer.';
+  'Returns viewer-plus-followed active streak and most-overdue friend leaderboards for the current Pub Legends viewer.';
 
 notify pgrst, 'reload schema';
 ```
@@ -1514,7 +1516,7 @@ Use Expo web or a device build after the Supabase migration is applied.
 ## Self-Review Checklist
 
 - Spec coverage:
-  - Follows-only scope: Task 3 SQL.
+  - Viewer + followed-users scope: Task 3 SQL plus the 2026-06-05 correction.
   - No current viewer rank in tiles: Task 1 and Task 5.
   - Yellow and red tile treatments: Task 5.
   - Same-screen full leaderboard with back chip: Task 5.

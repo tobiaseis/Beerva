@@ -43,7 +43,7 @@ assert.ok(
 );
 assert.ok(
   fs.existsSync(path.resolve(__dirname, '..', friendLeaderboardsMigrationPath)),
-  'Pub Legends should add follows-only friend leaderboard RPCs'
+  'Pub Legends should add viewer-plus-followed friend leaderboard RPCs'
 );
 assert.ok(
   fs.existsSync(path.resolve(__dirname, '..', placeCategoryMigrationPath)),
@@ -259,10 +259,10 @@ assert.match(
   /follows\.follower_id\s*=\s*\(select auth\.uid\(\)\)/i,
   'friend watch leaderboard should scope rows to people the viewer follows'
 );
-assert.doesNotMatch(
+assert.match(
   friendLeaderboardsMigrationSql,
-  /following_id\s*=\s*\(select auth\.uid\(\)\)/i,
-  'friend watch leaderboard should not include the current viewer as a ranked friend'
+  /select\s+\(select auth\.uid\(\)\)\s+as user_id/i,
+  'friend watch leaderboard should include the current viewer in the ranked pool'
 );
 assert.match(
   friendLeaderboardsMigrationSql,
