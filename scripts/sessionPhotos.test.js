@@ -136,6 +136,16 @@ assert.match(
   'record screen should expose selected photo thumbnails for keeper changes and removal'
 );
 assert.match(
+  recordScreenSource,
+  /const persistActiveSessionPhotos = async/,
+  'record screen should have an immediate active-session photo persistence path'
+);
+assert.match(
+  recordScreenSource,
+  /handleImageAssets[\s\S]*await persistActiveSessionPhotos\(nextImages\)/,
+  'adding photos to an active session should persist them immediately instead of waiting for publish'
+);
+assert.match(
   feedScreenSource,
   /fetchSessionFeedDetails/,
   'feed should fetch session photos through the consolidated feed details RPC'

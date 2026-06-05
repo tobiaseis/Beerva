@@ -36,6 +36,8 @@ import {
 import {
   buildSessionPhotoRecords,
   MAX_SESSION_PHOTOS,
+  SessionPhoto,
+  sortSessionPhotos,
 } from '../lib/sessionPhotos';
 import {
   beerDraftToPayload,
@@ -104,6 +106,10 @@ type ActiveSession = {
   hide_from_feed?: boolean | null;
 };
 
+type SessionImageDraft = SelectedImage & {
+  persistedUrl?: string | null;
+};
+
 type FollowOutRow = {
   following_id: string;
 };
@@ -159,6 +165,15 @@ const mergePubRecords = (...groups: PubRecord[][]) => {
     merged.set(getPubRecordKey(pubRecord), pubRecord);
   });
   return Array.from(merged.values());
+};
+
+const uniquePhotoUrls = (urls: Array<string | null | undefined>) => {
+  const seen = new Set<string>();
+  return urls.filter((url): url is string => {
+    if (!url || seen.has(url)) return false;
+    seen.add(url);
+    return true;
+  });
 };
 
 const getCurrentBrowserLocation = () => new Promise<UserLocation>((resolve, reject) => {
@@ -221,7 +236,7 @@ export const RecordScreen = ({ navigation }: any) => {
   const [postMentions, setPostMentions] = useState<MentionCandidate[]>([]);
   const commentFocus = useFocused();
 
-  const [selectedImages, setSelectedImages] = useState<SelectedImage[]>([]);
+  const [selectedImages, setSelectedImages] = useState<SessionImageDraft[]>([]);
   const [keeperIndex, setKeeperIndex] = useState(0);
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
   const [photoChoiceVisible, setPhotoChoiceVisible] = useState(false);
@@ -269,6 +284,7 @@ export const RecordScreen = ({ navigation }: any) => {
     sessionId: null,
     comment: '',
   });
+  const persistedPhotoUrls = useRef<string[]>([]);
 
   useEffect(() => {
     if (passiveSeedAttempted.current) return;
@@ -428,6 +444,7 @@ export const RecordScreen = ({ navigation }: any) => {
     setPhotoWarningAction(null);
     photoWarningBypassAction.current = null;
     lastSavedComment.current = { sessionId: null, comment: '' };
+    persistedPhotoUrls.current = [];
   }, []);
 
   const fetchSessionBeers = useCallback(async (sessionId: string) => {
@@ -439,6 +456,30 @@ export const RecordScreen = ({ navigation }: any) => {
 
     if (error) throw error;
     setSessionBeers((data || []) as SessionBeer[]);
+  }, []);
+
+  const fetchActiveSessionPhotos = useCallback(async (session: ActiveSession) => {
+    const { data, error } = await supabase
+      .from('session_photos')
+      .select('id, session_id, image_url, is_keeper, expires_at, created_at')
+      .eq('session_id', session.id);
+
+    if (error) throw error;
+
+    const savedPhotos = sortSessionPhotos((data || []) as SessionPhoto[]);
+    const photoUrls = savedPhotos.length > 0
+      ? savedPhotos.map((photo) => photo.image_url)
+      : uniquePhotoUrls([session.image_url]);
+    const photoDrafts = photoUrls.slice(0, MAX_SESSION_PHOTOS).map((imageUrl) => ({
+      uri: imageUrl,
+      persistedUrl: imageUrl,
+      mimeType: 'image/jpeg',
+    }));
+
+    persistedPhotoUrls.current = uniquePhotoUrls(photoDrafts.map((image) => image.persistedUrl));
+    setSelectedImages(photoDrafts);
+    setKeeperIndex(0);
+    setExistingImageUrl(photoDrafts[0]?.persistedUrl || session.image_url || null);
   }, []);
 
   const fetchActiveSession = useCallback(async () => {
@@ -475,10 +516,8 @@ export const RecordScreen = ({ navigation }: any) => {
         sessionId: session.id,
         comment: (session.comment || '').trim(),
       };
-      setExistingImageUrl(session.image_url || null);
-      setSelectedImages([]);
-      setKeeperIndex(0);
       setSavingPhoto(false);
+      await fetchActiveSessionPhotos(session);
       await fetchSessionBeers(session.id);
       if (session.pub_crawl_id) {
         setActiveCrawl(await fetchActivePubCrawl());
@@ -491,7 +530,7 @@ export const RecordScreen = ({ navigation }: any) => {
     } finally {
       setLoadingActive(false);
     }
-  }, [fetchSessionBeers, resetActiveState]);
+  }, [fetchActiveSessionPhotos, fetchSessionBeers, resetActiveState]);
 
   useFocusEffect(
     useCallback(() => {
@@ -888,6 +927,7 @@ export const RecordScreen = ({ navigation }: any) => {
       setKeeperIndex(0);
       setExistingImageUrl(null);
       setSavingPhoto(false);
+      persistedPhotoUrls.current = [];
       setPub('');
       setSelectedPub(null);
       hapticSuccess();
@@ -1264,7 +1304,7 @@ export const RecordScreen = ({ navigation }: any) => {
   const acceptChugAttempt = () => saveChugAttempt('ai');
   const sendChugForManualTiming = () => saveChugAttempt('pending_manual');
 
-  const prepareSessionImageAsset = async (asset: ImagePicker.ImagePickerAsset): Promise<SelectedImage> => {
+  const prepareSessionImageAsset = async (asset: ImagePicker.ImagePickerAsset): Promise<SessionImageDraft> => {
     if (Platform.OS === 'web') {
       return prepareWebImageFromPickerAsset(asset);
     }
@@ -1281,6 +1321,98 @@ export const RecordScreen = ({ navigation }: any) => {
     };
   };
 
+  const saveSelectedSessionPhotos = async (
+    sessionId: string,
+    userId: string,
+    images: SessionImageDraft[] = selectedImages,
+    imageKeeperIndex = keeperIndex
+  ) => {
+    const limitedImages = images.slice(0, MAX_SESSION_PHOTOS);
+    const uploadedUrls: string[] = [];
+    const savedImages: SessionImageDraft[] = [];
+
+    try {
+      for (const image of limitedImages) {
+        const persistedUrl = image.persistedUrl || await uploadImageToBucket('session_images', image, `users/${userId}/sessions`);
+        if (!image.persistedUrl) uploadedUrls.push(persistedUrl);
+
+        savedImages.push({
+          ...image,
+          persistedUrl,
+          uri: image.uri || persistedUrl,
+        });
+      }
+
+      const photoUrls = uniquePhotoUrls(savedImages.map((image) => image.persistedUrl));
+      const photoRecords = buildSessionPhotoRecords(sessionId, photoUrls, imageKeeperIndex);
+      const previousUrls = persistedPhotoUrls.current;
+      const nextUrlSet = new Set(photoUrls);
+      const removedUrls = previousUrls.filter((url) => !nextUrlSet.has(url));
+
+      const { error: deleteError } = await supabase
+        .from('session_photos')
+        .delete()
+        .eq('session_id', sessionId);
+      if (deleteError) throw deleteError;
+
+      if (photoRecords.length > 0) {
+        const { error: photoError } = await supabase
+          .from('session_photos')
+          .insert(photoRecords);
+        if (photoError) throw photoError;
+      }
+
+      const keeper = photoRecords.find((record) => record.is_keeper);
+      persistedPhotoUrls.current = photoUrls;
+      removedUrls.forEach((url) => deletePublicImageUrl('session_images', url));
+
+      return {
+        keeperImageUrl: keeper?.image_url || null,
+        uploadedUrls,
+        savedImages,
+      };
+    } catch (error) {
+      uploadedUrls.forEach((url) => deletePublicImageUrl('session_images', url));
+      throw error;
+    }
+  };
+
+  const persistActiveSessionPhotos = async (
+    nextImages: SessionImageDraft[],
+    nextKeeperIndex = Math.min(keeperIndex, Math.max(nextImages.length - 1, 0))
+  ) => {
+    if (!activeSession) return;
+
+    setSavingPhoto(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not logged in!');
+
+      const savedPhotos = await saveSelectedSessionPhotos(activeSession.id, user.id, nextImages, nextKeeperIndex);
+      const { error } = await supabase
+        .from('sessions')
+        .update({ image_url: savedPhotos.keeperImageUrl })
+        .eq('id', activeSession.id)
+        .eq('user_id', user.id)
+        .eq('status', 'active');
+      if (error) throw error;
+
+      const safeKeeperIndex = savedPhotos.savedImages.length > 0
+        ? Math.min(nextKeeperIndex, savedPhotos.savedImages.length - 1)
+        : 0;
+      setSelectedImages(savedPhotos.savedImages);
+      setKeeperIndex(safeKeeperIndex);
+      setExistingImageUrl(savedPhotos.keeperImageUrl);
+      setActiveSession((current) => (
+        current?.id === activeSession.id
+          ? { ...current, image_url: savedPhotos.keeperImageUrl }
+          : current
+      ));
+    } finally {
+      setSavingPhoto(false);
+    }
+  };
+
   const handleImageAssets = async (assets: ImagePicker.ImagePickerAsset[]) => {
     const availableSlots = MAX_SESSION_PHOTOS - selectedImages.length;
     if (availableSlots <= 0) {
@@ -1294,12 +1426,13 @@ export const RecordScreen = ({ navigation }: any) => {
 
     if (preparedImages.length === 0) return;
 
-    setSelectedImages(prev => {
-      const next = [...prev, ...preparedImages].slice(0, MAX_SESSION_PHOTOS);
-      return next;
-    });
-    setKeeperIndex((current) => Math.min(current, MAX_SESSION_PHOTOS - 1));
+    const nextImages = [...selectedImages, ...preparedImages].slice(0, MAX_SESSION_PHOTOS);
+    const nextKeeperIndex = Math.min(keeperIndex, Math.max(nextImages.length - 1, 0));
+    setSelectedImages(nextImages);
+    setKeeperIndex(nextKeeperIndex);
     photoWarningBypassAction.current = null;
+
+    await persistActiveSessionPhotos(nextImages);
   };
 
   const chooseFromLibrary = async () => {
@@ -1359,60 +1492,37 @@ export const RecordScreen = ({ navigation }: any) => {
     }
   };
 
-  const removeSelectedImage = (index: number) => {
-    const nextImages = selectedImages.filter((_, imageIndex) => imageIndex !== index);
-    setSelectedImages(nextImages);
-
-    if (nextImages.length === 0) {
-      setKeeperIndex(0);
-      return;
-    }
-
-    if (index === keeperIndex) {
-      setKeeperIndex(Math.min(index, nextImages.length - 1));
-    } else if (index < keeperIndex) {
-      setKeeperIndex(keeperIndex - 1);
-    } else {
-      setKeeperIndex(Math.min(keeperIndex, nextImages.length - 1));
+  const chooseKeeperImage = async (index: number) => {
+    setKeeperIndex(index);
+    try {
+      await persistActiveSessionPhotos(selectedImages, index);
+    } catch (error: any) {
+      showAlert('Could not update keeper photo', error?.message || 'Please try again.');
+      await fetchActiveSession();
     }
   };
 
-  const saveSelectedSessionPhotos = async (sessionId: string, userId: string) => {
-    if (selectedImages.length === 0) {
-      return {
-        keeperImageUrl: existingImageUrl,
-        uploadedUrls: [] as string[],
-      };
+  const removeSelectedImage = async (index: number) => {
+    const nextImages = selectedImages.filter((_, imageIndex) => imageIndex !== index);
+    let nextKeeperIndex = 0;
+    if (nextImages.length > 0) {
+      if (index === keeperIndex) {
+        nextKeeperIndex = Math.min(index, nextImages.length - 1);
+      } else if (index < keeperIndex) {
+        nextKeeperIndex = keeperIndex - 1;
+      } else {
+        nextKeeperIndex = Math.min(keeperIndex, nextImages.length - 1);
+      }
     }
 
-    const uploadedUrls: string[] = [];
+    setSelectedImages(nextImages);
+    setKeeperIndex(nextKeeperIndex);
 
     try {
-      for (const image of selectedImages) {
-        const url = await uploadImageToBucket('session_images', image, `users/${userId}/sessions`);
-        uploadedUrls.push(url);
-      }
-
-      const photoRecords = buildSessionPhotoRecords(sessionId, uploadedUrls, keeperIndex);
-      const { error: deleteError } = await supabase
-        .from('session_photos')
-        .delete()
-        .eq('session_id', sessionId);
-      if (deleteError) throw deleteError;
-
-      const { error: photoError } = await supabase
-        .from('session_photos')
-        .insert(photoRecords);
-      if (photoError) throw photoError;
-
-      const keeper = photoRecords.find((record) => record.is_keeper);
-      return {
-        keeperImageUrl: keeper?.image_url || existingImageUrl,
-        uploadedUrls,
-      };
-    } catch (error) {
-      uploadedUrls.forEach((url) => deletePublicImageUrl('session_images', url));
-      throw error;
+      await persistActiveSessionPhotos(nextImages, nextKeeperIndex);
+    } catch (error: any) {
+      showAlert('Could not remove photo', error?.message || 'Please try again.');
+      await fetchActiveSession();
     }
   };
 
@@ -1458,17 +1568,15 @@ export const RecordScreen = ({ navigation }: any) => {
 
     setCrawlBusy(true);
     try {
-      let uploadedUrl: string | null = null;
       if (selectedImages.length > 0) {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error('Not logged in!');
 
         const savedPhotos = await saveSelectedSessionPhotos(activeSession.id, user.id);
-        uploadedUrl = savedPhotos.keeperImageUrl;
 
         const { error } = await supabase
           .from('sessions')
-          .update({ image_url: uploadedUrl })
+          .update({ image_url: savedPhotos.keeperImageUrl })
           .eq('id', activeSession.id);
         if (error) throw error;
       }
@@ -1490,10 +1598,6 @@ export const RecordScreen = ({ navigation }: any) => {
       }
       setPostMentions([]);
       
-      if (uploadedUrl && existingImageUrl && existingImageUrl !== uploadedUrl) {
-        deletePublicImageUrl('session_images', existingImageUrl);
-      }
-
       setCrawlPubAction(null);
       setCrawlPubDraft('');
       setSelectedPub(null);
@@ -1522,17 +1626,15 @@ export const RecordScreen = ({ navigation }: any) => {
 
     setCrawlBusy(true);
     try {
-      let uploadedUrl: string | null = null;
       if (selectedImages.length > 0) {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error('Not logged in!');
 
         const savedPhotos = await saveSelectedSessionPhotos(activeSession.id, user.id);
-        uploadedUrl = savedPhotos.keeperImageUrl;
 
         const { error } = await supabase
           .from('sessions')
-          .update({ image_url: uploadedUrl })
+          .update({ image_url: savedPhotos.keeperImageUrl })
           .eq('id', activeSession.id);
         if (error) throw error;
       }
@@ -1552,10 +1654,6 @@ export const RecordScreen = ({ navigation }: any) => {
         mentions: postMentions,
       });
       setPostMentions([]);
-
-      if (uploadedUrl && existingImageUrl && existingImageUrl !== uploadedUrl) {
-        deletePublicImageUrl('session_images', existingImageUrl);
-      }
 
       const newStats = user ? await fetchProfileStats(user.id) : null;
       const newTrophies = newStats ? getTrophies(newStats) : [];
@@ -1607,7 +1705,6 @@ export const RecordScreen = ({ navigation }: any) => {
     }
 
     setEnding(true);
-    let uploadedUrl: string | null = null;
     let keeperImageUrl = existingImageUrl;
 
     try {
@@ -1617,7 +1714,6 @@ export const RecordScreen = ({ navigation }: any) => {
       if (selectedImages.length > 0) {
         const savedPhotos = await saveSelectedSessionPhotos(activeSession.id, user.id);
         keeperImageUrl = savedPhotos.keeperImageUrl;
-        uploadedUrl = keeperImageUrl;
       }
 
       const oldStats = await fetchProfileStats(user.id);
@@ -1651,10 +1747,6 @@ export const RecordScreen = ({ navigation }: any) => {
       });
       setPostMentions([]);
 
-      if (uploadedUrl && existingImageUrl && existingImageUrl !== uploadedUrl) {
-        deletePublicImageUrl('session_images', existingImageUrl);
-      }
-
       incrementPubUseCount(activeSession.pub_id);
 
       const newStats = await fetchProfileStats(user.id);
@@ -1673,9 +1765,6 @@ export const RecordScreen = ({ navigation }: any) => {
       navigation.navigate('Feed', { newlyUnlockedTrophies, allTrophiesUnlocked });
     } catch (error: any) {
       console.error('End session error:', error);
-      if (uploadedUrl) {
-        deletePublicImageUrl('session_images', uploadedUrl);
-      }
       hapticError();
       showAlert('Could not end session', error?.message || 'Please try again.');
     } finally {
@@ -2084,7 +2173,8 @@ export const RecordScreen = ({ navigation }: any) => {
                           <Image source={{ uri: image.uri }} style={styles.photoTileImage} />
                           <TouchableOpacity
                             style={[styles.keeperButton, isKeeper ? styles.keeperButtonActive : null]}
-                            onPress={() => setKeeperIndex(index)}
+                            onPress={() => chooseKeeperImage(index)}
+                            disabled={savingPhoto}
                             activeOpacity={0.78}
                             accessibilityRole="button"
                             accessibilityLabel={`Make photo ${index + 1} the keeper`}
@@ -2098,6 +2188,7 @@ export const RecordScreen = ({ navigation }: any) => {
                           <TouchableOpacity
                             style={styles.removePhotoChip}
                             onPress={() => removeSelectedImage(index)}
+                            disabled={savingPhoto}
                             activeOpacity={0.78}
                             accessibilityRole="button"
                             accessibilityLabel={`Remove photo ${index + 1}`}
@@ -2111,6 +2202,7 @@ export const RecordScreen = ({ navigation }: any) => {
                       <TouchableOpacity
                         style={styles.addPhotoTile}
                         onPress={() => setPhotoChoiceVisible(true)}
+                        disabled={savingPhoto}
                         activeOpacity={0.76}
                         accessibilityRole="button"
                         accessibilityLabel="Add another session photo"
