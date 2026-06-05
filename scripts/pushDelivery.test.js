@@ -127,6 +127,60 @@ assert.match(
 
 assert.match(
   sendPushSource,
+  /const PUSH_SEND_OPTIONS = \{[\s\S]*urgency:\s*'high'[\s\S]*TTL:\s*86400[\s\S]*timeout:\s*8000[\s\S]*\}/,
+  'send-push should send user-visible pushes with high urgency, one-day TTL, and a finite timeout'
+);
+
+assert.match(
+  sendPushSource,
+  /\.select\('id, endpoint, p256dh, auth_key'\)/,
+  'send-push should fetch subscription ids for diagnostics'
+);
+
+assert.match(
+  sendPushSource,
+  /crypto\.subtle\.digest\('SHA-256'/,
+  'send-push should hash endpoints before recording diagnostics'
+);
+
+assert.match(
+  sendPushSource,
+  /\.from\('push_delivery_attempts'\)[\s\S]*\.insert/,
+  'send-push should record delivery attempts'
+);
+
+assert.match(
+  sendPushSource,
+  /recordPushDeliveryAttempt\([\s\S]*status:\s*'accepted'/,
+  'send-push should record accepted push-service sends'
+);
+
+assert.match(
+  sendPushSource,
+  /recordPushDeliveryAttempt\([\s\S]*status:\s*'expired_subscription'/,
+  'send-push should record expired subscriptions'
+);
+
+assert.match(
+  sendPushSource,
+  /recordPushDeliveryAttempt\([\s\S]*status:\s*'failed'/,
+  'send-push should record non-expiry push failures'
+);
+
+assert.match(
+  sendPushSource,
+  /webpush\.sendNotification\(pushSub,\s*payload,\s*PUSH_SEND_OPTIONS\)/,
+  'send-push should pass delivery options to web-push'
+);
+
+assert.doesNotMatch(
+  sendPushSource,
+  /endpoint:\s*params\./,
+  'send-push diagnostics should not store raw push endpoints'
+);
+
+assert.match(
+  sendPushSource,
   /drinking_buddy_added/,
   'push delivery should support drinking buddy notifications'
 );

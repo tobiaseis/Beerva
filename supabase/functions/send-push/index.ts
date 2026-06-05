@@ -19,6 +19,67 @@ const webhookSecret = Deno.env.get('WEBHOOK_SECRET') || '';
 const contact = vapidEmail.startsWith('mailto:') ? vapidEmail : `mailto:${vapidEmail}`;
 webpush.setVapidDetails(contact, vapidPublic, vapidPrivate);
 
+const PUSH_SEND_OPTIONS = {
+  urgency: 'high' as const,
+  TTL: 86400,
+  timeout: 8000,
+};
+
+type PushDeliveryStatus = 'accepted' | 'expired_subscription' | 'failed';
+
+type PushSubscriptionRow = {
+  id: string;
+  endpoint: string;
+  p256dh: string;
+  auth_key: string;
+};
+
+const getEndpointHash = async (endpoint: string) => {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(endpoint));
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+};
+
+const getPushErrorMessage = (err: any) => {
+  const message = typeof err?.body === 'string' && err.body.trim()
+    ? err.body
+    : err?.message;
+
+  return typeof message === 'string' && message.trim()
+    ? message.slice(0, 500)
+    : null;
+};
+
+const recordPushDeliveryAttempt = async (
+  supabase: ReturnType<typeof createClient>,
+  params: {
+    notificationId: string;
+    userId: string;
+    pushSubscriptionId: string;
+    endpointHash: string;
+    status: PushDeliveryStatus;
+    httpStatus?: number | null;
+    errorMessage?: string | null;
+  }
+) => {
+  const { error } = await supabase
+    .from('push_delivery_attempts')
+    .insert({
+      notification_id: params.notificationId,
+      user_id: params.userId,
+      push_subscription_id: params.pushSubscriptionId,
+      endpoint_hash: params.endpointHash,
+      status: params.status,
+      http_status: params.httpStatus ?? null,
+      error_message: params.errorMessage ?? null,
+    });
+
+  if (error) {
+    console.error('Push delivery diagnostic insert error', error.message);
+  }
+};
+
 type NotificationRow = {
   id: string;
   user_id: string;
@@ -101,7 +162,7 @@ Deno.serve(async (req) => {
       : Promise.resolve({ data: null }),
     supabase
       .from('push_subscriptions')
-      .select('endpoint, p256dh, auth_key')
+      .select('id, endpoint, p256dh, auth_key')
       .eq('user_id', record.user_id),
     record.type === 'session_started' && record.reference_id
       ? supabase.from('sessions').select('pub_name').eq('id', record.reference_id).maybeSingle()
@@ -221,20 +282,50 @@ Deno.serve(async (req) => {
 
   let sent = 0;
   await Promise.all(
-    subscriptions.map(async (sub: any) => {
+    subscriptions.map(async (sub: PushSubscriptionRow) => {
       const pushSub = {
         endpoint: sub.endpoint,
         keys: { p256dh: sub.p256dh, auth: sub.auth_key },
       };
+      const endpointHash = await getEndpointHash(sub.endpoint);
+
       try {
-        await webpush.sendNotification(pushSub, payload);
+        await webpush.sendNotification(pushSub, payload, PUSH_SEND_OPTIONS);
         sent += 1;
+        await recordPushDeliveryAttempt(supabase, {
+          notificationId: record.id,
+          userId: record.user_id,
+          pushSubscriptionId: sub.id,
+          endpointHash,
+          status: 'accepted',
+        });
       } catch (err: any) {
         const status = err?.statusCode;
+        const httpStatus = typeof status === 'number' ? status : null;
+        const errorMessage = getPushErrorMessage(err);
+
         if (status === 404 || status === 410) {
           await supabase.from('push_subscriptions').delete().eq('endpoint', sub.endpoint);
+          await recordPushDeliveryAttempt(supabase, {
+            notificationId: record.id,
+            userId: record.user_id,
+            pushSubscriptionId: sub.id,
+            endpointHash,
+            status: 'expired_subscription',
+            httpStatus,
+            errorMessage,
+          });
         } else {
           console.error('Push send error', status, err?.body || err?.message);
+          await recordPushDeliveryAttempt(supabase, {
+            notificationId: record.id,
+            userId: record.user_id,
+            pushSubscriptionId: sub.id,
+            endpointHash,
+            status: 'failed',
+            httpStatus,
+            errorMessage,
+          });
         }
       }
     })
