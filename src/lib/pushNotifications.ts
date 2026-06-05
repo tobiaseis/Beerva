@@ -78,6 +78,7 @@ export const getPushPermissionStatus = (): 'unsupported' | NotificationPermissio
 
 let waitingServiceWorker: ServiceWorker | null = null;
 let serviceWorkerUpdateFlowAttached = false;
+let pushSubscriptionRepairFlowAttached = false;
 
 const attachServiceWorkerUpdateFlow = (registration: ServiceWorkerRegistration) => {
   if (Platform.OS !== 'web' || typeof navigator === 'undefined' || typeof window === 'undefined') {
@@ -109,6 +110,41 @@ const attachServiceWorkerUpdateFlow = (registration: ServiceWorkerRegistration) 
   });
 };
 
+const attachPushSubscriptionRepairFlow = () => {
+  if (
+    Platform.OS !== 'web'
+    || typeof window === 'undefined'
+    || typeof document === 'undefined'
+    || typeof navigator === 'undefined'
+    || !('serviceWorker' in navigator)
+  ) {
+    return;
+  }
+
+  if (pushSubscriptionRepairFlowAttached) return;
+  pushSubscriptionRepairFlowAttached = true;
+
+  const syncCurrentPushSubscription = () => {
+    syncPushSubscription().catch((error) => {
+      console.warn('Could not sync push subscription', error);
+    });
+  };
+
+  window.addEventListener('focus', syncCurrentPushSubscription);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      syncCurrentPushSubscription();
+    }
+  });
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data?.type === 'SYNC_PUSH_SUBSCRIPTION') {
+      syncCurrentPushSubscription();
+    }
+  });
+
+  syncCurrentPushSubscription();
+};
+
 export const applyServiceWorkerUpdate = () => {
   if (waitingServiceWorker) {
     waitingServiceWorker.postMessage({ type: 'SKIP_WAITING' });
@@ -126,6 +162,7 @@ export const registerServiceWorker = async (): Promise<ServiceWorkerRegistration
       existing.update().catch((error) => {
         console.warn('Service worker update check failed', error);
       });
+      attachPushSubscriptionRepairFlow();
       return await navigator.serviceWorker.ready.catch(() => existing);
     }
 
@@ -137,11 +174,55 @@ export const registerServiceWorker = async (): Promise<ServiceWorkerRegistration
     registration.update().catch((error) => {
       console.warn('Service worker update check failed', error);
     });
+    attachPushSubscriptionRepairFlow();
     return await navigator.serviceWorker.ready.catch(() => registration);
   } catch (e) {
     console.error('Service worker registration failed', e);
     return null;
   }
+};
+
+const upsertPushSubscription = async (
+  subscription: PushSubscription,
+  userId: string
+): Promise<{ ok: boolean; reason?: string }> => {
+  const json = subscription.toJSON();
+  if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) {
+    return { ok: false, reason: 'Subscription missing required keys.' };
+  }
+
+  const { error } = await supabase.from('push_subscriptions').upsert(
+    {
+      user_id: userId,
+      endpoint: json.endpoint,
+      p256dh: json.keys.p256dh,
+      auth_key: json.keys.auth,
+      user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+    },
+    { onConflict: 'user_id,endpoint' }
+  );
+
+  if (error) {
+    return { ok: false, reason: error.message };
+  }
+
+  return { ok: true };
+};
+
+export const syncPushSubscription = async (): Promise<{ ok: boolean; reason?: string }> => {
+  if (!isPushSupported()) return { ok: false, reason: 'unsupported' };
+  if (Notification.permission !== 'granted') return { ok: false, reason: 'permission-not-granted' };
+
+  const registration = await navigator.serviceWorker.getRegistration('/');
+  if (!registration) return { ok: false, reason: 'service-worker-missing' };
+
+  const subscription = await registration.pushManager.getSubscription();
+  if (!subscription) return { ok: false, reason: 'subscription-missing' };
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, reason: 'not-signed-in' };
+
+  return upsertPushSubscription(subscription, user.id);
 };
 
 export const enablePushNotifications = async (): Promise<{ ok: boolean; reason?: string }> => {
@@ -185,26 +266,10 @@ export const enablePushNotifications = async (): Promise<{ ok: boolean; reason?:
       return { ok: false, reason: 'Not signed in.' };
     }
 
-    const json = subscription.toJSON();
-    if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) {
+    const upsertResult = await upsertPushSubscription(subscription, user.id);
+    if (!upsertResult.ok) {
       await unsubscribeCurrentSubscription();
-      return { ok: false, reason: 'Subscription missing required keys.' };
-    }
-
-    const { error } = await supabase.from('push_subscriptions').upsert(
-      {
-        user_id: user.id,
-        endpoint: json.endpoint,
-        p256dh: json.keys.p256dh,
-        auth_key: json.keys.auth,
-        user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
-      },
-      { onConflict: 'user_id,endpoint' }
-    );
-
-    if (error) {
-      await unsubscribeCurrentSubscription();
-      return { ok: false, reason: error.message };
+      return upsertResult;
     }
     return { ok: true };
   } catch (e: any) {
@@ -260,5 +325,8 @@ export const isCurrentlySubscribed = async (): Promise<boolean> => {
     return false;
   }
 
-  return Boolean(data);
+  if (data) return true;
+
+  const syncResult = await syncPushSubscription();
+  return syncResult.ok;
 };

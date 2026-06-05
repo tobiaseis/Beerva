@@ -109,6 +109,7 @@ const getExportedAsyncFunctionBody = (source, name) => {
 const registerServiceWorkerBody = getExportedAsyncFunctionBody(pushSource, 'registerServiceWorker');
 const enablePushNotificationsBody = getExportedAsyncFunctionBody(pushSource, 'enablePushNotifications');
 const isCurrentlySubscribedBody = getExportedAsyncFunctionBody(pushSource, 'isCurrentlySubscribed');
+const syncPushSubscriptionBody = getExportedAsyncFunctionBody(pushSource, 'syncPushSubscription');
 const navigationCacheBlock = serviceWorkerSource.slice(
   serviceWorkerSource.indexOf("if (event.request.mode === 'navigate')"),
   serviceWorkerSource.indexOf('  // Cache-first for static assets')
@@ -302,6 +303,54 @@ assert.match(
   enablePushNotificationsBody,
   /await subscription\.unsubscribe\(\)/,
   'failed backend registration should clean up the browser subscription so the UI cannot show a false enabled state'
+);
+
+assert.match(
+  pushSource,
+  /const upsertPushSubscription = async/,
+  'push registration should share backend upsert logic between enable and repair flows'
+);
+
+assert.match(
+  syncPushSubscriptionBody,
+  /Notification\.permission !== 'granted'/,
+  'push subscription sync should only repair granted browser notification subscriptions'
+);
+
+assert.match(
+  syncPushSubscriptionBody,
+  /registration\.pushManager\.getSubscription\(\)/,
+  'push subscription sync should read the current browser push subscription'
+);
+
+assert.match(
+  syncPushSubscriptionBody,
+  /upsertPushSubscription\(subscription,\s*user\.id\)/,
+  'push subscription sync should upsert the current browser subscription for the signed-in user'
+);
+
+assert.match(
+  isCurrentlySubscribedBody,
+  /await syncPushSubscription\(\)/,
+  'push enabled checks should repair a missing backend row when the browser subscription still exists'
+);
+
+assert.match(
+  pushSource,
+  /window\.addEventListener\('focus', syncCurrentPushSubscription\)/,
+  'push registration should repair subscriptions when the installed PWA returns to focus'
+);
+
+assert.match(
+  pushSource,
+  /document\.addEventListener\('visibilitychange'/,
+  'push registration should repair subscriptions when the installed PWA becomes visible'
+);
+
+assert.match(
+  pushSource,
+  /event\.data\?\.type === 'SYNC_PUSH_SUBSCRIPTION'/,
+  'push registration should respond to service worker subscription sync messages'
 );
 
 assert.match(
