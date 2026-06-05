@@ -60,6 +60,41 @@ assert.match(
   'the push trigger should read its webhook secret from Supabase Vault instead of committing it'
 );
 
+const pushDeliveryAttemptsMigrationPath = path.join(root, 'supabase/migrations/20260605120000_add_push_delivery_attempts.sql');
+const pushDeliveryAttemptsMigrationSql = fs.existsSync(pushDeliveryAttemptsMigrationPath)
+  ? fs.readFileSync(pushDeliveryAttemptsMigrationPath, 'utf8')
+  : '';
+
+assert.match(
+  pushDeliveryAttemptsMigrationSql,
+  /create table if not exists public\.push_delivery_attempts/i,
+  'push delivery diagnostics should store one row per subscription delivery attempt'
+);
+
+assert.match(
+  pushDeliveryAttemptsMigrationSql,
+  /endpoint_hash text not null/i,
+  'push delivery diagnostics should store an endpoint hash instead of raw endpoint text'
+);
+
+assert.match(
+  pushDeliveryAttemptsMigrationSql,
+  /push_delivery_attempts_status_check[\s\S]*accepted[\s\S]*expired_subscription[\s\S]*failed/i,
+  'push delivery diagnostics should constrain delivery attempt statuses'
+);
+
+assert.match(
+  pushDeliveryAttemptsMigrationSql,
+  /alter table public\.push_delivery_attempts enable row level security/i,
+  'push delivery diagnostics should have RLS enabled'
+);
+
+assert.doesNotMatch(
+  pushDeliveryAttemptsMigrationSql,
+  /create policy/i,
+  'push delivery diagnostics should not expose normal user read policies'
+);
+
 assert.doesNotMatch(
   migrationSql,
   /undefined_schema/i,
