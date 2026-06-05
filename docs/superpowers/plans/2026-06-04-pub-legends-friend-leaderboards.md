@@ -6,6 +6,8 @@
 
 **Correction, 2026-06-05:** The ranked pool is now `auth.uid()` plus users followed by `auth.uid()`. The current viewer appears as a normal row in the full leaderboards, with no row highlight or `You` label. Spotlight tiles still do not show viewer rank text.
 
+**Correction, 2026-06-05:** The Hottest streak leaderboard only returns participants with `current_streak > 0`. A 1-day streak is active; `0 days` rows are hidden.
+
 **Architecture:** Add one Supabase RPC scoped to `auth.uid()` that returns both friend leaderboard datasets. Map the SQL rows in `src/lib/pubLegends.ts`, expose the fetch in `src/lib/pubLegendsApi.ts`, and keep `PubLegendsScreen` responsible only for presentation and state switching between the default pub list and one friend leaderboard.
 
 **Tech Stack:** Supabase SQL RPCs, Expo React Native, TypeScript helper mapping, existing `scripts/pubLegends.test.js` source assertions.
@@ -1517,6 +1519,7 @@ Use Expo web or a device build after the Supabase migration is applied.
 
 - Spec coverage:
   - Viewer + followed-users scope: Task 3 SQL plus the 2026-06-05 correction.
+  - Hottest streak excludes `0 days`: 2026-06-05 correction.
   - No current viewer rank in tiles: Task 1 and Task 5.
   - Yellow and red tile treatments: Task 5.
   - Same-screen full leaderboard with back chip: Task 5.

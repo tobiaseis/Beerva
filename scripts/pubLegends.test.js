@@ -271,6 +271,11 @@ assert.match(
 );
 assert.match(
   friendLeaderboardsMigrationSql,
+  /from streak_rows\s+where streak_rows\.current_streak > 0/i,
+  'active streak leaderboard should hide participants with zero current streak'
+);
+assert.match(
+  friendLeaderboardsMigrationSql,
   /coalesce\(session_beers\.consumed_at,\s*sessions\.started_at,\s*sessions\.created_at\)/i,
   'most overdue leaderboard should prefer consumed_at with session timestamp fallbacks'
 );

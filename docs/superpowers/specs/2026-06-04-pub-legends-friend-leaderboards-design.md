@@ -74,7 +74,7 @@ Rank participants by:
 2. latest drinking timestamp descending
 3. username ascending
 
-The spotlight tile should prefer a user with `current_streak > 0`. The full leaderboard can include zero-streak followed users at the bottom only if needed to avoid an empty list, but active streaks should be visually dominant.
+The spotlight tile and the full Hottest streak leaderboard only include participants with `current_streak > 0`. One-day streaks count as active. Participants at `0 days` are hidden from this leaderboard so it does not become a dull list of inactive rows.
 
 ### Most overdue
 

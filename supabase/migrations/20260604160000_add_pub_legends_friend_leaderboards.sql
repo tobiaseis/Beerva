@@ -87,6 +87,7 @@ as $$
       streak_rows.latest_drink_at,
       null::integer as hours_since_last_drink
     from streak_rows
+    where streak_rows.current_streak > 0
   ),
   overdue_rows as (
     select
