@@ -29,6 +29,7 @@ const legendsScreenPath = 'src/screens/PubLegendsScreen.tsx';
 const legendDetailScreenPath = 'src/screens/PubLegendDetailScreen.tsx';
 const migrationPath = 'supabase/migrations/20260510133000_add_pub_legends_leaderboards.sql';
 const friendLeaderboardsMigrationPath = 'supabase/migrations/20260604160000_add_pub_legends_friend_leaderboards.sql';
+const zeroStreakFilterMigrationPath = 'supabase/migrations/20260605120000_filter_zero_friend_streaks.sql';
 const placeCategoryMigrationPath = 'supabase/migrations/20260513120000_add_pub_place_category.sql';
 const placeCategoryRepairMigrationPath = 'supabase/migrations/20260518113000_add_pub_place_category_repair_rpc.sql';
 const legacySessionRepairMigrationPath = 'supabase/migrations/20260518114500_link_legacy_sessions_on_place_exclusion.sql';
@@ -44,6 +45,10 @@ assert.ok(
 assert.ok(
   fs.existsSync(path.resolve(__dirname, '..', friendLeaderboardsMigrationPath)),
   'Pub Legends should add viewer-plus-followed friend leaderboard RPCs'
+);
+assert.ok(
+  fs.existsSync(path.resolve(__dirname, '..', zeroStreakFilterMigrationPath)),
+  'Pub Legends should add a follow-up migration for deployed zero-streak filtering'
 );
 assert.ok(
   fs.existsSync(path.resolve(__dirname, '..', placeCategoryMigrationPath)),
@@ -216,6 +221,10 @@ const friendLeaderboardsMigrationSql = fs.readFileSync(
   path.resolve(__dirname, '..', friendLeaderboardsMigrationPath),
   'utf8'
 );
+const zeroStreakFilterMigrationSql = fs.readFileSync(
+  path.resolve(__dirname, '..', zeroStreakFilterMigrationPath),
+  'utf8'
+);
 const placeCategoryMigrationSql = fs.readFileSync(path.resolve(__dirname, '..', placeCategoryMigrationPath), 'utf8');
 const placeCategoryRepairMigrationSql = fs.readFileSync(path.resolve(__dirname, '..', placeCategoryRepairMigrationPath), 'utf8');
 const legacySessionRepairMigrationSql = fs.readFileSync(path.resolve(__dirname, '..', legacySessionRepairMigrationPath), 'utf8');
@@ -273,6 +282,16 @@ assert.match(
   friendLeaderboardsMigrationSql,
   /from streak_rows\s+where streak_rows\.current_streak > 0/i,
   'active streak leaderboard should hide participants with zero current streak'
+);
+assert.match(
+  zeroStreakFilterMigrationSql,
+  /create or replace function public\.get_friend_pub_watch_leaderboards\(result_limit integer default 25\)/i,
+  'zero-streak filter migration should replace the deployed friend leaderboard RPC'
+);
+assert.match(
+  zeroStreakFilterMigrationSql,
+  /from streak_rows\s+where streak_rows\.current_streak > 0/i,
+  'zero-streak filter migration should hide participants with zero current streak'
 );
 assert.match(
   friendLeaderboardsMigrationSql,
