@@ -149,6 +149,18 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
+const notifyClientsToSyncPushSubscription = () => (
+  self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+    clientList.forEach((client) => {
+      client.postMessage({ type: 'SYNC_PUSH_SUBSCRIPTION' });
+    });
+  })
+);
+
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil(notifyClientsToSyncPushSubscription());
+});
+
 self.addEventListener('push', (event) => {
   let payload = {};
   try {

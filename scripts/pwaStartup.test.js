@@ -389,6 +389,24 @@ assert.match(
   'missing asset fallback should produce a 404 response'
 );
 
+assert.match(
+  serviceWorkerSource,
+  /self\.addEventListener\('pushsubscriptionchange'/,
+  'service worker should handle browser push subscription changes'
+);
+
+assert.match(
+  serviceWorkerSource,
+  /client\.postMessage\(\{\s*type:\s*'SYNC_PUSH_SUBSCRIPTION'\s*\}\)/,
+  'service worker should ask open clients to resync push subscriptions'
+);
+
+assert.match(
+  serviceWorkerSource,
+  /self\.clients\.matchAll\(\{\s*type:\s*'window',\s*includeUncontrolled:\s*true\s*\}\)/,
+  'service worker should notify all open Beerva windows when push subscriptions change'
+);
+
 const recordShortcut = manifest.shortcuts.find((shortcut) => shortcut.short_name === 'Record');
 assert.equal(
   recordShortcut?.url,
