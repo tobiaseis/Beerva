@@ -38,6 +38,7 @@ import { getErrorMessage, withTimeout } from '../lib/timeouts';
 import { PubCrawlFeedCard } from '../components/PubCrawlFeedCard';
 import { PubCrawl, PubCrawlComment } from '../lib/pubCrawls';
 import { fetchPublishedPubCrawlsForFeedPage, togglePubCrawlCheers, addPubCrawlComment } from '../lib/pubCrawlsApi';
+import { calculateAlcoholUnits } from '../lib/alcoholUnits';
 import { ContentMention, fetchContentMentionsForSources, MentionCandidate } from '../lib/mentions';
 import { notifyContentMentionsSafely } from '../lib/mentionNotifications';
 import { ChallengeSummary, formatChallengeProgress, formatChallengeRank } from '../lib/challenges';
@@ -113,6 +114,7 @@ export type FeedSession = {
   session_photos: SessionPhoto[];
   session_chug_attempts: SessionChugAttempt[];
   drinking_buddies: SessionBuddy[];
+  units?: number | null;
   profiles?: {
     username?: string | null;
     avatar_url?: string | null;
@@ -213,6 +215,18 @@ const getSessionTruePints = (item: FeedSession) => {
   }, 0);
 
   return Math.round(pints * 10) / 10;
+};
+
+const getSessionUnits = (item: FeedSession) => {
+  if (typeof item.units === 'number' && Number.isFinite(item.units)) {
+    return item.units;
+  }
+
+  const beers = item.session_beers.length > 0
+    ? item.session_beers
+    : [{ volume: item.volume, quantity: item.quantity, abv: item.abv ?? null }];
+
+  return calculateAlcoholUnits(beers);
 };
 
 const getSessionAverageAbv = (item: FeedSession) => {
@@ -329,6 +343,7 @@ export const FeedSessionCard = React.memo(({
     : `Cheers from ${cheerPeople}`;
   const beerCount = getSessionBeerCount(item);
   const truePints = getSessionTruePints(item);
+  const units = getSessionUnits(item);
   const averageAbv = getSessionAverageAbv(item);
   const beerBreakdownLines = getSessionBeerBreakdownLines(item.session_beers);
   const visibleChugStat = getVisibleChugStat(item.session_chug_attempts || []);
@@ -592,6 +607,10 @@ export const FeedSessionCard = React.memo(({
               <View style={styles.detailPill}>
                 <Text style={styles.detailLabel}>True Pints</Text>
                 <Text style={styles.detailValue}>{formatStatNumber(truePints)}</Text>
+              </View>
+              <View style={styles.detailPill}>
+                <Text style={styles.detailLabel}>Units</Text>
+                <Text style={styles.detailValue}>{formatStatNumber(units)}</Text>
               </View>
               {averageAbv !== null ? (
                 <View style={styles.detailPill}>
@@ -1010,6 +1029,7 @@ export const FeedScreen = ({ route }: any) => {
             ...session,
             session_photos: detail?.photos || [],
             session_beers: sessionBeers,
+            units: detail?.units ?? null,
             session_chug_attempts: chugsBySession.get(session.id) || [],
             drinking_buddies: buddiesBySession.get(session.id) || [],
             profiles: detail?.author
@@ -2548,30 +2568,30 @@ const styles = StyleSheet.create({
   },
   detailPill: {
     flex: 1,
-    flexBasis: 78,
-    minHeight: 48,
+    flexBasis: 68,
+    minHeight: 46,
     minWidth: 0,
     borderRadius: radius.md,
     backgroundColor: feedCardColors.statBackground,
     borderWidth: 1,
     borderColor: feedCardColors.metadataDivider,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 7,
     justifyContent: 'center',
   },
   detailLabel: {
     ...typography.caption,
     color: colors.textMuted,
-    fontSize: 10,
+    fontSize: 9,
     textTransform: 'uppercase',
     letterSpacing: 0,
     fontWeight: '800',
   },
   detailValue: {
     color: colors.text,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '900',
-    marginTop: 3,
+    marginTop: 2,
     fontVariant: ['tabular-nums'],
   },
   detailHint: {

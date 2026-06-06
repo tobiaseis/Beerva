@@ -4,9 +4,12 @@ const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
 const migrationPath = path.join(root, 'supabase/migrations/20260602130000_add_session_feed_details_rpc.sql');
+const unitsMigrationPath = path.join(root, 'supabase/migrations/20260606120000_add_session_feed_units.sql');
 
 assert.equal(fs.existsSync(migrationPath), true, 'session feed details migration should exist');
 const sql = fs.readFileSync(migrationPath, 'utf8');
+assert.equal(fs.existsSync(unitsMigrationPath), true, 'session feed units migration should exist');
+const unitsSql = fs.readFileSync(unitsMigrationPath, 'utf8');
 
 assert.match(sql, /create or replace function public\.get_session_feed_details\(session_ids uuid\[\]\)/i, 'feed details RPC should exist');
 assert.match(sql, /security definer/i, 'RPC should run as definer to bypass per-table RLS');
@@ -27,6 +30,13 @@ assert.match(sql, /create index if not exists sessions_feed_published_idx/i, 'mi
 assert.match(sql, /grant execute on function public\.get_session_feed_details\(uuid\[\]\) to authenticated/i, 'authenticated users should execute the RPC');
 assert.match(sql, /revoke execute on function public\.get_session_feed_details\(uuid\[\]\) from public, anon/i, 'anon should not execute the RPC');
 assert.match(sql, /notify pgrst, 'reload schema'/i, 'migration should reload the PostgREST schema cache');
+assert.match(unitsSql, /drop function if exists public\.get_session_feed_details\(uuid\[\]\)/i, 'units migration should drop the old feed details signature before changing return columns');
+assert.match(unitsSql, /units double precision/i, 'feed details RPC should return units');
+assert.match(unitsSql, /author_current_streak integer/i, 'units migration should preserve current streak output');
+assert.match(unitsSql, /public\.beerva_serving_volume_ml\(sb\.volume\)/i, 'units calculation should use the shared SQL serving volume parser');
+assert.match(unitsSql, /0\.789/i, 'units calculation should use ethanol grams per ml');
+assert.match(unitsSql, /12\.0/i, 'units calculation should divide by 12 grams per Danish unit');
+assert.match(unitsSql, /notify pgrst, 'reload schema'/i, 'units migration should reload the PostgREST schema cache');
 
 // ---- Client mapper unit tests ----
 const Module = require('node:module');
@@ -78,6 +88,7 @@ const mapped = feedDetails.mapSessionFeedDetailRow({
   photos: [
     { id: 'p1', session_id: 'session-1', image_url: 'p1.jpg', is_keeper: true, expires_at: null, created_at: '2026-06-02T09:00:00Z' },
   ],
+  units: 1,
 });
 
 assert.equal(mapped.sessionId, 'session-1', 'mapper keeps the session id');
@@ -87,6 +98,7 @@ assert.deepEqual(mapped.cheers[0], { userId: 'u2', username: 'Tubpac', avatarUrl
 assert.equal(mapped.comments[0].userId, 'u3', 'mapper normalizes comment author id');
 assert.equal(mapped.comments[0].username, 'Someone', 'mapper carries comment author username');
 assert.equal(mapped.beers[0].beer_name, 'Tuborg', 'mapper passes beers through in app shape');
+assert.equal(mapped.units, 1, 'mapper carries session units from the RPC');
 assert.equal(mapped.photos[0].is_keeper, true, 'mapper passes photos through in app shape');
 
 const emptyMapped = feedDetails.mapSessionFeedDetailRow({
@@ -98,10 +110,12 @@ const emptyMapped = feedDetails.mapSessionFeedDetailRow({
   beers: null,
   comments: null,
   photos: null,
+  units: null,
 });
 assert.equal(emptyMapped.author, null, 'mapper returns null author when profile is missing');
 assert.deepEqual(emptyMapped.cheers, [], 'mapper tolerates null jsonb arrays');
 assert.deepEqual(emptyMapped.photos, [], 'mapper tolerates null photo arrays');
+assert.equal(emptyMapped.units, 0, 'mapper defaults missing units to 0');
 
 const feedLibSource = fs.readFileSync(path.join(root, 'src/lib/sessionFeedDetails.ts'), 'utf8');
 assert.match(feedLibSource, /rpc\('get_session_feed_details'/, 'client lib should call the feed details RPC');
@@ -112,6 +126,9 @@ assert.match(feedScreenSource, /fetchSessionFeedDetails/, 'feed should fetch ses
 assert.doesNotMatch(feedScreenSource, /\.from\('session_cheers'\)\s*\n\s*\.select/, 'feed should no longer query session_cheers directly');
 assert.match(feedScreenSource, /fetchSessionBuddySummaries/, 'feed should still fetch drinking buddy summaries');
 assert.match(feedScreenSource, /get_session_chug_attempt_summaries/, 'feed should still fetch chug summaries');
+assert.match(feedScreenSource, /getSessionUnits/, 'feed should calculate session units for the More stats card');
+assert.match(feedScreenSource, /detail\?\.units/, 'feed should hydrate session units from the feed details RPC');
+assert.match(feedScreenSource, />Units<\/Text>/, 'feed More stats should render a Units pill');
 
 console.log('session feed details checks passed');
 
