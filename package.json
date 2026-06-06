@@ -20,6 +20,7 @@
     "test:record-place-category": "node scripts/recordPlaceCategory.test.js",
     "test:pub-crawl": "node scripts/pubCrawl.test.js",
     "test:session-beers": "node scripts/sessionBeers.test.js",
+    "test:session-units": "node scripts/alcoholUnits.test.js",
     "test:chugs": "node scripts/chugAttempts.test.js",
     "test:chug-db": "node scripts/chugDatabase.test.js",
     "test:chug-notifications": "node scripts/chugNotifications.test.js",
