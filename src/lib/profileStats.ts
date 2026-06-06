@@ -885,3 +885,20 @@ export const getTrophies = (stats: Stats): TrophyDefinition[] => {
     },
   ];
 };
+
+export const didUnlockAllTrophies = (
+  oldTrophies: TrophyDefinition[] = [],
+  newTrophies: TrophyDefinition[] = []
+) => {
+  if (oldTrophies.length === 0 || newTrophies.length === 0) return false;
+  if (oldTrophies.length !== newTrophies.length) return false;
+
+  const oldIds = new Set(oldTrophies.map((trophy) => trophy.id));
+  const newIds = new Set(newTrophies.map((trophy) => trophy.id));
+  const sameTrophySet = oldTrophies.every((trophy) => newIds.has(trophy.id))
+    && newTrophies.every((trophy) => oldIds.has(trophy.id));
+
+  return sameTrophySet
+    && newTrophies.every((trophy) => trophy.earned)
+    && oldTrophies.some((trophy) => !trophy.earned);
+};

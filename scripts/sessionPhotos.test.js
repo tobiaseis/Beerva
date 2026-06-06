@@ -38,6 +38,10 @@ const feedScreenSource = fs.readFileSync(
   path.resolve(__dirname, '..', 'src/screens/FeedScreen.tsx'),
   'utf8'
 );
+const editScreenSource = fs.readFileSync(
+  path.resolve(__dirname, '..', 'src/screens/EditSessionScreen.tsx'),
+  'utf8'
+);
 const pubCrawlCarouselSource = fs.readFileSync(
   path.resolve(__dirname, '..', 'src/components/PubCrawlMediaCarousel.tsx'),
   'utf8'
@@ -144,6 +148,26 @@ assert.match(
   recordScreenSource,
   /handleImageAssets[\s\S]*await persistActiveSessionPhotos\(nextImages\)/,
   'adding photos to an active session should persist them immediately instead of waiting for publish'
+);
+assert.match(
+  editScreenSource,
+  /buildSessionPhotoRecords/,
+  'editing a post photo should rebuild session photo records so feed RPC photos do not keep the old keeper image'
+);
+assert.match(
+  editScreenSource,
+  /\.from\('session_photos'\)[\s\S]*?\.select\('id, session_id, image_url, is_keeper, expires_at, created_at'\)/,
+  'edit screen should load current session photo URLs before replacing or deleting a post photo'
+);
+assert.match(
+  editScreenSource,
+  /\.from\('session_photos'\)[\s\S]*?\.delete\(\)[\s\S]*?\.eq\('session_id', sessionId\)/,
+  'saving an edited post photo should clear stale session photo rows for that session'
+);
+assert.match(
+  editScreenSource,
+  /\.from\('session_photos'\)[\s\S]*?\.insert\(photoRecords\)/,
+  'saving an edited post photo should insert the new keeper into session_photos'
 );
 assert.match(
   feedScreenSource,

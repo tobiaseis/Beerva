@@ -783,7 +783,7 @@ export const FeedScreen = ({ route }: any) => {
       shouldClearParams = true;
     }
 
-    if (allTrophiesUnlocked) {
+    if (allTrophiesUnlocked === true) {
       setAllTrophiesPrizeVisible(true);
       clearedParams.allTrophiesUnlocked = undefined;
       shouldClearParams = true;

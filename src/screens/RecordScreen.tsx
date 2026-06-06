@@ -79,7 +79,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { getCurrentTimezone } from '../lib/timezone';
 import { fetchProfileStats } from '../lib/profileStatsApi';
-import { getTrophies } from '../lib/profileStats';
+import { didUnlockAllTrophies, getTrophies } from '../lib/profileStats';
 import { useFocused } from '../lib/useFocused';
 import { useBeverageCatalog } from '../lib/beverageCatalogContext';
 import { MentionCandidate } from '../lib/mentions';
@@ -1660,9 +1660,7 @@ export const RecordScreen = ({ navigation }: any) => {
       const newlyUnlockedTrophies = newTrophies.filter((nt) =>
         nt.earned && !oldTrophies.find((ot) => ot.id === nt.id && ot.earned)
       );
-      const allTrophiesUnlocked = newTrophies.length > 0
-        && newTrophies.every((trophy) => trophy.earned)
-        && oldTrophies.some((trophy) => !trophy.earned);
+      const allTrophiesUnlocked = didUnlockAllTrophies(oldTrophies, newTrophies);
 
       resetActiveState();
       setPub('');
@@ -1754,9 +1752,7 @@ export const RecordScreen = ({ navigation }: any) => {
       const newlyUnlockedTrophies = newTrophies.filter((nt) =>
         nt.earned && !oldTrophies.find((ot) => ot.id === nt.id && ot.earned)
       );
-      const allTrophiesUnlocked = newTrophies.length > 0
-        && newTrophies.every((trophy) => trophy.earned)
-        && oldTrophies.some((trophy) => !trophy.earned);
+      const allTrophiesUnlocked = didUnlockAllTrophies(oldTrophies, newTrophies);
 
       resetActiveState();
       setPub('');

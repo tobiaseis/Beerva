@@ -39,6 +39,11 @@ import {
   SessionBeer,
 } from '../lib/sessionBeers';
 import {
+  buildSessionPhotoRecords,
+  getAllSessionPhotoUrls,
+  SessionPhoto,
+} from '../lib/sessionPhotos';
+import {
   CHUG_CONTAINER_TYPE,
   CHUG_REQUIRED_VOLUME,
   CHUG_VIDEO_MAX_SECONDS,
@@ -515,6 +520,18 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
     setRemoveExistingImage(true);
   };
 
+  const fetchCurrentSessionPhotoUrls = async () => {
+    if (!sessionId) return existingImageUrl ? [existingImageUrl] : [];
+
+    const { data, error } = await supabase
+      .from('session_photos')
+      .select('id, session_id, image_url, is_keeper, expires_at, created_at')
+      .eq('session_id', sessionId);
+
+    if (error) throw error;
+    return getAllSessionPhotoUrls((data || []) as SessionPhoto[], existingImageUrl);
+  };
+
   const saveChanges = async () => {
     if (!session || !sessionId || saving) return;
     if (beers.length === 0) {
@@ -528,6 +545,9 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not logged in!');
+
+      const shouldSyncPhotoRecords = Boolean(selectedImage) || removeExistingImage;
+      const previousPhotoUrls = shouldSyncPhotoRecords ? await fetchCurrentSessionPhotoUrls() : [];
 
       if (selectedImage) {
         uploadedUrl = await uploadImageToBucket('session_images', selectedImage, `users/${user.id}/sessions`);
@@ -583,6 +603,22 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
       }
 
       const finalImageUrl = removeExistingImage ? null : (uploadedUrl || existingImageUrl);
+      if (shouldSyncPhotoRecords) {
+        const photoRecords = finalImageUrl ? buildSessionPhotoRecords(sessionId, [finalImageUrl]) : [];
+        const { error: deletePhotoError } = await supabase
+          .from('session_photos')
+          .delete()
+          .eq('session_id', sessionId);
+        if (deletePhotoError) throw deletePhotoError;
+
+        if (photoRecords.length > 0) {
+          const { error: insertPhotoError } = await supabase
+            .from('session_photos')
+            .insert(photoRecords);
+          if (insertPhotoError) throw insertPhotoError;
+        }
+      }
+
       const { error: sessionError } = await supabase
         .from('sessions')
         .update({
@@ -596,7 +632,12 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
 
       if (sessionError) throw sessionError;
 
-      if ((uploadedUrl || removeExistingImage) && existingImageUrl && existingImageUrl !== finalImageUrl) {
+      if (shouldSyncPhotoRecords) {
+        const nextPhotoUrls = new Set(finalImageUrl ? [finalImageUrl] : []);
+        previousPhotoUrls
+          .filter((imageUrl) => !nextPhotoUrls.has(imageUrl))
+          .forEach((imageUrl) => deletePublicImageUrl('session_images', imageUrl));
+      } else if ((uploadedUrl || removeExistingImage) && existingImageUrl && existingImageUrl !== finalImageUrl) {
         deletePublicImageUrl('session_images', existingImageUrl);
       }
 

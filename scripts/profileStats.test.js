@@ -35,7 +35,7 @@ const loadTypeScriptModule = (relativePath) => {
   return compiledModule.exports;
 };
 
-const { calculateStats, calculateTopPubVisits, emptyStats, getTrophies, getVolumeMl } = loadTypeScriptModule('src/lib/profileStats.ts');
+const { calculateStats, calculateTopPubVisits, didUnlockAllTrophies, emptyStats, getTrophies, getVolumeMl } = loadTypeScriptModule('src/lib/profileStats.ts');
 const {
   BEER_CATALOG,
   beerDraftToPayload,
@@ -602,6 +602,32 @@ assert.equal(
   'all remaining trophies should be achievable with maxed-out stats'
 );
 
+const lockedBaseTrophies = getTrophies(emptyStats);
+const partiallyEarnedTrophies = lockedBaseTrophies.map((trophy) => (
+  trophy.id === 'first-pint' ? { ...trophy, earned: true } : trophy
+));
+const fullyEarnedTrophies = lockedBaseTrophies.map((trophy) => ({ ...trophy, earned: true }));
+assert.equal(
+  didUnlockAllTrophies(lockedBaseTrophies, partiallyEarnedTrophies),
+  false,
+  'all-trophies prize should not trigger while any trophy remains locked'
+);
+assert.equal(
+  didUnlockAllTrophies(lockedBaseTrophies, fullyEarnedTrophies),
+  true,
+  'all-trophies prize should trigger when the full trophy set crosses from incomplete to complete'
+);
+assert.equal(
+  didUnlockAllTrophies([], fullyEarnedTrophies),
+  false,
+  'all-trophies prize should not trigger when the old trophy snapshot is unavailable'
+);
+assert.equal(
+  didUnlockAllTrophies(lockedBaseTrophies, fullyEarnedTrophies.slice(0, 1)),
+  false,
+  'all-trophies prize should not trigger from a partial trophy snapshot'
+);
+
 assert.ok(exists(challengeAwardsPath), 'challenge award mapper should exist');
 assert.ok(exists(challengeAwardsApiPath), 'challenge award API should exist');
 
@@ -866,6 +892,11 @@ const feedScreenSource = fs.readFileSync(
 );
 assert.match(feedScreenSource, /allTrophiesUnlocked/, 'feed should receive the all-trophies prize route param');
 assert.match(feedScreenSource, /AllTrophiesUnlockedModal/, 'feed should render the all-trophies prize modal');
+assert.match(
+  feedScreenSource,
+  /allTrophiesUnlocked === true/,
+  'feed should only open the all-trophies prize for an explicit boolean true route param'
+);
 
 const trophyUnlockModalSource = fs.readFileSync(
   path.resolve(__dirname, '..', 'src/components/TrophyUnlockModal.tsx'),
@@ -884,13 +915,13 @@ const recordScreenSource = fs.readFileSync(
 );
 assert.match(
   recordScreenSource,
-  /newTrophies\.every\(\(trophy\) => trophy\.earned\)/,
-  'ending a session should detect when all trophies are earned'
+  /didUnlockAllTrophies\(oldTrophies,\s*newTrophies\)/,
+  'ending a session should use the shared all-trophies transition guard'
 );
 assert.match(
-  recordScreenSource,
+  profileStatsSource,
   /oldTrophies\.some\(\(trophy\) => !trophy\.earned\)/,
-  'all-trophies prize should only trigger when the user just crossed the finish line'
+  'all-trophies helper should only trigger when the user just crossed the finish line'
 );
 assert.match(
   recordScreenSource,
