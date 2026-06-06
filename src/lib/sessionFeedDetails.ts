@@ -36,7 +36,7 @@ export type SessionFeedDetail = {
   commentsCount: number;
   beers: SessionBeer[];
   photos: SessionPhoto[];
-  units: number;
+  units: number | null;
   authorCurrentStreak: number;
 };
 
@@ -55,9 +55,10 @@ type SessionFeedDetailRow = {
 
 const asArray = <T>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);
 
-const numberOrZero = (value: number | string | null | undefined) => {
+const numberOrNull = (value: number | string | null | undefined) => {
+  if (value === null || value === undefined) return null;
   const parsed = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
+  return Number.isFinite(parsed) ? parsed : null;
 };
 
 export const mapSessionFeedDetailRow = (row: SessionFeedDetailRow): SessionFeedDetail => {
@@ -91,7 +92,7 @@ export const mapSessionFeedDetailRow = (row: SessionFeedDetailRow): SessionFeedD
     commentsCount: comments.length,
     beers: asArray<SessionBeer>(row.beers),
     photos: asArray<SessionPhoto>(row.photos),
-    units: numberOrZero(row.units),
+    units: numberOrNull(row.units),
     authorCurrentStreak: Number(row.author_current_streak || 0),
   };
 };

@@ -115,7 +115,7 @@ const emptyMapped = feedDetails.mapSessionFeedDetailRow({
 assert.equal(emptyMapped.author, null, 'mapper returns null author when profile is missing');
 assert.deepEqual(emptyMapped.cheers, [], 'mapper tolerates null jsonb arrays');
 assert.deepEqual(emptyMapped.photos, [], 'mapper tolerates null photo arrays');
-assert.equal(emptyMapped.units, 0, 'mapper defaults missing units to 0');
+assert.equal(emptyMapped.units, null, 'mapper keeps missing units nullable so the card can fall back to beer rows');
 
 const feedLibSource = fs.readFileSync(path.join(root, 'src/lib/sessionFeedDetails.ts'), 'utf8');
 assert.match(feedLibSource, /rpc\('get_session_feed_details'/, 'client lib should call the feed details RPC');
