@@ -1,4 +1,5 @@
 import type { ContentMention } from './mentions';
+import { calculateAlcoholUnits, getServingVolumeMl } from './alcoholUnits';
 
 export type PubCrawlBeerRow = {
   id?: string | null;
@@ -119,6 +120,7 @@ export type PubCrawlSummary = {
   barCount: number;
   drinkCount: number;
   truePints: number;
+  units: number;
   averageAbv: number | null;
   routeLabel: string;
 };
@@ -149,22 +151,6 @@ const toStringOrNull = (value: string | null | undefined) => {
 };
 
 const roundStat = (value: number) => Math.round(value * 10) / 10;
-
-const getServingVolumeMl = (volume?: string | null) => {
-  const normalizedVolume = volume?.trim().toLowerCase().replace(',', '.') || 'pint';
-  const compactVolume = normalizedVolume.replace(/\s+/g, '');
-  const numericValue = Number(compactVolume.replace(/(ml|cl|l)$/, ''));
-
-  if (compactVolume === 'schooner') return 379;
-
-  if (Number.isFinite(numericValue)) {
-    if (compactVolume.endsWith('ml')) return numericValue;
-    if (compactVolume.endsWith('cl')) return numericValue * 10;
-    if (compactVolume.endsWith('l')) return numericValue * 1000;
-  }
-
-  return 568;
-};
 
 const mapBeerRow = (row: PubCrawlBeerRow): PubCrawlBeer => ({
   id: toStringOrNull(row.id),
@@ -246,6 +232,7 @@ export const calculatePubCrawlSummary = (stops: PubCrawlStop[] = []): PubCrawlSu
   let totalMl = 0;
   let weightedAbv = 0;
   let abvVolumeMl = 0;
+  const unitDrinks: Array<{ volume: string | null; quantity: number; abv: number | null }> = [];
 
   stops.forEach((stop) => {
     stop.beers.forEach((beer) => {
@@ -254,6 +241,7 @@ export const calculatePubCrawlSummary = (stops: PubCrawlStop[] = []): PubCrawlSu
       const drinkMl = volumeMl * quantity;
       drinkCount += quantity;
       totalMl += drinkMl;
+      unitDrinks.push({ volume: beer.volume, quantity, abv: beer.abv });
       if (typeof beer.abv === 'number') {
         weightedAbv += drinkMl * beer.abv;
         abvVolumeMl += drinkMl;
@@ -265,6 +253,7 @@ export const calculatePubCrawlSummary = (stops: PubCrawlStop[] = []): PubCrawlSu
     barCount: stops.length,
     drinkCount,
     truePints: roundStat(totalMl / 568),
+    units: calculateAlcoholUnits(unitDrinks),
     averageAbv: abvVolumeMl > 0 ? roundStat(weightedAbv / abvVolumeMl) : null,
     routeLabel: stops.map((stop) => stop.pubName).join(' -> '),
   };

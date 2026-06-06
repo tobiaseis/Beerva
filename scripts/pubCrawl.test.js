@@ -4,6 +4,19 @@ const Module = require('node:module');
 const path = require('node:path');
 const ts = require('typescript');
 
+require.extensions['.ts'] = (module, filename) => {
+  const source = fs.readFileSync(filename, 'utf8');
+  const { outputText } = ts.transpileModule(source, {
+    compilerOptions: {
+      esModuleInterop: true,
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2020,
+    },
+    fileName: filename,
+  });
+  module._compile(outputText, filename);
+};
+
 const loadTypeScriptModule = (relativePath) => {
   const filename = path.resolve(__dirname, '..', relativePath);
   const source = fs.readFileSync(filename, 'utf8');
@@ -199,6 +212,7 @@ const summary = calculatePubCrawlSummary(crawl.stops);
 assert.equal(summary.barCount, 3);
 assert.equal(summary.drinkCount, 7);
 assert.equal(summary.truePints, 6.2);
+assert.equal(summary.units, 10.4);
 assert.equal(summary.averageAbv, 4.5);
 assert.equal(summary.routeLabel, 'First Bar -> Second Bar -> Third Bar');
 
@@ -215,6 +229,11 @@ assert.equal(
   summaryWithMissingAbv.averageAbv,
   5,
   'pub crawl average ABV should ignore drinks without ABV instead of treating them as 0%'
+);
+assert.equal(
+  summaryWithMissingAbv.units,
+  1.9,
+  'pub crawl units should ignore drinks without ABV instead of treating them as unknown'
 );
 
 const slides = buildPubCrawlMediaSlides(crawl.stops);
@@ -243,6 +262,8 @@ assert.match(feedCardSource, /onOpenCheers/, 'pub crawl posts should expose the 
 assert.match(feedCardSource, /styles\.engagementPanel/, 'pub crawl posts should show the normal engagement preview panel');
 assert.match(feedCardSource, /styles\.cardFooter/, 'pub crawl posts should use the normal footer action row');
 assert.match(feedCardSource, /getStopDrinkCount/, 'expanded pub crawl stop rows should count drink quantities, not beer rows');
+assert.match(feedCardSource, />Units<\/Text>/, 'pub crawl More stats should render a Units pill');
+assert.match(feedCardSource, /formatStatNumber\(summary\.units\)/, 'pub crawl Units pill should render the summary units value');
 assert.doesNotMatch(feedCardSource, /stop\.beers\.length\}\s*drinks/, 'expanded pub crawl stop rows should not undercount multi-quantity drinks');
 
 const feedScreenSource = fs.readFileSync(path.resolve(__dirname, '..', feedScreenPath), 'utf8');

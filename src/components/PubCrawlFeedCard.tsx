@@ -180,6 +180,10 @@ export const PubCrawlFeedCard = ({
                 <Text style={styles.detailLabel}>True Pints</Text>
                 <Text style={styles.detailValue}>{formatStatNumber(summary.truePints)}</Text>
               </View>
+              <View style={styles.detailPill}>
+                <Text style={styles.detailLabel}>Units</Text>
+                <Text style={styles.detailValue}>{formatStatNumber(summary.units)}</Text>
+              </View>
               {summary.averageAbv !== null ? (
                 <View style={styles.detailPill}>
                   <Text style={styles.detailLabel}>Avg ABV</Text>
@@ -492,30 +496,30 @@ const styles = StyleSheet.create({
   },
   detailPill: {
     flex: 1,
-    flexBasis: 78,
-    minHeight: 48,
+    flexBasis: 68,
+    minHeight: 46,
     minWidth: 0,
     borderRadius: radius.md,
     backgroundColor: feedCardColors.statBackground,
     borderWidth: 1,
     borderColor: feedCardColors.metadataDivider,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 7,
     justifyContent: 'center',
   },
   detailLabel: {
     ...typography.caption,
     color: colors.textMuted,
-    fontSize: 10,
+    fontSize: 9,
     textTransform: 'uppercase',
     letterSpacing: 0,
     fontWeight: '800',
   },
   detailValue: {
     color: colors.text,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '900',
-    marginTop: 3,
+    marginTop: 2,
     fontVariant: ['tabular-nums'],
   },
   hangoverBadge: {
