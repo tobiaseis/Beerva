@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
-import { fetchAdminBeverages } from './adminApi';
+import { AdminBeverage, fetchAdminBeverages } from './adminApi';
 import { BEER_CATALOG, BEER_OPTIONS, BeerCatalogItem, mergeBeverageCatalog } from './sessionBeers';
 
 type BeverageCatalogContextValue = {
@@ -15,13 +15,29 @@ const BeverageCatalogContext = createContext<BeverageCatalogContextValue>({
   refresh: async () => {},
 });
 
+export const adminBeverageToCatalogItem = ({
+  name,
+  abv,
+  category,
+}: Pick<AdminBeverage, 'name' | 'abv' | 'category'>): BeerCatalogItem => {
+  if (category === 'wine') {
+    return { name, abv, kind: 'wine', defaultVolume: '15cl' };
+  }
+
+  if (category === 'drink') {
+    return { name, abv, kind: 'drink' };
+  }
+
+  return { name, abv, kind: 'beer' };
+};
+
 export const BeverageCatalogProvider = ({ children }: { children: React.ReactNode }) => {
   const [remoteBeverages, setRemoteBeverages] = useState<BeerCatalogItem[]>([]);
 
   const refresh = useCallback(async () => {
     try {
       const rows = await fetchAdminBeverages();
-      setRemoteBeverages(rows.map(({ name, abv }) => ({ name, abv })));
+      setRemoteBeverages(rows.map(adminBeverageToCatalogItem));
     } catch (error) {
       console.warn('Admin beverages unavailable:', error);
       setRemoteBeverages([]);

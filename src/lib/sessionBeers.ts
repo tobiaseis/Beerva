@@ -1,4 +1,4 @@
-export type BeverageKind = 'beer' | 'rtd' | 'mixed' | 'wine';
+export type BeverageKind = 'beer' | 'rtd' | 'mixed' | 'wine' | 'drink';
 
 export type BeerCatalogItem = {
   name: string;
@@ -17,6 +17,7 @@ export type SessionBeer = {
   volume: string | null;
   quantity: number | null;
   abv: number | null;
+  beverage_category?: 'beer' | 'wine' | 'drink' | string | null;
   note?: string | null;
   consumed_at?: string | null;
   created_at?: string | null;
@@ -506,6 +507,12 @@ const normalizeBeerName = (value: string) => (
     .trim()
 );
 
+export const getBeveragePayloadCategory = (beverage?: BeerCatalogItem | null): 'beer' | 'wine' | 'drink' => {
+  if (beverage?.kind === 'wine') return 'wine';
+  if (beverage?.kind === 'drink' || beverage?.kind === 'mixed' || beverage?.kind === 'rtd') return 'drink';
+  return 'beer';
+};
+
 export const mergeBeverageCatalog = (remoteBeverages: BeerCatalogItem[] = []) => {
   const builtInKeys = new Set(BEER_CATALOG.map((item) => normalizeBeerName(item.name)));
 
@@ -578,6 +585,7 @@ export const beerDraftToPayload = (
     volume: beverage?.countedVolume || draft.volume,
     quantity: draft.quantity,
     abv: beverage?.abv ?? getBeerAbv(draft.beerName, catalog),
+    beverage_category: getBeveragePayloadCategory(beverage),
   };
 };
 

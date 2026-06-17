@@ -24,6 +24,10 @@ const loadTypeScriptModule = (relativePath) => {
 };
 
 const {
+  beerDraftToPayload,
+  getBeverageDefaultVolume,
+  isBeverageAutoAdded,
+  isBeverageVolumeLocked,
   getSessionBeerBreakdownLines,
   getSessionBeerSummary,
   getBeverageCatalogItem,
@@ -114,6 +118,45 @@ check('remote ordinary beers merge without overriding built-ins', () => {
 
   assert.equal(getBeverageCatalogItem('Codex Lager', catalog)?.abv, 6.4);
   assert.equal(getBeverageCatalogItem('Tuborg Classic', catalog)?.abv, 4.6);
+});
+
+check('remote wine maps to 15cl default without auto-add', () => {
+  const catalog = mergeBeverageCatalog([
+    { name: 'House Champagne', abv: 12.5, kind: 'wine', defaultVolume: '15cl' },
+  ]);
+
+  assert.equal(getBeverageCatalogItem('House Champagne', catalog)?.kind, 'wine');
+  assert.equal(getBeverageDefaultVolume('House Champagne', catalog), '15cl');
+  assert.equal(isBeverageVolumeLocked('House Champagne', catalog), false);
+  assert.equal(isBeverageAutoAdded('House Champagne', catalog), false);
+  assert.deepEqual(
+    beerDraftToPayload({ beerName: 'House Champagne', volume: 'Pint', quantity: 1 }, catalog),
+    { beer_name: 'House Champagne', volume: 'Pint', quantity: 1, abv: 12.5, beverage_category: 'wine' }
+  );
+});
+
+check('remote drink maps to normal selectable drink category', () => {
+  const catalog = mergeBeverageCatalog([
+    { name: 'House Vodka Juice', abv: 37.5, kind: 'drink' },
+  ]);
+
+  assert.equal(getBeverageCatalogItem('House Vodka Juice', catalog)?.kind, 'drink');
+  assert.equal(getBeverageDefaultVolume('House Vodka Juice', catalog), null);
+  assert.equal(isBeverageVolumeLocked('House Vodka Juice', catalog), false);
+  assert.equal(isBeverageAutoAdded('House Vodka Juice', catalog), false);
+  assert.deepEqual(
+    beerDraftToPayload({ beerName: 'House Vodka Juice', volume: '4cl', quantity: 2 }, catalog),
+    { beer_name: 'House Vodka Juice', volume: '4cl', quantity: 2, abv: 37.5, beverage_category: 'drink' }
+  );
+});
+
+check('ordinary beer payload records beer category', () => {
+  const catalog = mergeBeverageCatalog([{ name: 'Codex Lager', abv: 6.4, kind: 'beer' }]);
+
+  assert.deepEqual(
+    beerDraftToPayload({ beerName: 'Codex Lager', volume: '33cl', quantity: 2 }, catalog),
+    { beer_name: 'Codex Lager', volume: '33cl', quantity: 2, abv: 6.4, beverage_category: 'beer' }
+  );
 });
 
 if (failures.length > 0) {
