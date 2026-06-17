@@ -61,6 +61,13 @@ const numberOrNull = (value: number | string | null | undefined) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const mapSessionBeer = (beer: SessionBeer): SessionBeer => ({
+  ...beer,
+  beverage_category: beer.beverage_category === 'wine' || beer.beverage_category === 'drink'
+    ? beer.beverage_category
+    : 'beer',
+});
+
 export const mapSessionFeedDetailRow = (row: SessionFeedDetailRow): SessionFeedDetail => {
   const cheers: FeedDetailCheer[] = asArray<any>(row.cheers).map((cheer) => ({
     userId: cheer.user_id,
@@ -90,7 +97,7 @@ export const mapSessionFeedDetailRow = (row: SessionFeedDetailRow): SessionFeedD
     cheersCount: row.cheers_count ?? cheers.length,
     comments,
     commentsCount: comments.length,
-    beers: asArray<SessionBeer>(row.beers),
+    beers: asArray<SessionBeer>(row.beers).map(mapSessionBeer),
     photos: asArray<SessionPhoto>(row.photos),
     units: numberOrNull(row.units),
     authorCurrentStreak: Number(row.author_current_streak || 0),

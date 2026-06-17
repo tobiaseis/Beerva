@@ -5,11 +5,14 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const migrationPath = path.join(root, 'supabase/migrations/20260602130000_add_session_feed_details_rpc.sql');
 const unitsMigrationPath = path.join(root, 'supabase/migrations/20260606120000_add_session_feed_units.sql');
+const beverageCategoryMigrationPath = path.join(root, 'supabase/migrations/20260617120000_add_admin_beverage_categories.sql');
 
 assert.equal(fs.existsSync(migrationPath), true, 'session feed details migration should exist');
 const sql = fs.readFileSync(migrationPath, 'utf8');
 assert.equal(fs.existsSync(unitsMigrationPath), true, 'session feed units migration should exist');
 const unitsSql = fs.readFileSync(unitsMigrationPath, 'utf8');
+assert.equal(fs.existsSync(beverageCategoryMigrationPath), true, 'admin beverage category migration should exist');
+const beverageCategorySql = fs.readFileSync(beverageCategoryMigrationPath, 'utf8');
 
 assert.match(sql, /create or replace function public\.get_session_feed_details\(session_ids uuid\[\]\)/i, 'feed details RPC should exist');
 assert.match(sql, /security definer/i, 'RPC should run as definer to bypass per-table RLS');
@@ -37,6 +40,7 @@ assert.match(unitsSql, /public\.beerva_serving_volume_ml\(sb\.volume\)/i, 'units
 assert.match(unitsSql, /0\.789/i, 'units calculation should use ethanol grams per ml');
 assert.match(unitsSql, /12\.0/i, 'units calculation should divide by 12 grams per Danish unit');
 assert.match(unitsSql, /notify pgrst, 'reload schema'/i, 'units migration should reload the PostgREST schema cache');
+assert.match(beverageCategorySql, /'beverage_category', sb\.beverage_category/i, 'feed details RPC should include captured beverage category in beer JSON');
 
 // ---- Client mapper unit tests ----
 const Module = require('node:module');
@@ -80,7 +84,7 @@ const mapped = feedDetails.mapSessionFeedDetailRow({
     { user_id: 'u2', username: 'Tubpac', avatar_url: 'a2.png', created_at: '2026-06-02T10:00:00Z' },
   ],
   beers: [
-    { id: 'b1', session_id: 'session-1', beer_name: 'Tuborg', volume: '50cl', quantity: 1, abv: 4.6, note: null, consumed_at: '2026-06-02T09:00:00Z', created_at: '2026-06-02T09:00:00Z' },
+    { id: 'b1', session_id: 'session-1', beer_name: 'Tuborg', volume: '50cl', quantity: 1, abv: 4.6, beverage_category: 'beer', note: null, consumed_at: '2026-06-02T09:00:00Z', created_at: '2026-06-02T09:00:00Z' },
   ],
   comments: [
     { id: 'c1', session_id: 'session-1', user_id: 'u3', body: 'Skål', created_at: '2026-06-02T10:30:00Z', updated_at: null, username: 'Someone', avatar_url: 'a3.png' },
@@ -98,6 +102,7 @@ assert.deepEqual(mapped.cheers[0], { userId: 'u2', username: 'Tubpac', avatarUrl
 assert.equal(mapped.comments[0].userId, 'u3', 'mapper normalizes comment author id');
 assert.equal(mapped.comments[0].username, 'Someone', 'mapper carries comment author username');
 assert.equal(mapped.beers[0].beer_name, 'Tuborg', 'mapper passes beers through in app shape');
+assert.equal(mapped.beers[0].beverage_category, 'beer', 'mapper passes captured beverage category through in app shape');
 assert.equal(mapped.units, 1, 'mapper carries session units from the RPC');
 assert.equal(mapped.photos[0].is_keeper, true, 'mapper passes photos through in app shape');
 
@@ -119,6 +124,7 @@ assert.equal(emptyMapped.units, null, 'mapper keeps missing units nullable so th
 
 const feedLibSource = fs.readFileSync(path.join(root, 'src/lib/sessionFeedDetails.ts'), 'utf8');
 assert.match(feedLibSource, /rpc\('get_session_feed_details'/, 'client lib should call the feed details RPC');
+assert.match(feedLibSource, /beverage_category/, 'session feed details mapper should be category-aware');
 
 // ---- Feed wiring ----
 const feedScreenSource = fs.readFileSync(path.join(root, 'src/screens/FeedScreen.tsx'), 'utf8');

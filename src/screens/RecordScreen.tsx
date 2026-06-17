@@ -450,7 +450,7 @@ export const RecordScreen = ({ navigation }: any) => {
   const fetchSessionBeers = useCallback(async (sessionId: string) => {
     const { data, error } = await supabase
       .from('session_beers')
-      .select('id, session_id, beer_name, volume, quantity, abv, note, consumed_at, created_at')
+      .select('id, session_id, beer_name, volume, quantity, abv, beverage_category, note, consumed_at, created_at')
       .eq('session_id', sessionId)
       .order('consumed_at', { ascending: true });
 
@@ -1019,7 +1019,7 @@ export const RecordScreen = ({ navigation }: any) => {
       const { data, error } = await supabase
         .from('session_beers')
         .insert(payload)
-        .select('id, session_id, beer_name, volume, quantity, abv, note, consumed_at, created_at')
+        .select('id, session_id, beer_name, volume, quantity, abv, beverage_category, note, consumed_at, created_at')
         .single();
 
       if (error) throw error;
@@ -1055,7 +1055,7 @@ export const RecordScreen = ({ navigation }: any) => {
       .update({ quantity: nextQuantity })
       .eq('id', beer.id)
       .eq('session_id', activeSession.id)
-      .select('id, session_id, beer_name, volume, quantity, abv, note, consumed_at, created_at')
+      .select('id, session_id, beer_name, volume, quantity, abv, beverage_category, note, consumed_at, created_at')
       .single();
 
     if (error) {

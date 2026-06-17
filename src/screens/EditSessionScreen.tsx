@@ -137,7 +137,7 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
 
       const { data: beerRows, error: beersError } = await supabase
         .from('session_beers')
-        .select('id, session_id, beer_name, volume, quantity, abv, note, consumed_at, created_at')
+        .select('id, session_id, beer_name, volume, quantity, abv, beverage_category, note, consumed_at, created_at')
         .eq('session_id', sessionId)
         .order('consumed_at', { ascending: true });
 
@@ -214,7 +214,7 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
           }, catalog),
           consumed_at: new Date().toISOString(),
         })
-        .select('id, session_id, beer_name, volume, quantity, abv, note, consumed_at, created_at')
+        .select('id, session_id, beer_name, volume, quantity, abv, beverage_category, note, consumed_at, created_at')
         .single();
 
       if (error) throw error;
@@ -567,6 +567,9 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
             volume: beer.volume || 'Pint',
             quantity: beer.quantity || 1,
             abv: beer.abv ?? null,
+            beverage_category: beer.beverage_category === 'wine' || beer.beverage_category === 'drink'
+              ? beer.beverage_category
+              : 'beer',
             note: beer.note || null,
           })
           .eq('id', beer.id)
@@ -594,6 +597,9 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
             volume: beer.volume || 'Pint',
             quantity: beer.quantity || 1,
             abv: beer.abv ?? null,
+            beverage_category: beer.beverage_category === 'wine' || beer.beverage_category === 'drink'
+              ? beer.beverage_category
+              : 'beer',
             note: beer.note || null,
             consumed_at: beer.consumed_at || new Date().toISOString(),
           }))
