@@ -12,6 +12,7 @@ const profileScreenPath = 'src/screens/ProfileScreen.tsx';
 const userProfileScreenPath = 'src/screens/UserProfileScreen.tsx';
 const specialMixedDrinksMigrationPath = 'supabase/migrations/20260522100000_add_special_mixed_drinks.sql';
 const commonCocktailsMigrationPath = 'supabase/migrations/20260531160000_add_common_cocktails_and_wine.sql';
+const beverageCategoryMigrationPath = 'supabase/migrations/20260617120000_add_admin_beverage_categories.sql';
 
 const exists = (relativePath) => fs.existsSync(path.resolve(__dirname, '..', relativePath));
 const readSource = (relativePath) => fs.readFileSync(path.resolve(__dirname, '..', relativePath), 'utf8');
@@ -427,6 +428,7 @@ assert.deepEqual(
     volume: '4cl',
     quantity: 1,
     abv: 37.5,
+    beverage_category: 'drink',
   },
   'Gin Hass should count only the 4cl gin serving at 37.5% ABV'
 );
@@ -438,6 +440,7 @@ assert.deepEqual(
     volume: '5.5cl',
     quantity: 1,
     abv: 37.8,
+    beverage_category: 'drink',
   },
   'Cosmopolitan should resolve its alias and count only vodka plus Cointreau'
 );
@@ -449,6 +452,7 @@ assert.deepEqual(
     volume: '15cl',
     quantity: 1,
     abv: 11,
+    beverage_category: 'drink',
   },
   'Aperol Spritz should count only its Prosecco and Aperol, not the soda water'
 );
@@ -460,6 +464,7 @@ assert.deepEqual(
     volume: '15cl',
     quantity: 2,
     abv: 13,
+    beverage_category: 'wine',
   },
   'generic red wine should submit as a normal 15cl 13% wine serving'
 );
@@ -485,6 +490,39 @@ assert.equal(
   wineStats.strongestAbv,
   5,
   'generic wine should not count toward beer-only strongest ABV trophies'
+);
+
+const customWineCategoryStats = calculateStats([
+  baseRow({ session_id: 'beer', beer_name: 'Pint Beer', volume: 'Pint', abv: 5, beverage_category: 'beer' }),
+  baseRow({ session_id: 'custom-wine', beer_name: 'House Champagne', volume: '15cl', abv: 12.5, beverage_category: 'wine' }),
+]);
+
+assert.equal(
+  customWineCategoryStats.strongestAbv,
+  5,
+  'custom wine category should not count toward beer-only strongest ABV trophies'
+);
+
+const customDrinkCategoryStats = calculateStats([
+  baseRow({ session_id: 'beer', beer_name: 'Pint Beer', volume: 'Pint', abv: 5, beverage_category: 'beer' }),
+  baseRow({ session_id: 'custom-drink', beer_name: 'House Vodka Juice', volume: '4cl', abv: 37.5, beverage_category: 'drink' }),
+]);
+
+assert.equal(
+  customDrinkCategoryStats.strongestAbv,
+  5,
+  'custom drink category should not count toward beer-only strongest ABV trophies'
+);
+
+const customBeerCategoryStats = calculateStats([
+  baseRow({ session_id: 'custom-beer', beer_name: 'House Triple IPA', volume: '33cl', abv: 12.1, beverage_category: 'beer' }),
+  baseRow({ session_id: 'custom-drink', beer_name: 'House Vodka Juice', volume: '4cl', abv: 37.5, beverage_category: 'drink' }),
+]);
+
+assert.equal(
+  customBeerCategoryStats.strongestAbv,
+  12.1,
+  'custom beer category should still count toward beer-only strongest ABV trophies'
 );
 
 const newBeverageStats = calculateStats([
@@ -685,6 +723,7 @@ assert.equal(karnevalAbvTrophy.description, 'Are you ok? You had the highest ABV
 
 const profileStatsSource = readSource('src/lib/profileStats.ts');
 assert.match(profileStatsSource, /\| 'challenge'/, 'TrophyKind should include challenge awards');
+assert.match(profileStatsSource, /beverage_category/, 'local profile stats should read captured beverage category');
 
 const challengeAwardsApiSource = readSource(challengeAwardsApiPath);
 assert.match(challengeAwardsApiSource, /get_challenge_awards/, 'challenge award API should call award RPC');
@@ -704,6 +743,8 @@ assert.match(userProfileScreenSource, /challengeAwards=\{challengeAwards\}/, 'Us
 
 const profileStatsApiSource = readSource(profileStatsApiPath);
 assert.match(profileStatsApiSource, /fetchTopPubVisits/, 'profile stats API should expose top pub visit fetching');
+assert.match(profileStatsApiSource, /beverage_category/, 'profile stats fallback query should select captured beverage category');
+assert.match(profileStatsApiSource, /beverage_category: beer\.beverage_category/, 'profile stats fallback rows should pass captured beverage category');
 assert.match(profileScreenSource, /fetchTopPubVisits/, 'ProfileScreen should fetch current user top pub visits');
 assert.match(profileScreenSource, /topPubVisits=\{topPubVisits\}/, 'ProfileScreen should pass top pub visits to stats panel');
 assert.match(userProfileScreenSource, /fetchTopPubVisits/, 'UserProfileScreen should fetch viewed user top pub visits');
@@ -727,6 +768,7 @@ assert.deepEqual(
     volume: '2cl',
     quantity: 1,
     abv: 35,
+    beverage_category: 'drink',
   },
   'Jägerbomb should only count the 2cl Jägermeister shot at 35% ABV'
 );
@@ -738,6 +780,7 @@ assert.deepEqual(
     volume: '2cl',
     quantity: 1,
     abv: 37,
+    beverage_category: 'drink',
   },
   'Vodka Orange Juice should use the same counted serving logic as Vodka Red Bull'
 );
@@ -749,6 +792,7 @@ assert.deepEqual(
     volume: '4cl',
     quantity: 1,
     abv: 17,
+    beverage_category: 'drink',
   },
   'Coffee Bailey should count only 4cl at 17% ABV'
 );
@@ -851,6 +895,24 @@ assert.match(
   commonCocktailsMigration,
   /'gin hass'[\s\S]*'cosmopolitan'[\s\S]*'aperol spritz'/,
   'migration profile stats should classify the common cocktails as special mixed drinks'
+);
+
+assert.ok(exists(beverageCategoryMigrationPath), 'admin beverage category migration should exist');
+const beverageCategoryMigration = readSource(beverageCategoryMigrationPath);
+assert.match(
+  beverageCategoryMigration,
+  /session_beers\.beverage_category = 'wine'/,
+  'profile stats migration should classify captured wine rows'
+);
+assert.match(
+  beverageCategoryMigration,
+  /session_beers\.beverage_category = 'drink'/,
+  'profile stats migration should classify captured drink rows'
+);
+assert.match(
+  beverageCategoryMigration,
+  /not is_captured_wine and not is_captured_drink/,
+  'profile stats migration should exclude captured wine and drink from strongest beer ABV'
 );
 
 assert.equal(

@@ -74,6 +74,7 @@ const fetchStatsFallback = async (userId: string): Promise<Stats> => {
       volume,
       quantity,
       abv,
+      beverage_category,
       consumed_at,
       sessions!inner(user_id, pub_id, pub_name, status, started_at, published_at, created_at)
     `)
@@ -89,6 +90,7 @@ const fetchStatsFallback = async (userId: string): Promise<Stats> => {
       volume: beer.volume,
       quantity: beer.quantity,
       abv: beer.abv,
+      beverage_category: beer.beverage_category,
       created_at: beer.consumed_at || beer.sessions?.started_at || beer.sessions?.created_at,
       session_started_at: beer.sessions?.started_at || beer.sessions?.created_at,
     }));
@@ -113,6 +115,7 @@ const fetchStatsFallback = async (userId: string): Promise<Stats> => {
     volume: session.volume,
     quantity: session.quantity,
     abv: session.abv,
+    beverage_category: 'beer',
     created_at: session.created_at,
     session_started_at: session.started_at || session.created_at,
   })) as ProfileSessionStatsRow[]);

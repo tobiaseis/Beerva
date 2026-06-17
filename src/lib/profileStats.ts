@@ -56,6 +56,7 @@ export type ProfileSessionStatsRow = {
   volume?: string | null;
   quantity?: number | null;
   abv?: number | null;
+  beverage_category?: 'beer' | 'wine' | 'drink' | string | null;
   created_at?: string | null;
   session_started_at?: string | null;
 };
@@ -341,6 +342,10 @@ const isSpecialMixedDrink = (beerName?: string | null) => {
   return key ? SPECIAL_MIXED_DRINK_KEYS.has(key) : false;
 };
 
+const getCapturedBeverageCategory = (value?: string | null) => (
+  value === 'wine' || value === 'drink' ? value : 'beer'
+);
+
 const getSessionCreatedAt = (session: ProfileSessionStatsRow) => (
   session.session_started_at || session.created_at
 );
@@ -434,6 +439,9 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = [], referenc
     const isSambu = isSambuca(session.beer_name);
     const isWine = isWineBeverage(session.beer_name);
     const isSpecialMixed = isSpecialMixedDrink(session.beer_name);
+    const capturedCategory = getCapturedBeverageCategory(session.beverage_category);
+    const isCapturedWine = capturedCategory === 'wine';
+    const isCapturedDrink = capturedCategory === 'drink';
 
     totalMl += sessionVolumeMl;
     weightedAbvSum += sessionVolumeMl * abv;
@@ -442,7 +450,7 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = [], referenc
     if (weekKey) {
       pintsPerWeek.set(weekKey, (pintsPerWeek.get(weekKey) || 0) + sessionPints);
     }
-    if (!isRtd && !isJager && !isSambu && !isWine && !isSpecialMixed) {
+    if (!isRtd && !isJager && !isSambu && !isWine && !isSpecialMixed && !isCapturedWine && !isCapturedDrink) {
       strongestAbv = Math.max(strongestAbv, abv);
     }
     hasLateNightSession = hasLateNightSession || isLateNightSession(sessionCreatedAt);
