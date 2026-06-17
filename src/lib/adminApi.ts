@@ -4,10 +4,13 @@ import { getErrorMessage, TimeoutError, withRetryableTimeout, withTimeout } from
 
 const ADMIN_TIMEOUT_MS = 15000;
 
+export type AdminBeverageCategory = 'beer' | 'wine' | 'drink';
+
 export type AdminBeverageRow = {
   id?: string | null;
   name?: string | null;
   abv?: number | string | null;
+  category?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 };
@@ -16,6 +19,7 @@ export type AdminBeverage = {
   id: string;
   name: string;
   abv: number;
+  category: AdminBeverageCategory;
   createdAt: string;
   updatedAt: string;
 };
@@ -62,6 +66,7 @@ export type SaveAdminBeverageInput = {
   id?: string;
   name: string;
   abv: number;
+  category: AdminBeverageCategory;
 };
 
 export type SaveAdminChallengeInput = {
@@ -97,6 +102,9 @@ const toNumber = (value: unknown) => {
   const parsed = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
 };
+export const mapAdminBeverageCategory = (value: unknown): AdminBeverageCategory => (
+  value === 'wine' || value === 'drink' ? value : 'beer'
+);
 const firstRow = <T,>(value: T | T[] | null | undefined) => Array.isArray(value) ? value[0] : value;
 export const createAdminRequestKey = () => {
   if (typeof globalThis.crypto?.randomUUID === 'function') {
@@ -131,6 +139,7 @@ export const mapAdminBeverageRow = (row: AdminBeverageRow): AdminBeverage => ({
   id: toString(row.id),
   name: toString(row.name),
   abv: toNumber(row.abv),
+  category: mapAdminBeverageCategory(row.category),
   createdAt: toString(row.created_at),
   updatedAt: toString(row.updated_at),
 });
@@ -158,13 +167,13 @@ export const fetchAdminBeverages = async (): Promise<AdminBeverage[]> => {
     const { data, error } = await withTimeout(
       supabase.rpc('get_admin_beverages'),
       ADMIN_TIMEOUT_MS,
-      'Drinks are taking too long to load.'
+      'Beverages are taking too long to load.'
     );
 
     if (error) throw error;
     return ((data || []) as AdminBeverageRow[]).map(mapAdminBeverageRow);
   } catch (error) {
-    throw new Error(getErrorMessage(error, 'Could not load admin-added beers.'));
+    throw new Error(getErrorMessage(error, 'Could not load admin-added beverages.'));
   }
 };
 
@@ -175,17 +184,18 @@ export const saveAdminBeverage = async (input: SaveAdminBeverageInput): Promise<
         target_beverage_id: input.id || null,
         beverage_name: input.name,
         beverage_abv: input.abv,
+        beverage_category: input.category,
       }),
       ADMIN_TIMEOUT_MS,
-      'Saving the beer is taking too long.'
+      'Saving the beverage is taking too long.'
     );
 
     if (error) throw error;
     const row = firstRow(data as AdminBeverageRow | AdminBeverageRow[] | null);
-    if (!row) throw new Error('The saved beer was not returned.');
+    if (!row) throw new Error('The saved beverage was not returned.');
     return mapAdminBeverageRow(row);
   } catch (error) {
-    throw new Error(getErrorMessage(error, 'Could not save beer.'));
+    throw new Error(getErrorMessage(error, 'Could not save beverage.'));
   }
 };
 

@@ -1,9 +1,10 @@
-import type { AdminBeverage, AdminChallenge, AdminChallengeType } from './adminApi';
+import type { AdminBeverage, AdminBeverageCategory, AdminChallenge, AdminChallengeType } from './adminApi';
 
-export type AdminBeerDraft = {
+export type AdminBeverageDraft = {
   id?: string;
   name: string;
   abv: string;
+  category: AdminBeverageCategory;
 };
 
 export type AdminChallengeDraft = {
@@ -75,15 +76,17 @@ export const fromLocalDateTimeInput = (
   return new Date(utcMs + offsetMinutes * 60_000).toISOString();
 };
 
-export const createEmptyBeerDraft = (): AdminBeerDraft => ({
+export const createEmptyBeverageDraft = (): AdminBeverageDraft => ({
   name: '',
   abv: '',
+  category: 'beer',
 });
 
-export const adminBeverageToDraft = (beverage: AdminBeverage): AdminBeerDraft => ({
+export const adminBeverageToDraft = (beverage: AdminBeverage): AdminBeverageDraft => ({
   id: beverage.id,
   name: beverage.name,
   abv: `${beverage.abv}`,
+  category: beverage.category,
 });
 
 export const createEmptyChallengeDraft = (now = new Date()): AdminChallengeDraft => {
@@ -131,8 +134,9 @@ export const adminChallengeToDraft = (challenge: AdminChallenge): AdminChallenge
   winnerTrophyDescription: challenge.winnerTrophyDescription || '',
 });
 
-export const validateBeerDraft = (draft: Pick<AdminBeerDraft, 'name' | 'abv'>) => {
-  if (!draft.name.trim()) return 'Beer name is required.';
+export const validateBeverageDraft = (draft: Pick<AdminBeverageDraft, 'name' | 'abv' | 'category'>) => {
+  if (!draft.name.trim()) return 'Beverage name is required.';
+  if (!['beer', 'wine', 'drink'].includes(draft.category)) return 'Choose a beverage category.';
 
   const abv = Number(draft.abv.trim().replace(',', '.'));
   if (!Number.isFinite(abv) || abv < 0 || abv > 100) {

@@ -35,17 +35,17 @@ import {
   saveAdminChallenge,
 } from '../lib/adminApi';
 import {
-  AdminBeerDraft,
+  AdminBeverageDraft,
   AdminChallengeDraft,
   AdminOfficialPostDraft,
   adminBeverageToDraft,
   adminChallengeToDraft,
   applyOfficialPostChallengePrefill,
-  createEmptyBeerDraft,
+  createEmptyBeverageDraft,
   createEmptyChallengeDraft,
   createEmptyOfficialPostDraft,
   fromLocalDateTimeInput,
-  validateBeerDraft,
+  validateBeverageDraft,
   validateChallengeDraft,
   validateOfficialPostDraft,
 } from '../lib/adminTools';
@@ -65,8 +65,8 @@ import { colors } from '../theme/colors';
 import { radius, shadows, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
 
-type AdminSegment = 'challenges' | 'beers' | 'official-posts';
-type ActiveModal = 'challenge' | 'beer' | 'official-post' | null;
+type AdminSegment = 'challenges' | 'beverages' | 'official-posts';
+type ActiveModal = 'challenge' | 'beverage' | 'official-post' | null;
 
 const formatChallengeWindow = (challenge: AdminChallenge) => {
   const start = new Date(challenge.startsAt);
@@ -87,7 +87,7 @@ export const AdminToolsScreen = ({ navigation }: any) => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [activeModal, setActiveModal] = useState<ActiveModal>(null);
-  const [beerDraft, setBeerDraft] = useState<AdminBeerDraft>(createEmptyBeerDraft);
+  const [beverageDraft, setBeverageDraft] = useState<AdminBeverageDraft>(createEmptyBeverageDraft);
   const [challengeDraft, setChallengeDraft] = useState<AdminChallengeDraft>(createEmptyChallengeDraft);
   const [selectedChallenge, setSelectedChallenge] = useState<AdminChallenge | null>(null);
   const [officialPostDraft, setOfficialPostDraft] = useState<AdminOfficialPostDraft>(createEmptyOfficialPostDraft);
@@ -138,16 +138,16 @@ export const AdminToolsScreen = ({ navigation }: any) => {
     setFormError(null);
   };
 
-  const openNewBeer = () => {
-    setBeerDraft(createEmptyBeerDraft());
+  const openNewBeverage = () => {
+    setBeverageDraft(createEmptyBeverageDraft());
     setFormError(null);
-    setActiveModal('beer');
+    setActiveModal('beverage');
   };
 
-  const openBeer = (beverage: AdminBeverage) => {
-    setBeerDraft(adminBeverageToDraft(beverage));
+  const openBeverage = (beverage: AdminBeverage) => {
+    setBeverageDraft(adminBeverageToDraft(beverage));
     setFormError(null);
-    setActiveModal('beer');
+    setActiveModal('beverage');
   };
 
   const openNewChallenge = () => {
@@ -250,15 +250,15 @@ export const AdminToolsScreen = ({ navigation }: any) => {
     setOfficialPostDraft((current) => applyOfficialPostChallengePrefill(current, challenge));
   };
 
-  const handleSaveBeer = async () => {
-    const validationError = validateBeerDraft(beerDraft);
+  const handleSaveBeverage = async () => {
+    const validationError = validateBeverageDraft(beverageDraft);
     if (validationError) {
       setFormError(validationError);
       return;
     }
 
-    if (getBeverageCatalogItem(beerDraft.name)) {
-      setFormError('That beer already exists in the built-in catalog.');
+    if (getBeverageCatalogItem(beverageDraft.name)) {
+      setFormError('That beverage already exists in the built-in catalog.');
       return;
     }
 
@@ -266,16 +266,17 @@ export const AdminToolsScreen = ({ navigation }: any) => {
     setFormError(null);
     try {
       await saveAdminBeverage({
-        id: beerDraft.id,
-        name: beerDraft.name.trim(),
-        abv: Number(beerDraft.abv.replace(',', '.')),
+        id: beverageDraft.id,
+        name: beverageDraft.name.trim(),
+        abv: Number(beverageDraft.abv.replace(',', '.')),
+        category: beverageDraft.category,
       });
       const rows = await fetchAdminBeverages();
       setBeverages(rows);
       await refreshCatalog();
       setActiveModal(null);
     } catch (error) {
-      setFormError(error instanceof Error ? error.message : 'Could not save beer.');
+      setFormError(error instanceof Error ? error.message : 'Could not save beverage.');
     } finally {
       setSaving(false);
     }
@@ -463,8 +464,8 @@ export const AdminToolsScreen = ({ navigation }: any) => {
   const emptyCopy = useMemo(() => (
     activeSegment === 'challenges'
       ? 'No challenges yet.'
-      : activeSegment === 'beers'
-        ? 'No admin-added beers yet.'
+      : activeSegment === 'beverages'
+        ? 'No admin-added beverages yet.'
         : 'No official posts yet.'
   ), [activeSegment]);
 
@@ -494,10 +495,10 @@ export const AdminToolsScreen = ({ navigation }: any) => {
     </Pressable>
   ), []);
 
-  const renderBeer = useCallback(({ item }: { item: AdminBeverage }) => (
+  const renderBeverage = useCallback(({ item }: { item: AdminBeverage }) => (
     <Pressable
       style={({ pressed }) => [styles.row, pressed ? styles.rowPressed : null]}
-      onPress={() => openBeer(item)}
+      onPress={() => openBeverage(item)}
       accessibilityRole="button"
       accessibilityLabel={`Edit ${item.name}`}
     >
@@ -506,7 +507,9 @@ export const AdminToolsScreen = ({ navigation }: any) => {
       </View>
       <View style={styles.rowBody}>
         <Text style={styles.rowTitle} numberOfLines={1}>{item.name}</Text>
-        <Text style={styles.rowMeta}>{item.abv}% ABV</Text>
+        <Text style={styles.rowMeta}>
+          {item.abv}% ABV - {item.category === 'wine' ? 'Wine' : item.category === 'drink' ? 'Drink' : 'Beer'}
+        </Text>
       </View>
       <Edit3 color={colors.textMuted} size={17} />
     </Pressable>
@@ -527,13 +530,13 @@ export const AdminToolsScreen = ({ navigation }: any) => {
 
   const addAction = activeSegment === 'challenges'
     ? openNewChallenge
-    : activeSegment === 'beers'
-      ? openNewBeer
+    : activeSegment === 'beverages'
+      ? openNewBeverage
       : openNewOfficialPost;
   const addActionLabel = activeSegment === 'challenges'
     ? 'Create challenge'
-    : activeSegment === 'beers'
-      ? 'Add beer'
+    : activeSegment === 'beverages'
+      ? 'Add beverage'
       : 'Create official post';
 
   return (
@@ -555,7 +558,7 @@ export const AdminToolsScreen = ({ navigation }: any) => {
       </View>
 
       <View style={styles.segmentedControl}>
-        {(['challenges', 'beers', 'official-posts'] as AdminSegment[]).map((segment) => (
+        {(['challenges', 'beverages', 'official-posts'] as AdminSegment[]).map((segment) => (
           <TouchableOpacity
             key={segment}
             style={[styles.segmentButton, activeSegment === segment ? styles.segmentButtonActive : null]}
@@ -564,7 +567,7 @@ export const AdminToolsScreen = ({ navigation }: any) => {
             accessibilityState={{ selected: activeSegment === segment }}
           >
             <Text style={[styles.segmentText, activeSegment === segment ? styles.segmentTextActive : null]}>
-              {segment === 'challenges' ? 'Challenges' : segment === 'beers' ? 'Beers' : 'Official posts'}
+              {segment === 'challenges' ? 'Challenges' : segment === 'beverages' ? 'Beverages' : 'Official posts'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -573,10 +576,10 @@ export const AdminToolsScreen = ({ navigation }: any) => {
       <View style={styles.toolbar}>
         <View>
           <Text style={styles.toolbarTitle}>
-            {activeSegment === 'challenges' ? 'Challenges' : activeSegment === 'beers' ? 'Admin beers' : 'Official posts'}
+            {activeSegment === 'challenges' ? 'Challenges' : activeSegment === 'beverages' ? 'Beverages' : 'Official posts'}
           </Text>
           <Text style={styles.toolbarMeta}>
-            {activeSegment === 'challenges' ? challenges.length : activeSegment === 'beers' ? beverages.length : officialPosts.length} total
+            {activeSegment === 'challenges' ? challenges.length : activeSegment === 'beverages' ? beverages.length : officialPosts.length} total
           </Text>
         </View>
         <TouchableOpacity
@@ -605,11 +608,11 @@ export const AdminToolsScreen = ({ navigation }: any) => {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadAll({ refresh: true })} tintColor={colors.primary} />}
           ListEmptyComponent={<Text style={styles.emptyText}>{emptyCopy}</Text>}
         />
-      ) : activeSegment === 'beers' ? (
+      ) : activeSegment === 'beverages' ? (
         <FlatList
           data={beverages}
           keyExtractor={(item) => item.id}
-          renderItem={renderBeer}
+          renderItem={renderBeverage}
           contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={[styles.listContent, beverages.length === 0 ? styles.emptyContent : null]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadAll({ refresh: true })} tintColor={colors.primary} />}
@@ -633,15 +636,15 @@ export const AdminToolsScreen = ({ navigation }: any) => {
             <View style={styles.modalHeader}>
               <View style={styles.modalTitleBlock}>
                 <Text style={styles.modalTitle}>
-                  {activeModal === 'beer'
-                    ? beerDraft.id ? 'Edit beer' : 'Add beer'
+                  {activeModal === 'beverage'
+                    ? beverageDraft.id ? 'Edit beverage' : 'Add beverage'
                     : activeModal === 'challenge'
                       ? challengeDraft.id ? 'Edit challenge' : 'Create challenge'
                       : 'Create official post'}
                 </Text>
                 <Text style={styles.modalSubtitle}>
-                  {activeModal === 'beer'
-                    ? 'Ordinary beer catalog entry'
+                  {activeModal === 'beverage'
+                    ? 'Admin beverage catalog entry'
                     : activeModal === 'challenge'
                       ? 'Official true-pint competition'
                       : 'Official Beerva feed announcement'}
@@ -663,18 +666,34 @@ export const AdminToolsScreen = ({ navigation }: any) => {
               contentContainerStyle={styles.formContent}
               keyboardShouldPersistTaps="handled"
             >
-              {activeModal === 'beer' ? (
+              {activeModal === 'beverage' ? (
                 <>
+                  <FormLabel>Category</FormLabel>
+                  <View style={styles.typeControl}>
+                    {(['beer', 'wine', 'drink'] as const).map((category) => (
+                      <TouchableOpacity
+                        key={category}
+                        style={[styles.typeButton, beverageDraft.category === category ? styles.typeButtonActive : null]}
+                        onPress={() => setBeverageDraft((current) => ({ ...current, category }))}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: beverageDraft.category === category }}
+                      >
+                        <Text style={[styles.typeText, beverageDraft.category === category ? styles.typeTextActive : null]}>
+                          {category === 'beer' ? 'Beer' : category === 'wine' ? 'Wine' : 'Drink'}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                   <FormLabel>Name</FormLabel>
                   <FormInput
-                    value={beerDraft.name}
-                    onChangeText={(name) => setBeerDraft((current) => ({ ...current, name }))}
-                    placeholder="Beer name"
+                    value={beverageDraft.name}
+                    onChangeText={(name) => setBeverageDraft((current) => ({ ...current, name }))}
+                    placeholder="Beverage name"
                   />
                   <FormLabel>ABV %</FormLabel>
                   <FormInput
-                    value={beerDraft.abv}
-                    onChangeText={(abv) => setBeerDraft((current) => ({ ...current, abv }))}
+                    value={beverageDraft.abv}
+                    onChangeText={(abv) => setBeverageDraft((current) => ({ ...current, abv }))}
                     placeholder="4.6"
                     keyboardType="decimal-pad"
                   />
@@ -908,21 +927,21 @@ export const AdminToolsScreen = ({ navigation }: any) => {
               {formError ? <Text style={styles.formError}>{formError}</Text> : null}
               <AppButton
                 label={
-                  activeModal === 'beer'
-                    ? 'Save Beer'
+                  activeModal === 'beverage'
+                    ? 'Save Beverage'
                     : activeModal === 'challenge'
                       ? 'Save Challenge'
                       : 'Publish Official Post'
                 }
                 onPress={
-                  activeModal === 'beer'
-                    ? handleSaveBeer
+                  activeModal === 'beverage'
+                    ? handleSaveBeverage
                     : activeModal === 'challenge'
                       ? handleSaveChallenge
                       : handlePublishOfficialPost
                 }
                 loading={saving}
-                icon={activeModal === 'beer'
+                icon={activeModal === 'beverage'
                   ? <Beer color={colors.background} size={18} />
                   : activeModal === 'challenge'
                     ? <ShieldCheck color={colors.background} size={18} />

@@ -30,9 +30,11 @@ const loadTypeScriptModule = (relativePath) => {
 const migrationPath = 'supabase/migrations/20260531170000_add_admin_challenges_and_beverages.sql';
 const retryMigrationPath = 'supabase/migrations/20260531180000_make_admin_challenge_save_retryable.sql';
 const archiveMigrationPath = 'supabase/migrations/20260603120000_add_admin_challenge_archive.sql';
+const beverageCategoryMigrationPath = 'supabase/migrations/20260617120000_add_admin_beverage_categories.sql';
 assert.ok(exists(migrationPath), 'admin migration should exist');
 assert.ok(exists(retryMigrationPath), 'admin challenge retry migration should exist');
 assert.ok(exists(archiveMigrationPath), 'admin challenge archive migration should exist');
+assert.ok(exists(beverageCategoryMigrationPath), 'admin beverage category migration should exist');
 assert.ok(exists('src/lib/adminApi.ts'), 'admin API should exist');
 assert.ok(exists('src/lib/beverageCatalogContext.tsx'), 'beverage catalog provider should exist');
 assert.ok(exists('src/lib/adminTools.ts'), 'admin form helpers should exist');
@@ -68,6 +70,7 @@ assert.match(retryMigrationSql, /where challenges\.admin_request_key = challenge
 assert.match(retryMigrationSql, /admin_request_key\s*\)\s*values/i);
 
 const archiveMigrationSql = read(archiveMigrationPath);
+const beverageCategoryMigrationSql = read(beverageCategoryMigrationPath);
 assert.match(archiveMigrationSql, /add column if not exists archived_at timestamp with time zone/i);
 assert.match(archiveMigrationSql, /add column if not exists archived_by uuid references auth\.users\(id\) on delete set null/i);
 assert.match(archiveMigrationSql, /create index if not exists challenges_unarchived_window_idx/i);
@@ -80,6 +83,23 @@ assert.match(archiveMigrationSql, /revoke execute on function public\.admin_arch
 assert.match(archiveMigrationSql, /revoke execute on function public\.admin_restore_challenge\(uuid\) from public, anon;/i);
 assert.match(archiveMigrationSql, /grant execute on function public\.admin_archive_challenge\(uuid\) to authenticated;/i);
 assert.match(archiveMigrationSql, /grant execute on function public\.admin_restore_challenge\(uuid\) to authenticated;/i);
+assert.match(beverageCategoryMigrationSql, /alter table public\.admin_beverages[\s\S]*add column if not exists category text not null default 'beer'/i);
+assert.match(beverageCategoryMigrationSql, /admin_beverages_category_check/i);
+assert.match(beverageCategoryMigrationSql, /category in \('beer', 'wine', 'drink'\)/i);
+assert.match(beverageCategoryMigrationSql, /alter table public\.session_beers[\s\S]*add column if not exists beverage_category text not null default 'beer'/i);
+assert.match(beverageCategoryMigrationSql, /session_beers_beverage_category_check/i);
+assert.match(beverageCategoryMigrationSql, /beverage_category in \('beer', 'wine', 'drink'\)/i);
+assert.match(beverageCategoryMigrationSql, /returns table \([\s\S]*category text/i, 'admin beverages RPC should return category');
+assert.match(beverageCategoryMigrationSql, /beverage_category text default 'beer'/i, 'admin save beverage should accept category');
+assert.match(beverageCategoryMigrationSql, /clean_category not in \('beer', 'wine', 'drink'\)/i, 'admin save beverage should validate category');
+assert.match(beverageCategoryMigrationSql, /insert into public\.admin_beverages \([\s\S]*category/i, 'admin save beverage should insert category');
+assert.match(beverageCategoryMigrationSql, /set[\s\S]*category = clean_category/i, 'admin save beverage should update category');
+assert.match(beverageCategoryMigrationSql, /drop function if exists public\.admin_save_beverage\(uuid, text, numeric\)/i, 'migration should drop old admin save beverage signature');
+assert.match(beverageCategoryMigrationSql, /grant execute on function public\.admin_save_beverage\(uuid, text, numeric, text\) to authenticated/i);
+assert.match(beverageCategoryMigrationSql, /'beverage_category', sb\.beverage_category/i, 'feed details beverage JSON should include category');
+assert.match(beverageCategoryMigrationSql, /session_beers\.beverage_category/i, 'profile stats should read captured beverage category');
+assert.match(beverageCategoryMigrationSql, /not is_captured_wine and not is_captured_drink/i, 'strongest ABV should exclude captured wine and drink categories');
+assert.match(beverageCategoryMigrationSql, /notify pgrst, 'reload schema'/i);
 
 const sessionBeers = loadTypeScriptModule('src/lib/sessionBeers.ts');
 const mergedCatalog = sessionBeers.mergeBeverageCatalog([
@@ -90,13 +110,16 @@ assert.equal(sessionBeers.getBeverageCatalogItem('Codex Lager', mergedCatalog)?.
 assert.equal(sessionBeers.getBeverageCatalogItem('Tuborg Classic', mergedCatalog)?.abv, 4.6);
 assert.deepEqual(
   sessionBeers.beerDraftToPayload({ beerName: 'Codex Lager', volume: '33cl', quantity: 2 }, mergedCatalog),
-  { beer_name: 'Codex Lager', volume: '33cl', quantity: 2, abv: 6.4 }
+  { beer_name: 'Codex Lager', volume: '33cl', quantity: 2, abv: 6.4, beverage_category: 'beer' }
 );
 
 const adminTools = loadTypeScriptModule('src/lib/adminTools.ts');
 assert.equal(adminTools.toLocalDateTimeInput('2026-05-31T12:45:00.000Z', 0), '2026-05-31T12:45');
 assert.equal(adminTools.fromLocalDateTimeInput('2026-05-31T12:45', 0), '2026-05-31T12:45:00.000Z');
-assert.equal(adminTools.validateBeerDraft({ name: '', abv: '5' }), 'Beer name is required.');
+assert.equal(adminTools.validateBeverageDraft({ name: '', abv: '5', category: 'beer' }), 'Beverage name is required.');
+assert.equal(adminTools.validateBeverageDraft({ name: 'House Champagne', abv: '12', category: 'wine' }), null);
+assert.equal(adminTools.validateBeverageDraft({ name: 'Mystery', abv: '5', category: 'other' }), 'Choose a beverage category.');
+assert.equal(adminTools.createEmptyBeverageDraft().category, 'beer');
 assert.equal(
   adminTools.validateChallengeDraft({
     title: 'Summer sprint',
@@ -123,7 +146,10 @@ assert.match(navigatorSource, /<Stack\.Screen name="AdminTools"/);
 assert.match(profileSource, /profile\?\.is_admin === true/);
 assert.match(profileSource, /Admin tools/);
 assert.match(adminScreenSource, /Challenges/);
-assert.match(adminScreenSource, /Beers/);
+assert.match(adminScreenSource, /Beverages/);
+assert.match(adminScreenSource, /Add beverage/);
+assert.match(adminScreenSource, /Save Beverage/);
+assert.match(adminScreenSource, /Beer[\s\S]*Wine[\s\S]*Drink/, 'admin beverage form should expose category options');
 assert.match(adminScreenSource, /Winner trophy/);
 assert.match(adminApiSource, /archived_at\?: string \| null;/);
 assert.match(adminApiSource, /archivedBy: toStringOrNull\(row\.archived_by\)/);
@@ -142,5 +168,10 @@ assert.match(
 assert.doesNotMatch(adminScreenSource, /Delete challenge|Delete beer/);
 assert.match(adminApiSource, /withRetryableTimeout/);
 assert.match(adminApiSource, /challenge_request_key/);
+assert.match(adminApiSource, /AdminBeverageCategory/, 'admin API should expose beverage category type');
+assert.match(adminApiSource, /category: mapAdminBeverageCategory\(row\.category\)/, 'admin API should map beverage category');
+assert.match(adminApiSource, /beverage_category: input\.category/, 'admin save payload should send category');
+assert.doesNotMatch(adminScreenSource, /Admin beers/);
+assert.doesNotMatch(adminScreenSource, /No admin-added beers yet/);
 
 console.log('admin tools checks passed');
