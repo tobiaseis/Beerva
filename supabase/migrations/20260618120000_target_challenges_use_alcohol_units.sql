@@ -293,8 +293,8 @@ as $$
       public.beerva_challenge_progress_value(
         target_challenge.metric_type,
         session_beers.volume,
-        session_beers.quantity,
-        session_beers.abv
+        session_beers.quantity::numeric,
+        session_beers.abv::numeric
       ) as progress_value
     from joined_users
     join target_challenge on true
@@ -310,8 +310,8 @@ as $$
       public.beerva_challenge_progress_value(
         target_challenge.metric_type,
         sessions.volume,
-        sessions.quantity,
-        sessions.abv
+        sessions.quantity::numeric,
+        sessions.abv::numeric
       ) as progress_value
     from joined_users
     join target_challenge on true
@@ -420,8 +420,8 @@ as $$
       public.beerva_challenge_progress_value(
         challenges.metric_type,
         session_beers.volume,
-        session_beers.quantity,
-        session_beers.abv
+        session_beers.quantity::numeric,
+        session_beers.abv::numeric
       ) as progress_value
     from local_entries
     join public.challenges as challenges
@@ -442,8 +442,8 @@ as $$
       public.beerva_challenge_progress_value(
         challenges.metric_type,
         sessions.volume,
-        sessions.quantity,
-        sessions.abv
+        sessions.quantity::numeric,
+        sessions.abv::numeric
       ) as progress_value
     from local_entries
     join public.challenges as challenges

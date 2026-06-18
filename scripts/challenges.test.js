@@ -576,6 +576,16 @@ assert.match(
   /create or replace function public\.beerva_challenge_progress_value/i,
   'unit migration should add a shared challenge progress helper'
 );
+assert.equal(
+  (targetChallengeUnitsMigrationSql.match(/session_beers\.quantity::numeric,\s*session_beers\.abv::numeric/g) ?? []).length,
+  2,
+  'session_beers progress helper calls should cast quantity and ABV to match the helper signature'
+);
+assert.equal(
+  (targetChallengeUnitsMigrationSql.match(/sessions\.quantity::numeric,\s*sessions\.abv::numeric/g) ?? []).length,
+  2,
+  'legacy session progress helper calls should cast quantity and ABV to match the helper signature'
+);
 assert.match(
   targetChallengeUnitsMigrationSql,
   /0\.789[\s\S]*12\.0/i,
