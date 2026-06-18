@@ -4,6 +4,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { ArrowLeft, Beer, CalendarDays, MapPin, UserCheck, UserPlus } from 'lucide-react-native';
 
 import { CachedImage } from '../components/CachedImage';
+import { IgnoredDrinkBadge } from '../components/IgnoredDrinkBadge';
 import { StreakAvatar } from '../components/StreakAvatar';
 import { ProfileStatsPanel } from '../components/ProfileStatsPanel';
 import { fetchChallengeAwards } from '../lib/challengeAwardsApi';
@@ -96,6 +97,8 @@ const getDrinkLabel = (session: PublicSession) => {
   return `${drink} of ${session.beer_name || 'Beer'}`;
 };
 
+const isIgnoredBeer = (beer: Pick<SessionBeer, 'excluded_from_stats'>) => beer.excluded_from_stats === true;
+
 const getTimeAgo = (dateString?: string | null) => {
   if (!dateString) return 'Recently';
 
@@ -111,7 +114,7 @@ const getTimeAgo = (dateString?: string | null) => {
 
 const formatPints = (session: PublicSession) => {
   const beers = session.session_beers?.length > 0
-    ? session.session_beers
+    ? session.session_beers.filter((beer) => !isIgnoredBeer(beer))
     : [{
         volume: session.volume,
         quantity: session.quantity,
@@ -198,7 +201,7 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
       if (sessionIds.length > 0) {
         const { data: beerRows, error: beersError } = await supabase
           .from('session_beers')
-          .select('id, session_id, beer_name, volume, quantity, abv, note, consumed_at, created_at')
+          .select('id, session_id, beer_name, volume, quantity, abv, note, consumed_at, created_at, excluded_from_stats, excluded_from_stats_at, excluded_from_stats_reason')
           .in('session_id', sessionIds)
           .order('consumed_at', { ascending: true });
 
@@ -491,11 +494,23 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
                 </View>
               )}
               <View style={styles.sessionText}>
-                <Text style={styles.sessionTitle}>{getDrinkLabel(session)}</Text>
+                <View style={styles.sessionTitleRow}>
+                  <Text style={styles.sessionTitle} numberOfLines={1}>{getDrinkLabel(session)}</Text>
+                  {session.session_beers.length === 1 ? (
+                    <IgnoredDrinkBadge excludedFromStats={session.session_beers[0].excluded_from_stats} />
+                  ) : null}
+                </View>
                 {session.session_beers.length > 1 ? (
-                  <Text style={styles.sessionBreakdown} numberOfLines={2}>
-                    {session.session_beers.map((beer) => getBeerLine(beer)).join(' / ')}
-                  </Text>
+                  <View style={styles.sessionBreakdown}>
+                    {session.session_beers.map((beer) => (
+                      <View key={beer.id || `${beer.beer_name}-${beer.volume}`} style={styles.sessionBreakdownRow}>
+                        <Text style={styles.sessionBreakdownText} numberOfLines={1}>
+                          {getBeerLine(beer)}
+                        </Text>
+                        <IgnoredDrinkBadge excludedFromStats={beer.excluded_from_stats} />
+                      </View>
+                    ))}
+                  </View>
                 ) : null}
                 <TouchableOpacity
                   style={styles.sessionMetaRow}
@@ -713,14 +728,33 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  sessionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
+    gap: 6,
+  },
   sessionTitle: {
     ...typography.body,
+    flex: 1,
+    minWidth: 0,
     fontWeight: '700',
   },
   sessionBreakdown: {
-    ...typography.caption,
     marginTop: 3,
+    gap: 3,
+  },
+  sessionBreakdownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
+    gap: 6,
+  },
+  sessionBreakdownText: {
+    ...typography.caption,
     color: colors.textMuted,
+    flex: 1,
+    minWidth: 0,
   },
   sessionMetaRow: {
     flexDirection: 'row',

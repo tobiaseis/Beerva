@@ -737,10 +737,16 @@ assert.match(challengeProfileStatsPanelSource, /\.\.\.challengeAwards/, 'Profile
 const profileScreenSource = readSource(profileScreenPath);
 assert.match(profileScreenSource, /fetchChallengeAwards/, 'ProfileScreen should fetch current user challenge awards');
 assert.match(profileScreenSource, /challengeAwards=\{challengeAwards\}/, 'ProfileScreen should pass challenge awards to stats panel');
+assert.match(profileScreenSource, /excluded_from_stats/, 'ProfileScreen recent posts should fetch ignored-drink metadata');
+assert.match(profileScreenSource, /IgnoredDrinkBadge/, 'ProfileScreen recent posts should render ignored drinks with the detective badge');
+assert.match(profileScreenSource, /excludedFromStats=\{beer\.excluded_from_stats\}/, 'ProfileScreen should place the detective badge beside the exact marked drink');
 
 const userProfileScreenSource = readSource(userProfileScreenPath);
 assert.match(userProfileScreenSource, /fetchChallengeAwards/, 'UserProfileScreen should fetch viewed user challenge awards');
 assert.match(userProfileScreenSource, /challengeAwards=\{challengeAwards\}/, 'UserProfileScreen should pass challenge awards to stats panel');
+assert.match(userProfileScreenSource, /excluded_from_stats/, 'UserProfileScreen recent posts should fetch ignored-drink metadata');
+assert.match(userProfileScreenSource, /IgnoredDrinkBadge/, 'UserProfileScreen recent posts should render ignored drinks with the detective badge');
+assert.match(userProfileScreenSource, /excludedFromStats=\{beer\.excluded_from_stats\}/, 'UserProfileScreen should place the detective badge beside the exact marked drink');
 
 const profileStatsApiSource = readSource(profileStatsApiPath);
 assert.match(profileStatsApiSource, /fetchTopPubVisits/, 'profile stats API should expose top pub visit fetching');

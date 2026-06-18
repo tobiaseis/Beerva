@@ -176,6 +176,11 @@ assert.match(
   /DETECTIVE_EMOJI\s*=\s*'\\u\{1F575\}\\uFE0F'/,
   'ignored-drink badge should use an escaped detective emoji instead of mojibake'
 );
+assert.doesNotMatch(
+  ignoredDrinkBadgeSource,
+  /\.\.\.typography\./,
+  'ignored-drink badge should not use the app custom font because Android can hide emoji glyphs'
+);
 
 console.log('session feed details checks passed');
 

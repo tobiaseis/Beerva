@@ -3,7 +3,6 @@ import { StyleProp, StyleSheet, Text, TextStyle } from 'react-native';
 
 import { colors } from '../theme/colors';
 import { radius } from '../theme/layout';
-import { typography } from '../theme/typography';
 
 type IgnoredDrinkBadgeProps = {
   excludedFromStats?: boolean | null;
@@ -27,9 +26,10 @@ export const IgnoredDrinkBadge = ({ excludedFromStats, style }: IgnoredDrinkBadg
 
 const styles = StyleSheet.create({
   badge: {
-    ...typography.tiny,
     minWidth: 22,
     height: 22,
+    fontSize: 13,
+    lineHeight: 20,
     borderRadius: radius.pill,
     overflow: 'hidden',
     textAlign: 'center',
