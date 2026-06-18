@@ -181,6 +181,31 @@ assert.doesNotMatch(
   /\.\.\.typography\./,
   'ignored-drink badge should not use the app custom font because Android can hide emoji glyphs'
 );
+assert.match(
+  ignoredDrinkBadgeSource,
+  /TouchableOpacity/,
+  'ignored-drink badge should be pressable so users can learn what the detective icon means'
+);
+assert.match(
+  ignoredDrinkBadgeSource,
+  /showAlert\(\s*'Suspicious drink'/,
+  'ignored-drink badge should open an explanation message when pressed'
+);
+assert.match(
+  ignoredDrinkBadgeSource,
+  /marked as suspicious activity/,
+  'ignored-drink explanation should say the drink is marked as suspicious activity'
+);
+assert.match(
+  ignoredDrinkBadgeSource,
+  /not count towards stats, leaderboards, or trophies/,
+  'ignored-drink explanation should say the drink will not count toward stats surfaces'
+);
+assert.match(
+  ignoredDrinkBadgeSource,
+  /accessibilityRole="button"/,
+  'ignored-drink badge should expose button semantics to assistive tech'
+);
 
 console.log('session feed details checks passed');
 
