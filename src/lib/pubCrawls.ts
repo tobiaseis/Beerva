@@ -239,8 +239,6 @@ export const calculatePubCrawlSummary = (stops: PubCrawlStop[] = []): PubCrawlSu
 
   stops.forEach((stop) => {
     stop.beers.forEach((beer) => {
-      if (beer.excludedFromStats) return;
-
       const quantity = Math.max(1, beer.quantity || 1);
       const volumeMl = getServingVolumeMl(beer.volume);
       const drinkMl = volumeMl * quantity;

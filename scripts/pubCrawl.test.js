@@ -211,10 +211,10 @@ assert.equal(crawl.stops[0].beers[0].excludedFromStats, true, 'pub crawl beers s
 
 const summary = calculatePubCrawlSummary(crawl.stops);
 assert.equal(summary.barCount, 3);
-assert.equal(summary.drinkCount, 5);
-assert.equal(summary.truePints, 4.2);
-assert.equal(summary.units, 7.3);
-assert.equal(summary.averageAbv, 4.6);
+assert.equal(summary.drinkCount, 7);
+assert.equal(summary.truePints, 6.2);
+assert.equal(summary.units, 10.4);
+assert.equal(summary.averageAbv, 4.5);
 assert.equal(summary.routeLabel, 'First Bar -> Second Bar -> Third Bar');
 
 const summaryWithMissingAbv = calculatePubCrawlSummary([
@@ -268,6 +268,7 @@ assert.match(feedCardSource, /formatStatNumber\(summary\.units\)/, 'pub crawl Un
 assert.match(feedCardSource, /IgnoredDrinkBadge/, 'pub crawl More stats should render ignored drinks with the detective badge');
 assert.match(feedCardSource, /excludedFromStats=\{beer\.excludedFromStats\}/, 'pub crawl stop breakdown should place the badge beside the exact marked drink');
 assert.doesNotMatch(feedCardSource, /stop\.beers\.length\}\s*drinks/, 'expanded pub crawl stop rows should not undercount multi-quantity drinks');
+assert.doesNotMatch(feedCardSource, /filter\(\(beer\) => !isIgnoredBeer\(beer\)\)/, 'pub crawl post stop counts should include suspicious drinks because posts remain visible history');
 
 const feedScreenSource = fs.readFileSync(path.resolve(__dirname, '..', feedScreenPath), 'utf8');
 assert.match(feedScreenSource, /addPubCrawlComment\(/, 'pub crawl comments should be written through the crawl comments API');

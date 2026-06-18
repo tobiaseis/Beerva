@@ -53,12 +53,8 @@ const formatStatNumber = (value: number) => (
   Number.isInteger(value) ? String(value) : value.toFixed(1)
 );
 
-const isIgnoredBeer = (beer: PubCrawlStop['beers'][number]) => beer.excludedFromStats === true;
-
 const getStopDrinkCount = (stop: PubCrawlStop) => (
-  stop.beers
-    .filter((beer) => !isIgnoredBeer(beer))
-    .reduce((sum, beer) => sum + Math.max(1, beer.quantity || 1), 0)
+  stop.beers.reduce((sum, beer) => sum + Math.max(1, beer.quantity || 1), 0)
 );
 
 const getCheersLabel = (count: number) => `${count} ${count === 1 ? 'Cheer' : 'Cheers'}`;
