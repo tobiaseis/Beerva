@@ -42,6 +42,7 @@ const adminChallengesMigrationPath = 'supabase/migrations/20260531170000_add_adm
 const archiveMigrationPath = 'supabase/migrations/20260603120000_add_admin_challenge_archive.sql';
 const targetChallengeUnitsMigrationPath = 'supabase/migrations/20260618120000_target_challenges_use_alcohol_units.sql';
 const boozeInJuneUnitsFixMigrationPath = 'supabase/migrations/20260618130000_fix_booze_in_june_units.sql';
+const forceTargetUnitsMigrationPath = 'supabase/migrations/20260618140000_force_target_challenges_to_units.sql';
 const karnevalTestMigrationPath = 'supabase/migrations/20260521110000_add_karneval_test_challenge.sql';
 const removeKarnevalTestMigrationPath = 'supabase/migrations/20260521120000_remove_karneval_test_challenge.sql';
 const karnevalsdrukDualAwardsMigrationPath = 'supabase/migrations/20260522110000_add_karnevalsdruk_dual_awards.sql';
@@ -61,6 +62,7 @@ assert.ok(exists(localChallengeLeaderboardsMigrationPath), 'local challenge lead
 assert.ok(exists(archiveMigrationPath), 'admin challenge archive migration should exist');
 assert.ok(exists(targetChallengeUnitsMigrationPath), 'target challenge units migration should exist');
 assert.ok(exists(boozeInJuneUnitsFixMigrationPath), 'Booze-in-June units fix migration should exist');
+assert.ok(exists(forceTargetUnitsMigrationPath), 'target challenge force-units migration should exist');
 assert.ok(exists(karnevalTestMigrationPath), 'Karneval test challenge migration should exist');
 assert.ok(exists(removeKarnevalTestMigrationPath), 'Karneval test cleanup migration should exist');
 assert.ok(exists(karnevalsdrukDualAwardsMigrationPath), 'KarnevalsDruk dual awards migration should exist');
@@ -529,6 +531,7 @@ assert.doesNotMatch(
 const archiveMigrationSql = read(archiveMigrationPath);
 const targetChallengeUnitsMigrationSql = read(targetChallengeUnitsMigrationPath);
 const boozeInJuneUnitsFixMigrationSql = read(boozeInJuneUnitsFixMigrationPath);
+const forceTargetUnitsMigrationSql = read(forceTargetUnitsMigrationPath);
 assert.match(
   archiveMigrationSql,
   /create or replace function public\.get_official_challenges\(\)[\s\S]*where challenges\.archived_at is null/i,
@@ -658,6 +661,56 @@ assert.match(
   boozeInJuneUnitsFixMigrationSql,
   /notify pgrst,\s*'reload schema'/i,
   'Booze-in-June fix should reload PostgREST schema cache'
+);
+assert.match(
+  forceTargetUnitsMigrationSql,
+  /create or replace function public\.beerva_effective_challenge_metric_type/i,
+  'force-units migration should define an effective metric helper'
+);
+assert.match(
+  forceTargetUnitsMigrationSql,
+  /when challenge_type_value = 'target' then 'alcohol_units'/i,
+  'target challenges should resolve to alcohol_units regardless of stale stored metric_type'
+);
+assert.match(
+  forceTargetUnitsMigrationSql,
+  /update public\.challenges[\s\S]*set metric_type = 'alcohol_units'[\s\S]*where challenge_type = 'target'/i,
+  'force-units migration should update every stored target challenge metric'
+);
+assert.match(
+  forceTargetUnitsMigrationSql,
+  /beerva_challenge_progress_value\(\s*public\.beerva_effective_challenge_metric_type\(\s*target_challenge\.challenge_type,\s*target_challenge\.metric_type\s*\)/i,
+  'global leaderboard should calculate progress from the effective metric'
+);
+assert.match(
+  forceTargetUnitsMigrationSql,
+  /beerva_challenge_progress_value\(\s*public\.beerva_effective_challenge_metric_type\(\s*challenges\.challenge_type,\s*challenges\.metric_type\s*\)/i,
+  'official challenge summaries should calculate progress from the effective metric'
+);
+assert.match(
+  forceTargetUnitsMigrationSql,
+  /public\.beerva_effective_challenge_metric_type\(\s*challenges\.challenge_type,\s*challenges\.metric_type\s*\) as metric_type/i,
+  'official challenge summaries should expose the effective metric'
+);
+assert.match(
+  forceTargetUnitsMigrationSql,
+  /'metric_type',\s*public\.beerva_effective_challenge_metric_type\(\s*target_challenge\.challenge_type,\s*target_challenge\.metric_type\s*\)/i,
+  'challenge detail should expose the effective metric'
+);
+assert.match(
+  forceTargetUnitsMigrationSql,
+  /create or replace function public\.get_challenge_detail\(target_challenge_slug text\)/i,
+  'force-units migration should replace challenge detail so the UI receives alcohol_units'
+);
+assert.match(
+  forceTargetUnitsMigrationSql,
+  /revoke execute on function public\.get_challenge_detail\(text\) from public, anon;/i,
+  'force-units migration should keep challenge detail execute grants explicit'
+);
+assert.match(
+  forceTargetUnitsMigrationSql,
+  /notify pgrst,\s*'reload schema'/i,
+  'force-units migration should reload PostgREST schema cache'
 );
 
 const karnevalTestMigrationSql = read(karnevalTestMigrationPath);
