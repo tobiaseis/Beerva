@@ -41,6 +41,7 @@ const localChallengeLeaderboardsMigrationPath = 'supabase/migrations/20260602120
 const adminChallengesMigrationPath = 'supabase/migrations/20260531170000_add_admin_challenges_and_beverages.sql';
 const archiveMigrationPath = 'supabase/migrations/20260603120000_add_admin_challenge_archive.sql';
 const targetChallengeUnitsMigrationPath = 'supabase/migrations/20260618120000_target_challenges_use_alcohol_units.sql';
+const boozeInJuneUnitsFixMigrationPath = 'supabase/migrations/20260618130000_fix_booze_in_june_units.sql';
 const karnevalTestMigrationPath = 'supabase/migrations/20260521110000_add_karneval_test_challenge.sql';
 const removeKarnevalTestMigrationPath = 'supabase/migrations/20260521120000_remove_karneval_test_challenge.sql';
 const karnevalsdrukDualAwardsMigrationPath = 'supabase/migrations/20260522110000_add_karnevalsdruk_dual_awards.sql';
@@ -59,6 +60,7 @@ assert.ok(exists(challengeLeaderboardWindowFixPath), 'challenge leaderboard wind
 assert.ok(exists(localChallengeLeaderboardsMigrationPath), 'local challenge leaderboards migration should exist');
 assert.ok(exists(archiveMigrationPath), 'admin challenge archive migration should exist');
 assert.ok(exists(targetChallengeUnitsMigrationPath), 'target challenge units migration should exist');
+assert.ok(exists(boozeInJuneUnitsFixMigrationPath), 'Booze-in-June units fix migration should exist');
 assert.ok(exists(karnevalTestMigrationPath), 'Karneval test challenge migration should exist');
 assert.ok(exists(removeKarnevalTestMigrationPath), 'Karneval test cleanup migration should exist');
 assert.ok(exists(karnevalsdrukDualAwardsMigrationPath), 'KarnevalsDruk dual awards migration should exist');
@@ -526,6 +528,7 @@ assert.doesNotMatch(
 
 const archiveMigrationSql = read(archiveMigrationPath);
 const targetChallengeUnitsMigrationSql = read(targetChallengeUnitsMigrationPath);
+const boozeInJuneUnitsFixMigrationSql = read(boozeInJuneUnitsFixMigrationPath);
 assert.match(
   archiveMigrationSql,
   /create or replace function public\.get_official_challenges\(\)[\s\S]*where challenges\.archived_at is null/i,
@@ -630,6 +633,31 @@ assert.match(
   targetChallengeUnitsMigrationSql,
   /where challenges\.challenge_type = 'leaderboard'[\s\S]*and challenges\.slug = 'karnevalsdruk-2026'/i,
   'KarnevalsDruk finalizer should remain leaderboard scoped'
+);
+assert.match(
+  boozeInJuneUnitsFixMigrationSql,
+  /update public\.challenges[\s\S]*set metric_type = 'alcohol_units'[\s\S]*challenge_type = 'target'[\s\S]*finalized_at is null/i,
+  'Booze-in-June fix should convert the existing unfinished target challenge to units'
+);
+assert.match(
+  boozeInJuneUnitsFixMigrationSql,
+  /booze-in-june/i,
+  'Booze-in-June fix should target the June challenge by stable slug/title'
+);
+assert.match(
+  boozeInJuneUnitsFixMigrationSql,
+  /slug\) like 'booze-in-june-%'/i,
+  'Booze-in-June fix should handle admin-generated slug suffixes'
+);
+assert.doesNotMatch(
+  boozeInJuneUnitsFixMigrationSql,
+  /ends_at\s*>\s*now\(\)/i,
+  'Booze-in-June fix should not depend on the current date window'
+);
+assert.match(
+  boozeInJuneUnitsFixMigrationSql,
+  /notify pgrst,\s*'reload schema'/i,
+  'Booze-in-June fix should reload PostgREST schema cache'
 );
 
 const karnevalTestMigrationSql = read(karnevalTestMigrationPath);
