@@ -30,6 +30,8 @@ begin
 end;
 $$;
 
+drop function if exists public.get_admin_beverages();
+
 create or replace function public.get_admin_beverages()
 returns table (
   id uuid,

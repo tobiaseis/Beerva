@@ -94,6 +94,7 @@ assert.match(beverageCategoryMigrationSql, /beverage_category text default 'beer
 assert.match(beverageCategoryMigrationSql, /clean_category not in \('beer', 'wine', 'drink'\)/i, 'admin save beverage should validate category');
 assert.match(beverageCategoryMigrationSql, /insert into public\.admin_beverages \([\s\S]*category/i, 'admin save beverage should insert category');
 assert.match(beverageCategoryMigrationSql, /set[\s\S]*category = clean_category/i, 'admin save beverage should update category');
+assert.match(beverageCategoryMigrationSql, /drop function if exists public\.get_admin_beverages\(\)/i, 'migration should drop admin beverages RPC before changing its return type');
 assert.match(beverageCategoryMigrationSql, /drop function if exists public\.admin_save_beverage\(uuid, text, numeric\)/i, 'migration should drop old admin save beverage signature');
 assert.match(beverageCategoryMigrationSql, /grant execute on function public\.admin_save_beverage\(uuid, text, numeric, text\) to authenticated/i);
 assert.match(beverageCategoryMigrationSql, /'beverage_category', sb\.beverage_category/i, 'feed details beverage JSON should include category');
