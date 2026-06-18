@@ -356,6 +356,9 @@ export const FeedSessionCard = React.memo(({
     excludedFromStats: isIgnoredBeer(beer),
   }));
   const hasIgnoredDrinks = item.session_beers.some(isIgnoredBeer);
+  const visibleDrinkRows = hasIgnoredDrinks
+    ? beerBreakdownRows.filter((row) => row.excludedFromStats)
+    : [];
   const visibleChugStat = getVisibleChugStat(item.session_chug_attempts || []);
   const drinkingBuddyNames = formatDrinkingBuddyNames(item.drinking_buddies || []);
   const [statsExpanded, setStatsExpanded] = React.useState(false);
@@ -588,8 +591,23 @@ export const FeedSessionCard = React.memo(({
           <View style={styles.summaryRow}>
             <Image source={beervaLogo} style={styles.inlineLogoSmall} />
             <View style={styles.summaryDrinkContent}>
-              <Text style={styles.summaryDrinkText} numberOfLines={2}>{getDrinkLabel(item)}</Text>
-              <IgnoredDrinkBadge excludedFromStats={hasIgnoredDrinks} style={styles.summaryIgnoredBadge} />
+              {visibleDrinkRows.length > 0 ? (
+                <>
+                  {item.session_beers.length > visibleDrinkRows.length ? (
+                    <Text style={styles.summaryDrinkText} numberOfLines={1}>{getDrinkLabel(item)}</Text>
+                  ) : null}
+                  <View style={styles.summaryDrinkList}>
+                    {visibleDrinkRows.map((row) => (
+                      <View key={`marked-${row.key}`} style={styles.summaryDrinkLine}>
+                        <Text style={styles.summaryFlaggedDrinkText} numberOfLines={1}>{row.line}</Text>
+                        <IgnoredDrinkBadge excludedFromStats={row.excludedFromStats} style={styles.summaryIgnoredBadge} />
+                      </View>
+                    ))}
+                  </View>
+                </>
+              ) : (
+                <Text style={styles.summaryDrinkText} numberOfLines={2}>{getDrinkLabel(item)}</Text>
+              )}
             </View>
           </View>
         </View>
@@ -2535,16 +2553,30 @@ const styles = StyleSheet.create({
   summaryDrinkText: {
     ...typography.body,
     color: colors.text,
-    flex: 1,
     minWidth: 0,
     lineHeight: 22,
   },
   summaryDrinkContent: {
     flex: 1,
     minWidth: 0,
+    justifyContent: 'center',
+    gap: 2,
+  },
+  summaryDrinkList: {
+    gap: 2,
+  },
+  summaryDrinkLine: {
     flexDirection: 'row',
     alignItems: 'center',
+    minWidth: 0,
     gap: 6,
+  },
+  summaryFlaggedDrinkText: {
+    ...typography.caption,
+    color: colors.text,
+    flex: 1,
+    minWidth: 0,
+    lineHeight: 18,
   },
   summaryIgnoredBadge: {
     marginRight: 2,

@@ -10,6 +10,8 @@ type IgnoredDrinkBadgeProps = {
   style?: StyleProp<TextStyle>;
 };
 
+const DETECTIVE_EMOJI = '\u{1F575}\uFE0F';
+
 export const IgnoredDrinkBadge = ({ excludedFromStats, style }: IgnoredDrinkBadgeProps) => {
   if (!excludedFromStats) return null;
 
@@ -18,7 +20,7 @@ export const IgnoredDrinkBadge = ({ excludedFromStats, style }: IgnoredDrinkBadg
       accessibilityLabel="Ignored in stats"
       style={[styles.badge, style]}
     >
-      🕵️
+      {DETECTIVE_EMOJI}
     </Text>
   );
 };
