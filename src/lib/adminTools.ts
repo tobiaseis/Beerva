@@ -168,7 +168,7 @@ export const validateChallengeDraft = (draft: AdminChallengeDraft) => {
   if (draft.challengeType === 'target') {
     const targetValue = Number(draft.targetValue.trim().replace(',', '.'));
     if (!Number.isFinite(targetValue) || targetValue <= 0) {
-      return 'Target true pints must be greater than 0.';
+      return 'Target units must be greater than 0.';
     }
   }
 

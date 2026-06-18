@@ -482,7 +482,7 @@ export const AdminToolsScreen = ({ navigation }: any) => {
       <View style={styles.rowBody}>
         <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
         <Text style={styles.rowMeta} numberOfLines={1}>
-          {item.challengeType === 'target' ? `${item.targetValue} true pints` : 'Leaderboard'} - {formatChallengeWindow(item)}
+          {item.challengeType === 'target' ? `${item.targetValue} units` : 'Leaderboard'} - {formatChallengeWindow(item)}
         </Text>
         {item.winnerTrophyEnabled ? (
           <Text style={styles.rowAccent} numberOfLines={1}>Winner trophy: {item.winnerTrophyTitle}</Text>
@@ -736,7 +736,7 @@ export const AdminToolsScreen = ({ navigation }: any) => {
 
                   {challengeDraft.challengeType === 'target' ? (
                     <>
-                      <FormLabel>Target true pints</FormLabel>
+                      <FormLabel>Target units</FormLabel>
                       <FormInput
                         value={challengeDraft.targetValue}
                         onChangeText={(targetValue) => setChallengeDraft((current) => ({ ...current, targetValue }))}

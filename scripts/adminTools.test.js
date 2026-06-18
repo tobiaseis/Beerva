@@ -31,10 +31,12 @@ const migrationPath = 'supabase/migrations/20260531170000_add_admin_challenges_a
 const retryMigrationPath = 'supabase/migrations/20260531180000_make_admin_challenge_save_retryable.sql';
 const archiveMigrationPath = 'supabase/migrations/20260603120000_add_admin_challenge_archive.sql';
 const beverageCategoryMigrationPath = 'supabase/migrations/20260617120000_add_admin_beverage_categories.sql';
+const targetChallengeUnitsMigrationPath = 'supabase/migrations/20260618120000_target_challenges_use_alcohol_units.sql';
 assert.ok(exists(migrationPath), 'admin migration should exist');
 assert.ok(exists(retryMigrationPath), 'admin challenge retry migration should exist');
 assert.ok(exists(archiveMigrationPath), 'admin challenge archive migration should exist');
 assert.ok(exists(beverageCategoryMigrationPath), 'admin beverage category migration should exist');
+assert.ok(exists(targetChallengeUnitsMigrationPath), 'target challenge units migration should exist');
 assert.ok(exists('src/lib/adminApi.ts'), 'admin API should exist');
 assert.ok(exists('src/lib/beverageCatalogContext.tsx'), 'beverage catalog provider should exist');
 assert.ok(exists('src/lib/adminTools.ts'), 'admin form helpers should exist');
@@ -71,6 +73,7 @@ assert.match(retryMigrationSql, /admin_request_key\s*\)\s*values/i);
 
 const archiveMigrationSql = read(archiveMigrationPath);
 const beverageCategoryMigrationSql = read(beverageCategoryMigrationPath);
+const targetChallengeUnitsMigrationSql = read(targetChallengeUnitsMigrationPath);
 assert.match(archiveMigrationSql, /add column if not exists archived_at timestamp with time zone/i);
 assert.match(archiveMigrationSql, /add column if not exists archived_by uuid references auth\.users\(id\) on delete set null/i);
 assert.match(archiveMigrationSql, /create index if not exists challenges_unarchived_window_idx/i);
@@ -83,6 +86,16 @@ assert.match(archiveMigrationSql, /revoke execute on function public\.admin_arch
 assert.match(archiveMigrationSql, /revoke execute on function public\.admin_restore_challenge\(uuid\) from public, anon;/i);
 assert.match(archiveMigrationSql, /grant execute on function public\.admin_archive_challenge\(uuid\) to authenticated;/i);
 assert.match(archiveMigrationSql, /grant execute on function public\.admin_restore_challenge\(uuid\) to authenticated;/i);
+assert.match(
+  targetChallengeUnitsMigrationSql,
+  /Target units must be greater than 0\./,
+  'database admin save validation should use target unit wording'
+);
+assert.match(
+  targetChallengeUnitsMigrationSql,
+  /case[\s\S]*when target_challenge_type = 'target' then 'alcohol_units'[\s\S]*else 'true_pints'[\s\S]*end/i,
+  'admin save challenge should store metric type from challenge type'
+);
 assert.match(beverageCategoryMigrationSql, /alter table public\.admin_beverages[\s\S]*add column if not exists category text not null default 'beer'/i);
 assert.match(beverageCategoryMigrationSql, /admin_beverages_category_check/i);
 assert.match(beverageCategoryMigrationSql, /category in \('beer', 'wine', 'drink'\)/i);
@@ -121,6 +134,19 @@ assert.equal(adminTools.validateBeverageDraft({ name: '', abv: '5', category: 'b
 assert.equal(adminTools.validateBeverageDraft({ name: 'House Champagne', abv: '12', category: 'wine' }), null);
 assert.equal(adminTools.validateBeverageDraft({ name: 'Mystery', abv: '5', category: 'other' }), 'Choose a beverage category.');
 assert.equal(adminTools.createEmptyBeverageDraft().category, 'beer');
+const baseChallengeDraft = {
+  title: 'Summer sprint',
+  description: 'Most units wins.',
+  challengeType: 'target',
+  startsAt: '2026-06-01T12:00',
+  endsAt: '2026-06-02T12:00',
+  joinClosesAt: '2026-06-02T12:00',
+  targetValue: '0',
+  winnerTrophyEnabled: false,
+  winnerTrophyTitle: '',
+  winnerTrophyDescription: '',
+};
+assert.equal(adminTools.validateChallengeDraft(baseChallengeDraft), 'Target units must be greater than 0.');
 assert.equal(
   adminTools.validateChallengeDraft({
     title: 'Summer sprint',
@@ -140,6 +166,7 @@ assert.equal(
 const navigatorSource = read('src/navigation/RootNavigator.tsx');
 const profileSource = read('src/screens/ProfileScreen.tsx');
 const adminApiSource = read('src/lib/adminApi.ts');
+const adminToolsSource = read('src/lib/adminTools.ts');
 assert.ok(exists('src/screens/AdminToolsScreen.tsx'), 'admin tools screen should exist');
 const adminScreenSource = read('src/screens/AdminToolsScreen.tsx');
 assert.match(navigatorSource, /BeverageCatalogProvider/);
@@ -152,6 +179,12 @@ assert.match(adminScreenSource, /Add beverage/);
 assert.match(adminScreenSource, /Save Beverage/);
 assert.match(adminScreenSource, /Beer[\s\S]*Wine[\s\S]*Drink/, 'admin beverage form should expose category options');
 assert.match(adminScreenSource, /Winner trophy/);
+assert.match(adminScreenSource, /Target units/, 'admin target challenge form should use units wording');
+assert.match(adminScreenSource, /\$\{item\.targetValue\} units/, 'admin challenge rows should label target values as units');
+assert.doesNotMatch(adminScreenSource, /Target true pints/);
+assert.doesNotMatch(adminScreenSource, /targetValue\} true pints/);
+assert.match(adminToolsSource, /Target units must be greater than 0\./);
+assert.doesNotMatch(adminToolsSource, /Target true pints must be greater than 0\./);
 assert.match(adminApiSource, /archived_at\?: string \| null;/);
 assert.match(adminApiSource, /archivedBy: toStringOrNull\(row\.archived_by\)/);
 assert.match(adminApiSource, /archiveAdminChallenge/);
