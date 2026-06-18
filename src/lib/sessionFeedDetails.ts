@@ -66,6 +66,9 @@ const mapSessionBeer = (beer: SessionBeer): SessionBeer => ({
   beverage_category: beer.beverage_category === 'wine' || beer.beverage_category === 'drink'
     ? beer.beverage_category
     : 'beer',
+  excluded_from_stats: beer.excluded_from_stats === true,
+  excluded_from_stats_at: beer.excluded_from_stats_at ?? null,
+  excluded_from_stats_reason: beer.excluded_from_stats_reason ?? null,
 });
 
 export const mapSessionFeedDetailRow = (row: SessionFeedDetailRow): SessionFeedDetail => {

@@ -6,6 +6,7 @@ const root = path.resolve(__dirname, '..');
 const migrationPath = path.join(root, 'supabase/migrations/20260602130000_add_session_feed_details_rpc.sql');
 const unitsMigrationPath = path.join(root, 'supabase/migrations/20260606120000_add_session_feed_units.sql');
 const beverageCategoryMigrationPath = path.join(root, 'supabase/migrations/20260617120000_add_admin_beverage_categories.sql');
+const drinkInvalidationMigrationPath = path.join(root, 'supabase/migrations/20260618160000_add_drink_invalidation.sql');
 
 assert.equal(fs.existsSync(migrationPath), true, 'session feed details migration should exist');
 const sql = fs.readFileSync(migrationPath, 'utf8');
@@ -13,6 +14,8 @@ assert.equal(fs.existsSync(unitsMigrationPath), true, 'session feed units migrat
 const unitsSql = fs.readFileSync(unitsMigrationPath, 'utf8');
 assert.equal(fs.existsSync(beverageCategoryMigrationPath), true, 'admin beverage category migration should exist');
 const beverageCategorySql = fs.readFileSync(beverageCategoryMigrationPath, 'utf8');
+assert.equal(fs.existsSync(drinkInvalidationMigrationPath), true, 'admin drink invalidation migration should exist');
+const drinkInvalidationSql = fs.readFileSync(drinkInvalidationMigrationPath, 'utf8');
 
 assert.match(sql, /create or replace function public\.get_session_feed_details\(session_ids uuid\[\]\)/i, 'feed details RPC should exist');
 assert.match(sql, /security definer/i, 'RPC should run as definer to bypass per-table RLS');
@@ -41,6 +44,31 @@ assert.match(unitsSql, /0\.789/i, 'units calculation should use ethanol grams pe
 assert.match(unitsSql, /12\.0/i, 'units calculation should divide by 12 grams per Danish unit');
 assert.match(unitsSql, /notify pgrst, 'reload schema'/i, 'units migration should reload the PostgREST schema cache');
 assert.match(beverageCategorySql, /'beverage_category', sb\.beverage_category/i, 'feed details RPC should include captured beverage category in beer JSON');
+assert.match(
+  drinkInvalidationSql,
+  /create or replace function public\.get_session_feed_details\(session_ids uuid\[\]\)/i,
+  'drink invalidation migration should replace feed details RPC'
+);
+assert.match(
+  drinkInvalidationSql,
+  /'excluded_from_stats', sb\.excluded_from_stats/i,
+  'feed details RPC should include ignored-in-stats metadata in beer JSON'
+);
+assert.match(
+  drinkInvalidationSql,
+  /'excluded_from_stats_at', sb\.excluded_from_stats_at/i,
+  'feed details RPC should include ignored-at metadata in beer JSON'
+);
+assert.match(
+  drinkInvalidationSql,
+  /'excluded_from_stats_reason', sb\.excluded_from_stats_reason/i,
+  'feed details RPC should include ignored reason metadata in beer JSON'
+);
+assert.match(
+  drinkInvalidationSql,
+  /coalesce\(sb\.excluded_from_stats,\s*false\)\s*=\s*false/i,
+  'feed detail numeric totals should ignore admin-invalidated drinks'
+);
 
 // ---- Client mapper unit tests ----
 const Module = require('node:module');
@@ -84,7 +112,7 @@ const mapped = feedDetails.mapSessionFeedDetailRow({
     { user_id: 'u2', username: 'Tubpac', avatar_url: 'a2.png', created_at: '2026-06-02T10:00:00Z' },
   ],
   beers: [
-    { id: 'b1', session_id: 'session-1', beer_name: 'Tuborg', volume: '50cl', quantity: 1, abv: 4.6, beverage_category: 'beer', note: null, consumed_at: '2026-06-02T09:00:00Z', created_at: '2026-06-02T09:00:00Z' },
+    { id: 'b1', session_id: 'session-1', beer_name: 'Tuborg', volume: '50cl', quantity: 1, abv: 4.6, beverage_category: 'beer', note: null, consumed_at: '2026-06-02T09:00:00Z', created_at: '2026-06-02T09:00:00Z', excluded_from_stats: true, excluded_from_stats_at: '2026-06-02T11:00:00Z', excluded_from_stats_reason: 'Suspicious quantity' },
   ],
   comments: [
     { id: 'c1', session_id: 'session-1', user_id: 'u3', body: 'Skål', created_at: '2026-06-02T10:30:00Z', updated_at: null, username: 'Someone', avatar_url: 'a3.png' },
@@ -103,6 +131,8 @@ assert.equal(mapped.comments[0].userId, 'u3', 'mapper normalizes comment author 
 assert.equal(mapped.comments[0].username, 'Someone', 'mapper carries comment author username');
 assert.equal(mapped.beers[0].beer_name, 'Tuborg', 'mapper passes beers through in app shape');
 assert.equal(mapped.beers[0].beverage_category, 'beer', 'mapper passes captured beverage category through in app shape');
+assert.equal(mapped.beers[0].excluded_from_stats, true, 'mapper passes ignored-in-stats metadata through in app shape');
+assert.equal(mapped.beers[0].excluded_from_stats_reason, 'Suspicious quantity', 'mapper passes ignored reason through in app shape');
 assert.equal(mapped.units, 1, 'mapper carries session units from the RPC');
 assert.equal(mapped.photos[0].is_keeper, true, 'mapper passes photos through in app shape');
 
@@ -125,6 +155,7 @@ assert.equal(emptyMapped.units, null, 'mapper keeps missing units nullable so th
 const feedLibSource = fs.readFileSync(path.join(root, 'src/lib/sessionFeedDetails.ts'), 'utf8');
 assert.match(feedLibSource, /rpc\('get_session_feed_details'/, 'client lib should call the feed details RPC');
 assert.match(feedLibSource, /beverage_category/, 'session feed details mapper should be category-aware');
+assert.match(feedLibSource, /excluded_from_stats/, 'session feed details mapper should preserve ignored-drink metadata');
 
 // ---- Feed wiring ----
 const feedScreenSource = fs.readFileSync(path.join(root, 'src/screens/FeedScreen.tsx'), 'utf8');
@@ -135,6 +166,7 @@ assert.match(feedScreenSource, /get_session_chug_attempt_summaries/, 'feed shoul
 assert.match(feedScreenSource, /getSessionUnits/, 'feed should calculate session units for the More stats card');
 assert.match(feedScreenSource, /detail\?\.units/, 'feed should hydrate session units from the feed details RPC');
 assert.match(feedScreenSource, />Units<\/Text>/, 'feed More stats should render a Units pill');
+assert.match(feedScreenSource, /IgnoredDrinkBadge/, 'feed should render ignored drinks with the detective badge component');
 
 console.log('session feed details checks passed');
 

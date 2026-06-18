@@ -1,4 +1,4 @@
-import type { AdminBeverage, AdminBeverageCategory, AdminChallenge, AdminChallengeType } from './adminApi';
+import type { AdminBeverage, AdminBeverageCategory, AdminChallenge, AdminChallengeType, AdminModerationDrink } from './adminApi';
 
 export type AdminBeverageDraft = {
   id?: string;
@@ -234,3 +234,32 @@ export const validateOfficialPostDraft = (draft: AdminOfficialPostDraft) => {
   if (draft.sendPushNotification && !draft.pushBody.trim()) return 'Push body is required.';
   return null;
 };
+
+const formatModerationDate = (value?: string | null) => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
+export function getAdminModerationDrinkTitle(drink: AdminModerationDrink): string {
+  const quantity = drink.quantity > 1 ? `${drink.quantity} x ` : '';
+  return `${quantity}${drink.beerName}`;
+}
+
+export function getAdminModerationDrinkMeta(drink: AdminModerationDrink): string {
+  const parts = [
+    drink.username || 'Unknown user',
+    drink.volume,
+    drink.abv === null ? null : `${drink.abv}% ABV`,
+    drink.pubName,
+    formatModerationDate(drink.consumedAt || drink.sessionStartedAt || drink.sessionCreatedAt),
+  ].filter(Boolean);
+
+  return parts.join(' - ');
+}

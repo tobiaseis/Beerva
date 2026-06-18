@@ -20,6 +20,7 @@ import { BeerDraftForm } from '../components/BeerDraftForm';
 import { ChugAttemptModal } from '../components/ChugAttemptModal';
 import { ChugBottleButton } from '../components/ChugBottleButton';
 import { DrinkingBuddiesPicker } from '../components/DrinkingBuddiesPicker';
+import { IgnoredDrinkBadge } from '../components/IgnoredDrinkBadge';
 import { Surface } from '../components/Surface';
 import { showAlert } from '../lib/dialogs';
 import { hapticError, hapticSuccess, hapticWarning } from '../lib/haptics';
@@ -137,7 +138,7 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
 
       const { data: beerRows, error: beersError } = await supabase
         .from('session_beers')
-        .select('id, session_id, beer_name, volume, quantity, abv, beverage_category, note, consumed_at, created_at')
+        .select('id, session_id, beer_name, volume, quantity, abv, beverage_category, note, consumed_at, created_at, excluded_from_stats, excluded_from_stats_at, excluded_from_stats_reason')
         .eq('session_id', sessionId)
         .order('consumed_at', { ascending: true });
 
@@ -214,7 +215,7 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
           }, catalog),
           consumed_at: new Date().toISOString(),
         })
-        .select('id, session_id, beer_name, volume, quantity, abv, beverage_category, note, consumed_at, created_at')
+        .select('id, session_id, beer_name, volume, quantity, abv, beverage_category, note, consumed_at, created_at, excluded_from_stats, excluded_from_stats_at, excluded_from_stats_reason')
         .single();
 
       if (error) throw error;
@@ -719,7 +720,10 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
               <Image source={beervaLogo} style={styles.beerRowLogo} />
               <View style={styles.beerRowText}>
                 <Text style={styles.beerRowTitle}>{beer.beer_name}</Text>
-                <Text style={styles.beerRowMeta}>{getBeerLine(beer)}</Text>
+                <View style={styles.beerRowMetaLine}>
+                  <Text style={styles.beerRowMeta}>{getBeerLine(beer)}</Text>
+                  <IgnoredDrinkBadge excludedFromStats={beer.excluded_from_stats} />
+                </View>
               </View>
               <View style={styles.quantityControls}>
                 <TouchableOpacity style={styles.quantityButton} onPress={() => updateBeerQuantity(beer, -1)}>
@@ -964,7 +968,13 @@ const styles = StyleSheet.create({
   },
   beerRowMeta: {
     ...typography.caption,
+    flexShrink: 1,
+  },
+  beerRowMetaLine: {
     marginTop: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   quantityControls: {
     flexDirection: 'row',

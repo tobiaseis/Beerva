@@ -75,6 +75,7 @@ const fetchStatsFallback = async (userId: string): Promise<Stats> => {
       quantity,
       abv,
       beverage_category,
+      excluded_from_stats,
       consumed_at,
       sessions!inner(user_id, pub_id, pub_name, status, started_at, published_at, created_at)
     `)
@@ -82,7 +83,7 @@ const fetchStatsFallback = async (userId: string): Promise<Stats> => {
     .eq('sessions.status', 'published');
 
   if (!error) {
-    const rows = ((data || []) as any[]).map((beer) => ({
+    const rows = ((data || []) as any[]).filter((beer) => !beer.excluded_from_stats).map((beer) => ({
       session_id: beer.session_id,
       pub_id: beer.sessions?.pub_id,
       pub_name: beer.sessions?.pub_name,
@@ -160,6 +161,7 @@ export const fetchPintTimeline = async (userId: string): Promise<PintTimelinePoi
     .select(`
       volume,
       quantity,
+      excluded_from_stats,
       consumed_at,
       sessions!inner(user_id, status, started_at, created_at)
     `)
@@ -170,7 +172,7 @@ export const fetchPintTimeline = async (userId: string): Promise<PintTimelinePoi
   let rows: ProfileSessionStatsRow[] = [];
 
   if (!error) {
-    rows = ((data || []) as any[]).map((beer) => ({
+    rows = ((data || []) as any[]).filter((beer) => !beer.excluded_from_stats).map((beer) => ({
       volume: beer.volume,
       quantity: beer.quantity,
       created_at: beer.consumed_at || beer.sessions?.started_at || beer.sessions?.created_at,
@@ -207,21 +209,37 @@ export const fetchPintTimeline = async (userId: string): Promise<PintTimelinePoi
 
 export const fetchTopPubVisits = async (userId: string): Promise<TopPubVisit[]> => {
   const { data, error } = await supabase
-    .from('sessions')
-    .select('id, pub_id, pub_name, created_at')
-    .eq('user_id', userId)
-    .eq('status', 'published')
-    .order('created_at', { ascending: true });
+    .from('session_beers')
+    .select(`
+      session_id,
+      excluded_from_stats,
+      sessions!inner(user_id, pub_id, pub_name, status, created_at)
+    `)
+    .eq('sessions.user_id', userId)
+    .eq('sessions.status', 'published');
 
   if (error) {
     console.warn('Top pub visits unavailable:', error.message);
-    return [];
+    const legacy = await supabase
+      .from('sessions')
+      .select('id, pub_id, pub_name, created_at')
+      .eq('user_id', userId)
+      .eq('status', 'published')
+      .order('created_at', { ascending: true });
+
+    if (legacy.error) return [];
+    return calculateTopPubVisits(((legacy.data || []) as any[]).map((session) => ({
+      session_id: session.id,
+      pub_id: session.pub_id,
+      pub_name: session.pub_name,
+      created_at: session.created_at,
+    })) as ProfileSessionStatsRow[]);
   }
 
-  return calculateTopPubVisits(((data || []) as any[]).map((session) => ({
-    session_id: session.id,
-    pub_id: session.pub_id,
-    pub_name: session.pub_name,
-    created_at: session.created_at,
+  return calculateTopPubVisits(((data || []) as any[]).filter((beer) => !beer.excluded_from_stats).map((beer) => ({
+    session_id: beer.session_id,
+    pub_id: beer.sessions?.pub_id,
+    pub_name: beer.sessions?.pub_name,
+    created_at: beer.sessions?.created_at,
   })) as ProfileSessionStatsRow[]);
 };

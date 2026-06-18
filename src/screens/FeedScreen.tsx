@@ -21,7 +21,8 @@ import { floatingTabBarMetrics, radius, shadows } from '../theme/layout';
 import { hapticLight, hapticMedium, hapticWarning } from '../lib/haptics';
 import { useNotifications } from '../lib/notificationsContext';
 import { EmptyIllustration } from '../components/EmptyIllustration';
-import { getSessionBeerBreakdownLines, getSessionBeerSummary, SessionBeer } from '../lib/sessionBeers';
+import { IgnoredDrinkBadge } from '../components/IgnoredDrinkBadge';
+import { getBeerLine, getSessionBeerSummary, SessionBeer } from '../lib/sessionBeers';
 import {
   formatChugDuration,
   getChugStatSubtitle,
@@ -195,18 +196,26 @@ const getDrinkLabel = (item: FeedSession) => {
   return `${drink} of ${item.beer_name}`;
 };
 
+const isIgnoredBeer = (beer: Pick<SessionBeer, 'excluded_from_stats'>) => beer.excluded_from_stats === true;
+
+const getCountedSessionBeers = (item: FeedSession) => {
+  if (item.session_beers.length > 0) {
+    return item.session_beers.filter((beer) => !isIgnoredBeer(beer));
+  }
+
+  return [{ volume: item.volume, quantity: item.quantity, abv: item.abv ?? null }];
+};
+
 const getSessionBeerCount = (item: FeedSession) => {
   if (item.session_beers.length > 0) {
-    return item.session_beers.reduce((sum, beer) => sum + (beer.quantity || 1), 0);
+    return getCountedSessionBeers(item).reduce((sum, beer) => sum + (beer.quantity || 1), 0);
   }
 
   return item.quantity || 1;
 };
 
 const getSessionTruePints = (item: FeedSession) => {
-  const beers = item.session_beers.length > 0
-    ? item.session_beers
-    : [{ volume: item.volume, quantity: item.quantity }];
+  const beers = getCountedSessionBeers(item);
 
   const pints = beers.reduce((sum, beer) => {
     const volumeMl = getVolumeMl(beer.volume);
@@ -222,17 +231,13 @@ const getSessionUnits = (item: FeedSession) => {
     return item.units;
   }
 
-  const beers = item.session_beers.length > 0
-    ? item.session_beers
-    : [{ volume: item.volume, quantity: item.quantity, abv: item.abv ?? null }];
+  const beers = getCountedSessionBeers(item);
 
   return calculateAlcoholUnits(beers);
 };
 
 const getSessionAverageAbv = (item: FeedSession) => {
-  const beers = item.session_beers.length > 0
-    ? item.session_beers
-    : [{ abv: item.abv ?? null, quantity: item.quantity, volume: item.volume }];
+  const beers = getCountedSessionBeers(item);
 
   let weightedTotal = 0;
   let volumeTotal = 0;
@@ -345,7 +350,12 @@ export const FeedSessionCard = React.memo(({
   const truePints = getSessionTruePints(item);
   const units = getSessionUnits(item);
   const averageAbv = getSessionAverageAbv(item);
-  const beerBreakdownLines = getSessionBeerBreakdownLines(item.session_beers);
+  const beerBreakdownRows = item.session_beers.map((beer, index) => ({
+    key: beer.id || beer.clientId || `${beer.beer_name}-${beer.volume}-${index}`,
+    line: getBeerLine(beer),
+    excludedFromStats: isIgnoredBeer(beer),
+  }));
+  const hasIgnoredDrinks = item.session_beers.some(isIgnoredBeer);
   const visibleChugStat = getVisibleChugStat(item.session_chug_attempts || []);
   const drinkingBuddyNames = formatDrinkingBuddyNames(item.drinking_buddies || []);
   const [statsExpanded, setStatsExpanded] = React.useState(false);
@@ -577,7 +587,10 @@ export const FeedSessionCard = React.memo(({
           </TouchableOpacity>
           <View style={styles.summaryRow}>
             <Image source={beervaLogo} style={styles.inlineLogoSmall} />
-            <Text style={styles.summaryDrinkText} numberOfLines={2}>{getDrinkLabel(item)}</Text>
+            <View style={styles.summaryDrinkContent}>
+              <Text style={styles.summaryDrinkText} numberOfLines={2}>{getDrinkLabel(item)}</Text>
+              <IgnoredDrinkBadge excludedFromStats={hasIgnoredDrinks} style={styles.summaryIgnoredBadge} />
+            </View>
           </View>
         </View>
 
@@ -638,12 +651,15 @@ export const FeedSessionCard = React.memo(({
                 </View>
               ) : null}
             </View>
-            {beerBreakdownLines.length > 0 && beerCount > 1 ? (
+            {beerBreakdownRows.length > 0 && item.session_beers.length > 1 ? (
               <View style={styles.beerBreakdown}>
-                {beerBreakdownLines.map((line, index) => (
-                  <Text key={`${line}-${index}`} style={styles.beerBreakdownText}>
-                    {line}
-                  </Text>
+                {beerBreakdownRows.map((row) => (
+                  <View key={row.key} style={styles.beerBreakdownRow}>
+                    <Text style={styles.beerBreakdownText}>
+                      {row.line}
+                    </Text>
+                    <IgnoredDrinkBadge excludedFromStats={row.excludedFromStats} />
+                  </View>
                 ))}
               </View>
             ) : null}
@@ -2523,14 +2539,30 @@ const styles = StyleSheet.create({
     minWidth: 0,
     lineHeight: 22,
   },
+  summaryDrinkContent: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  summaryIgnoredBadge: {
+    marginRight: 2,
+  },
   beerBreakdown: {
     paddingTop: 2,
     paddingLeft: 28,
     gap: 5,
   },
+  beerBreakdownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   beerBreakdownText: {
     ...typography.caption,
     color: colors.textMuted,
+    flexShrink: 1,
   },
   buddyStatsText: {
     ...typography.caption,

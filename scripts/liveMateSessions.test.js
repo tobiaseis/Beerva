@@ -7,6 +7,10 @@ const ts = require('typescript');
 const root = path.resolve(__dirname, '..');
 const migrationPath = path.join(root, 'supabase/migrations/20260604130000_add_live_mate_sessions.sql');
 const migrationSql = fs.existsSync(migrationPath) ? fs.readFileSync(migrationPath, 'utf8') : '';
+const drinkInvalidationMigrationPath = path.join(root, 'supabase/migrations/20260618160000_add_drink_invalidation.sql');
+const drinkInvalidationSql = fs.existsSync(drinkInvalidationMigrationPath)
+  ? fs.readFileSync(drinkInvalidationMigrationPath, 'utf8')
+  : '';
 
 const loadTypeScriptModule = (relativePath, mocks = {}) => {
   const filename = path.join(root, relativePath);
@@ -59,6 +63,22 @@ assert.match(migrationSql, /create trigger sessions_live_mate_refresh/, 'session
 assert.match(migrationSql, /create trigger session_beers_live_mate_refresh/, 'session_beers trigger should maintain true-pint totals');
 assert.match(migrationSql, /create trigger pub_crawls_live_mate_refresh/, 'pub_crawls trigger should maintain crawl rows');
 assert.match(migrationSql, /select public\.repair_live_mate_sessions\(\);/, 'migration should backfill current active live rows');
+assert.ok(fs.existsSync(drinkInvalidationMigrationPath), 'admin drink invalidation migration should exist');
+assert.match(
+  drinkInvalidationSql,
+  /create or replace function public\.get_live_session_true_pints/i,
+  'drink invalidation migration should replace normal live true-pint helper'
+);
+assert.match(
+  drinkInvalidationSql,
+  /create or replace function public\.get_live_pub_crawl_true_pints/i,
+  'drink invalidation migration should replace pub crawl live true-pint helper'
+);
+assert.match(
+  drinkInvalidationSql,
+  /coalesce\(session_beers\.excluded_from_stats,\s*false\)\s*=\s*false/i,
+  'live mate totals should ignore admin-invalidated drinks'
+);
 
 assert.ok(fs.existsSync(path.join(root, 'src/lib/liveMateSessions.ts')), 'live mate client API should exist');
 

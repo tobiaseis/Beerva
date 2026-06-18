@@ -17,22 +17,25 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
-import { Archive, ArrowLeft, Beer, Camera, Edit3, ImagePlus, Megaphone, Plus, RotateCcw, ShieldCheck, Trophy, X } from 'lucide-react-native';
+import { Archive, ArrowLeft, Beer, Camera, Edit3, ImagePlus, Megaphone, Plus, RotateCcw, Search, ShieldCheck, Trophy, X } from 'lucide-react-native';
 
 import { AppButton } from '../components/AppButton';
 import {
   AdminBeverage,
   AdminChallenge,
+  AdminModerationDrink,
   AdminOfficialPostPublishError,
   archiveAdminChallenge,
   createAdminRequestKey,
   fetchAdminBeverages,
   fetchAdminChallenges,
+  fetchAdminModerationDrinks,
   fetchAdminOfficialPosts,
   publishAdminOfficialPost,
   restoreAdminChallenge,
   saveAdminBeverage,
   saveAdminChallenge,
+  setAdminDrinkExcluded,
 } from '../lib/adminApi';
 import {
   AdminBeverageDraft,
@@ -45,6 +48,8 @@ import {
   createEmptyChallengeDraft,
   createEmptyOfficialPostDraft,
   fromLocalDateTimeInput,
+  getAdminModerationDrinkMeta,
+  getAdminModerationDrinkTitle,
   validateBeverageDraft,
   validateChallengeDraft,
   validateOfficialPostDraft,
@@ -65,8 +70,17 @@ import { colors } from '../theme/colors';
 import { radius, shadows, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
 
-type AdminSegment = 'challenges' | 'beverages' | 'official-posts';
+type AdminSegment = 'challenges' | 'beverages' | 'official-posts' | 'moderation';
 type ActiveModal = 'challenge' | 'beverage' | 'official-post' | null;
+
+const ADMIN_SEGMENTS: AdminSegment[] = ['challenges', 'beverages', 'official-posts', 'moderation'];
+
+const getSegmentLabel = (segment: AdminSegment) => {
+  if (segment === 'challenges') return 'Challenges';
+  if (segment === 'beverages') return 'Beverages';
+  if (segment === 'official-posts') return 'Official posts';
+  return 'Moderation';
+};
 
 const formatChallengeWindow = (challenge: AdminChallenge) => {
   const start = new Date(challenge.startsAt);
@@ -81,6 +95,10 @@ export const AdminToolsScreen = ({ navigation }: any) => {
   const [challenges, setChallenges] = useState<AdminChallenge[]>([]);
   const [beverages, setBeverages] = useState<AdminBeverage[]>([]);
   const [officialPosts, setOfficialPosts] = useState<OfficialFeedPost[]>([]);
+  const [moderationDrinks, setModerationDrinks] = useState<AdminModerationDrink[]>([]);
+  const [moderationSearch, setModerationSearch] = useState('');
+  const [moderationLoading, setModerationLoading] = useState(false);
+  const [moderationBusyId, setModerationBusyId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -100,14 +118,16 @@ export const AdminToolsScreen = ({ navigation }: any) => {
     refresh ? setRefreshing(true) : setLoading(true);
     setErrorMessage(null);
     try {
-      const [challengeRows, beverageRows, officialPostRows] = await Promise.all([
+      const [challengeRows, beverageRows, officialPostRows, moderationRows] = await Promise.all([
         fetchAdminChallenges(),
         fetchAdminBeverages(),
         fetchAdminOfficialPosts(),
+        fetchAdminModerationDrinks({ limit: 100 }),
       ]);
       setChallenges(challengeRows);
       setBeverages(beverageRows);
       setOfficialPosts(officialPostRows);
+      setModerationDrinks(moderationRows);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Could not load admin tools.');
     } finally {
@@ -389,6 +409,37 @@ export const AdminToolsScreen = ({ navigation }: any) => {
     }
   };
 
+  const refreshModerationDrinks = useCallback(async () => {
+    setModerationLoading(true);
+    setErrorMessage(null);
+    try {
+      setModerationDrinks(await fetchAdminModerationDrinks({
+        searchQuery: moderationSearch,
+        limit: 100,
+      }));
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Could not load moderation drinks.');
+    } finally {
+      setModerationLoading(false);
+    }
+  }, [moderationSearch]);
+
+  const handleSetDrinkExcluded = useCallback(async (drink: AdminModerationDrink, excluded: boolean) => {
+    setModerationBusyId(drink.sessionBeerId);
+    setErrorMessage(null);
+    try {
+      await setAdminDrinkExcluded(drink.sessionBeerId, excluded, excluded ? 'Marked from admin tools' : null);
+      setModerationDrinks(await fetchAdminModerationDrinks({
+        searchQuery: moderationSearch,
+        limit: 100,
+      }));
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Could not update drink moderation.');
+    } finally {
+      setModerationBusyId(null);
+    }
+  }, [moderationSearch]);
+
   const handlePublishOfficialPost = async () => {
     const validationError = validateOfficialPostDraft(officialPostDraft);
     if (validationError) {
@@ -466,7 +517,9 @@ export const AdminToolsScreen = ({ navigation }: any) => {
       ? 'No challenges yet.'
       : activeSegment === 'beverages'
         ? 'No admin-added beverages yet.'
-        : 'No official posts yet.'
+        : activeSegment === 'official-posts'
+          ? 'No official posts yet.'
+          : 'No drinks found.'
   ), [activeSegment]);
 
   const renderChallenge = useCallback(({ item }: { item: AdminChallenge }) => (
@@ -528,16 +581,80 @@ export const AdminToolsScreen = ({ navigation }: any) => {
     </View>
   ), []);
 
+  const renderModerationDrink = useCallback(({ item }: { item: AdminModerationDrink }) => {
+    const busy = moderationBusyId === item.sessionBeerId;
+    return (
+      <View style={[styles.row, item.excludedFromStats ? styles.rowMuted : null]}>
+        <View style={styles.rowIcon}>
+          <ShieldCheck color={item.excludedFromStats ? colors.textMuted : colors.primary} size={18} />
+        </View>
+        <View style={styles.rowBody}>
+          <Text style={styles.rowTitle} numberOfLines={1}>{getAdminModerationDrinkTitle(item)}</Text>
+          <Text style={styles.rowMeta} numberOfLines={2}>{getAdminModerationDrinkMeta(item)}</Text>
+          {item.excludedFromStats ? (
+            <Text style={styles.rowAccent} numberOfLines={1}>Ignored in stats</Text>
+          ) : null}
+        </View>
+        <TouchableOpacity
+          style={[styles.moderationActionButton, item.excludedFromStats ? styles.moderationRestoreButton : null]}
+          onPress={() => handleSetDrinkExcluded(item, !item.excludedFromStats)}
+          disabled={busy}
+          accessibilityRole="button"
+          accessibilityLabel={item.excludedFromStats ? 'Restore to stats' : 'Ignore in stats'}
+        >
+          {busy ? (
+            <ActivityIndicator color={item.excludedFromStats ? colors.text : colors.background} size="small" />
+          ) : (
+            <Text style={[styles.moderationActionText, item.excludedFromStats ? styles.moderationRestoreText : null]}>
+              {item.excludedFromStats ? 'Restore to stats' : 'Ignore in stats'}
+            </Text>
+          )}
+        </TouchableOpacity>
+      </View>
+    );
+  }, [handleSetDrinkExcluded, moderationBusyId]);
+
+  const renderModerationHeader = useCallback(() => (
+    <View style={styles.moderationSearchBar}>
+      <TextInput
+        style={styles.moderationSearchInput}
+        value={moderationSearch}
+        onChangeText={setModerationSearch}
+        onSubmitEditing={refreshModerationDrinks}
+        placeholder="Search user, drink, or pub"
+        placeholderTextColor={colors.textMuted}
+        returnKeyType="search"
+      />
+      <TouchableOpacity
+        style={styles.searchButton}
+        onPress={refreshModerationDrinks}
+        disabled={moderationLoading}
+        accessibilityRole="button"
+        accessibilityLabel="Search moderation drinks"
+      >
+        {moderationLoading ? (
+          <ActivityIndicator color={colors.background} size="small" />
+        ) : (
+          <Search color={colors.background} size={18} />
+        )}
+      </TouchableOpacity>
+    </View>
+  ), [moderationLoading, moderationSearch, refreshModerationDrinks]);
+
   const addAction = activeSegment === 'challenges'
     ? openNewChallenge
     : activeSegment === 'beverages'
       ? openNewBeverage
-      : openNewOfficialPost;
+      : activeSegment === 'official-posts'
+        ? openNewOfficialPost
+        : null;
   const addActionLabel = activeSegment === 'challenges'
     ? 'Create challenge'
     : activeSegment === 'beverages'
       ? 'Add beverage'
-      : 'Create official post';
+      : activeSegment === 'official-posts'
+        ? 'Create official post'
+        : null;
 
   return (
     <View style={styles.container}>
@@ -558,7 +675,7 @@ export const AdminToolsScreen = ({ navigation }: any) => {
       </View>
 
       <View style={styles.segmentedControl}>
-        {(['challenges', 'beverages', 'official-posts'] as AdminSegment[]).map((segment) => (
+        {ADMIN_SEGMENTS.map((segment) => (
           <TouchableOpacity
             key={segment}
             style={[styles.segmentButton, activeSegment === segment ? styles.segmentButtonActive : null]}
@@ -566,8 +683,11 @@ export const AdminToolsScreen = ({ navigation }: any) => {
             accessibilityRole="button"
             accessibilityState={{ selected: activeSegment === segment }}
           >
-            <Text style={[styles.segmentText, activeSegment === segment ? styles.segmentTextActive : null]}>
-              {segment === 'challenges' ? 'Challenges' : segment === 'beverages' ? 'Beverages' : 'Official posts'}
+            <Text
+              style={[styles.segmentText, activeSegment === segment ? styles.segmentTextActive : null]}
+              numberOfLines={1}
+            >
+              {getSegmentLabel(segment)}
             </Text>
           </TouchableOpacity>
         ))}
@@ -576,20 +696,30 @@ export const AdminToolsScreen = ({ navigation }: any) => {
       <View style={styles.toolbar}>
         <View>
           <Text style={styles.toolbarTitle}>
-            {activeSegment === 'challenges' ? 'Challenges' : activeSegment === 'beverages' ? 'Beverages' : 'Official posts'}
+            {getSegmentLabel(activeSegment)}
           </Text>
           <Text style={styles.toolbarMeta}>
-            {activeSegment === 'challenges' ? challenges.length : activeSegment === 'beverages' ? beverages.length : officialPosts.length} total
+            {activeSegment === 'challenges'
+              ? challenges.length
+              : activeSegment === 'beverages'
+                ? beverages.length
+                : activeSegment === 'official-posts'
+                  ? officialPosts.length
+                  : moderationDrinks.length} total
           </Text>
         </View>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={addAction}
-          accessibilityRole="button"
-          accessibilityLabel={addActionLabel}
-        >
-          <Plus color={colors.background} size={20} />
-        </TouchableOpacity>
+        {addAction && addActionLabel ? (
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={addAction}
+            accessibilityRole="button"
+            accessibilityLabel={addActionLabel}
+          >
+            <Plus color={colors.background} size={20} />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.addButtonPlaceholder} />
+        )}
       </View>
 
       {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
@@ -618,7 +748,7 @@ export const AdminToolsScreen = ({ navigation }: any) => {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadAll({ refresh: true })} tintColor={colors.primary} />}
           ListEmptyComponent={<Text style={styles.emptyText}>{emptyCopy}</Text>}
         />
-      ) : (
+      ) : activeSegment === 'official-posts' ? (
         <FlatList
           data={officialPosts}
           keyExtractor={(item) => item.id}
@@ -626,6 +756,17 @@ export const AdminToolsScreen = ({ navigation }: any) => {
           contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={[styles.listContent, officialPosts.length === 0 ? styles.emptyContent : null]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadAll({ refresh: true })} tintColor={colors.primary} />}
+          ListEmptyComponent={<Text style={styles.emptyText}>{emptyCopy}</Text>}
+        />
+      ) : (
+        <FlatList
+          data={moderationDrinks}
+          keyExtractor={(item) => item.sessionBeerId}
+          renderItem={renderModerationDrink}
+          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={[styles.listContent, moderationDrinks.length === 0 ? styles.emptyContent : null]}
+          refreshControl={<RefreshControl refreshing={moderationLoading} onRefresh={refreshModerationDrinks} tintColor={colors.primary} />}
+          ListHeaderComponent={renderModerationHeader}
           ListEmptyComponent={<Text style={styles.emptyText}>{emptyCopy}</Text>}
         />
       )}
@@ -1091,6 +1232,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.primary,
   },
+  addButtonPlaceholder: {
+    width: 42,
+    height: 42,
+  },
   errorText: {
     ...typography.caption,
     color: colors.danger,
@@ -1130,6 +1275,10 @@ const styles = StyleSheet.create({
   rowPressed: {
     opacity: 0.78,
   },
+  rowMuted: {
+    opacity: 0.72,
+    borderColor: colors.border,
+  },
   rowIcon: {
     width: 38,
     height: 38,
@@ -1163,6 +1312,55 @@ const styles = StyleSheet.create({
     color: colors.danger,
     marginTop: 3,
     fontWeight: '800',
+  },
+  moderationSearchBar: {
+    minHeight: 46,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 2,
+  },
+  moderationSearchInput: {
+    ...typography.body,
+    flex: 1,
+    minHeight: 44,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.surface,
+    color: colors.text,
+    paddingHorizontal: 13,
+  },
+  searchButton: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+  },
+  moderationActionButton: {
+    minHeight: 34,
+    maxWidth: 116,
+    borderRadius: radius.pill,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+  },
+  moderationRestoreButton: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+  },
+  moderationActionText: {
+    ...typography.tiny,
+    color: colors.background,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  moderationRestoreText: {
+    color: colors.text,
   },
   modalBackdrop: {
     flex: 1,

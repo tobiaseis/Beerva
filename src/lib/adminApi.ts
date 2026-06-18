@@ -62,6 +62,48 @@ export type AdminChallenge = {
   archivedBy: string | null;
 };
 
+export type AdminModerationDrinkRow = {
+  session_beer_id?: string | null;
+  session_id?: string | null;
+  user_id?: string | null;
+  username?: string | null;
+  avatar_url?: string | null;
+  beer_name?: string | null;
+  volume?: string | null;
+  quantity?: number | string | null;
+  abv?: number | string | null;
+  beverage_category?: string | null;
+  pub_name?: string | null;
+  consumed_at?: string | null;
+  session_started_at?: string | null;
+  session_created_at?: string | null;
+  excluded_from_stats?: boolean | null;
+  excluded_from_stats_at?: string | null;
+  excluded_from_stats_by?: string | null;
+  excluded_from_stats_reason?: string | null;
+};
+
+export type AdminModerationDrink = {
+  sessionBeerId: string;
+  sessionId: string;
+  userId: string;
+  username: string | null;
+  avatarUrl: string | null;
+  beerName: string;
+  volume: string | null;
+  quantity: number;
+  abv: number | null;
+  beverageCategory: AdminBeverageCategory;
+  pubName: string | null;
+  consumedAt: string | null;
+  sessionStartedAt: string | null;
+  sessionCreatedAt: string | null;
+  excludedFromStats: boolean;
+  excludedFromStatsAt: string | null;
+  excludedFromStatsBy: string | null;
+  excludedFromStatsReason: string | null;
+};
+
 export type SaveAdminBeverageInput = {
   id?: string;
   name: string;
@@ -162,6 +204,27 @@ export const mapAdminChallengeRow = (row: AdminChallengeRow): AdminChallenge => 
   archivedBy: toStringOrNull(row.archived_by),
 });
 
+export const mapAdminModerationDrinkRow = (row: AdminModerationDrinkRow): AdminModerationDrink => ({
+  sessionBeerId: toString(row.session_beer_id),
+  sessionId: toString(row.session_id),
+  userId: toString(row.user_id),
+  username: toStringOrNull(row.username),
+  avatarUrl: toStringOrNull(row.avatar_url),
+  beerName: toString(row.beer_name) || 'Unknown drink',
+  volume: toStringOrNull(row.volume),
+  quantity: Math.max(1, Math.trunc(toNumber(row.quantity) || 1)),
+  abv: row.abv === null || row.abv === undefined ? null : toNumber(row.abv),
+  beverageCategory: mapAdminBeverageCategory(row.beverage_category),
+  pubName: toStringOrNull(row.pub_name),
+  consumedAt: toStringOrNull(row.consumed_at),
+  sessionStartedAt: toStringOrNull(row.session_started_at),
+  sessionCreatedAt: toStringOrNull(row.session_created_at),
+  excludedFromStats: row.excluded_from_stats === true,
+  excludedFromStatsAt: toStringOrNull(row.excluded_from_stats_at),
+  excludedFromStatsBy: toStringOrNull(row.excluded_from_stats_by),
+  excludedFromStatsReason: toStringOrNull(row.excluded_from_stats_reason),
+});
+
 export const fetchAdminBeverages = async (): Promise<AdminBeverage[]> => {
   try {
     const { data, error } = await withTimeout(
@@ -196,6 +259,51 @@ export const saveAdminBeverage = async (input: SaveAdminBeverageInput): Promise<
     return mapAdminBeverageRow(row);
   } catch (error) {
     throw new Error(getErrorMessage(error, 'Could not save beverage.'));
+  }
+};
+
+export const fetchAdminModerationDrinks = async (options?: {
+  searchQuery?: string;
+  targetUserId?: string;
+  limit?: number;
+}): Promise<AdminModerationDrink[]> => {
+  try {
+    const { data, error } = await withTimeout(
+      supabase.rpc('admin_get_moderation_drinks', {
+        search_query: options?.searchQuery?.trim() || null,
+        target_user_id: options?.targetUserId || null,
+        result_limit: options?.limit ?? 100,
+      }),
+      ADMIN_TIMEOUT_MS,
+      'Moderation drinks are taking too long to load.'
+    );
+
+    if (error) throw error;
+    return ((data || []) as AdminModerationDrinkRow[]).map(mapAdminModerationDrinkRow);
+  } catch (error) {
+    throw new Error(getErrorMessage(error, 'Could not load moderation drinks.'));
+  }
+};
+
+export const setAdminDrinkExcluded = async (
+  sessionBeerId: string,
+  excluded: boolean,
+  reason?: string | null
+): Promise<void> => {
+  try {
+    const { error } = await withTimeout(
+      supabase.rpc('admin_set_session_beer_excluded', {
+        target_session_beer_id: sessionBeerId,
+        should_exclude: excluded,
+        exclusion_reason: reason ?? null,
+      }),
+      ADMIN_TIMEOUT_MS,
+      'Updating the drink is taking too long.'
+    );
+
+    if (error) throw error;
+  } catch (error) {
+    throw new Error(getErrorMessage(error, 'Could not update drink moderation.'));
   }
 };
 

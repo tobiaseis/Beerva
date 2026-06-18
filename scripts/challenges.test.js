@@ -44,6 +44,7 @@ const targetChallengeUnitsMigrationPath = 'supabase/migrations/20260618120000_ta
 const boozeInJuneUnitsFixMigrationPath = 'supabase/migrations/20260618130000_fix_booze_in_june_units.sql';
 const forceTargetUnitsMigrationPath = 'supabase/migrations/20260618140000_force_target_challenges_to_units.sql';
 const boozeInJuneLeaderboardUnitsMigrationPath = 'supabase/migrations/20260618150000_booze_in_june_leaderboard_units.sql';
+const drinkInvalidationMigrationPath = 'supabase/migrations/20260618160000_add_drink_invalidation.sql';
 const karnevalTestMigrationPath = 'supabase/migrations/20260521110000_add_karneval_test_challenge.sql';
 const removeKarnevalTestMigrationPath = 'supabase/migrations/20260521120000_remove_karneval_test_challenge.sql';
 const karnevalsdrukDualAwardsMigrationPath = 'supabase/migrations/20260522110000_add_karnevalsdruk_dual_awards.sql';
@@ -65,6 +66,7 @@ assert.ok(exists(targetChallengeUnitsMigrationPath), 'target challenge units mig
 assert.ok(exists(boozeInJuneUnitsFixMigrationPath), 'Booze-in-June units fix migration should exist');
 assert.ok(exists(forceTargetUnitsMigrationPath), 'target challenge force-units migration should exist');
 assert.ok(exists(boozeInJuneLeaderboardUnitsMigrationPath), 'Booze-in-June leaderboard units migration should exist');
+assert.ok(exists(drinkInvalidationMigrationPath), 'admin drink invalidation migration should exist');
 assert.ok(exists(karnevalTestMigrationPath), 'Karneval test challenge migration should exist');
 assert.ok(exists(removeKarnevalTestMigrationPath), 'Karneval test cleanup migration should exist');
 assert.ok(exists(karnevalsdrukDualAwardsMigrationPath), 'KarnevalsDruk dual awards migration should exist');
@@ -539,6 +541,7 @@ const targetChallengeUnitsMigrationSql = read(targetChallengeUnitsMigrationPath)
 const boozeInJuneUnitsFixMigrationSql = read(boozeInJuneUnitsFixMigrationPath);
 const forceTargetUnitsMigrationSql = read(forceTargetUnitsMigrationPath);
 const boozeInJuneLeaderboardUnitsMigrationSql = read(boozeInJuneLeaderboardUnitsMigrationPath);
+const drinkInvalidationMigrationSql = read(drinkInvalidationMigrationPath);
 assert.match(
   archiveMigrationSql,
   /create or replace function public\.get_official_challenges\(\)[\s\S]*where challenges\.archived_at is null/i,
@@ -743,6 +746,52 @@ assert.match(
   boozeInJuneLeaderboardUnitsMigrationSql,
   /notify pgrst,\s*'reload schema'/i,
   'Booze-in-June leaderboard migration should reload PostgREST schema cache'
+);
+assert.match(
+  drinkInvalidationMigrationSql,
+  /create or replace function public\.get_challenge_leaderboard\(target_challenge_id uuid\)/i,
+  'drink invalidation migration should replace challenge leaderboard'
+);
+assert.match(
+  drinkInvalidationMigrationSql,
+  /create or replace function public\.get_official_challenges\(\)/i,
+  'drink invalidation migration should replace official challenge summaries'
+);
+assert.match(
+  drinkInvalidationMigrationSql,
+  /create or replace function public\.get_challenge_detail\(target_challenge_slug text\)/i,
+  'drink invalidation migration should replace challenge detail'
+);
+assert.match(
+  drinkInvalidationMigrationSql,
+  /and coalesce\(session_beers\.excluded_from_stats,\s*false\)\s*=\s*false/i,
+  'challenge progress should ignore admin-invalidated session beers'
+);
+assert.match(
+  drinkInvalidationMigrationSql,
+  /not exists\s*\([\s\S]*from public\.session_beers[\s\S]*where session_beers\.session_id = sessions\.id[\s\S]*\)/i,
+  'legacy challenge fallback should only apply to sessions without session_beers rows'
+);
+const ignoredDrinkFallbackBlocks = drinkInvalidationMigrationSql.match(
+  /not exists\s*\([\s\S]*?from public\.session_beers[\s\S]*?where session_beers\.session_id = sessions\.id[\s\S]*?\)/gi
+) || [];
+assert.ok(ignoredDrinkFallbackBlocks.length > 0, 'drink invalidation migration should preserve legacy fallback blocks');
+ignoredDrinkFallbackBlocks.forEach((fallbackBlock) => {
+  assert.doesNotMatch(
+    fallbackBlock,
+    /excluded_from_stats/i,
+    'legacy challenge fallback must not treat all-ignored session_beers as legacy sessions'
+  );
+});
+assert.match(
+  drinkInvalidationMigrationSql,
+  /finalize_due_challenges[\s\S]*coalesce\(session_beers\.excluded_from_stats,\s*false\)\s*=\s*false/i,
+  'challenge finalizers should ignore admin-invalidated session beers'
+);
+assert.doesNotMatch(
+  drinkInvalidationMigrationSql,
+  /delete from public\.challenge_awards/i,
+  'drink invalidation should not silently remove existing challenge awards'
 );
 
 const karnevalTestMigrationSql = read(karnevalTestMigrationPath);

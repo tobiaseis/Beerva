@@ -21,6 +21,9 @@ export type SessionBeer = {
   note?: string | null;
   consumed_at?: string | null;
   created_at?: string | null;
+  excluded_from_stats?: boolean | null;
+  excluded_from_stats_at?: string | null;
+  excluded_from_stats_reason?: string | null;
 };
 
 export type BeerDraft = {

@@ -224,7 +224,7 @@ export const PostDetailScreen = () => {
       const [beersResult, cheersResult, commentsResult, chugsResult, photosResult, buddiesBySession] = await Promise.all([
         supabase
           .from('session_beers')
-          .select('id, session_id, beer_name, volume, quantity, abv, note, consumed_at, created_at')
+          .select('id, session_id, beer_name, volume, quantity, abv, beverage_category, note, consumed_at, created_at, excluded_from_stats, excluded_from_stats_at, excluded_from_stats_reason')
           .eq('session_id', sessionId)
           .order('consumed_at', { ascending: true }),
         supabase

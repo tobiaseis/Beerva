@@ -13,6 +13,7 @@ const userProfileScreenPath = 'src/screens/UserProfileScreen.tsx';
 const specialMixedDrinksMigrationPath = 'supabase/migrations/20260522100000_add_special_mixed_drinks.sql';
 const commonCocktailsMigrationPath = 'supabase/migrations/20260531160000_add_common_cocktails_and_wine.sql';
 const beverageCategoryMigrationPath = 'supabase/migrations/20260617120000_add_admin_beverage_categories.sql';
+const drinkInvalidationMigrationPath = 'supabase/migrations/20260618160000_add_drink_invalidation.sql';
 
 const exists = (relativePath) => fs.existsSync(path.resolve(__dirname, '..', relativePath));
 const readSource = (relativePath) => fs.readFileSync(path.resolve(__dirname, '..', relativePath), 'utf8');
@@ -745,6 +746,12 @@ const profileStatsApiSource = readSource(profileStatsApiPath);
 assert.match(profileStatsApiSource, /fetchTopPubVisits/, 'profile stats API should expose top pub visit fetching');
 assert.match(profileStatsApiSource, /beverage_category/, 'profile stats fallback query should select captured beverage category');
 assert.match(profileStatsApiSource, /beverage_category: beer\.beverage_category/, 'profile stats fallback rows should pass captured beverage category');
+assert.match(profileStatsApiSource, /excluded_from_stats/, 'profile stats fallback query should select ignored-drink metadata');
+assert.match(
+  profileStatsApiSource,
+  /filter\(\(beer\) => !beer\.excluded_from_stats\)/,
+  'profile stats fallback rows should ignore admin-invalidated drinks'
+);
 assert.match(profileScreenSource, /fetchTopPubVisits/, 'ProfileScreen should fetch current user top pub visits');
 assert.match(profileScreenSource, /topPubVisits=\{topPubVisits\}/, 'ProfileScreen should pass top pub visits to stats panel');
 assert.match(userProfileScreenSource, /fetchTopPubVisits/, 'UserProfileScreen should fetch viewed user top pub visits');
@@ -899,6 +906,8 @@ assert.match(
 
 assert.ok(exists(beverageCategoryMigrationPath), 'admin beverage category migration should exist');
 const beverageCategoryMigration = readSource(beverageCategoryMigrationPath);
+assert.ok(exists(drinkInvalidationMigrationPath), 'admin drink invalidation migration should exist');
+const drinkInvalidationMigration = readSource(drinkInvalidationMigrationPath);
 assert.match(
   beverageCategoryMigration,
   /session_beers\.beverage_category = 'wine'/,
@@ -913,6 +922,16 @@ assert.match(
   beverageCategoryMigration,
   /not is_captured_wine and not is_captured_drink/,
   'profile stats migration should exclude captured wine and drink from strongest beer ABV'
+);
+assert.match(
+  drinkInvalidationMigration,
+  /create or replace function public\.get_profile_stats\(target_user_id uuid\)/i,
+  'drink invalidation migration should replace profile stats'
+);
+assert.match(
+  drinkInvalidationMigration,
+  /coalesce\(session_beers\.excluded_from_stats,\s*false\)\s*=\s*false/i,
+  'profile stats should ignore admin-invalidated drinks'
 );
 
 assert.equal(
