@@ -167,8 +167,8 @@ assert.match(feedScreenSource, /getSessionUnits/, 'feed should calculate session
 assert.match(feedScreenSource, /detail\?\.units/, 'feed should hydrate session units from the feed details RPC');
 assert.match(feedScreenSource, />Units<\/Text>/, 'feed More stats should render a Units pill');
 assert.match(feedScreenSource, /IgnoredDrinkBadge/, 'feed should render ignored drinks with the detective badge component');
-assert.match(feedScreenSource, /visibleDrinkRows/, 'feed should render per-drink rows on posts when a marked drink needs the detective badge beside it');
-assert.match(feedScreenSource, /summaryDrinkLine/, 'feed should place the detective badge beside the exact marked drink line');
+assert.doesNotMatch(feedScreenSource, /visibleDrinkRows|summaryDrinkLine|summaryFlaggedDrinkText/, 'feed should not show ignored-drink badges in the collapsed session summary');
+assert.match(feedScreenSource, /beerBreakdownRows\.map[\s\S]*IgnoredDrinkBadge/, 'feed should place ignored-drink badges in the expanded More stats breakdown');
 
 const ignoredDrinkBadgeSource = fs.readFileSync(path.join(root, 'src/components/IgnoredDrinkBadge.tsx'), 'utf8');
 assert.match(

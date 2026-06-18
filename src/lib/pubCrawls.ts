@@ -10,6 +10,7 @@ export type PubCrawlBeerRow = {
   abv?: number | string | null;
   consumed_at?: string | null;
   created_at?: string | null;
+  excluded_from_stats?: boolean | null;
 };
 
 export type PubCrawlStopRow = {
@@ -60,6 +61,7 @@ export type PubCrawlBeer = {
   quantity: number;
   abv: number | null;
   consumedAt: string | null;
+  excludedFromStats: boolean;
 };
 
 export type PubCrawlStop = {
@@ -160,6 +162,7 @@ const mapBeerRow = (row: PubCrawlBeerRow): PubCrawlBeer => ({
   quantity: Math.max(1, Math.round(toNumber(row.quantity) || 1)),
   abv: row.abv === null || row.abv === undefined ? null : toNumber(row.abv),
   consumedAt: toStringOrNull(row.consumed_at) || toStringOrNull(row.created_at),
+  excludedFromStats: row.excluded_from_stats === true,
 });
 
 export const mapPubCrawlStopRow = (row: PubCrawlStopRow): PubCrawlStop => ({
@@ -236,6 +239,8 @@ export const calculatePubCrawlSummary = (stops: PubCrawlStop[] = []): PubCrawlSu
 
   stops.forEach((stop) => {
     stop.beers.forEach((beer) => {
+      if (beer.excludedFromStats) return;
+
       const quantity = Math.max(1, beer.quantity || 1);
       const volumeMl = getServingVolumeMl(beer.volume);
       const drinkMl = volumeMl * quantity;

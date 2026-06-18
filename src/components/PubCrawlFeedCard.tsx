@@ -3,12 +3,13 @@ import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Beer, ChevronDown, ChevronUp, MapPin, MessageCircle } from 'lucide-react-native';
 
 import { PubCrawl, PubCrawlStop, calculatePubCrawlSummary } from '../lib/pubCrawls';
-import { getSessionBeerBreakdownLines } from '../lib/sessionBeers';
+import { getBeerLine } from '../lib/sessionBeers';
 import { colors } from '../theme/colors';
 import { feedCardColors, feedCardMetrics, getCompactFeedActionCount } from '../theme/feedCard';
 import { radius, shadows } from '../theme/layout';
 import { typography } from '../theme/typography';
 import { CachedImage } from './CachedImage';
+import { IgnoredDrinkBadge } from './IgnoredDrinkBadge';
 import { MentionText } from './MentionText';
 import { PubCrawlMediaCarousel } from './PubCrawlMediaCarousel';
 import { Surface } from './Surface';
@@ -52,8 +53,12 @@ const formatStatNumber = (value: number) => (
   Number.isInteger(value) ? String(value) : value.toFixed(1)
 );
 
+const isIgnoredBeer = (beer: PubCrawlStop['beers'][number]) => beer.excludedFromStats === true;
+
 const getStopDrinkCount = (stop: PubCrawlStop) => (
-  stop.beers.reduce((sum, beer) => sum + Math.max(1, beer.quantity || 1), 0)
+  stop.beers
+    .filter((beer) => !isIgnoredBeer(beer))
+    .reduce((sum, beer) => sum + Math.max(1, beer.quantity || 1), 0)
 );
 
 const getCheersLabel = (count: number) => `${count} ${count === 1 ? 'Cheer' : 'Cheers'}`;
@@ -195,13 +200,15 @@ export const PubCrawlFeedCard = ({
             <View style={styles.stopBreakdown}>
               {crawl.stops.map((stop) => {
                 const stopDrinkCount = getStopDrinkCount(stop);
-                const beerBreakdownLines = getSessionBeerBreakdownLines(
-                  stop.beers.map((beer) => ({
+                const beerBreakdownRows = stop.beers.map((beer, index) => ({
+                  key: beer.id || `${stop.id}-${beer.beerName}-${beer.volume}-${index}`,
+                  line: getBeerLine({
                     beer_name: beer.beerName,
                     volume: beer.volume,
                     quantity: beer.quantity,
-                  }))
-                );
+                  }),
+                  excludedFromStats: beer.excludedFromStats,
+                }));
 
                 return (
                   <View key={stop.id} style={styles.stopSection}>
@@ -225,12 +232,15 @@ export const PubCrawlFeedCard = ({
                       />
                     ) : null}
 
-                    {beerBreakdownLines.length > 0 ? (
+                    {beerBreakdownRows.length > 0 ? (
                       <View style={styles.beerBreakdown}>
-                        {beerBreakdownLines.map((line, index) => (
-                          <Text key={`${stop.id}-${line}-${index}`} style={styles.beerBreakdownText}>
-                            {line}
-                          </Text>
+                        {beerBreakdownRows.map((beer) => (
+                          <View key={beer.key} style={styles.beerBreakdownRow}>
+                            <Text style={styles.beerBreakdownText} numberOfLines={1}>
+                              {beer.line}
+                            </Text>
+                            <IgnoredDrinkBadge excludedFromStats={beer.excludedFromStats} />
+                          </View>
                         ))}
                       </View>
                     ) : null}
@@ -600,9 +610,17 @@ const styles = StyleSheet.create({
     paddingLeft: 28,
     gap: 5,
   },
+  beerBreakdownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
+    gap: 6,
+  },
   beerBreakdownText: {
     ...typography.caption,
     color: colors.textMuted,
+    flex: 1,
+    minWidth: 0,
   },
   engagementPanel: {
     paddingHorizontal: 14,

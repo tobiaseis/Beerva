@@ -57,6 +57,7 @@ type BeerRow = {
   abv: number | null;
   consumed_at: string | null;
   created_at: string | null;
+  excluded_from_stats?: boolean | null;
 };
 
 type CheerRow = {
@@ -166,7 +167,7 @@ const hydratePubCrawls = async (crawlRows: PubCrawlBaseRow[], currentUserId?: st
       sessionIds.length > 0
         ? supabase
             .from('session_beers')
-            .select('id, session_id, beer_name, volume, quantity, abv, consumed_at, created_at')
+            .select('id, session_id, beer_name, volume, quantity, abv, consumed_at, created_at, excluded_from_stats')
             .in('session_id', sessionIds)
             .order('consumed_at', { ascending: true })
         : Promise.resolve({ data: [] as BeerRow[], error: null }),

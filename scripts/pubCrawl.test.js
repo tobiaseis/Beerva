@@ -166,7 +166,7 @@ const crawlRow = {
         address: 'First street',
       },
       session_beers: [
-        { id: 'beer-1', session_id: 'stop-1', beer_name: 'Guinness', volume: 'Pint', quantity: 2, abv: 4.2 },
+        { id: 'beer-1', session_id: 'stop-1', beer_name: 'Guinness', volume: 'Pint', quantity: 2, abv: 4.2, excluded_from_stats: true },
         { id: 'beer-2', session_id: 'stop-1', beer_name: 'Shaker', volume: '33cl', quantity: 1, abv: 4 },
       ],
     },
@@ -207,20 +207,21 @@ assert.deepEqual(
   'stops should be sorted by crawl_stop_order'
 );
 assert.equal(crawl.stops[0].beers.length, 2, 'stop beers should stay grouped under their stop');
+assert.equal(crawl.stops[0].beers[0].excludedFromStats, true, 'pub crawl beers should preserve ignored-drink metadata');
 
 const summary = calculatePubCrawlSummary(crawl.stops);
 assert.equal(summary.barCount, 3);
-assert.equal(summary.drinkCount, 7);
-assert.equal(summary.truePints, 6.2);
-assert.equal(summary.units, 10.4);
-assert.equal(summary.averageAbv, 4.5);
+assert.equal(summary.drinkCount, 5);
+assert.equal(summary.truePints, 4.2);
+assert.equal(summary.units, 7.3);
+assert.equal(summary.averageAbv, 4.6);
 assert.equal(summary.routeLabel, 'First Bar -> Second Bar -> Third Bar');
 
 const summaryWithMissingAbv = calculatePubCrawlSummary([
   {
     ...crawl.stops[0],
     beers: [
-      { ...crawl.stops[0].beers[0], volume: 'Pint', quantity: 1, abv: 5 },
+      { ...crawl.stops[0].beers[0], volume: 'Pint', quantity: 1, abv: 5, excludedFromStats: false },
       { ...crawl.stops[0].beers[1], volume: 'Pint', quantity: 1, abv: null },
     ],
   },
@@ -264,6 +265,8 @@ assert.match(feedCardSource, /styles\.cardFooter/, 'pub crawl posts should use t
 assert.match(feedCardSource, /getStopDrinkCount/, 'expanded pub crawl stop rows should count drink quantities, not beer rows');
 assert.match(feedCardSource, />Units<\/Text>/, 'pub crawl More stats should render a Units pill');
 assert.match(feedCardSource, /formatStatNumber\(summary\.units\)/, 'pub crawl Units pill should render the summary units value');
+assert.match(feedCardSource, /IgnoredDrinkBadge/, 'pub crawl More stats should render ignored drinks with the detective badge');
+assert.match(feedCardSource, /excludedFromStats=\{beer\.excludedFromStats\}/, 'pub crawl stop breakdown should place the badge beside the exact marked drink');
 assert.doesNotMatch(feedCardSource, /stop\.beers\.length\}\s*drinks/, 'expanded pub crawl stop rows should not undercount multi-quantity drinks');
 
 const feedScreenSource = fs.readFileSync(path.resolve(__dirname, '..', feedScreenPath), 'utf8');
@@ -285,6 +288,7 @@ assert.match(userProfileScreenSource, /\.eq\('hide_from_feed', false\)/, 'user p
 const pubCrawlsApiSource = fs.readFileSync(path.resolve(__dirname, '..', pubCrawlsApiPath), 'utf8');
 assert.match(pubCrawlsApiSource, /fetchPublishedPubCrawlsForFeedPage/, 'pub crawl feed API should expose a paged fetch helper');
 assert.match(pubCrawlsApiSource, /\.range\(offset, offset \+ pageSize\)/, 'pub crawl feed API should fetch one lookahead row for has-more detection');
+assert.match(pubCrawlsApiSource, /excluded_from_stats/, 'pub crawl feed API should fetch ignored-drink metadata for stop drinks');
 
 const recordScreenSource = fs.readFileSync(path.resolve(__dirname, '..', recordScreenPath), 'utf8');
 assert.match(recordScreenSource, /styles\.crawlConvertButton/, 'turn-into-crawl should render as a compact button inside the locked pub card');
