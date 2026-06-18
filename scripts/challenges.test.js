@@ -40,6 +40,7 @@ const challengeLeaderboardWindowFixPath = 'supabase/migrations/20260521100000_fi
 const localChallengeLeaderboardsMigrationPath = 'supabase/migrations/20260602120000_add_local_challenge_leaderboards.sql';
 const adminChallengesMigrationPath = 'supabase/migrations/20260531170000_add_admin_challenges_and_beverages.sql';
 const archiveMigrationPath = 'supabase/migrations/20260603120000_add_admin_challenge_archive.sql';
+const targetChallengeUnitsMigrationPath = 'supabase/migrations/20260618120000_target_challenges_use_alcohol_units.sql';
 const karnevalTestMigrationPath = 'supabase/migrations/20260521110000_add_karneval_test_challenge.sql';
 const removeKarnevalTestMigrationPath = 'supabase/migrations/20260521120000_remove_karneval_test_challenge.sql';
 const karnevalsdrukDualAwardsMigrationPath = 'supabase/migrations/20260522110000_add_karnevalsdruk_dual_awards.sql';
@@ -57,6 +58,7 @@ assert.ok(exists(karnevalsdrukMigrationPath), 'KarnevalsDruk migration should ex
 assert.ok(exists(challengeLeaderboardWindowFixPath), 'challenge leaderboard window fix migration should exist');
 assert.ok(exists(localChallengeLeaderboardsMigrationPath), 'local challenge leaderboards migration should exist');
 assert.ok(exists(archiveMigrationPath), 'admin challenge archive migration should exist');
+assert.ok(exists(targetChallengeUnitsMigrationPath), 'target challenge units migration should exist');
 assert.ok(exists(karnevalTestMigrationPath), 'Karneval test challenge migration should exist');
 assert.ok(exists(removeKarnevalTestMigrationPath), 'Karneval test cleanup migration should exist');
 assert.ok(exists(karnevalsdrukDualAwardsMigrationPath), 'KarnevalsDruk dual awards migration should exist');
@@ -91,6 +93,21 @@ assert.equal(formatChallengeStatusLabel('ended'), 'Closed');
 assert.equal(CHALLENGE_TYPE.TARGET, 'target');
 assert.equal(CHALLENGE_TYPE.LEADERBOARD, 'leaderboard');
 assert.equal(formatChallengeProgress(8.44, null, 'leaderboard'), '8.4 true pints');
+assert.equal(
+  formatChallengeProgress(6.234, 30, 'target', 'alcohol_units'),
+  '6.2/30 units',
+  'unit target challenges should show units in progress copy'
+);
+assert.equal(
+  formatChallengeProgress(6.234, 15, 'target', 'true_pints'),
+  '6.2/15',
+  'legacy true-pint target challenges should keep compact fraction formatting'
+);
+assert.equal(
+  formatChallengeProgress(8.44, null, 'leaderboard', 'alcohol_units'),
+  '8.4 true pints',
+  'leaderboard challenges should keep true-pint copy even if a bad metric arrives'
+);
 assert.equal(
   getChallengePreJoinCopy({ challengeType: 'leaderboard', slug: 'karnevalsdruk-2026' }),
   'Join to count your Karneval drinks from the full 06:00 to 06:00 window.'
@@ -163,6 +180,23 @@ assert.equal(summary.entrantsCount, 4);
 assert.equal(summary.currentUserRank, 3);
 assert.equal(summary.currentUserProgress, 6.234);
 assert.deepEqual(summary.raw, summaryRow);
+
+const unitSummary = mapChallengeSummaryRow({
+  ...summaryRow,
+  slug: 'booze-in-june',
+  title: 'Booze-in-June',
+  description: 'Reach 30 units in June.',
+  metric_type: 'alcohol_units',
+  target_value: '30',
+  current_user_progress: '6.234',
+});
+
+assert.equal(unitSummary.metricType, 'alcohol_units');
+assert.equal(unitSummary.targetValue, 30);
+assert.equal(
+  formatChallengeProgress(unitSummary.currentUserProgress, unitSummary.targetValue, unitSummary.challengeType, unitSummary.metricType),
+  '6.2/30 units'
+);
 
 const leaderboardSummary = mapChallengeSummaryRow({
   ...summaryRow,
@@ -491,6 +525,7 @@ assert.doesNotMatch(
 );
 
 const archiveMigrationSql = read(archiveMigrationPath);
+const targetChallengeUnitsMigrationSql = read(targetChallengeUnitsMigrationPath);
 assert.match(
   archiveMigrationSql,
   /create or replace function public\.get_official_challenges\(\)[\s\S]*where challenges\.archived_at is null/i,
@@ -525,6 +560,66 @@ assert.match(
   archiveMigrationSql,
   /create policy "Signed-in users can view official challenges"[\s\S]*using \(archived_at is null\)/i,
   'regular challenge selects should be limited to unarchived rows'
+);
+assert.match(
+  targetChallengeUnitsMigrationSql,
+  /drop constraint if exists challenges_metric_type_check/i,
+  'unit migration should replace the old metric_type constraint'
+);
+assert.match(
+  targetChallengeUnitsMigrationSql,
+  /metric_type in \('true_pints', 'alcohol_units'\)/i,
+  'metric_type constraint should allow alcohol_units'
+);
+assert.match(
+  targetChallengeUnitsMigrationSql,
+  /create or replace function public\.beerva_challenge_progress_value/i,
+  'unit migration should add a shared challenge progress helper'
+);
+assert.match(
+  targetChallengeUnitsMigrationSql,
+  /0\.789[\s\S]*12\.0/i,
+  'unit progress should use Danish alcohol unit conversion constants'
+);
+assert.match(
+  targetChallengeUnitsMigrationSql,
+  /\/ 568\.0/i,
+  'true-pint progress should remain available'
+);
+assert.match(
+  targetChallengeUnitsMigrationSql,
+  /set metric_type = 'alcohol_units'[\s\S]*challenge_type = 'target'[\s\S]*ends_at > now\(\)/i,
+  'active and upcoming target challenges should move to alcohol units'
+);
+assert.match(
+  targetChallengeUnitsMigrationSql,
+  /finalized_at is null/i,
+  'metric migration should not rewrite finalized historical challenges'
+);
+assert.match(
+  targetChallengeUnitsMigrationSql,
+  /target_challenge_type = 'target'[\s\S]*'alcohol_units'[\s\S]*'true_pints'/i,
+  'admin target challenges should save as alcohol_units while leaderboard challenges stay true_pints'
+);
+assert.match(
+  targetChallengeUnitsMigrationSql,
+  /create or replace function public\.get_challenge_leaderboard/i,
+  'unit migration should replace canonical global challenge leaderboard'
+);
+assert.match(
+  targetChallengeUnitsMigrationSql,
+  /create or replace function public\.get_official_challenges/i,
+  'unit migration should replace compact official challenge summaries'
+);
+assert.match(
+  targetChallengeUnitsMigrationSql,
+  /notify pgrst,\s*'reload schema'/i,
+  'unit migration should reload PostgREST schema cache'
+);
+assert.match(
+  targetChallengeUnitsMigrationSql,
+  /where challenges\.challenge_type = 'leaderboard'[\s\S]*and challenges\.slug = 'karnevalsdruk-2026'/i,
+  'KarnevalsDruk finalizer should remain leaderboard scoped'
 );
 
 const karnevalTestMigrationSql = read(karnevalTestMigrationPath);
@@ -681,6 +776,11 @@ assert.match(pubLegendsSource, /Join/, 'Challenges list should expose compact Jo
 assert.match(pubLegendsSource, /formatChallengeStatusLabel/, 'Challenge rows should include compact status metadata');
 assert.match(pubLegendsSource, /entered/, 'Challenge rows should include entrants count');
 assert.doesNotMatch(pubLegendsSource, /label="Join Challenge"/, 'Challenges should not use a chunky full-width Join Challenge AppButton');
+assert.match(
+  pubLegendsSource,
+  /formatChallengeProgress\(item\.currentUserProgress,\s*item\.targetValue,\s*item\.challengeType,\s*item\.metricType\)/,
+  'Pub Legends challenge rows should pass metric type into progress formatting'
+);
 
 const detailScreenSource = read(detailScreenPath);
 assert.match(detailScreenSource, /fetchChallengeDetail/, 'detail screen should load challenge detail');
@@ -746,12 +846,27 @@ assert.match(
   /const renderLeader = useCallback\([\s\S]*?\), \[challenge\]\);/,
   'detail leaderboard row renderer should remain independent of selected scope'
 );
+assert.match(
+  detailScreenSource,
+  /formatChallengeProgress\(item\.progressValue,\s*challenge\?\.targetValue,\s*challenge\?\.challengeType,\s*challenge\?\.metricType\)/,
+  'detail leaderboard rows should pass challenge metric into progress formatting'
+);
+assert.match(
+  detailScreenSource,
+  /formatChallengeProgress\(challenge\.currentUserProgress,\s*challenge\.targetValue,\s*challenge\.challengeType,\s*challenge\.metricType\)/,
+  'detail progress summary should pass challenge metric into progress formatting'
+);
 
 const feedScreenSource = read(feedScreenPath);
 assert.match(feedScreenSource, /fetchJoinedActiveChallengeSummary/, 'Feed should load joined active challenge summary');
 assert.match(feedScreenSource, /challengePreviewStrip/, 'Feed should render a compact challenge strip');
 assert.doesNotMatch(feedScreenSource, /challengePreviewCard/, 'Feed should not render a large challenge card');
 assert.match(feedScreenSource, /navigation\.navigate\('ChallengeDetail'/, 'Feed strip should open challenge detail');
+assert.match(
+  feedScreenSource,
+  /formatChallengeProgress\(activeChallengeSummary\.currentUserProgress,\s*activeChallengeSummary\.targetValue,\s*activeChallengeSummary\.challengeType,\s*activeChallengeSummary\.metricType\)/,
+  'feed challenge strip should pass metric type into progress formatting'
+);
 
 const officialFeedApiSource = read(officialFeedPostsApiPath);
 assert.match(officialFeedApiSource, /from\('official_feed_posts'\)/, 'official feed post API should read official_feed_posts');

@@ -1692,7 +1692,7 @@ export const FeedScreen = ({ route }: any) => {
       >
         <Trophy color={colors.primary} size={15} />
         <Text style={styles.challengePreviewText} numberOfLines={1}>
-          {activeChallengeSummary.title} - {formatChallengeRank(activeChallengeSummary.currentUserRank)} - {formatChallengeProgress(activeChallengeSummary.currentUserProgress, activeChallengeSummary.targetValue, activeChallengeSummary.challengeType)}
+          {activeChallengeSummary.title} - {formatChallengeRank(activeChallengeSummary.currentUserRank)} - {formatChallengeProgress(activeChallengeSummary.currentUserProgress, activeChallengeSummary.targetValue, activeChallengeSummary.challengeType, activeChallengeSummary.metricType)}
         </Text>
       </TouchableOpacity>
     );

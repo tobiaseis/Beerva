@@ -386,8 +386,8 @@ export const PubLegendsScreen = ({ navigation }: any) => {
     const progressLabel = item.joined
       ? (
           isLeaderboardChallenge(item)
-            ? ` - ${formatChallengeRank(item.currentUserRank)} - ${formatChallengeProgress(item.currentUserProgress, item.targetValue, item.challengeType)}`
-            : ` - ${formatChallengeRank(item.currentUserRank)} - ${formatChallengeProgress(item.currentUserProgress, item.targetValue, item.challengeType)}`
+            ? ` - ${formatChallengeRank(item.currentUserRank)} - ${formatChallengeProgress(item.currentUserProgress, item.targetValue, item.challengeType, item.metricType)}`
+            : ` - ${formatChallengeRank(item.currentUserRank)} - ${formatChallengeProgress(item.currentUserProgress, item.targetValue, item.challengeType, item.metricType)}`
         )
       : '';
 

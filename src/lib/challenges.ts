@@ -17,7 +17,7 @@ export const CHALLENGE_LEADERBOARD_SCOPE = {
 export type ChallengeStatus = typeof CHALLENGE_STATUS[keyof typeof CHALLENGE_STATUS];
 export type ChallengeType = typeof CHALLENGE_TYPE[keyof typeof CHALLENGE_TYPE];
 export type ChallengeLeaderboardScope = typeof CHALLENGE_LEADERBOARD_SCOPE[keyof typeof CHALLENGE_LEADERBOARD_SCOPE];
-export type ChallengeMetricType = 'true_pints';
+export type ChallengeMetricType = 'true_pints' | 'alcohol_units';
 
 export type ChallengeSummaryRow = {
   id?: string | null;
@@ -117,7 +117,7 @@ const toStringOrNull = (value: string | null | undefined) => {
 };
 
 const toMetricType = (value: string | null | undefined): ChallengeMetricType => (
-  value === 'true_pints' ? value : 'true_pints'
+  value === 'alcohol_units' ? 'alcohol_units' : 'true_pints'
 );
 
 const toChallengeType = (value: string | null | undefined): ChallengeType => (
@@ -160,7 +160,8 @@ export const isChallengeJoinOpen = (
 export const formatChallengeProgress = (
   progress: number | string | null | undefined,
   target: number | string | null | undefined,
-  challengeType: ChallengeType = CHALLENGE_TYPE.TARGET
+  challengeType: ChallengeType = CHALLENGE_TYPE.TARGET,
+  metricType: ChallengeMetricType | string | null | undefined = 'true_pints'
 ) => {
   const progressValue = toNumber(progress).toFixed(1);
   if (challengeType === CHALLENGE_TYPE.LEADERBOARD) {
@@ -168,6 +169,10 @@ export const formatChallengeProgress = (
   }
 
   const targetValue = toNumber(target).toFixed(0);
+  if (metricType === 'alcohol_units') {
+    return `${progressValue}/${targetValue} units`;
+  }
+
   return `${progressValue}/${targetValue}`;
 };
 
@@ -191,7 +196,7 @@ export const getChallengePreJoinCopy = (
 
 export const getLeaderboardEntryMeta = (
   entry: Pick<ChallengeLeaderboardEntry, 'completed' | 'progressValue'> | { completed?: boolean | null; progressValue?: number | string | null },
-  challenge: Pick<ChallengeSummary, 'challengeType'> | { challengeType?: ChallengeType | string | null }
+  challenge: Pick<ChallengeSummary, 'challengeType' | 'metricType'> | { challengeType?: ChallengeType | string | null; metricType?: ChallengeMetricType | string | null }
 ) => {
   if (isLeaderboardChallenge(challenge)) {
     return formatChallengeProgress(entry.progressValue, null, CHALLENGE_TYPE.LEADERBOARD);

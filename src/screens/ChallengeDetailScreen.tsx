@@ -159,7 +159,7 @@ export const ChallengeDetailScreen = ({ navigation, route }: any) => {
         <Text style={styles.leaderMeta}>{getLeaderboardEntryMeta(item, challenge || { challengeType: 'target' })}</Text>
       </View>
       <Text style={styles.progressText}>
-        {formatChallengeProgress(item.progressValue, challenge?.targetValue, challenge?.challengeType)}
+        {formatChallengeProgress(item.progressValue, challenge?.targetValue, challenge?.challengeType, challenge?.metricType)}
       </Text>
     </View>
   ), [challenge]);
@@ -196,7 +196,7 @@ export const ChallengeDetailScreen = ({ navigation, route }: any) => {
               <View style={styles.summaryPill}>
                 <Text style={styles.summaryLabel}>{challenge.challengeType === 'leaderboard' ? 'Your total' : 'Your progress'}</Text>
                 <Text style={styles.summaryValue}>
-                  {formatChallengeProgress(challenge.currentUserProgress, challenge.targetValue, challenge.challengeType)}
+                  {formatChallengeProgress(challenge.currentUserProgress, challenge.targetValue, challenge.challengeType, challenge.metricType)}
                 </Text>
               </View>
               <View style={styles.summaryPill}>
