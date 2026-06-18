@@ -43,6 +43,7 @@ const archiveMigrationPath = 'supabase/migrations/20260603120000_add_admin_chall
 const targetChallengeUnitsMigrationPath = 'supabase/migrations/20260618120000_target_challenges_use_alcohol_units.sql';
 const boozeInJuneUnitsFixMigrationPath = 'supabase/migrations/20260618130000_fix_booze_in_june_units.sql';
 const forceTargetUnitsMigrationPath = 'supabase/migrations/20260618140000_force_target_challenges_to_units.sql';
+const boozeInJuneLeaderboardUnitsMigrationPath = 'supabase/migrations/20260618150000_booze_in_june_leaderboard_units.sql';
 const karnevalTestMigrationPath = 'supabase/migrations/20260521110000_add_karneval_test_challenge.sql';
 const removeKarnevalTestMigrationPath = 'supabase/migrations/20260521120000_remove_karneval_test_challenge.sql';
 const karnevalsdrukDualAwardsMigrationPath = 'supabase/migrations/20260522110000_add_karnevalsdruk_dual_awards.sql';
@@ -63,6 +64,7 @@ assert.ok(exists(archiveMigrationPath), 'admin challenge archive migration shoul
 assert.ok(exists(targetChallengeUnitsMigrationPath), 'target challenge units migration should exist');
 assert.ok(exists(boozeInJuneUnitsFixMigrationPath), 'Booze-in-June units fix migration should exist');
 assert.ok(exists(forceTargetUnitsMigrationPath), 'target challenge force-units migration should exist');
+assert.ok(exists(boozeInJuneLeaderboardUnitsMigrationPath), 'Booze-in-June leaderboard units migration should exist');
 assert.ok(exists(karnevalTestMigrationPath), 'Karneval test challenge migration should exist');
 assert.ok(exists(removeKarnevalTestMigrationPath), 'Karneval test cleanup migration should exist');
 assert.ok(exists(karnevalsdrukDualAwardsMigrationPath), 'KarnevalsDruk dual awards migration should exist');
@@ -109,8 +111,8 @@ assert.equal(
 );
 assert.equal(
   formatChallengeProgress(8.44, null, 'leaderboard', 'alcohol_units'),
-  '8.4 true pints',
-  'leaderboard challenges should keep true-pint copy even if a bad metric arrives'
+  '8.4 units',
+  'leaderboard challenges with an alcohol-unit metric should show unit copy'
 );
 assert.equal(
   getChallengePreJoinCopy({ challengeType: 'leaderboard', slug: 'karnevalsdruk-2026' }),
@@ -123,6 +125,10 @@ assert.equal(
 assert.equal(
   getLeaderboardEntryMeta({ completed: true, progressValue: 8.44 }, { challengeType: 'leaderboard' }),
   '8.4 true pints'
+);
+assert.equal(
+  getLeaderboardEntryMeta({ completed: true, progressValue: 8.44 }, { challengeType: 'leaderboard', metricType: 'alcohol_units' }),
+  '8.4 units'
 );
 assert.equal(
   getLeaderboardEntryMeta({ completed: true, progressValue: 15.1 }, { challengeType: 'target' }),
@@ -532,6 +538,7 @@ const archiveMigrationSql = read(archiveMigrationPath);
 const targetChallengeUnitsMigrationSql = read(targetChallengeUnitsMigrationPath);
 const boozeInJuneUnitsFixMigrationSql = read(boozeInJuneUnitsFixMigrationPath);
 const forceTargetUnitsMigrationSql = read(forceTargetUnitsMigrationPath);
+const boozeInJuneLeaderboardUnitsMigrationSql = read(boozeInJuneLeaderboardUnitsMigrationPath);
 assert.match(
   archiveMigrationSql,
   /create or replace function public\.get_official_challenges\(\)[\s\S]*where challenges\.archived_at is null/i,
@@ -711,6 +718,31 @@ assert.match(
   forceTargetUnitsMigrationSql,
   /notify pgrst,\s*'reload schema'/i,
   'force-units migration should reload PostgREST schema cache'
+);
+assert.match(
+  boozeInJuneLeaderboardUnitsMigrationSql,
+  /update public\.challenges[\s\S]*set metric_type = 'alcohol_units'/i,
+  'Booze-in-June leaderboard migration should set the challenge metric to alcohol units'
+);
+assert.match(
+  boozeInJuneLeaderboardUnitsMigrationSql,
+  /challenge_type in \('leaderboard', 'target'\)/i,
+  'Booze-in-June leaderboard migration should include leaderboard challenge rows'
+);
+assert.match(
+  boozeInJuneLeaderboardUnitsMigrationSql,
+  /booze-in-june/i,
+  'Booze-in-June leaderboard migration should target the June challenge by stable slug/title'
+);
+assert.doesNotMatch(
+  boozeInJuneLeaderboardUnitsMigrationSql,
+  /challenge_type = 'target'/i,
+  'Booze-in-June leaderboard migration should not only target target-style rows'
+);
+assert.match(
+  boozeInJuneLeaderboardUnitsMigrationSql,
+  /notify pgrst,\s*'reload schema'/i,
+  'Booze-in-June leaderboard migration should reload PostgREST schema cache'
 );
 
 const karnevalTestMigrationSql = read(karnevalTestMigrationPath);

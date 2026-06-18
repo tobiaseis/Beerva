@@ -165,6 +165,10 @@ export const formatChallengeProgress = (
 ) => {
   const progressValue = toNumber(progress).toFixed(1);
   if (challengeType === CHALLENGE_TYPE.LEADERBOARD) {
+    if (metricType === 'alcohol_units') {
+      return `${progressValue} units`;
+    }
+
     return `${progressValue} true pints`;
   }
 
@@ -199,7 +203,7 @@ export const getLeaderboardEntryMeta = (
   challenge: Pick<ChallengeSummary, 'challengeType' | 'metricType'> | { challengeType?: ChallengeType | string | null; metricType?: ChallengeMetricType | string | null }
 ) => {
   if (isLeaderboardChallenge(challenge)) {
-    return formatChallengeProgress(entry.progressValue, null, CHALLENGE_TYPE.LEADERBOARD);
+    return formatChallengeProgress(entry.progressValue, null, CHALLENGE_TYPE.LEADERBOARD, challenge.metricType);
   }
 
   return entry.completed ? 'Completed' : 'In progress';
