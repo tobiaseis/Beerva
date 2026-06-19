@@ -32,7 +32,7 @@
     "android": {
       "package": "com.beerva.app",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/beerva-app-icon.png",
+        "foregroundImage": "./assets/beerva-android-adaptive-foreground.png",
         "backgroundColor": "#0D121A"
       },
       "edgeToEdgeEnabled": true,

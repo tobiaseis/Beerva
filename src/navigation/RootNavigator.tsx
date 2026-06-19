@@ -12,7 +12,6 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { PlusCircle, Trophy, User, Users } from 'lucide-react-native';
 import { View, ActivityIndicator, Platform, Image, useWindowDimensions } from 'react-native';
 import { Session } from '@supabase/supabase-js';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { supabase } from '../lib/supabase';
 import { getErrorMessage, withTimeout } from '../lib/timeouts';
@@ -33,6 +32,7 @@ import { HangoverRatingScreen } from '../screens/HangoverRatingScreen';
 import { ChugVerificationScreen } from '../screens/ChugVerificationScreen';
 import { FakeBeerScreen } from '../screens/FakeBeerScreen';
 import { AdminToolsScreen } from '../screens/AdminToolsScreen';
+import { AndroidFloatingTabBar } from './AndroidFloatingTabBar';
 import { PushReminderPrompt } from '../components/PushReminderPrompt';
 import { colors } from '../theme/colors';
 import { floatingTabBarMetrics, radius, shadows } from '../theme/layout';
@@ -266,11 +266,8 @@ const clearChugVerificationLaunchParams = () => {
 
 const MainTabs = () => {
   const { unreadCount } = useNotifications();
-  const insets = useSafeAreaInsets();
   const { width: viewportWidth } = useWindowDimensions();
   const floatingTabBarWidth = Math.min(Math.max(viewportWidth - 32, 0), 520);
-  const nativeTabBarBottom = Math.max(insets.bottom, floatingTabBarMetrics.nativeBottom);
-  const nativeTabBarLeft = Math.max((viewportWidth - floatingTabBarWidth) / 2, 16);
   const floatingTabBarStyle = {
     position: 'absolute' as const,
     backgroundColor: floatingTabBarBackground,
@@ -288,6 +285,7 @@ const MainTabs = () => {
   return (
   <Tab.Navigator
     backBehavior="history"
+    tabBar={Platform.OS === 'android' ? (props) => <AndroidFloatingTabBar {...props} /> : undefined}
     screenOptions={{
       headerShown: false,
       sceneStyle: { backgroundColor: colors.background },
@@ -306,14 +304,7 @@ const MainTabs = () => {
             borderRadius: radius.pill,
           }
         : {
-            ...floatingTabBarStyle,
-            position: 'absolute',
-            left: nativeTabBarLeft,
-            bottom: nativeTabBarBottom,
-            width: floatingTabBarWidth,
-            backgroundColor: floatingTabBarBackground,
-            height: floatingTabBarMetrics.webHeight,
-            borderRadius: radius.pill,
+            display: 'none',
           },
       tabBarLabelStyle: {
         fontSize: 11,

@@ -33,11 +33,13 @@ assert.equal(appJson.expo.scheme, 'beerva', 'app should declare a beerva:// nati
 assert.equal(appJson.expo.android.package, 'com.beerva.app', 'Android package id should be stable');
 assert.equal(appJson.expo.android.edgeToEdgeEnabled, true, 'existing Android edge-to-edge config should remain enabled');
 assert.equal(appJson.expo.icon, './assets/beerva-app-icon.png', 'native app icon should use the Beerva logo');
+const androidForegroundPath = path.join(root, 'assets', 'beerva-android-adaptive-foreground.png');
 assert.equal(
   appJson.expo.android.adaptiveIcon.foregroundImage,
-  './assets/beerva-app-icon.png',
-  'Android adaptive icon should use the Beerva logo instead of the Expo placeholder'
+  './assets/beerva-android-adaptive-foreground.png',
+  'Android adaptive icon should use a padded Beerva foreground instead of the oversized full icon'
 );
+assert.ok(fs.existsSync(androidForegroundPath), 'Android adaptive icon foreground asset should exist');
 
 assert.ok(Array.isArray(appJson.expo.plugins), 'Expo plugins should be configured');
 assert.ok(

@@ -9,6 +9,7 @@ import { fetchSessionFeedDetails, SessionFeedDetail } from '../lib/sessionFeedDe
 import { appendFeedPage, sortFeedItemsByPublishedAt } from '../lib/feedPagination';
 import { confirmDestructive } from '../lib/dialogs';
 import { useFocusEffect, useNavigation, useScrollToTop } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CachedImage } from '../components/CachedImage';
 import { StreakAvatar } from '../components/StreakAvatar';
 import { MentionComposer } from '../components/MentionComposer';
@@ -782,6 +783,7 @@ export const FeedSessionCard = React.memo(({
 
 export const FeedScreen = ({ route }: any) => {
   const navigation = useNavigation<any>();
+  const insets = useSafeAreaInsets();
   const [sessions, setSessions] = useState<FeedItem[]>([]);
   const [unlockedTrophies, setUnlockedTrophies] = useState<TrophyDefinition[]>([]);
   const [allTrophiesPrizeVisible, setAllTrophiesPrizeVisible] = useState(false);
@@ -1920,7 +1922,7 @@ export const FeedScreen = ({ route }: any) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: Platform.OS === 'web' ? 12 : insets.top + 12 }]}>
         <View style={styles.logoContainer}>
           <Image source={beervaLogo} style={styles.logoImage} />
           <TouchableOpacity
@@ -2235,7 +2237,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   header: {
-    paddingTop: Platform.OS === 'web' ? 12 : 52,
     paddingHorizontal: 20,
     paddingBottom: Platform.OS === 'web' ? 10 : 14,
     borderBottomWidth: 1,

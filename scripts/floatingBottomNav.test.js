@@ -14,6 +14,8 @@ const readSource = (relativePath) => fs.readFileSync(
   path.resolve(__dirname, '..', relativePath),
   'utf8'
 );
+const androidTabBarPath = 'src/navigation/AndroidFloatingTabBar.tsx';
+const feedScreenPath = 'src/screens/FeedScreen.tsx';
 
 const extractScreenOptionsBlock = (navigatorSource) => {
   const marker = 'screenOptions={{';
@@ -59,11 +61,6 @@ assert.match(
 );
 assert.match(
   source,
-  /useSafeAreaInsets/,
-  'Main tabs should read native safe-area insets so Android system navigation cannot cover the pill'
-);
-assert.match(
-  source,
   /floatingTabBarBackground\s*=\s*'#172238'/,
   'Floating nav should be darker than the old raised box without matching the post/background surfaces'
 );
@@ -78,14 +75,48 @@ assert.match(
   'Floating nav should use shared metrics for the pill and tab content spacer'
 );
 assert.match(
-  source,
-  /nativeTabBarBottom\s*=\s*Math\.max\(insets\.bottom,\s*floatingTabBarMetrics\.nativeBottom\)/,
-  'Native floating nav should sit above the device bottom safe area'
-);
-assert.match(
   layoutSource,
   /nativeContentInset:/,
   'Shared floating nav metrics should include a native content inset'
+);
+
+assert.ok(
+  fs.existsSync(path.resolve(__dirname, '..', androidTabBarPath)),
+  'Android should render its own deterministic floating tab bar'
+);
+
+const androidTabBarSource = readSource(androidTabBarPath);
+const feedScreenSource = readSource(feedScreenPath);
+
+assert.match(
+  source,
+  /tabBar=\{Platform\.OS === 'android' \? \(props\) => <AndroidFloatingTabBar \{\.\.\.props\} \/> : undefined\}/,
+  'Android should use the custom pill while web keeps the existing React Navigation tab bar'
+);
+assert.match(
+  androidTabBarSource,
+  /flex: 1[\s\S]*alignItems: 'center'[\s\S]*justifyContent: 'center'/,
+  'Android tabs should use equal-width centered columns'
+);
+assert.match(
+  androidTabBarSource,
+  /const bottom = Math\.max\(insets\.bottom \+ 12, floatingTabBarMetrics\.nativeBottom\)/,
+  'Android pill should stay above the system navigation area'
+);
+assert.match(
+  androidTabBarSource,
+  /size: 24/,
+  'Android tab icons should use the same fixed icon slot size'
+);
+assert.match(
+  feedScreenSource,
+  /useSafeAreaInsets/,
+  'Feed header should read the real device top safe area'
+);
+assert.match(
+  feedScreenSource,
+  /paddingTop: Platform\.OS === 'web' \? 12 : insets\.top \+ 12/,
+  'PWA top spacing should stay at 12 while Android derives spacing from the system inset'
 );
 
 const screenOptions = extractScreenOptionsBlock(source);
@@ -134,11 +165,6 @@ assert.match(
   screenOptions,
   /bottom:\s*floatingTabBarMetrics\.webBottom/,
   'Floating nav should sit off the bottom edge'
-);
-assert.match(
-  screenOptions,
-  /bottom:\s*nativeTabBarBottom/,
-  'Native floating nav should use the safe-area-aware bottom offset'
 );
 assert.match(
   screenOptions,
