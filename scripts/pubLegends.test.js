@@ -34,6 +34,7 @@ const placeCategoryMigrationPath = 'supabase/migrations/20260513120000_add_pub_p
 const placeCategoryRepairMigrationPath = 'supabase/migrations/20260518113000_add_pub_place_category_repair_rpc.sql';
 const legacySessionRepairMigrationPath = 'supabase/migrations/20260518114500_link_legacy_sessions_on_place_exclusion.sql';
 const liveCountRepairMigrationPath = 'supabase/migrations/20260619170000_repair_pub_legends_counts.sql';
+const legacyPubMergeMigrationPath = 'supabase/migrations/20260619180000_merge_legacy_pub_duplicates.sql';
 
 assert.ok(
   fs.existsSync(path.resolve(__dirname, '..', helpersPath)),
@@ -66,6 +67,10 @@ assert.ok(
 assert.ok(
   fs.existsSync(path.resolve(__dirname, '..', liveCountRepairMigrationPath)),
   'A follow-up migration should repair deployed Pub Legends live counts'
+);
+assert.ok(
+  fs.existsSync(path.resolve(__dirname, '..', legacyPubMergeMigrationPath)),
+  'A follow-up migration should merge unambiguous legacy and OSM pub duplicates'
 );
 
 const {
@@ -234,6 +239,10 @@ const placeCategoryMigrationSql = fs.readFileSync(path.resolve(__dirname, '..', 
 const placeCategoryRepairMigrationSql = fs.readFileSync(path.resolve(__dirname, '..', placeCategoryRepairMigrationPath), 'utf8');
 const legacySessionRepairMigrationSql = fs.readFileSync(path.resolve(__dirname, '..', legacySessionRepairMigrationPath), 'utf8');
 const liveCountRepairMigrationSql = fs.readFileSync(path.resolve(__dirname, '..', liveCountRepairMigrationPath), 'utf8');
+const legacyPubMergeMigrationSql = fs.readFileSync(
+  path.resolve(__dirname, '..', legacyPubMergeMigrationPath),
+  'utf8'
+);
 assert.match(
   placeCategoryMigrationSql,
   /add column if not exists place_category text not null default 'pub'/,
@@ -308,6 +317,46 @@ assert.match(
   liveCountRepairMigrationSql,
   /grant execute on function public\.get_pub_legends\(integer\) to authenticated/i,
   'authenticated users should keep access to the Pub Legends RPC'
+);
+assert.match(
+  legacyPubMergeMigrationSql,
+  /legacy\.source\s*=\s*'legacy'/i,
+  'duplicate repair should only retire legacy source rows'
+);
+assert.match(
+  legacyPubMergeMigrationSql,
+  /canonical\.source\s*=\s*'osm'/i,
+  'duplicate repair should only move sessions to canonical OSM rows'
+);
+assert.match(
+  legacyPubMergeMigrationSql,
+  /lower\(btrim\(legacy\.name\)\)\s*=\s*lower\(btrim\(canonical\.name\s*\|\|\s*', '\s*\|\|\s*canonical\.city\)\)/i,
+  'duplicate repair should require an exact normalized name-and-city match'
+);
+assert.match(
+  legacyPubMergeMigrationSql,
+  /canonical_match_count\s*=\s*1/i,
+  'duplicate repair should leave ambiguous canonical matches untouched'
+);
+assert.match(
+  legacyPubMergeMigrationSql,
+  /update public\.sessions[\s\S]*set pub_id = pair\.canonical_pub_id/i,
+  'duplicate repair should relink every session to the canonical pub'
+);
+assert.match(
+  legacyPubMergeMigrationSql,
+  /status\s*=\s*'merged'/i,
+  'duplicate repair should retire the old legacy pub row'
+);
+assert.match(
+  legacyPubMergeMigrationSql,
+  /merged_into\s*=\s*pair\.canonical_pub_id/i,
+  'duplicate repair should retain the canonical replacement link'
+);
+assert.match(
+  legacyPubMergeMigrationSql,
+  /use_count\s*=\s*pub_session_counts\.session_count/i,
+  'duplicate repair should resync active real-pub use counts'
 );
 assert.match(
   friendLeaderboardsMigrationSql,

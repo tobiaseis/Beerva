@@ -31,4 +31,4 @@ The migration does not edit post content, session timestamps, beer records, prof
 
 ## Safety and Verification
 
-The current production data has five unambiguous legacy pub records with five published sessions eligible for this repair. The known Smedekroen split will become one entry with eight posts. A regression test will assert the migration uses the strict source, category, exact-label, and unique-match safeguards, moves `sessions.pub_id`, and marks the legacy row merged. After deployment, direct SQL checks will confirm the merged record count and the unified Pub Legends count.
+The current production data has one unambiguous legacy pub record with five published sessions eligible for this repair. The known Smedekroen split will become one entry with eight posts. A regression test will assert the migration uses the strict source, category, exact-label, and unique-match safeguards, moves `sessions.pub_id`, and marks the legacy row merged. After deployment, direct SQL checks will confirm the merged record count and the unified Pub Legends count.
