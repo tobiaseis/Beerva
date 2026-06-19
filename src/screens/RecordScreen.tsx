@@ -82,6 +82,7 @@ import { fetchProfileStats } from '../lib/profileStatsApi';
 import { didUnlockAllTrophies, getTrophies } from '../lib/profileStats';
 import { useFocused } from '../lib/useFocused';
 import { useBeverageCatalog } from '../lib/beverageCatalogContext';
+import { getCurrentDeviceLocation, getPreviouslyGrantedDeviceLocation } from '../lib/deviceLocation';
 import { MentionCandidate } from '../lib/mentions';
 import { notifyContentMentionsSafely } from '../lib/mentionNotifications';
 import { colors } from '../theme/colors';
@@ -132,7 +133,6 @@ type ChugAnalysisPreview = {
 };
 
 const PUB_SEARCH_MIN_LENGTH = 3;
-const PUB_LOCATION_TIMEOUT_MS = 9000;
 const NEARBY_CACHE_MIN_RESULTS = 8;
 const COMMENT_AUTOSAVE_DELAY_MS = 750;
 
@@ -174,51 +174,6 @@ const uniquePhotoUrls = (urls: Array<string | null | undefined>) => {
     seen.add(url);
     return true;
   });
-};
-
-const getCurrentBrowserLocation = () => new Promise<UserLocation>((resolve, reject) => {
-  const geolocation = typeof navigator !== 'undefined' ? navigator.geolocation : null;
-  if (!geolocation) {
-    reject(new Error('Location is not available on this device.'));
-    return;
-  }
-
-  geolocation.getCurrentPosition(
-    (position) => {
-      resolve({
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-      });
-    },
-    (error) => {
-      reject(new Error(error.message || 'Could not get your location.'));
-    },
-    {
-      enableHighAccuracy: true,
-      timeout: PUB_LOCATION_TIMEOUT_MS,
-      maximumAge: 1000 * 60 * 8,
-    }
-  );
-});
-
-const getPreviouslyGrantedBrowserLocation = async () => {
-  if (typeof navigator === 'undefined' || !navigator.geolocation) return null;
-
-  const permissions = navigator.permissions;
-  if (!permissions?.query) return null;
-
-  try {
-    const status = await permissions.query({ name: 'geolocation' as PermissionName });
-    if (status.state !== 'granted') return null;
-  } catch {
-    return null;
-  }
-
-  try {
-    return await getCurrentBrowserLocation();
-  } catch {
-    return null;
-  }
 };
 
 export const RecordScreen = ({ navigation }: any) => {
@@ -292,7 +247,7 @@ export const RecordScreen = ({ navigation }: any) => {
 
     let cancelled = false;
     (async () => {
-      const cachedLocation = await getPreviouslyGrantedBrowserLocation();
+      const cachedLocation = await getPreviouslyGrantedDeviceLocation();
       if (cancelled || !cachedLocation) return;
 
       passiveLocationAttempted.current = true;
@@ -360,8 +315,8 @@ export const RecordScreen = ({ navigation }: any) => {
         if (!searchLocation && cleanPub.length >= PUB_SEARCH_MIN_LENGTH && !passiveLocationAttempted.current) {
           passiveLocationAttempted.current = true;
           try {
-            searchLocation = await getPreviouslyGrantedBrowserLocation()
-              || await getCurrentBrowserLocation();
+            searchLocation = await getPreviouslyGrantedDeviceLocation()
+              || await getCurrentDeviceLocation();
             if (searchLocation && !cancelled) {
               setUserLocation(searchLocation);
             }
@@ -735,7 +690,7 @@ export const RecordScreen = ({ navigation }: any) => {
     pubSearchAbort.current = abortController;
 
     try {
-      const location = await getCurrentBrowserLocation();
+      const location = await getCurrentDeviceLocation();
       setUserLocation(location);
       const { pubs: nearbyPubs, lookupError } = await seedNearbyPubs(location, abortController.signal);
       if (abortController.signal.aborted) return;
@@ -780,7 +735,7 @@ export const RecordScreen = ({ navigation }: any) => {
     setRouletteError(null);
 
     try {
-      const location = userLocation || await getCurrentBrowserLocation();
+      const location = userLocation || await getCurrentDeviceLocation();
       if (rouletteRequestId.current !== requestId) return;
       setUserLocation(location);
 
