@@ -1,0 +1,24 @@
+# dependencies and generated output
+node_modules/
+dist/
+web-build/
+.expo/
+tmp/
+
+# local agent/tooling workspaces
+.agents/
+.claude/
+.superpowers/
+
+# native build outputs and credentials
+/android/
+/ios/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# local environment files
+.env*.local
+*.tsbuildinfo

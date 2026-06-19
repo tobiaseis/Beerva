@@ -55,6 +55,12 @@
       "display": "standalone",
       "scope": "/",
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "ece5f8be-c0c2-4ac2-9d14-a201c26483e4"
+      }
+    },
+    "owner": "tobiaseis"
   }
 }

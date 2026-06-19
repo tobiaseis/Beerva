@@ -70,7 +70,8 @@
     "test:native-push-db": "node scripts/nativePushDatabase.test.js",
     "test:native-push-client": "node scripts/nativePushClient.test.js",
     "test:native-notification-routing": "node scripts/nativeNotificationRouting.test.js",
-    "test:native-location": "node scripts/nativeLocation.test.js"
+    "test:native-location": "node scripts/nativeLocation.test.js",
+    "test:eas-archive-ignore": "node scripts/easArchiveIgnore.test.js"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",
