@@ -33,6 +33,7 @@ const zeroStreakFilterMigrationPath = 'supabase/migrations/20260605120000_filter
 const placeCategoryMigrationPath = 'supabase/migrations/20260513120000_add_pub_place_category.sql';
 const placeCategoryRepairMigrationPath = 'supabase/migrations/20260518113000_add_pub_place_category_repair_rpc.sql';
 const legacySessionRepairMigrationPath = 'supabase/migrations/20260518114500_link_legacy_sessions_on_place_exclusion.sql';
+const liveCountRepairMigrationPath = 'supabase/migrations/20260619170000_repair_pub_legends_counts.sql';
 
 assert.ok(
   fs.existsSync(path.resolve(__dirname, '..', helpersPath)),
@@ -61,6 +62,10 @@ assert.ok(
 assert.ok(
   fs.existsSync(path.resolve(__dirname, '..', legacySessionRepairMigrationPath)),
   'A follow-up migration should update already-applied place repair RPCs for legacy name-only sessions'
+);
+assert.ok(
+  fs.existsSync(path.resolve(__dirname, '..', liveCountRepairMigrationPath)),
+  'A follow-up migration should repair deployed Pub Legends live counts'
 );
 
 const {
@@ -228,6 +233,7 @@ const zeroStreakFilterMigrationSql = fs.readFileSync(
 const placeCategoryMigrationSql = fs.readFileSync(path.resolve(__dirname, '..', placeCategoryMigrationPath), 'utf8');
 const placeCategoryRepairMigrationSql = fs.readFileSync(path.resolve(__dirname, '..', placeCategoryRepairMigrationPath), 'utf8');
 const legacySessionRepairMigrationSql = fs.readFileSync(path.resolve(__dirname, '..', legacySessionRepairMigrationPath), 'utf8');
+const liveCountRepairMigrationSql = fs.readFileSync(path.resolve(__dirname, '..', liveCountRepairMigrationPath), 'utf8');
 assert.match(
   placeCategoryMigrationSql,
   /add column if not exists place_category text not null default 'pub'/,
@@ -258,6 +264,51 @@ assert.match(migrationSql, /get_pub_legends/, 'migration should create get_pub_l
 assert.match(migrationSql, /get_pub_king_of_the_pub/, 'migration should create get_pub_king_of_the_pub');
 assert.match(migrationSql, /status\s*=\s*'published'/, 'leaderboards should only use published sessions');
 assert.match(migrationSql, /beerva_serving_volume_ml/, 'leaderboards should calculate true pints from serving volume');
+assert.match(
+  liveCountRepairMigrationSql,
+  /create or replace function public\.get_pub_legends\(limit_count integer default 10\)/i,
+  'live-count repair migration should replace get_pub_legends in already-deployed databases'
+);
+assert.match(
+  liveCountRepairMigrationSql,
+  /count\(distinct session_totals\.session_id\)::integer as session_count/i,
+  'Pub Legends should count published sessions live, not stale pub metadata'
+);
+assert.match(
+  liveCountRepairMigrationSql,
+  /from public\.sessions/i,
+  'Pub Legends live counts should read the sessions table directly'
+);
+assert.match(
+  liveCountRepairMigrationSql,
+  /sessions\.status\s*=\s*'published'/i,
+  'Pub Legends live counts should only include published sessions'
+);
+assert.match(
+  liveCountRepairMigrationSql,
+  /coalesce\(pubs\.place_category,\s*'pub'\)\s*=\s*'pub'/i,
+  'Pub Legends live counts should keep excluding places marked as other'
+);
+assert.doesNotMatch(
+  liveCountRepairMigrationSql,
+  /hide_from_feed\s*=\s*false/i,
+  'Pub Legends should still count hidden child pub-crawl stops'
+);
+assert.match(
+  liveCountRepairMigrationSql,
+  /coalesce\(session_beers\.excluded_from_stats,\s*false\)\s*=\s*false/i,
+  'Pub Legends champion pints should ignore drinks excluded from stats'
+);
+assert.match(
+  liveCountRepairMigrationSql,
+  /update public\.pubs[\s\S]*use_count = pub_session_counts\.session_count/i,
+  'repair migration should resync denormalized pub use counts for search and roulette'
+);
+assert.match(
+  liveCountRepairMigrationSql,
+  /grant execute on function public\.get_pub_legends\(integer\) to authenticated/i,
+  'authenticated users should keep access to the Pub Legends RPC'
+);
 assert.match(
   friendLeaderboardsMigrationSql,
   /create or replace function public\.get_friend_pub_watch_leaderboards\(result_limit integer default 25\)/i,
@@ -430,6 +481,11 @@ assert.match(
   legendsScreenSource,
   /setInterval\(loadFriendLeaderboards,\s*60 \* 60 \* 1000\)/,
   'friend watch leaderboards should refresh hourly while the screen is focused'
+);
+assert.match(
+  legendsScreenSource,
+  /setInterval\(loadLegends,\s*60 \* 1000\)/,
+  'Pub Legends counts should refresh while the screen remains focused'
 );
 
 const legendDetailSource = fs.readFileSync(path.resolve(__dirname, '..', legendDetailScreenPath), 'utf8');

@@ -163,6 +163,13 @@ export const PubLegendsScreen = ({ navigation }: any) => {
   useEffect(() => {
     if (!screenFocused || activeSegment !== 'pub-legends') return undefined;
 
+    const legendsIntervalId = setInterval(loadLegends, 60 * 1000);
+    return () => clearInterval(legendsIntervalId);
+  }, [activeSegment, loadLegends, screenFocused]);
+
+  useEffect(() => {
+    if (!screenFocused || activeSegment !== 'pub-legends') return undefined;
+
     let intervalId: ReturnType<typeof setInterval> | null = null;
     const timeoutId = setTimeout(() => {
       loadFriendLeaderboards();
