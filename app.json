@@ -15,7 +15,8 @@
           "color": "#F5C542",
           "defaultChannel": "default"
         }
-      ]
+      ],
+      "expo-font"
     ],
     "splash": {
       "image": "./assets/splash-icon.png",
