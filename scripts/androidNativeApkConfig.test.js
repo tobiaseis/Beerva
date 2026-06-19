@@ -31,6 +31,20 @@ for (const dependencyName of ['expo-notifications', 'expo-constants', 'expo-loca
 
 assert.equal(appJson.expo.scheme, 'beerva', 'app should declare a beerva:// native scheme');
 assert.equal(appJson.expo.android.package, 'com.beerva.app', 'Android package id should be stable');
+const firebaseConfigPath = path.join(root, 'google-services.json');
+assert.ok(fs.existsSync(firebaseConfigPath), 'Android push requires the Firebase google-services.json config file');
+const firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf8'));
+assert.ok(
+  firebaseConfig.client.some((client) => (
+    client.client_info?.android_client_info?.package_name === appJson.expo.android.package
+  )),
+  'Firebase config should include the configured Android package'
+);
+assert.equal(
+  appJson.expo.android.googleServicesFile,
+  './google-services.json',
+  'Expo should bundle Firebase configuration into Android builds'
+);
 assert.equal(appJson.expo.android.edgeToEdgeEnabled, true, 'existing Android edge-to-edge config should remain enabled');
 assert.equal(appJson.expo.icon, './assets/beerva-app-icon.png', 'native app icon should use the Beerva logo');
 const androidForegroundPath = path.join(root, 'assets', 'beerva-android-adaptive-foreground.png');

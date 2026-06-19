@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "588313314081",
+    "project_id": "beerva-97aca",
+    "storage_bucket": "beerva-97aca.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:588313314081:android:56ade41aa67f93a85a7460",
+        "android_client_info": {
+          "package_name": "com.beerva.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDq9Nk-Pp71-pD3jgT8xmGW8w0sFflR_lg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
