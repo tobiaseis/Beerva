@@ -25,13 +25,21 @@ const PUSH_SEND_OPTIONS = {
   timeout: 8000,
 };
 
+const EXPO_PUSH_SEND_URL = 'https://exp.host/--/api/v2/push/send';
+
 type PushDeliveryStatus = 'accepted' | 'expired_subscription' | 'failed';
+type NativePushDeliveryStatus = 'ticket_accepted' | 'stale_token' | 'failed';
 
 type PushSubscriptionRow = {
   id: string;
   endpoint: string;
   p256dh: string;
   auth_key: string;
+};
+
+type NativePushTokenRow = {
+  id: string;
+  expo_push_token: string;
 };
 
 const getEndpointHash = async (endpoint: string) => {
@@ -79,6 +87,55 @@ const recordPushDeliveryAttempt = async (
     console.error('Push delivery diagnostic insert error', error.message);
   }
 };
+
+const getNativeTokenHash = async (expo_push_token: string) => {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(expo_push_token));
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+};
+
+const recordNativePushDeliveryAttempt = async (
+  supabase: ReturnType<typeof createClient>,
+  params: {
+    notificationId: string;
+    userId: string;
+    nativePushTokenId: string;
+    tokenHash: string;
+    status: NativePushDeliveryStatus;
+    httpStatus?: number | null;
+    errorMessage?: string | null;
+    expoTicketId?: string | null;
+  }
+) => {
+  const { error } = await supabase
+    .from('native_push_delivery_attempts')
+    .insert({
+      notification_id: params.notificationId,
+      user_id: params.userId,
+      native_push_token_id: params.nativePushTokenId,
+      token_hash: params.tokenHash,
+      status: params.status,
+      http_status: params.httpStatus ?? null,
+      error_message: params.errorMessage ?? null,
+      expo_ticket_id: params.expoTicketId ?? null,
+    });
+
+  if (error) {
+    console.error('Native push delivery diagnostic insert error', error.message);
+  }
+};
+
+const getExpoPushErrorMessage = (ticket: any) => {
+  const message = ticket?.message;
+  return typeof message === 'string' && message.trim()
+    ? message.slice(0, 500)
+    : null;
+};
+
+const isDeviceNotRegistered = (ticket: any) => (
+  ticket?.details?.error === 'DeviceNotRegistered'
+);
 
 type NotificationRow = {
   id: string;
@@ -152,6 +209,7 @@ Deno.serve(async (req) => {
   const [
     { data: actor },
     { data: subscriptions },
+    { data: nativeTokens },
     { data: referencedSession },
     { data: referencedCrawlStop },
     { data: referencedInvite },
@@ -163,6 +221,10 @@ Deno.serve(async (req) => {
     supabase
       .from('push_subscriptions')
       .select('id, endpoint, p256dh, auth_key')
+      .eq('user_id', record.user_id),
+    supabase
+      .from('native_push_tokens')
+      .select('id, expo_push_token')
       .eq('user_id', record.user_id),
     record.type === 'session_started' && record.reference_id
       ? supabase.from('sessions').select('pub_name').eq('id', record.reference_id).maybeSingle()
@@ -187,7 +249,10 @@ Deno.serve(async (req) => {
       : Promise.resolve({ data: null }),
   ]);
 
-  if (!subscriptions || subscriptions.length === 0) {
+  const webPushSubscriptions = (subscriptions || []) as PushSubscriptionRow[];
+  const nativePushTokens = (nativeTokens || []) as NativePushTokenRow[];
+
+  if (webPushSubscriptions.length === 0 && nativePushTokens.length === 0) {
     return new Response(JSON.stringify({ sent: 0, reason: 'no subscriptions' }), { status: 200 });
   }
 
@@ -279,10 +344,13 @@ Deno.serve(async (req) => {
     url,
     tag: `beerva-${record.type}-${record.id}`,
   });
+  const nativeUrl = url.startsWith('/')
+    ? `beerva://open${url}`
+    : `beerva://open/${url}`;
 
   let sent = 0;
   await Promise.all(
-    subscriptions.map(async (sub: PushSubscriptionRow) => {
+    webPushSubscriptions.map(async (sub: PushSubscriptionRow) => {
       const pushSub = {
         endpoint: sub.endpoint,
         keys: { p256dh: sub.p256dh, auth: sub.auth_key },
@@ -331,5 +399,97 @@ Deno.serve(async (req) => {
     })
   );
 
-  return new Response(JSON.stringify({ sent, total: subscriptions.length }), { status: 200 });
+  let nativeSent = 0;
+  await Promise.all(
+    nativePushTokens.map(async (nativeToken) => {
+      const tokenHash = await getNativeTokenHash(nativeToken.expo_push_token);
+      const nativePayload = {
+        to: nativeToken.expo_push_token,
+        title,
+        body: bodyText || 'You have a new notification',
+        sound: 'default',
+        channelId: 'default',
+        priority: 'high',
+        data: {
+          url: nativeUrl,
+          notificationId: record.id,
+          type: record.type,
+        },
+      };
+
+      try {
+        const response = await fetch(EXPO_PUSH_SEND_URL, {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Accept-Encoding': 'gzip, deflate',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(nativePayload),
+        });
+
+        const responseBody = await response.json().catch(() => null);
+        const ticket = Array.isArray(responseBody?.data) ? responseBody.data[0] : responseBody?.data;
+
+        if (!response.ok || ticket?.status === 'error') {
+          const errorMessage = getExpoPushErrorMessage(ticket) || response.statusText || 'Expo push send failed.';
+
+          if (isDeviceNotRegistered(ticket)) {
+            await supabase
+              .from('native_push_tokens')
+              .delete()
+              .eq('expo_push_token', nativeToken.expo_push_token);
+            await recordNativePushDeliveryAttempt(supabase, {
+              notificationId: record.id,
+              userId: record.user_id,
+              nativePushTokenId: nativeToken.id,
+              tokenHash,
+              status: 'stale_token',
+              httpStatus: response.status,
+              errorMessage,
+            });
+            return;
+          }
+
+          await recordNativePushDeliveryAttempt(supabase, {
+            notificationId: record.id,
+            userId: record.user_id,
+            nativePushTokenId: nativeToken.id,
+            tokenHash,
+            status: 'failed',
+            httpStatus: response.status,
+            errorMessage,
+          });
+          return;
+        }
+
+        nativeSent += 1;
+        await recordNativePushDeliveryAttempt(supabase, {
+          notificationId: record.id,
+          userId: record.user_id,
+          nativePushTokenId: nativeToken.id,
+          tokenHash,
+          status: 'ticket_accepted',
+          httpStatus: response.status,
+          expoTicketId: typeof ticket?.id === 'string' ? ticket.id : null,
+        });
+      } catch (error: any) {
+        await recordNativePushDeliveryAttempt(supabase, {
+          notificationId: record.id,
+          userId: record.user_id,
+          nativePushTokenId: nativeToken.id,
+          tokenHash,
+          status: 'failed',
+          errorMessage: error?.message || 'Native push send failed.',
+        });
+      }
+    })
+  );
+
+  return new Response(JSON.stringify({
+    sent,
+    nativeSent,
+    total: webPushSubscriptions.length,
+    nativeTotal: nativePushTokens.length,
+  }), { status: 200 });
 });

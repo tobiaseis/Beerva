@@ -210,4 +210,64 @@ assert.match(sendPushSource, /push_body/, 'official pushes should use snapshotte
 assert.match(sendPushSource, /challenge=/, 'official challenge pushes should deep-link to challenge detail');
 assert.match(sendPushSource, /record\.actor_id\s*\?/, 'system-authored notifications should skip actor profile lookup');
 
+assert.match(
+  sendPushSource,
+  /type NativePushTokenRow = \{/,
+  'send-push should define native push token rows'
+);
+
+assert.match(
+  sendPushSource,
+  /\.from\('native_push_tokens'\)[\s\S]*\.select\('id, expo_push_token'\)[\s\S]*\.eq\('user_id', record\.user_id\)/,
+  'send-push should fetch native Expo push tokens for the notification recipient'
+);
+
+assert.match(
+  sendPushSource,
+  /const EXPO_PUSH_SEND_URL = 'https:\/\/exp\.host\/--\/api\/v2\/push\/send'/,
+  'send-push should send native notifications through Expo Push Service'
+);
+
+assert.match(
+  sendPushSource,
+  /fetch\(EXPO_PUSH_SEND_URL/,
+  'send-push should call Expo Push Service'
+);
+
+assert.match(
+  sendPushSource,
+  /recordNativePushDeliveryAttempt/,
+  'send-push should record native push delivery diagnostics'
+);
+
+assert.match(
+  sendPushSource,
+  /\.from\('native_push_delivery_attempts'\)[\s\S]*\.insert/,
+  'native push diagnostics should be inserted into native_push_delivery_attempts'
+);
+
+assert.match(
+  sendPushSource,
+  /crypto\.subtle\.digest\('SHA-256'[\s\S]*expo_push_token/,
+  'send-push should hash native tokens before recording diagnostics'
+);
+
+assert.match(
+  sendPushSource,
+  /DeviceNotRegistered/,
+  'send-push should detect stale Expo push tokens'
+);
+
+assert.match(
+  sendPushSource,
+  /\.from\('native_push_tokens'\)[\s\S]*\.delete\(\)[\s\S]*\.eq\('expo_push_token'/,
+  'send-push should delete stale native tokens'
+);
+
+assert.match(
+  sendPushSource,
+  /data:\s*\{\s*url:\s*nativeUrl,\s*notificationId:\s*record\.id/,
+  'native push payload should include route data and notification id'
+);
+
 console.log('push delivery checks passed');
