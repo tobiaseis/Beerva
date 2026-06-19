@@ -109,7 +109,7 @@ export const ProfileSetupScreen = ({ onComplete }: ProfileSetupScreenProps) => {
       if (status === 'denied') {
         Alert.alert(
           'Notifications blocked',
-          'Your browser is blocking notifications for Beerva. Re-enable them in your browser settings, then try again.'
+          'Notifications are blocked for Beerva. Re-enable them in your device or browser settings, then try again.'
         );
       } else {
         Alert.alert('Could not enable push', result.reason || 'Please try again.');

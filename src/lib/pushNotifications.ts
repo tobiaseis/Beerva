@@ -11,6 +11,56 @@ type PushSupportInfo = {
   shouldInstall?: boolean;
 };
 
+type PushPermissionStatus = 'unsupported' | 'default' | 'denied' | 'granted';
+
+type NativeNotificationModules = {
+  Notifications: typeof import('expo-notifications');
+  Constants: typeof import('expo-constants').default;
+};
+
+let nativePermissionStatusCache: PushPermissionStatus = 'default';
+
+const isNativePushPlatform = () => Platform.OS === 'android';
+
+const isWebPushPlatform = () => {
+  if (Platform.OS === 'web') return true;
+  return false;
+};
+
+const getNativeNotificationModules = async () => {
+  const [Notifications, ConstantsModule] = await Promise.all([
+    import('expo-notifications'),
+    import('expo-constants'),
+  ]);
+
+  return {
+    Notifications,
+    Constants: ConstantsModule.default,
+  };
+};
+
+const getExpoProjectId = (Constants: NativeNotificationModules['Constants']) => {
+  const extra = Constants.expoConfig?.extra as { eas?: { projectId?: string } } | undefined;
+  const projectId = Constants.easConfig?.projectId || extra?.eas?.projectId;
+
+  if (!projectId) {
+    throw new Error('Expo project id is missing. Run eas build:configure before building the APK.');
+  }
+
+  return projectId;
+};
+
+const ensureAndroidNotificationChannel = async (
+  Notifications: NativeNotificationModules['Notifications']
+) => {
+  await Notifications.setNotificationChannelAsync('default', {
+    name: 'Beerva',
+    importance: Notifications.AndroidImportance.HIGH,
+    vibrationPattern: [120, 60, 120],
+    lightColor: '#F5C542',
+  });
+};
+
 const urlBase64ToUint8Array = (base64String: string): Uint8Array => {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -30,14 +80,18 @@ export const isStandalonePwa = (): boolean => {
 };
 
 const isServiceWorkerSupported = (): boolean => (
-  Platform.OS === 'web'
+  isWebPushPlatform()
   && typeof navigator !== 'undefined'
   && 'serviceWorker' in navigator
 );
 
 export const getPushSupportInfo = (): PushSupportInfo => {
+  if (isNativePushPlatform()) {
+    return { supported: true };
+  }
+
   if (Platform.OS !== 'web') {
-    return { supported: false, reason: 'Push notifications are only configured for the web app.' };
+    return { supported: false, reason: 'Push notifications are only configured for web and Android.' };
   }
 
   if (typeof window === 'undefined' || typeof navigator === 'undefined') {
@@ -71,7 +125,8 @@ export const isPushSupported = (): boolean => {
   return getPushSupportInfo().supported;
 };
 
-export const getPushPermissionStatus = (): 'unsupported' | NotificationPermission => {
+export const getPushPermissionStatus = (): PushPermissionStatus => {
+  if (isNativePushPlatform()) return nativePermissionStatusCache;
   if (!isPushSupported()) return 'unsupported';
   return Notification.permission;
 };
@@ -209,7 +264,85 @@ const upsertPushSubscription = async (
   return { ok: true };
 };
 
+const upsertNativePushToken = async (
+  token: string,
+  userId: string,
+  appVersion?: string | null
+): Promise<{ ok: boolean; reason?: string }> => {
+  const { error } = await supabase.from('native_push_tokens').upsert(
+    {
+      user_id: userId,
+      expo_push_token: token,
+      platform: 'android',
+      app_version: appVersion || null,
+      last_seen_at: new Date().toISOString(),
+    },
+    { onConflict: 'user_id,expo_push_token' }
+  );
+
+  if (error) return { ok: false, reason: error.message };
+  return { ok: true };
+};
+
+const getNativePermissionStatus = async (): Promise<PushPermissionStatus> => {
+  const { Notifications } = await getNativeNotificationModules();
+  const permissions = await Notifications.getPermissionsAsync();
+  nativePermissionStatusCache = permissions.status as PushPermissionStatus;
+  return nativePermissionStatusCache;
+};
+
+const getCurrentNativePushToken = async (options: { requestPermission: boolean }): Promise<{
+  token: string;
+  appVersion?: string | null;
+}> => {
+  const { Notifications, Constants } = await getNativeNotificationModules();
+  await ensureAndroidNotificationChannel(Notifications);
+
+  const permissions = await Notifications.getPermissionsAsync();
+  nativePermissionStatusCache = permissions.status as PushPermissionStatus;
+
+  if (permissions.status !== 'granted') {
+    if (!options.requestPermission) {
+      throw new Error('Notification permission is not granted.');
+    }
+
+    const requested = await Notifications.requestPermissionsAsync();
+    nativePermissionStatusCache = requested.status as PushPermissionStatus;
+    if (requested.status !== 'granted') {
+      throw new Error('Notification permission denied.');
+    }
+  }
+
+  const projectId = getExpoProjectId(Constants);
+  const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+
+  return {
+    token,
+    appVersion: Constants.expoConfig?.version || null,
+  };
+};
+
+const syncNativePushToken = async (
+  options: { requestPermission: boolean } = { requestPermission: false }
+): Promise<{ ok: boolean; reason?: string }> => {
+  if (!isNativePushPlatform()) return { ok: false, reason: 'unsupported' };
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, reason: 'not-signed-in' };
+
+  try {
+    const nativeToken = await getCurrentNativePushToken(options);
+    return upsertNativePushToken(nativeToken.token, user.id, nativeToken.appVersion);
+  } catch (error: any) {
+    return { ok: false, reason: error?.message || 'Could not register this device for push notifications.' };
+  }
+};
+
 export const syncPushSubscription = async (): Promise<{ ok: boolean; reason?: string }> => {
+  if (isNativePushPlatform()) {
+    return syncNativePushToken({ requestPermission: false });
+  }
+
   if (!isPushSupported()) return { ok: false, reason: 'unsupported' };
   if (Notification.permission !== 'granted') return { ok: false, reason: 'permission-not-granted' };
 
@@ -226,6 +359,10 @@ export const syncPushSubscription = async (): Promise<{ ok: boolean; reason?: st
 };
 
 export const enablePushNotifications = async (): Promise<{ ok: boolean; reason?: string }> => {
+  if (isNativePushPlatform()) {
+    return syncNativePushToken({ requestPermission: true });
+  }
+
   if (!isPushSupported()) {
     return { ok: false, reason: 'Push notifications are not supported on this device.' };
   }
@@ -279,6 +416,23 @@ export const enablePushNotifications = async (): Promise<{ ok: boolean; reason?:
 };
 
 export const disablePushNotifications = async (): Promise<void> => {
+  if (isNativePushPlatform()) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    try {
+      const nativeToken = await getCurrentNativePushToken({ requestPermission: false });
+      await supabase
+        .from('native_push_tokens')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('expo_push_token', nativeToken.token);
+    } catch (error) {
+      console.warn('Could not disable native push notifications', error);
+    }
+    return;
+  }
+
   if (!isPushSupported()) return;
   const registration = await navigator.serviceWorker.getRegistration('/');
   if (!registration) return;
@@ -300,6 +454,32 @@ export const disablePushNotifications = async (): Promise<void> => {
 };
 
 export const isCurrentlySubscribed = async (): Promise<boolean> => {
+  if (isNativePushPlatform()) {
+    const permission = await getNativePermissionStatus();
+    if (permission !== 'granted') return false;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    const syncResult = await syncNativePushToken({ requestPermission: false });
+    if (!syncResult.ok) return false;
+
+    const nativeToken = await getCurrentNativePushToken({ requestPermission: false });
+    const { data, error } = await supabase
+      .from('native_push_tokens')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('expo_push_token', nativeToken.token)
+      .maybeSingle();
+
+    if (error) {
+      console.warn('Could not verify stored native push token', error);
+      return false;
+    }
+
+    return Boolean(data);
+  }
+
   if (!isPushSupported()) return false;
   if (Notification.permission !== 'granted') return false;
   const registration = await navigator.serviceWorker.getRegistration('/');
