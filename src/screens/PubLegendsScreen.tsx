@@ -609,7 +609,9 @@ const styles = StyleSheet.create({
   listContent: {
     paddingTop: Platform.OS === 'web' ? 18 : 58,
     paddingHorizontal: 16,
-    paddingBottom: Platform.OS === 'web' ? floatingTabBarMetrics.webContentInset : 92,
+    paddingBottom: Platform.OS === 'web'
+      ? floatingTabBarMetrics.webContentInset
+      : floatingTabBarMetrics.nativeContentInset,
     gap: spacing.md,
   },
   emptyContent: {

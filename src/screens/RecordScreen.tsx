@@ -2393,7 +2393,9 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: Platform.OS === 'web' ? floatingTabBarMetrics.webContentInset : 0,
+    paddingBottom: Platform.OS === 'web'
+      ? floatingTabBarMetrics.webContentInset
+      : floatingTabBarMetrics.nativeContentInset,
   },
   header: {
     paddingTop: Platform.OS === 'web' ? 18 : 60,

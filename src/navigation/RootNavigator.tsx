@@ -12,6 +12,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { PlusCircle, Trophy, User, Users } from 'lucide-react-native';
 import { View, ActivityIndicator, Platform, Image, useWindowDimensions } from 'react-native';
 import { Session } from '@supabase/supabase-js';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { supabase } from '../lib/supabase';
 import { getErrorMessage, withTimeout } from '../lib/timeouts';
@@ -265,8 +266,24 @@ const clearChugVerificationLaunchParams = () => {
 
 const MainTabs = () => {
   const { unreadCount } = useNotifications();
+  const insets = useSafeAreaInsets();
   const { width: viewportWidth } = useWindowDimensions();
   const floatingTabBarWidth = Math.min(Math.max(viewportWidth - 32, 0), 520);
+  const nativeTabBarBottom = Math.max(insets.bottom, floatingTabBarMetrics.nativeBottom);
+  const nativeTabBarLeft = Math.max((viewportWidth - floatingTabBarWidth) / 2, 16);
+  const floatingTabBarStyle = {
+    position: 'absolute' as const,
+    backgroundColor: floatingTabBarBackground,
+    height: floatingTabBarMetrics.webHeight,
+    paddingTop: 6,
+    paddingBottom: 7,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderTopWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.18)',
+    borderTopColor: 'rgba(148, 163, 184, 0.18)',
+    ...shadows.raised,
+  };
 
   return (
   <Tab.Navigator
@@ -277,6 +294,7 @@ const MainTabs = () => {
       animation: 'fade',
       tabBarStyle: Platform.OS === 'web'
         ? {
+            ...floatingTabBarStyle,
             position: 'absolute',
             left: 0,
             right: 0,
@@ -285,36 +303,29 @@ const MainTabs = () => {
             marginHorizontal: 'auto',
             backgroundColor: floatingTabBarBackground,
             height: floatingTabBarMetrics.webHeight,
-            paddingTop: 6,
-            paddingBottom: 7,
             borderRadius: radius.pill,
-            borderWidth: 1,
-            borderTopWidth: 1,
-            borderColor: 'rgba(148, 163, 184, 0.18)',
-            borderTopColor: 'rgba(148, 163, 184, 0.18)',
-            ...shadows.raised,
           }
         : {
-            backgroundColor: colors.surfaceRaised,
-            height: 64,
-            paddingTop: 6,
-            paddingBottom: 8,
-            borderTopColor: colors.borderSoft,
-            borderTopWidth: 1,
+            ...floatingTabBarStyle,
+            position: 'absolute',
+            left: nativeTabBarLeft,
+            bottom: nativeTabBarBottom,
+            width: floatingTabBarWidth,
+            backgroundColor: floatingTabBarBackground,
+            height: floatingTabBarMetrics.webHeight,
+            borderRadius: radius.pill,
           },
-      tabBarLabelStyle: Platform.OS === 'web' ? {
+      tabBarLabelStyle: {
         fontSize: 11,
         fontWeight: '600',
         marginTop: 0,
         fontFamily: 'Inter_600SemiBold',
-      } : {
-        fontFamily: 'Inter_500Medium',
       },
-      tabBarItemStyle: Platform.OS === 'web' ? {
+      tabBarItemStyle: {
         paddingVertical: 5,
         marginHorizontal: 2,
         borderRadius: radius.pill,
-      } : undefined,
+      },
       tabBarActiveTintColor: colors.primary,
       tabBarInactiveTintColor: colors.textMuted,
     }}

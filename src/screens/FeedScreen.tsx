@@ -2300,7 +2300,9 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: Platform.OS === 'web' ? 10 : 12,
-    paddingBottom: Platform.OS === 'web' ? floatingTabBarMetrics.webContentInset : 16,
+    paddingBottom: Platform.OS === 'web'
+      ? floatingTabBarMetrics.webContentInset
+      : floatingTabBarMetrics.nativeContentInset,
     width: '100%',
     maxWidth: Platform.OS === 'web' ? 520 : undefined,
     alignSelf: 'center',

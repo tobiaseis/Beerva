@@ -747,7 +747,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   scrollContent: {
-    paddingBottom: Platform.OS === 'web' ? floatingTabBarMetrics.webContentInset : 0,
+    paddingBottom: Platform.OS === 'web'
+      ? floatingTabBarMetrics.webContentInset
+      : floatingTabBarMetrics.nativeContentInset,
   },
   header: {
     alignItems: 'center',

@@ -24,11 +24,15 @@ export const shadows = {
   } as any,
 };
 
+const floatingTabBarHeight = 60;
 const floatingTabBarWebBottom = 16;
-const floatingTabBarWebHeight = 60;
+const floatingTabBarNativeBottom = 24;
 
 export const floatingTabBarMetrics = {
   webBottom: floatingTabBarWebBottom,
-  webHeight: floatingTabBarWebHeight,
-  webContentInset: floatingTabBarWebHeight + floatingTabBarWebBottom + 16,
+  webHeight: floatingTabBarHeight,
+  webContentInset: floatingTabBarHeight + floatingTabBarWebBottom + 16,
+  nativeBottom: floatingTabBarNativeBottom,
+  nativeHeight: floatingTabBarHeight,
+  nativeContentInset: floatingTabBarHeight + 48 + 28,
 };

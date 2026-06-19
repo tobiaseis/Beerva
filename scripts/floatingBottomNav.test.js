@@ -6,6 +6,10 @@ const source = fs.readFileSync(
   path.resolve(__dirname, '..', 'src/navigation/RootNavigator.tsx'),
   'utf8'
 );
+const layoutSource = fs.readFileSync(
+  path.resolve(__dirname, '..', 'src/theme/layout.ts'),
+  'utf8'
+);
 const readSource = (relativePath) => fs.readFileSync(
   path.resolve(__dirname, '..', relativePath),
   'utf8'
@@ -55,6 +59,11 @@ assert.match(
 );
 assert.match(
   source,
+  /useSafeAreaInsets/,
+  'Main tabs should read native safe-area insets so Android system navigation cannot cover the pill'
+);
+assert.match(
+  source,
   /floatingTabBarBackground\s*=\s*'#172238'/,
   'Floating nav should be darker than the old raised box without matching the post/background surfaces'
 );
@@ -67,6 +76,16 @@ assert.match(
   source,
   /floatingTabBarMetrics/,
   'Floating nav should use shared metrics for the pill and tab content spacer'
+);
+assert.match(
+  source,
+  /nativeTabBarBottom\s*=\s*Math\.max\(insets\.bottom,\s*floatingTabBarMetrics\.nativeBottom\)/,
+  'Native floating nav should sit above the device bottom safe area'
+);
+assert.match(
+  layoutSource,
+  /nativeContentInset:/,
+  'Shared floating nav metrics should include a native content inset'
 );
 
 const screenOptions = extractScreenOptionsBlock(source);
@@ -118,6 +137,11 @@ assert.match(
 );
 assert.match(
   screenOptions,
+  /bottom:\s*nativeTabBarBottom/,
+  'Native floating nav should use the safe-area-aware bottom offset'
+);
+assert.match(
+  screenOptions,
   /height:\s*floatingTabBarMetrics\.webHeight/,
   'Floating nav height should be shared with the tab content inset'
 );
@@ -130,6 +154,11 @@ assert.match(
   screenOptions,
   /borderRadius:\s*radius\.pill/,
   'Floating nav should use a full pill radius'
+);
+assert.doesNotMatch(
+  screenOptions,
+  /backgroundColor:\s*colors\.surfaceRaised/,
+  'Native tab bar should not fall back to the old full-width raised surface'
 );
 assert.doesNotMatch(
   screenOptions,
@@ -163,6 +192,11 @@ for (const file of tabContentFiles) {
     readSource(file),
     /floatingTabBarMetrics\.webContentInset/,
     `${file} should reserve scroll/list bottom space for the floating pill`
+  );
+  assert.match(
+    readSource(file),
+    /floatingTabBarMetrics\.nativeContentInset/,
+    `${file} should reserve native bottom space for the floating pill`
   );
 }
 
