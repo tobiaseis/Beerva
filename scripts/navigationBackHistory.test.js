@@ -27,8 +27,8 @@ assert.match(
 
 assert.match(
   source,
-  /prefixes:\s*\[\]/,
-  'Web-only linking should not add native deep-link prefixes'
+  /prefixes:\s*Platform\.OS === 'web' \? \[\] : \['beerva:\/\/'\]/,
+  'Linking should keep web prefixes empty and add the native beerva scheme off web'
 );
 
 assert.match(

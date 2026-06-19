@@ -38,6 +38,11 @@ import { floatingTabBarMetrics, radius, shadows } from '../theme/layout';
 import { NotificationsProvider, useNotifications } from '../lib/notificationsContext';
 import { ChallengeLaunchParams, getChallengeLaunchParamsFromSearch } from '../lib/challengeLaunchParams';
 import { getPostLaunchParamsFromSearch, PostLaunchParams } from '../lib/postTargets';
+import {
+  consumeInitialNativeNotificationTarget,
+  NativeNotificationTarget,
+  subscribeToNativeNotificationTargets,
+} from '../lib/nativeNotificationRouting';
 import { syncCurrentTimezone } from '../lib/timezone';
 import { BeverageCatalogProvider } from '../lib/beverageCatalogContext';
 
@@ -107,8 +112,8 @@ const navigationTheme: Theme = {
 };
 
 const linking: LinkingOptions<RootStackParamList> = {
-  enabled: Platform.OS === 'web',
-  prefixes: [],
+  enabled: Platform.OS === 'web' || Platform.OS === 'android',
+  prefixes: Platform.OS === 'web' ? [] : ['beerva://'],
   config: {
     initialRouteName: 'MainTabs',
     screens: {
@@ -382,6 +387,8 @@ export const RootNavigator = () => {
   const [profileCheckedUserId, setProfileCheckedUserId] = useState<string | null>(null);
   const [needsProfileSetup, setNeedsProfileSetup] = useState(false);
   const [navigationReady, setNavigationReady] = useState(false);
+  const [pendingNativeNotificationTarget, setPendingNativeNotificationTarget] =
+    useState<NativeNotificationTarget | null>(null);
   const profileCheckedUserIdRef = useRef<string | null>(null);
   const profileCheckRequestIdRef = useRef(0);
   const pendingNotificationsOpenRef = useRef(shouldOpenNotificationsFromUrl());
@@ -400,6 +407,52 @@ export const RootNavigator = () => {
       screen: 'Profile',
       params: { showPushReminderHint: true },
     });
+  }, []);
+
+  const handleNativeNotificationTarget = useCallback((target: NativeNotificationTarget) => {
+    if (!navigationRef.isReady()) return false;
+
+    if (target.kind === 'hangover') {
+      navigationRef.navigate('HangoverRating', {
+        targetType: target.targetType,
+        targetId: target.targetId,
+        notificationId: target.notificationId,
+      });
+      return true;
+    }
+
+    if (target.kind === 'post') {
+      navigationRef.navigate('PostDetail', {
+        targetType: target.targetType,
+        targetId: target.targetId,
+        notificationId: target.notificationId,
+        sessionId: target.targetType === 'session' ? target.targetId : undefined,
+      });
+      return true;
+    }
+
+    if (target.kind === 'chugVerification') {
+      navigationRef.navigate('ChugVerification', {
+        attemptId: target.attemptId,
+        notificationId: target.notificationId,
+      });
+      return true;
+    }
+
+    if (target.kind === 'challenge') {
+      navigationRef.navigate('ChallengeDetail', { challengeSlug: target.challengeSlug });
+      markNotificationRead(target.notificationId);
+      return true;
+    }
+
+    if (target.kind === 'record') {
+      navigationRef.navigate('MainTabs', { screen: 'Record' });
+      return true;
+    }
+
+    navigationRef.navigate('Notifications');
+    markNotificationRead(target.notificationId);
+    return true;
   }, []);
 
   const checkProfileSetup = useCallback(async (activeSession: Session | null, showLoading = false) => {
@@ -511,6 +564,30 @@ export const RootNavigator = () => {
     });
   }, [sessionUserId]);
 
+  useEffect(() => {
+    if (Platform.OS === 'web') return undefined;
+
+    let active = true;
+
+    consumeInitialNativeNotificationTarget()
+      .then((target) => {
+        if (!active || !target) return;
+        setPendingNativeNotificationTarget(target);
+      })
+      .catch((error) => {
+        console.warn('Could not read initial native notification response', error);
+      });
+
+    const subscription = subscribeToNativeNotificationTargets((target) => {
+      setPendingNativeNotificationTarget(target);
+    });
+
+    return () => {
+      active = false;
+      subscription.remove();
+    };
+  }, []);
+
   const waitingForProfileCheck = Boolean(
     sessionUserId
     && profileCheckedUserId !== sessionUserId
@@ -527,6 +604,14 @@ export const RootNavigator = () => {
       || !sessionUserId
       || !navigationRef.isReady()
     ) {
+      return;
+    }
+
+    if (
+      pendingNativeNotificationTarget
+      && handleNativeNotificationTarget(pendingNativeNotificationTarget)
+    ) {
+      setPendingNativeNotificationTarget(null);
       return;
     }
 
@@ -580,7 +665,16 @@ export const RootNavigator = () => {
     pendingRecordOpenRef.current = false;
     navigationRef.navigate('MainTabs', { screen: 'Record' });
     clearRecordLaunchParams();
-  }, [loading, navigationReady, needsProfileSetup, profileLoading, sessionUserId, waitingForProfileCheck]);
+  }, [
+    handleNativeNotificationTarget,
+    loading,
+    navigationReady,
+    needsProfileSetup,
+    pendingNativeNotificationTarget,
+    profileLoading,
+    sessionUserId,
+    waitingForProfileCheck,
+  ]);
 
   if (loading || profileLoading || waitingForProfileCheck) {
     return (

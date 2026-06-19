@@ -68,7 +68,8 @@
     "test:navigation-back": "node scripts/navigationBackHistory.test.js",
     "test:android-apk-config": "node scripts/androidNativeApkConfig.test.js",
     "test:native-push-db": "node scripts/nativePushDatabase.test.js",
-    "test:native-push-client": "node scripts/nativePushClient.test.js"
+    "test:native-push-client": "node scripts/nativePushClient.test.js",
+    "test:native-notification-routing": "node scripts/nativeNotificationRouting.test.js"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",
