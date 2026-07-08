@@ -104,6 +104,48 @@ export type AdminModerationDrink = {
   excludedFromStatsReason: string | null;
 };
 
+export type AdminBeverageSubmissionRow = {
+  id?: string | null;
+  session_beer_id?: string | null;
+  session_id?: string | null;
+  submitted_by?: string | null;
+  username?: string | null;
+  avatar_url?: string | null;
+  name?: string | null;
+  abv?: number | string | null;
+  category?: string | null;
+  status?: string | null;
+  resolved_admin_beverage_id?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  rejection_reason?: string | null;
+  pub_name?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type AdminBeverageSubmissionStatus = 'pending' | 'approved' | 'rejected';
+
+export type AdminBeverageSubmission = {
+  id: string;
+  sessionBeerId: string | null;
+  sessionId: string | null;
+  submittedBy: string;
+  username: string | null;
+  avatarUrl: string | null;
+  name: string;
+  abv: number;
+  category: AdminBeverageCategory;
+  status: AdminBeverageSubmissionStatus;
+  resolvedAdminBeverageId: string | null;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  rejectionReason: string | null;
+  pubName: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type SaveAdminBeverageInput = {
   id?: string;
   name: string;
@@ -225,6 +267,32 @@ export const mapAdminModerationDrinkRow = (row: AdminModerationDrinkRow): AdminM
   excludedFromStatsReason: toStringOrNull(row.excluded_from_stats_reason),
 });
 
+const mapAdminBeverageSubmissionStatus = (value: unknown): AdminBeverageSubmissionStatus => (
+  value === 'approved' || value === 'rejected' ? value : 'pending'
+);
+
+export const mapAdminBeverageSubmissionRow = (
+  row: AdminBeverageSubmissionRow
+): AdminBeverageSubmission => ({
+  id: toString(row.id),
+  sessionBeerId: toStringOrNull(row.session_beer_id),
+  sessionId: toStringOrNull(row.session_id),
+  submittedBy: toString(row.submitted_by),
+  username: toStringOrNull(row.username),
+  avatarUrl: toStringOrNull(row.avatar_url),
+  name: toString(row.name) || 'Unknown beverage',
+  abv: toNumber(row.abv),
+  category: mapAdminBeverageCategory(row.category),
+  status: mapAdminBeverageSubmissionStatus(row.status),
+  resolvedAdminBeverageId: toStringOrNull(row.resolved_admin_beverage_id),
+  reviewedBy: toStringOrNull(row.reviewed_by),
+  reviewedAt: toStringOrNull(row.reviewed_at),
+  rejectionReason: toStringOrNull(row.rejection_reason),
+  pubName: toStringOrNull(row.pub_name),
+  createdAt: toString(row.created_at),
+  updatedAt: toString(row.updated_at),
+});
+
 export const fetchAdminBeverages = async (): Promise<AdminBeverage[]> => {
   try {
     const { data, error } = await withTimeout(
@@ -304,6 +372,71 @@ export const setAdminDrinkExcluded = async (
     if (error) throw error;
   } catch (error) {
     throw new Error(getErrorMessage(error, 'Could not update drink moderation.'));
+  }
+};
+
+export const fetchAdminBeverageSubmissions = async (options?: {
+  status?: AdminBeverageSubmissionStatus | 'all';
+  limit?: number;
+}): Promise<AdminBeverageSubmission[]> => {
+  try {
+    const { data, error } = await withTimeout(
+      supabase.rpc('admin_get_beverage_submissions', {
+        status_filter: options?.status || 'pending',
+        result_limit: options?.limit ?? 100,
+      }),
+      ADMIN_TIMEOUT_MS,
+      'Beverage submissions are taking too long to load.'
+    );
+
+    if (error) throw error;
+    return ((data || []) as AdminBeverageSubmissionRow[]).map(mapAdminBeverageSubmissionRow);
+  } catch (error) {
+    throw new Error(getErrorMessage(error, 'Could not load beverage submissions.'));
+  }
+};
+
+export const approveAdminBeverageSubmission = async (
+  submissionId: string
+): Promise<AdminBeverageSubmission> => {
+  try {
+    const { data, error } = await withTimeout(
+      supabase.rpc('admin_approve_beverage_submission', {
+        target_submission_id: submissionId,
+      }),
+      ADMIN_TIMEOUT_MS,
+      'Approving the beverage is taking too long.'
+    );
+
+    if (error) throw error;
+    const row = firstRow(data as AdminBeverageSubmissionRow | AdminBeverageSubmissionRow[] | null);
+    if (!row) throw new Error('The reviewed submission was not returned.');
+    return mapAdminBeverageSubmissionRow(row);
+  } catch (error) {
+    throw new Error(getErrorMessage(error, 'Could not approve beverage submission.'));
+  }
+};
+
+export const rejectAdminBeverageSubmission = async (
+  submissionId: string,
+  reason?: string | null
+): Promise<AdminBeverageSubmission> => {
+  try {
+    const { data, error } = await withTimeout(
+      supabase.rpc('admin_reject_beverage_submission', {
+        target_submission_id: submissionId,
+        rejection_reason: reason ?? null,
+      }),
+      ADMIN_TIMEOUT_MS,
+      'Rejecting the beverage is taking too long.'
+    );
+
+    if (error) throw error;
+    const row = firstRow(data as AdminBeverageSubmissionRow | AdminBeverageSubmissionRow[] | null);
+    if (!row) throw new Error('The reviewed submission was not returned.');
+    return mapAdminBeverageSubmissionRow(row);
+  } catch (error) {
+    throw new Error(getErrorMessage(error, 'Could not reject beverage submission.'));
   }
 };
 

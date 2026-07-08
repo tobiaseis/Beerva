@@ -1,4 +1,11 @@
-import type { AdminBeverage, AdminBeverageCategory, AdminChallenge, AdminChallengeType, AdminModerationDrink } from './adminApi';
+import type {
+  AdminBeverage,
+  AdminBeverageCategory,
+  AdminBeverageSubmission,
+  AdminChallenge,
+  AdminChallengeType,
+  AdminModerationDrink,
+} from './adminApi';
 
 export type AdminBeverageDraft = {
   id?: string;
@@ -259,6 +266,27 @@ export function getAdminModerationDrinkMeta(drink: AdminModerationDrink): string
     drink.abv === null ? null : `${drink.abv}% ABV`,
     drink.pubName,
     formatModerationDate(drink.consumedAt || drink.sessionStartedAt || drink.sessionCreatedAt),
+  ].filter(Boolean);
+
+  return parts.join(' - ');
+}
+
+export function getAdminBeverageSubmissionTitle(submission: AdminBeverageSubmission): string {
+  return submission.name;
+}
+
+export function getAdminBeverageSubmissionMeta(submission: AdminBeverageSubmission): string {
+  const category = submission.category === 'wine'
+    ? 'Wine'
+    : submission.category === 'drink'
+      ? 'Drink'
+      : 'Beer';
+  const parts = [
+    submission.username || 'Unknown user',
+    `${submission.abv}% ABV`,
+    category,
+    submission.pubName,
+    formatModerationDate(submission.createdAt),
   ].filter(Boolean);
 
   return parts.join(' - ');
