@@ -129,6 +129,8 @@ const createMediaLibraryMock = () => {
       },
     },
   }, async (localHelper) => {
+    assert.deepEqual(Object.keys(localHelper).sort(), ['saveImageToDeviceLibrary'], 'helper should only expose the save API');
+
     await localHelper.saveImageToDeviceLibrary('file:///tmp/session-photo.jpg');
     assert.deepEqual(localMedia.calls.permissions[0], [true, ['photo']], 'local save should request write-only photo permission');
     assert.deepEqual(localMedia.calls.saved, ['file:///tmp/session-photo.jpg'], 'local save should write the original file URI');
@@ -158,6 +160,44 @@ const createMediaLibraryMock = () => {
     assert.equal(downloads[0].url, 'https://example.com/photos/session.png?token=abc', 'remote save should download the original image URL');
     assert.match(downloads[0].targetUri, /^file:\/\/\/cache\/beerva-session-photo-\d+\.png$/, 'remote save should preserve a usable image extension');
     assert.deepEqual(remoteMedia.calls.saved, [downloads[0].targetUri], 'remote save should write the downloaded file URI');
+  });
+
+  const throwingDownloadMedia = createMediaLibraryMock();
+  await withTypeScriptModule('src/lib/devicePhotoSave.ts', {
+    'react-native': { Platform: { OS: 'android' } },
+    'expo-media-library': throwingDownloadMedia.module,
+    'expo-file-system/legacy': {
+      cacheDirectory: 'file:///cache/',
+      documentDirectory: 'file:///documents/',
+      downloadAsync: async () => {
+        throw new Error('native stack leaked');
+      },
+    },
+  }, async (throwingDownloadHelper) => {
+    await assert.rejects(
+      throwingDownloadHelper.saveImageToDeviceLibrary('https://example.com/broken.jpg'),
+      /Could not prepare this photo for saving/,
+      'remote download errors should use user-facing prepare copy'
+    );
+    assert.deepEqual(throwingDownloadMedia.calls.saved, [], 'failed remote downloads should not save to the device library');
+  });
+
+  const statusZeroDownloadMedia = createMediaLibraryMock();
+  await withTypeScriptModule('src/lib/devicePhotoSave.ts', {
+    'react-native': { Platform: { OS: 'android' } },
+    'expo-media-library': statusZeroDownloadMedia.module,
+    'expo-file-system/legacy': {
+      cacheDirectory: 'file:///cache/',
+      documentDirectory: 'file:///documents/',
+      downloadAsync: async (url, targetUri) => ({ uri: targetUri, status: 0 }),
+    },
+  }, async (statusZeroDownloadHelper) => {
+    await assert.rejects(
+      statusZeroDownloadHelper.saveImageToDeviceLibrary('https://example.com/broken.jpg'),
+      /Could not prepare this photo for saving/,
+      'remote downloads without a 2xx status should use user-facing prepare copy'
+    );
+    assert.deepEqual(statusZeroDownloadMedia.calls.saved, [], 'remote downloads without a 2xx status should not save');
   });
 
   await withTypeScriptModule('src/lib/devicePhotoSave.ts', {
