@@ -25,6 +25,7 @@ const loadTypeScriptModule = (relativePath) => {
 
 const {
   beerDraftToPayload,
+  createEmptyBeerDraft,
   getBeverageDefaultVolume,
   isBeverageAutoAdded,
   isBeverageVolumeLocked,
@@ -156,6 +157,17 @@ check('ordinary beer payload records beer category', () => {
   assert.deepEqual(
     beerDraftToPayload({ beerName: 'Codex Lager', volume: '33cl', quantity: 2 }, catalog),
     { beer_name: 'Codex Lager', volume: '33cl', quantity: 2, abv: 6.4, beverage_category: 'beer' }
+  );
+});
+
+check('empty draft keeps Pint as the unknown-drink fallback', () => {
+  assert.equal(createEmptyBeerDraft().volume, 'Pint');
+});
+
+check('manually selected size is preserved in payload', () => {
+  assert.deepEqual(
+    beerDraftToPayload({ beerName: 'Mystery Pub Ale', volume: '50cl', quantity: 3 }),
+    { beer_name: 'Mystery Pub Ale', volume: '50cl', quantity: 3, abv: 5, beverage_category: 'beer' }
   );
 });
 
