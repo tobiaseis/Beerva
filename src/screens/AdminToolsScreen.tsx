@@ -40,6 +40,7 @@ import {
   saveAdminBeverage,
   saveAdminChallenge,
   setAdminDrinkExcluded,
+  updateAdminOfficialPost,
 } from '../lib/adminApi';
 import {
   AdminBeverageDraft,
@@ -56,6 +57,7 @@ import {
   getAdminBeverageSubmissionTitle,
   getAdminModerationDrinkMeta,
   getAdminModerationDrinkTitle,
+  officialPostToDraft,
   validateBeverageDraft,
   validateChallengeDraft,
   validateOfficialPostDraft,
@@ -69,7 +71,7 @@ import {
   UPLOAD_IMAGE_MAX_WIDTH,
   uploadImageToBucket,
 } from '../lib/imageUpload';
-import { OfficialFeedPost } from '../lib/officialFeedPosts';
+import { isOfficialWinnerPost, OfficialFeedPost } from '../lib/officialFeedPosts';
 import { getBeverageCatalogItem } from '../lib/sessionBeers';
 import { supabase } from '../lib/supabase';
 import { colors } from '../theme/colors';
@@ -121,10 +123,17 @@ export const AdminToolsScreen = ({ navigation, route }: any) => {
   const [challengeDraft, setChallengeDraft] = useState<AdminChallengeDraft>(createEmptyChallengeDraft);
   const [selectedChallenge, setSelectedChallenge] = useState<AdminChallenge | null>(null);
   const [officialPostDraft, setOfficialPostDraft] = useState<AdminOfficialPostDraft>(createEmptyOfficialPostDraft);
+  const [selectedOfficialPost, setSelectedOfficialPost] = useState<OfficialFeedPost | null>(null);
   const [selectedOfficialPostImage, setSelectedOfficialPostImage] = useState<SelectedImage | null>(null);
+  const [officialPostImageChanged, setOfficialPostImageChanged] = useState(false);
   const [officialPostRequestKey, setOfficialPostRequestKey] = useState(createAdminRequestKey);
   const [pendingOfficialPostImageUrl, setPendingOfficialPostImageUrl] = useState<string | null>(null);
   const [officialPostPublishUncertain, setOfficialPostPublishUncertain] = useState(false);
+  const isEditingOfficialPost = selectedOfficialPost !== null;
+  const selectedOfficialPostHasNotification = Boolean(
+    typeof selectedOfficialPost?.raw.metadata?.notification_body === 'string'
+      && selectedOfficialPost.raw.metadata.notification_body.trim()
+  );
 
   const loadAll = useCallback(async ({ refresh = false } = {}) => {
     refresh ? setRefreshing(true) : setLoading(true);
@@ -163,7 +172,9 @@ export const AdminToolsScreen = ({ navigation, route }: any) => {
         setFormError('Resolve the uncertain publish before closing this post. Press Publish Official Post again to confirm whether it was sent.');
         return;
       }
+      setSelectedOfficialPost(null);
       setSelectedOfficialPostImage(null);
+      setOfficialPostImageChanged(false);
       setPendingOfficialPostImageUrl(null);
       setOfficialPostPublishUncertain(false);
     }
@@ -199,9 +210,24 @@ export const AdminToolsScreen = ({ navigation, route }: any) => {
   };
 
   const openNewOfficialPost = () => {
+    setSelectedOfficialPost(null);
     setOfficialPostDraft(createEmptyOfficialPostDraft());
     setSelectedOfficialPostImage(null);
+    setOfficialPostImageChanged(false);
     setOfficialPostRequestKey(createAdminRequestKey());
+    setPendingOfficialPostImageUrl(null);
+    setOfficialPostPublishUncertain(false);
+    setFormError(null);
+    setActiveModal('official-post');
+  };
+
+  const openOfficialPost = (post: OfficialFeedPost) => {
+    if (isOfficialWinnerPost(post)) return;
+
+    setSelectedOfficialPost(post);
+    setOfficialPostDraft(officialPostToDraft(post));
+    setSelectedOfficialPostImage(post.imageUrl ? { uri: post.imageUrl } : null);
+    setOfficialPostImageChanged(false);
     setPendingOfficialPostImageUrl(null);
     setOfficialPostPublishUncertain(false);
     setFormError(null);
@@ -235,6 +261,7 @@ export const AdminToolsScreen = ({ navigation, route }: any) => {
     try {
       setFormError(null);
       setSelectedOfficialPostImage(await prepareOfficialPostImage(asset));
+      setOfficialPostImageChanged(true);
     } catch (error) {
       setFormError(error instanceof Error ? error.message : 'Could not prepare official post photo.');
     }
@@ -246,6 +273,7 @@ export const AdminToolsScreen = ({ navigation, route }: any) => {
       return;
     }
     setSelectedOfficialPostImage(null);
+    setOfficialPostImageChanged(true);
   };
 
   const chooseOfficialPostPhoto = async () => {
@@ -568,6 +596,76 @@ export const AdminToolsScreen = ({ navigation, route }: any) => {
     }
   };
 
+  const handleSaveOfficialPost = async () => {
+    if (!selectedOfficialPost) {
+      setFormError('Choose an official post to edit.');
+      return;
+    }
+
+    const validationError = validateOfficialPostDraft({
+      ...officialPostDraft,
+      sendInAppNotification: selectedOfficialPostHasNotification,
+      sendPushNotification: false,
+      pushTitle: '',
+      pushBody: '',
+    });
+    if (validationError) {
+      setFormError(validationError);
+      return;
+    }
+
+    setSaving(true);
+    setFormError(null);
+
+    const previousImageUrl = selectedOfficialPost.imageUrl;
+    let uploadedReplacementUrl: string | null = null;
+    let nextImageUrl = officialPostImageChanged ? null : previousImageUrl;
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not logged in.');
+
+      if (officialPostImageChanged && selectedOfficialPostImage) {
+        uploadedReplacementUrl = await uploadImageToBucket(
+          'official_post_images',
+          selectedOfficialPostImage,
+          `admins/${user.id}/posts`
+        );
+        nextImageUrl = uploadedReplacementUrl;
+      }
+
+      const updated = await updateAdminOfficialPost({
+        id: selectedOfficialPost.id,
+        title: officialPostDraft.title.trim(),
+        body: officialPostDraft.body.trim(),
+        imageUrl: nextImageUrl,
+        linkedChallengeId: officialPostDraft.linkedChallengeId,
+        notificationBody: selectedOfficialPostHasNotification
+          ? officialPostDraft.notificationBody.trim()
+          : null,
+      });
+
+      setOfficialPosts((current) => current.map((post) => (
+        post.id === updated.id ? updated : post
+      )));
+      setSelectedOfficialPost(null);
+      setSelectedOfficialPostImage(null);
+      setOfficialPostImageChanged(false);
+      setActiveModal(null);
+
+      if (officialPostImageChanged && previousImageUrl && previousImageUrl !== nextImageUrl) {
+        void deletePublicImageUrl('official_post_images', previousImageUrl);
+      }
+    } catch (error) {
+      if (uploadedReplacementUrl) {
+        void deletePublicImageUrl('official_post_images', uploadedReplacementUrl);
+      }
+      setFormError(error instanceof Error ? error.message : 'Could not save official post.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const emptyCopy = useMemo(() => (
     activeSegment === 'challenges'
       ? 'No challenges yet.'
@@ -661,18 +759,41 @@ export const AdminToolsScreen = ({ navigation, route }: any) => {
     );
   }, [handleApproveSubmission, handleRejectSubmission, submissionBusyId]);
 
-  const renderOfficialPost = useCallback(({ item }: { item: OfficialFeedPost }) => (
-    <View style={styles.row}>
-      <View style={styles.rowIcon}>
-        <Megaphone color={colors.primary} size={18} />
-      </View>
-      <View style={styles.rowBody}>
-        <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
-        <Text style={styles.rowMeta} numberOfLines={2}>{item.body}</Text>
-        {item.challengeSlug ? <Text style={styles.rowAccent}>Challenge: {item.challengeSlug}</Text> : null}
-      </View>
-    </View>
-  ), []);
+  const renderOfficialPost = useCallback(({ item }: { item: OfficialFeedPost }) => {
+    if (isOfficialWinnerPost(item)) {
+      return (
+        <View style={styles.row}>
+          <View style={styles.rowIcon}>
+            <Megaphone color={colors.primary} size={18} />
+          </View>
+          <View style={styles.rowBody}>
+            <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
+            <Text style={styles.rowMeta} numberOfLines={2}>{item.body}</Text>
+            {item.challengeSlug ? <Text style={styles.rowAccent}>Challenge: {item.challengeSlug}</Text> : null}
+          </View>
+        </View>
+      );
+    }
+
+    return (
+      <Pressable
+        style={({ pressed }) => [styles.row, pressed ? styles.rowPressed : null]}
+        onPress={() => openOfficialPost(item)}
+        accessibilityRole="button"
+        accessibilityLabel={`Edit ${item.title}`}
+      >
+        <View style={styles.rowIcon}>
+          <Megaphone color={colors.primary} size={18} />
+        </View>
+        <View style={styles.rowBody}>
+          <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
+          <Text style={styles.rowMeta} numberOfLines={2}>{item.body}</Text>
+          {item.challengeSlug ? <Text style={styles.rowAccent}>Challenge: {item.challengeSlug}</Text> : null}
+        </View>
+        <Edit3 color={colors.textMuted} size={17} />
+      </Pressable>
+    );
+  }, []);
 
   const renderModerationDrink = useCallback(({ item }: { item: AdminModerationDrink }) => {
     const busy = moderationBusyId === item.sessionBeerId;
@@ -886,7 +1007,7 @@ export const AdminToolsScreen = ({ navigation, route }: any) => {
                     ? beverageDraft.id ? 'Edit beverage' : 'Add beverage'
                     : activeModal === 'challenge'
                       ? challengeDraft.id ? 'Edit challenge' : 'Create challenge'
-                      : 'Create official post'}
+                      : isEditingOfficialPost ? 'Edit official post' : 'Create official post'}
                 </Text>
                 <Text style={styles.modalSubtitle}>
                   {activeModal === 'beverage'
@@ -1109,24 +1230,38 @@ export const AdminToolsScreen = ({ navigation, route }: any) => {
                     </TouchableOpacity>
                   ))}
 
-                  <View style={styles.switchRow}>
-                    <View style={styles.switchCopy}>
-                      <Text style={styles.switchTitle}>Send in-app notification</Text>
-                      <Text style={styles.switchDescription}>Add this announcement to every user's notification inbox.</Text>
-                    </View>
-                    <Switch
-                      value={officialPostDraft.sendInAppNotification}
-                      onValueChange={(sendInAppNotification) => setOfficialPostDraft((current) => ({
-                        ...current,
-                        sendInAppNotification,
-                        sendPushNotification: sendInAppNotification ? current.sendPushNotification : false,
-                      }))}
-                      trackColor={{ false: colors.border, true: colors.primaryBorder }}
-                      thumbColor={officialPostDraft.sendInAppNotification ? colors.primary : colors.textMuted}
-                    />
-                  </View>
+                  {isEditingOfficialPost && selectedOfficialPostHasNotification ? (
+                    <>
+                      <FormLabel>Notification body</FormLabel>
+                      <FormInput
+                        value={officialPostDraft.notificationBody}
+                        onChangeText={(notificationBody) => setOfficialPostDraft((current) => ({ ...current, notificationBody }))}
+                        placeholder="Short inbox copy"
+                        multiline
+                      />
+                    </>
+                  ) : null}
 
-                  {officialPostDraft.sendInAppNotification ? (
+                  {!isEditingOfficialPost ? (
+                    <View style={styles.switchRow}>
+                      <View style={styles.switchCopy}>
+                        <Text style={styles.switchTitle}>Send in-app notification</Text>
+                        <Text style={styles.switchDescription}>Add this announcement to every user's notification inbox.</Text>
+                      </View>
+                      <Switch
+                        value={officialPostDraft.sendInAppNotification}
+                        onValueChange={(sendInAppNotification) => setOfficialPostDraft((current) => ({
+                          ...current,
+                          sendInAppNotification,
+                          sendPushNotification: sendInAppNotification ? current.sendPushNotification : false,
+                        }))}
+                        trackColor={{ false: colors.border, true: colors.primaryBorder }}
+                        thumbColor={officialPostDraft.sendInAppNotification ? colors.primary : colors.textMuted}
+                      />
+                    </View>
+                  ) : null}
+
+                  {!isEditingOfficialPost && officialPostDraft.sendInAppNotification ? (
                     <>
                       <FormLabel>Notification body</FormLabel>
                       <FormInput
@@ -1150,7 +1285,7 @@ export const AdminToolsScreen = ({ navigation, route }: any) => {
                     </>
                   ) : null}
 
-                  {officialPostDraft.sendPushNotification ? (
+                  {!isEditingOfficialPost && officialPostDraft.sendPushNotification ? (
                     <>
                       <FormLabel>Push title</FormLabel>
                       <FormInput
@@ -1177,14 +1312,14 @@ export const AdminToolsScreen = ({ navigation, route }: any) => {
                     ? 'Save Beverage'
                     : activeModal === 'challenge'
                       ? 'Save Challenge'
-                      : 'Publish Official Post'
+                      : isEditingOfficialPost ? 'Save Official Post' : 'Publish Official Post'
                 }
                 onPress={
                   activeModal === 'beverage'
                     ? handleSaveBeverage
                     : activeModal === 'challenge'
                       ? handleSaveChallenge
-                      : handlePublishOfficialPost
+                      : isEditingOfficialPost ? handleSaveOfficialPost : handlePublishOfficialPost
                 }
                 loading={saving}
                 icon={activeModal === 'beverage'

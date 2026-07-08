@@ -188,6 +188,18 @@ assert.match(
   /setOfficialPostPublishUncertain\(true\)/,
   'admin composer should remember when a publish attempt may have succeeded'
 );
+assert.match(adminScreenSource, /updateAdminOfficialPost/, 'admin tools should save official post edits');
+assert.match(adminScreenSource, /officialPostToDraft/, 'admin tools should prefill official edit drafts');
+assert.match(adminScreenSource, /selectedOfficialPost/, 'admin tools should track the official post being edited');
+assert.match(adminScreenSource, /officialPostImageChanged/, 'admin tools should distinguish unchanged images from replacements');
+assert.match(adminScreenSource, /const isEditingOfficialPost = selectedOfficialPost !== null/, 'admin tools should derive official edit mode');
+assert.match(adminScreenSource, /const selectedOfficialPostHasNotification = Boolean/, 'admin tools should know when inbox copy can be edited');
+assert.match(adminScreenSource, /const openOfficialPost = \(post: OfficialFeedPost\)/, 'admin tools should open existing official posts');
+assert.match(adminScreenSource, /isOfficialWinnerPost\(post\)/, 'admin tools should protect challenge winner official posts from manual editing');
+assert.match(adminScreenSource, /handleSaveOfficialPost/, 'admin tools should handle official post edits separately from publication');
+assert.match(adminScreenSource, /Save Official Post/, 'official edit mode should use save copy');
+assert.match(adminScreenSource, /!isEditingOfficialPost && officialPostDraft\.sendInAppNotification/, 'push controls should stay create-only');
+assert.match(adminScreenSource, /isEditingOfficialPost && selectedOfficialPostHasNotification/, 'edit mode should expose existing notification body copy');
 
 const officialCardSource = read('src/components/OfficialFeedPostCard.tsx');
 const feedScreenSource = read('src/screens/FeedScreen.tsx');
