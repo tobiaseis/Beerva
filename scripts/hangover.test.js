@@ -369,6 +369,21 @@ assert.match(rootNavigatorSource, /hangover=1/, 'navigator should parse hangover
 const ratingScreenSource = read('src/screens/HangoverRatingScreen.tsx');
 assert.match(ratingScreenSource, /rate_hangover/, 'rating screen should submit through the rate_hangover RPC');
 assert.match(ratingScreenSource, /Array\.from\(\{ length: 10 \}/, 'rating screen should render a 1-10 quick rating grid');
+assert.match(
+  ratingScreenSource,
+  /const\s+returnToFeed\s*=\s*useCallback[\s\S]*navigation\.reset\(\{\s*index:\s*0,\s*routes:\s*\[\{\s*name:\s*'MainTabs',\s*params:\s*\{\s*screen:\s*'Feed'\s*\}\s*\}\]/,
+  'rating screen should reset the root stack back to the feed after completion'
+);
+assert.match(
+  ratingScreenSource,
+  /hapticSuccess\(\);\s*returnToFeed\(\);/,
+  'successful hangover rating should leave the rating screen and return to feed'
+);
+assert.match(
+  ratingScreenSource,
+  /<AppButton label="Back to feed" onPress=\{returnToFeed\}/,
+  'empty rating state should use the same feed reset path'
+);
 
 const feedScreenSource = read('src/screens/FeedScreen.tsx');
 assert.match(feedScreenSource, /hangover_score/, 'feed sessions should fetch hangover scores');

@@ -127,6 +127,13 @@ export const HangoverRatingScreen = ({ navigation, route }: any) => {
     loadTarget();
   }, [loadTarget]);
 
+  const returnToFeed = useCallback(() => {
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'MainTabs', params: { screen: 'Feed' } }],
+    });
+  }, [navigation]);
+
   const submitScore = useCallback(async (score: number) => {
     if (!targetType || !targetId || submittingScore) return;
 
@@ -142,14 +149,13 @@ export const HangoverRatingScreen = ({ navigation, route }: any) => {
       if (error) throw error;
 
       hapticSuccess();
-      navigation.navigate('MainTabs', { screen: 'Feed' });
+      returnToFeed();
     } catch (error: any) {
       hapticError();
       showAlert('Could not save rating', error?.message || 'Please try again.');
-    } finally {
       setSubmittingScore(null);
     }
-  }, [navigation, submittingScore, targetId, targetType]);
+  }, [returnToFeed, submittingScore, targetId, targetType]);
 
   return (
     <View style={styles.container}>
@@ -232,7 +238,7 @@ export const HangoverRatingScreen = ({ navigation, route }: any) => {
             <Surface style={styles.summaryCard}>
               <Text style={styles.summaryTitle}>Nothing to rate here.</Text>
               <Text style={styles.summarySubtitle}>The post may have been deleted or already drifted into legend.</Text>
-              <AppButton label="Back to feed" onPress={() => navigation.navigate('MainTabs', { screen: 'Feed' })} />
+              <AppButton label="Back to feed" onPress={returnToFeed} />
             </Surface>
           )}
         </ScrollView>
