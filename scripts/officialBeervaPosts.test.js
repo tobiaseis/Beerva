@@ -6,9 +6,11 @@ const ts = require('typescript');
 
 const root = path.resolve(__dirname, '..');
 const migrationPath = 'supabase/migrations/20260601160000_add_official_beerva_posts.sql';
+const editMigrationPath = 'supabase/migrations/20260708190000_add_admin_official_post_editing.sql';
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8');
 const exists = (relativePath) => fs.existsSync(path.join(root, relativePath));
 const migrationSql = exists(migrationPath) ? read(migrationPath) : '';
+const editMigrationSql = exists(editMigrationPath) ? read(editMigrationPath) : '';
 
 const loadTypeScriptModule = (relativePath) => {
   const filename = path.join(root, relativePath);
@@ -48,6 +50,19 @@ assert.match(migrationSql, /insert into public\.notifications/i, 'publication sh
 assert.match(migrationSql, /select profiles\.id/i, 'fan-out should create one row per profile');
 assert.match(migrationSql, /'push_enabled'/i, 'fan-out should snapshot the push toggle');
 assert.match(migrationSql, /notify pgrst,\s*'reload schema'/i, 'migration should refresh PostgREST schema');
+assert.ok(exists(editMigrationPath), 'official post editing migration should exist');
+assert.match(editMigrationSql, /create or replace function public\.admin_update_official_post/i, 'admins should be able to update official posts');
+assert.match(editMigrationSql, /if requesting_user_id is null or not public\.is_current_user_admin\(\)/i, 'official post editing should require an admin');
+assert.match(editMigrationSql, /current_post\.kind <> 'announcement'/i, 'official post editing should reject non-announcement posts');
+assert.match(editMigrationSql, /update public\.official_feed_posts/i, 'official post editing should update the official post row');
+assert.match(editMigrationSql, /metadata = jsonb_strip_nulls/i, 'official post editing should update metadata without replacing unrelated keys');
+assert.match(editMigrationSql, /update public\.notifications/i, 'official post editing should update existing official notification metadata');
+assert.match(editMigrationSql, /notifications\.type = 'official_post'/i, 'official post notification updates should stay scoped to official notifications');
+assert.match(editMigrationSql, /notifications\.reference_id = target_post_id/i, 'official post notification updates should target the edited post');
+assert.match(editMigrationSql, /notifications\.metadata \? 'push_enabled'/i, 'official post editing should preserve existing push metadata');
+assert.doesNotMatch(editMigrationSql, /insert into public\.notifications/i, 'official post editing should not insert new notifications');
+assert.match(editMigrationSql, /grant execute on function public\.admin_update_official_post/i, 'authenticated admins should be able to call the edit RPC');
+assert.match(editMigrationSql, /notify pgrst,\s*'reload schema'/i, 'official post editing migration should refresh PostgREST schema');
 
 const officialFeedPosts = loadTypeScriptModule('src/lib/officialFeedPosts.ts');
 const adminTools = loadTypeScriptModule('src/lib/adminTools.ts');
@@ -120,7 +135,7 @@ assert.match(adminApiSource, /failed to fetch\|network request failed\|abort/i, 
 assert.match(imageUploadSource, /check that the \$\{bucket\} bucket is available/, 'image upload errors should name the requested bucket');
 
 const adminScreenSource = read('src/screens/AdminToolsScreen.tsx');
-assert.match(adminScreenSource, /type AdminSegment = 'challenges' \| 'beverages' \| 'official-posts' \| 'moderation'/, 'admin tools should add official posts segment');
+assert.match(adminScreenSource, /type AdminSegment = 'challenges' \| 'beverages' \| 'submissions' \| 'official-posts' \| 'moderation'/, 'admin tools should add official posts segment');
 assert.match(adminScreenSource, /fetchAdminOfficialPosts/, 'admin tools should load official posts');
 assert.match(adminScreenSource, /publishAdminOfficialPost/, 'admin tools should publish official posts');
 assert.match(adminScreenSource, /prepareWebImageFromPickerAsset/, 'web official photos should use shared compression');
