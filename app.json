@@ -16,6 +16,16 @@
           "defaultChannel": "default"
         }
       ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow Beerva to access photos so you can save session photos.",
+          "savePhotosPermission": "Allow Beerva to save session photos to your photo library.",
+          "granularPermissions": [
+            "photo"
+          ]
+        }
+      ],
       "expo-font"
     ],
     "splash": {
