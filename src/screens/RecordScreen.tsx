@@ -2018,6 +2018,7 @@ export const RecordScreen = ({ navigation }: any) => {
                           accessibilityLabel={`Add one more ${beer.beer_name}`}
                         >
                           <PlusCircle color={colors.primary} size={17} />
+                          <Text style={styles.incrementBeerLabel}>+1</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                           style={styles.removeBeerButton}
@@ -2038,7 +2039,7 @@ export const RecordScreen = ({ navigation }: any) => {
                 draft={beerDraft}
                 onChange={setBeerDraft}
                 onSubmit={addBeerToSession}
-                submitLabel="Add Booze"
+                submitLabel="Add Drink"
                 loading={addingBeer}
               />
             </Surface>
@@ -2190,7 +2191,12 @@ export const RecordScreen = ({ navigation }: any) => {
                       loading={crawlBusy && photoWarningAction !== 'end'}
                     />
                   ) : (
-                    <AppButton label="End Session" onPress={endSession} loading={ending} />
+                    <AppButton
+                      label="End Session"
+                      variant="danger"
+                      onPress={endSession}
+                      loading={ending}
+                    />
                   )}
                 </View>
               </View>
@@ -2761,14 +2767,22 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   incrementBeerButton: {
-    width: 34,
+    minWidth: 46,
     height: 34,
     borderRadius: 17,
+    paddingHorizontal: 8,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 3,
     backgroundColor: colors.primarySoft,
     borderWidth: 1,
     borderColor: colors.primaryBorder,
+  },
+  incrementBeerLabel: {
+    ...typography.tiny,
+    color: colors.primary,
+    fontWeight: '900',
   },
   removeBeerButton: {
     width: 34,

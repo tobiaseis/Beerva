@@ -113,4 +113,28 @@ assert.doesNotMatch(
   'beer draft form should not show the old full volume grid in the default form'
 );
 
+assert.match(
+  source,
+  /submitLabel="Add Drink"/,
+  'record screen should use Add Drink as the primary logging copy'
+);
+
+assert.doesNotMatch(
+  source,
+  /submitLabel="Add Booze"/,
+  'record screen should not use the less clear Add Booze copy'
+);
+
+assert.match(
+  source,
+  /<AppButton\s+label="End Session"\s+variant="danger"\s+onPress=\{endSession\}\s+loading=\{ending\}\s+\/>/,
+  'normal End Session should use danger styling instead of primary styling'
+);
+
+assert.match(
+  source,
+  /<Text style=\{styles\.incrementBeerLabel\}>\+1<\/Text>/,
+  'existing drink rows should show the repeat action as a visible +1 same-again control'
+);
+
 console.log('record session drink checks passed');
