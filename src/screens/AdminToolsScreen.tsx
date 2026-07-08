@@ -22,16 +22,20 @@ import { Archive, ArrowLeft, Beer, Camera, Edit3, ImagePlus, Megaphone, Plus, Ro
 import { AppButton } from '../components/AppButton';
 import {
   AdminBeverage,
+  AdminBeverageSubmission,
   AdminChallenge,
   AdminModerationDrink,
   AdminOfficialPostPublishError,
+  approveAdminBeverageSubmission,
   archiveAdminChallenge,
   createAdminRequestKey,
   fetchAdminBeverages,
+  fetchAdminBeverageSubmissions,
   fetchAdminChallenges,
   fetchAdminModerationDrinks,
   fetchAdminOfficialPosts,
   publishAdminOfficialPost,
+  rejectAdminBeverageSubmission,
   restoreAdminChallenge,
   saveAdminBeverage,
   saveAdminChallenge,
@@ -48,6 +52,8 @@ import {
   createEmptyChallengeDraft,
   createEmptyOfficialPostDraft,
   fromLocalDateTimeInput,
+  getAdminBeverageSubmissionMeta,
+  getAdminBeverageSubmissionTitle,
   getAdminModerationDrinkMeta,
   getAdminModerationDrinkTitle,
   validateBeverageDraft,
@@ -70,14 +76,15 @@ import { colors } from '../theme/colors';
 import { radius, shadows, spacing } from '../theme/layout';
 import { typography } from '../theme/typography';
 
-type AdminSegment = 'challenges' | 'beverages' | 'official-posts' | 'moderation';
+type AdminSegment = 'challenges' | 'beverages' | 'submissions' | 'official-posts' | 'moderation';
 type ActiveModal = 'challenge' | 'beverage' | 'official-post' | null;
 
-const ADMIN_SEGMENTS: AdminSegment[] = ['challenges', 'beverages', 'official-posts', 'moderation'];
+const ADMIN_SEGMENTS: AdminSegment[] = ['challenges', 'beverages', 'submissions', 'official-posts', 'moderation'];
 
 const getSegmentLabel = (segment: AdminSegment) => {
   if (segment === 'challenges') return 'Challenges';
   if (segment === 'beverages') return 'Beverages';
+  if (segment === 'submissions') return 'Submissions';
   if (segment === 'official-posts') return 'Official posts';
   return 'Moderation';
 };
@@ -89,16 +96,21 @@ const formatChallengeWindow = (challenge: AdminChallenge) => {
   return `${start.toLocaleDateString()} - ${end.toLocaleDateString()}`;
 };
 
-export const AdminToolsScreen = ({ navigation }: any) => {
+export const AdminToolsScreen = ({ navigation, route }: any) => {
   const { refresh: refreshCatalog } = useBeverageCatalog();
-  const [activeSegment, setActiveSegment] = useState<AdminSegment>('challenges');
+  const initialSegment = route?.params?.initialSegment as AdminSegment | undefined;
+  const [activeSegment, setActiveSegment] = useState<AdminSegment>(
+    ADMIN_SEGMENTS.includes(initialSegment as AdminSegment) ? initialSegment as AdminSegment : 'challenges'
+  );
   const [challenges, setChallenges] = useState<AdminChallenge[]>([]);
   const [beverages, setBeverages] = useState<AdminBeverage[]>([]);
+  const [beverageSubmissions, setBeverageSubmissions] = useState<AdminBeverageSubmission[]>([]);
   const [officialPosts, setOfficialPosts] = useState<OfficialFeedPost[]>([]);
   const [moderationDrinks, setModerationDrinks] = useState<AdminModerationDrink[]>([]);
   const [moderationSearch, setModerationSearch] = useState('');
   const [moderationLoading, setModerationLoading] = useState(false);
   const [moderationBusyId, setModerationBusyId] = useState<string | null>(null);
+  const [submissionBusyId, setSubmissionBusyId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -118,14 +130,16 @@ export const AdminToolsScreen = ({ navigation }: any) => {
     refresh ? setRefreshing(true) : setLoading(true);
     setErrorMessage(null);
     try {
-      const [challengeRows, beverageRows, officialPostRows, moderationRows] = await Promise.all([
+      const [challengeRows, beverageRows, submissionRows, officialPostRows, moderationRows] = await Promise.all([
         fetchAdminChallenges(),
         fetchAdminBeverages(),
+        fetchAdminBeverageSubmissions({ status: 'pending', limit: 100 }),
         fetchAdminOfficialPosts(),
         fetchAdminModerationDrinks({ limit: 100 }),
       ]);
       setChallenges(challengeRows);
       setBeverages(beverageRows);
+      setBeverageSubmissions(submissionRows);
       setOfficialPosts(officialPostRows);
       setModerationDrinks(moderationRows);
     } catch (error) {
@@ -440,6 +454,48 @@ export const AdminToolsScreen = ({ navigation }: any) => {
     }
   }, [moderationSearch]);
 
+  const refreshBeverageSubmissions = useCallback(async () => {
+    setErrorMessage(null);
+    setBeverageSubmissions(await fetchAdminBeverageSubmissions({ status: 'pending', limit: 100 }));
+  }, []);
+
+  const handleApproveSubmission = useCallback(async (submission: AdminBeverageSubmission) => {
+    setSubmissionBusyId(submission.id);
+    setErrorMessage(null);
+    try {
+      await approveAdminBeverageSubmission(submission.id);
+      await Promise.all([
+        refreshBeverageSubmissions(),
+        fetchAdminBeverages().then(setBeverages),
+        refreshCatalog(),
+      ]);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Could not approve beverage submission.');
+    } finally {
+      setSubmissionBusyId(null);
+    }
+  }, [refreshBeverageSubmissions, refreshCatalog]);
+
+  const handleRejectSubmission = useCallback((submission: AdminBeverageSubmission) => {
+    confirmDestructive(
+      'Reject beverage',
+      `Keep "${submission.name}" on the post but reset its ABV to the category default?`,
+      'Reject',
+      async () => {
+        setSubmissionBusyId(submission.id);
+        setErrorMessage(null);
+        try {
+          await rejectAdminBeverageSubmission(submission.id);
+          await refreshBeverageSubmissions();
+        } catch (error) {
+          setErrorMessage(error instanceof Error ? error.message : 'Could not reject beverage submission.');
+        } finally {
+          setSubmissionBusyId(null);
+        }
+      }
+    );
+  }, [refreshBeverageSubmissions]);
+
   const handlePublishOfficialPost = async () => {
     const validationError = validateOfficialPostDraft(officialPostDraft);
     if (validationError) {
@@ -517,9 +573,11 @@ export const AdminToolsScreen = ({ navigation }: any) => {
       ? 'No challenges yet.'
       : activeSegment === 'beverages'
         ? 'No admin-added beverages yet.'
-        : activeSegment === 'official-posts'
-          ? 'No official posts yet.'
-          : 'No drinks found.'
+        : activeSegment === 'submissions'
+          ? 'No beverage submissions pending.'
+          : activeSegment === 'official-posts'
+            ? 'No official posts yet.'
+            : 'No drinks found.'
   ), [activeSegment]);
 
   const renderChallenge = useCallback(({ item }: { item: AdminChallenge }) => (
@@ -567,6 +625,41 @@ export const AdminToolsScreen = ({ navigation }: any) => {
       <Edit3 color={colors.textMuted} size={17} />
     </Pressable>
   ), []);
+
+  const renderSubmission = useCallback(({ item }: { item: AdminBeverageSubmission }) => {
+    const busy = submissionBusyId === item.id;
+    return (
+      <View style={styles.row}>
+        <View style={styles.rowIcon}>
+          <Beer color={colors.primary} size={18} />
+        </View>
+        <View style={styles.rowBody}>
+          <Text style={styles.rowTitle} numberOfLines={1}>{getAdminBeverageSubmissionTitle(item)}</Text>
+          <Text style={styles.rowMeta} numberOfLines={2}>{getAdminBeverageSubmissionMeta(item)}</Text>
+        </View>
+        <View style={styles.submissionActions}>
+          <TouchableOpacity
+            style={[styles.moderationActionButton, busy ? styles.rowMuted : null]}
+            onPress={() => handleApproveSubmission(item)}
+            disabled={busy}
+            accessibilityRole="button"
+            accessibilityLabel={`Approve ${item.name}`}
+          >
+            {busy ? <ActivityIndicator color={colors.background} size="small" /> : <Text style={styles.moderationActionText}>Approve</Text>}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.moderationActionButton, styles.moderationRestoreButton, busy ? styles.rowMuted : null]}
+            onPress={() => handleRejectSubmission(item)}
+            disabled={busy}
+            accessibilityRole="button"
+            accessibilityLabel={`Reject ${item.name}`}
+          >
+            <Text style={[styles.moderationActionText, styles.moderationRestoreText]}>Reject</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }, [handleApproveSubmission, handleRejectSubmission, submissionBusyId]);
 
   const renderOfficialPost = useCallback(({ item }: { item: OfficialFeedPost }) => (
     <View style={styles.row}>
@@ -642,19 +735,19 @@ export const AdminToolsScreen = ({ navigation }: any) => {
   ), [moderationLoading, moderationSearch, refreshModerationDrinks]);
 
   const addAction = activeSegment === 'challenges'
-    ? openNewChallenge
-    : activeSegment === 'beverages'
-      ? openNewBeverage
-      : activeSegment === 'official-posts'
-        ? openNewOfficialPost
-        : null;
+      ? openNewChallenge
+      : activeSegment === 'beverages'
+        ? openNewBeverage
+        : activeSegment === 'official-posts'
+          ? openNewOfficialPost
+          : null;
   const addActionLabel = activeSegment === 'challenges'
     ? 'Create challenge'
     : activeSegment === 'beverages'
       ? 'Add beverage'
       : activeSegment === 'official-posts'
-        ? 'Create official post'
-        : null;
+          ? 'Create official post'
+          : null;
 
   return (
     <View style={styles.container}>
@@ -703,9 +796,11 @@ export const AdminToolsScreen = ({ navigation }: any) => {
               ? challenges.length
               : activeSegment === 'beverages'
                 ? beverages.length
-                : activeSegment === 'official-posts'
-                  ? officialPosts.length
-                  : moderationDrinks.length} total
+                : activeSegment === 'submissions'
+                  ? beverageSubmissions.length
+                  : activeSegment === 'official-posts'
+                    ? officialPosts.length
+                    : moderationDrinks.length} total
           </Text>
         </View>
         {addAction && addActionLabel ? (
@@ -745,6 +840,16 @@ export const AdminToolsScreen = ({ navigation }: any) => {
           renderItem={renderBeverage}
           contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={[styles.listContent, beverages.length === 0 ? styles.emptyContent : null]}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadAll({ refresh: true })} tintColor={colors.primary} />}
+          ListEmptyComponent={<Text style={styles.emptyText}>{emptyCopy}</Text>}
+        />
+      ) : activeSegment === 'submissions' ? (
+        <FlatList
+          data={beverageSubmissions}
+          keyExtractor={(item) => item.id}
+          renderItem={renderSubmission}
+          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={[styles.listContent, beverageSubmissions.length === 0 ? styles.emptyContent : null]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadAll({ refresh: true })} tintColor={colors.primary} />}
           ListEmptyComponent={<Text style={styles.emptyText}>{emptyCopy}</Text>}
         />
@@ -1338,6 +1443,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary,
+  },
+  submissionActions: {
+    alignItems: 'flex-end',
+    gap: 6,
   },
   moderationActionButton: {
     minHeight: 34,
