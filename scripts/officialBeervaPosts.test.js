@@ -104,6 +104,31 @@ assert.equal(juneDraft.pushTitle, 'New June challenge');
 assert.match(juneDraft.pushBody, /first beer starts counting itself lonely/);
 assert.equal(juneDraft.notificationBody, juneDraft.pushBody);
 
+const editableOfficialDraft = adminTools.officialPostToDraft(
+  officialFeedPosts.mapOfficialFeedPostRow({
+    id: 'post-edit',
+    kind: 'announcement',
+    title: 'Typo title',
+    body: 'Typo body',
+    image_url: 'https://example.com/edit.jpg',
+    linked_challenge_id: 'challenge-1',
+    metadata: {
+      notification_body: 'Inbox typo',
+      push_enabled: true,
+      push_title: 'Original push title',
+      push_body: 'Original push body',
+    },
+  })
+);
+assert.equal(editableOfficialDraft.title, 'Typo title');
+assert.equal(editableOfficialDraft.body, 'Typo body');
+assert.equal(editableOfficialDraft.linkedChallengeId, 'challenge-1');
+assert.equal(editableOfficialDraft.sendInAppNotification, true);
+assert.equal(editableOfficialDraft.notificationBody, 'Inbox typo');
+assert.equal(editableOfficialDraft.sendPushNotification, false);
+assert.equal(editableOfficialDraft.pushTitle, '');
+assert.equal(editableOfficialDraft.pushBody, '');
+
 assert.equal(
   adminTools.validateOfficialPostDraft({
     ...juneDraft,
@@ -130,6 +155,11 @@ assert.match(officialApiSource, /image_url/, 'feed API should fetch official pos
 assert.match(adminApiSource, /fetchAdminOfficialPosts/, 'admin API should list official posts');
 assert.match(adminApiSource, /publishAdminOfficialPost/, 'admin API should publish official posts');
 assert.match(adminApiSource, /post_request_key:\s*input\.requestKey/, 'admin API should send the composer retry key');
+assert.match(adminApiSource, /UpdateAdminOfficialPostInput/, 'admin API should type official post edits');
+assert.match(adminApiSource, /updateAdminOfficialPost/, 'admin API should update official posts');
+assert.match(adminApiSource, /admin_update_official_post/, 'admin API should call the official post edit RPC');
+assert.match(adminApiSource, /target_post_id:\s*input\.id/, 'admin API should send the edited official post id');
+assert.match(adminApiSource, /notification_body:\s*input\.notificationBody/, 'admin API should send corrected notification body copy');
 assert.match(adminApiSource, /AdminOfficialPostPublishError/, 'admin API should classify uncertain publication failures');
 assert.match(adminApiSource, /failed to fetch\|network request failed\|abort/i, 'network failures should remain uncertain after publication');
 assert.match(imageUploadSource, /check that the \$\{bucket\} bucket is available/, 'image upload errors should name the requested bucket');

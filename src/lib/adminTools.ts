@@ -6,6 +6,7 @@ import type {
   AdminChallengeType,
   AdminModerationDrink,
 } from './adminApi';
+import type { OfficialFeedPost } from './officialFeedPosts';
 
 export type AdminBeverageDraft = {
   id?: string;
@@ -126,6 +127,25 @@ export const createEmptyOfficialPostDraft = (): AdminOfficialPostDraft => ({
   pushTitle: '',
   pushBody: '',
 });
+
+const toMetadataText = (value: unknown) => (
+  typeof value === 'string' ? value.trim() : ''
+);
+
+export const officialPostToDraft = (post: OfficialFeedPost): AdminOfficialPostDraft => {
+  const notificationBody = toMetadataText(post.raw.metadata?.notification_body);
+
+  return {
+    title: post.title,
+    body: post.body,
+    linkedChallengeId: post.linkedChallengeId,
+    sendInAppNotification: notificationBody.length > 0,
+    notificationBody,
+    sendPushNotification: false,
+    pushTitle: '',
+    pushBody: '',
+  };
+};
 
 export const adminChallengeToDraft = (challenge: AdminChallenge): AdminChallengeDraft => ({
   id: challenge.id,

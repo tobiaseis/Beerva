@@ -180,6 +180,15 @@ export type PublishAdminOfficialPostInput = {
   pushBody: string | null;
 };
 
+export type UpdateAdminOfficialPostInput = {
+  id: string;
+  title: string;
+  body: string;
+  imageUrl: string | null;
+  linkedChallengeId: string | null;
+  notificationBody: string | null;
+};
+
 const toString = (value: unknown) => typeof value === 'string' ? value.trim() : '';
 const toStringOrNull = (value: unknown) => toString(value) || null;
 const toNumber = (value: unknown) => {
@@ -567,5 +576,31 @@ export const publishAdminOfficialPost = async (
       getErrorMessage(error, 'Could not publish official post.'),
       isUncertainOfficialPostPublishError(error)
     );
+  }
+};
+
+export const updateAdminOfficialPost = async (
+  input: UpdateAdminOfficialPostInput
+): Promise<OfficialFeedPost> => {
+  try {
+    const { data, error } = await withTimeout(
+      supabase.rpc('admin_update_official_post', {
+        target_post_id: input.id,
+        post_title: input.title,
+        post_body: input.body,
+        post_image_url: input.imageUrl,
+        linked_challenge_id: input.linkedChallengeId,
+        notification_body: input.notificationBody,
+      }),
+      ADMIN_TIMEOUT_MS,
+      'Saving the official post is taking too long.'
+    );
+
+    if (error) throw error;
+    const row = firstRow(data as OfficialFeedPostRow | OfficialFeedPostRow[] | null);
+    if (!row) throw new Error('The saved official post was not returned.');
+    return mapOfficialFeedPostRow(row);
+  } catch (error) {
+    throw new Error(getErrorMessage(error, 'Could not save official post.'));
   }
 };
