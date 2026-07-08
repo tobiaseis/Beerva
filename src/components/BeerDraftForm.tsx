@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Beer, CheckCircle2, ChevronDown, Minus, Plus, X } from 'lucide-react-native';
+import { Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { AlertCircle, Beer, CheckCircle2, ChevronDown, Minus, Plus, X } from 'lucide-react-native';
 
 import { AutocompleteInput } from './AutocompleteInput';
 import { AppButton } from './AppButton';
@@ -16,11 +16,23 @@ import {
   VOLUMES,
 } from '../lib/sessionBeers';
 import { useBeverageCatalog } from '../lib/beverageCatalogContext';
+import {
+  BeverageSubmissionCategory,
+  getBeverageSubmissionFallbackAbv,
+  isUnknownBeverageName,
+  parseBeverageSubmissionAbv,
+  validateBeverageSubmissionDraft,
+} from '../lib/beverageSubmissions';
 
 type BeerDraftFormProps = {
   draft: BeerDraft;
   onChange: (draft: BeerDraft) => void;
   onSubmit: (draft?: BeerDraft) => void;
+  onSubmitUnknown?: (input: {
+    draft: BeerDraft;
+    category: BeverageSubmissionCategory;
+    abv: number;
+  }) => void;
   submitLabel: string;
   loading?: boolean;
 };
@@ -32,12 +44,17 @@ export const BeerDraftForm = ({
   draft,
   onChange,
   onSubmit,
+  onSubmitUnknown,
   submitLabel,
   loading = false,
 }: BeerDraftFormProps) => {
   const { catalog, options } = useBeverageCatalog();
   const [autoAddingName, setAutoAddingName] = useState<string | null>(null);
   const [sizeSheetVisible, setSizeSheetVisible] = useState(false);
+  const [unknownFormVisible, setUnknownFormVisible] = useState(false);
+  const [unknownCategory, setUnknownCategory] = useState<BeverageSubmissionCategory>('beer');
+  const [unknownAbv, setUnknownAbv] = useState('');
+  const [unknownError, setUnknownError] = useState<string | null>(null);
 
   useEffect(() => {
     const normalizedAutoAddingName = autoAddingName?.trim().toLowerCase();
@@ -59,12 +76,18 @@ export const BeerDraftForm = ({
 
   const updateBeverageName = (beerName: string) => {
     const defaultVolume = getBeverageDefaultVolume(beerName, catalog);
+    setUnknownError(null);
+    if (!isUnknownBeverageName(beerName, catalog)) {
+      setUnknownFormVisible(false);
+    }
     updateDraft(defaultVolume ? { beerName, volume: defaultVolume } : { beerName });
   };
 
   const selectBeverageName = (beerName: string) => {
     const defaultVolume = getBeverageDefaultVolume(beerName, catalog);
     const nextDraft = defaultVolume ? { ...draft, beerName, volume: defaultVolume } : { ...draft, beerName };
+    setUnknownFormVisible(false);
+    setUnknownError(null);
 
     if (isBeverageAutoAdded(beerName, catalog)) {
       setAutoAddingName(beerName);
@@ -81,6 +104,8 @@ export const BeerDraftForm = ({
   const lockedVolume = getBeverageDefaultVolume(draft.beerName, catalog);
   const selectedVolume = volumeLocked ? lockedVolume || draft.volume : draft.volume;
   const hideDrinkControls = Boolean(autoAddingName && isBeverageAutoAdded(draft.beerName, catalog));
+  const unknownName = isUnknownBeverageName(draft.beerName, catalog);
+  const canSubmitUnknown = Boolean(onSubmitUnknown && unknownName);
 
   useEffect(() => {
     if (hideDrinkControls || volumeLocked) {
@@ -91,6 +116,32 @@ export const BeerDraftForm = ({
   const selectVolume = (volume: string) => {
     updateDraft({ volume });
     setSizeSheetVisible(false);
+  };
+
+  const submitUnknown = () => {
+    const validationError = validateBeverageSubmissionDraft({
+      name: draft.beerName,
+      category: unknownCategory,
+      abv: unknownAbv,
+    });
+
+    if (validationError) {
+      setUnknownError(validationError);
+      return;
+    }
+
+    const abv = parseBeverageSubmissionAbv(unknownAbv);
+    if (abv === null) {
+      setUnknownError('ABV must be between 0 and 100.');
+      return;
+    }
+
+    setUnknownError(null);
+    onSubmitUnknown?.({
+      draft,
+      category: unknownCategory,
+      abv,
+    });
   };
 
   const renderVolumeOption = (volume: string) => {
@@ -125,6 +176,19 @@ export const BeerDraftForm = ({
         icon={<Beer color={colors.textMuted} size={20} />}
         getSearchText={(beverageName) => getBeverageOptionSearchText(beverageName, catalog)}
       />
+
+      {canSubmitUnknown && !unknownFormVisible ? (
+        <TouchableOpacity
+          style={styles.unknownCta}
+          onPress={() => setUnknownFormVisible(true)}
+          activeOpacity={0.76}
+          accessibilityRole="button"
+          accessibilityLabel="Add this as a new drink"
+        >
+          <AlertCircle color={colors.primary} size={18} />
+          <Text style={styles.unknownCtaText}>Add as new drink</Text>
+        </TouchableOpacity>
+      ) : null}
 
       {!hideDrinkControls && (
         <>
@@ -177,6 +241,47 @@ export const BeerDraftForm = ({
 
           <AppButton label={submitLabel} onPress={() => onSubmit()} loading={loading} />
 
+          {canSubmitUnknown && unknownFormVisible ? (
+            <View style={styles.unknownPanel}>
+              <Text style={styles.unknownTitle}>New drink details</Text>
+              <View style={styles.typeControl}>
+                {(['beer', 'wine', 'drink'] as const).map((category) => (
+                  <TouchableOpacity
+                    key={category}
+                    style={[styles.typeButton, unknownCategory === category ? styles.typeButtonActive : null]}
+                    onPress={() => {
+                      setUnknownCategory(category);
+                      setUnknownError(null);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: unknownCategory === category }}
+                  >
+                    <Text style={[styles.typeText, unknownCategory === category ? styles.typeTextActive : null]}>
+                      {category === 'beer' ? 'Beer' : category === 'wine' ? 'Wine' : 'Drink'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={styles.sizeLabel}>ABV</Text>
+              <View style={styles.abvInputRow}>
+                <TextInput
+                  style={styles.abvInput}
+                  value={unknownAbv}
+                  onChangeText={(value) => {
+                    setUnknownAbv(value);
+                    setUnknownError(null);
+                  }}
+                  placeholder={`${getBeverageSubmissionFallbackAbv(unknownCategory)}`}
+                  placeholderTextColor={colors.textMuted}
+                  keyboardType="decimal-pad"
+                />
+                <Text style={styles.abvSuffix}>%</Text>
+              </View>
+              {unknownError ? <Text style={styles.unknownError}>{unknownError}</Text> : null}
+              <AppButton label="Submit New Drink" onPress={submitUnknown} loading={loading} />
+            </View>
+          ) : null}
+
           <Modal
             visible={sizeSheetVisible}
             transparent
@@ -224,6 +329,86 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.textMuted,
     marginTop: 8,
+  },
+  unknownCta: {
+    minHeight: 42,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  unknownCtaText: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: '900',
+  },
+  unknownPanel: {
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    backgroundColor: colors.primarySoft,
+    padding: 12,
+    gap: 10,
+  },
+  unknownTitle: {
+    ...typography.body,
+    color: colors.text,
+    fontWeight: '900',
+  },
+  typeControl: {
+    minHeight: 42,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.surface,
+    padding: 3,
+    flexDirection: 'row',
+  },
+  typeButton: {
+    flex: 1,
+    borderRadius: radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  typeButtonActive: {
+    backgroundColor: colors.primary,
+  },
+  typeText: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontWeight: '800',
+  },
+  typeTextActive: {
+    color: colors.background,
+  },
+  abvInputRow: {
+    minHeight: 46,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.surface,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+  },
+  abvInput: {
+    ...typography.body,
+    color: colors.text,
+    flex: 1,
+    paddingVertical: 0,
+  },
+  abvSuffix: {
+    ...typography.body,
+    color: colors.textMuted,
+    fontWeight: '800',
+  },
+  unknownError: {
+    ...typography.caption,
+    color: colors.danger,
   },
   sizeSummary: {
     minHeight: 58,

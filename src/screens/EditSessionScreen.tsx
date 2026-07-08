@@ -39,6 +39,7 @@ import {
   getLegacySessionBeerFields,
   SessionBeer,
 } from '../lib/sessionBeers';
+import { BeverageSubmissionCategory, submitSessionBeverage } from '../lib/beverageSubmissions';
 import {
   buildSessionPhotoRecords,
   getAllSessionPhotoUrls,
@@ -138,7 +139,7 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
 
       const { data: beerRows, error: beersError } = await supabase
         .from('session_beers')
-        .select('id, session_id, beer_name, volume, quantity, abv, beverage_category, note, consumed_at, created_at, excluded_from_stats, excluded_from_stats_at, excluded_from_stats_reason')
+        .select('id, session_id, beer_name, volume, quantity, abv, beverage_category, beverage_submission_id, beverage_submission_status, note, consumed_at, created_at, excluded_from_stats, excluded_from_stats_at, excluded_from_stats_reason')
         .eq('session_id', sessionId)
         .order('consumed_at', { ascending: true });
 
@@ -200,6 +201,43 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
     hapticSuccess();
   };
 
+  const submitUnknownDraftBeer = async ({
+    draft,
+    category,
+    abv,
+  }: {
+    draft: typeof beerDraft;
+    category: BeverageSubmissionCategory;
+    abv: number;
+  }) => {
+    if (!sessionId || saving) return;
+
+    setSaving(true);
+    try {
+      const createdBeer = await submitSessionBeverage({
+        sessionId,
+        draft,
+        category,
+        abv,
+      });
+      setBeers((previous) => [...previous, createdBeer]);
+      if (createdBeer.id) {
+        setInitialBeerIds((previous) => (
+          previous.includes(createdBeer.id as string) ? previous : [...previous, createdBeer.id as string]
+        ));
+      }
+      setBeerDraft(createEmptyBeerDraft());
+      hapticSuccess();
+      showAlert('Drink added', 'This drink is on your post and waiting for Beerva approval.');
+    } catch (error: any) {
+      console.error('Submit edited beverage error:', error);
+      hapticError();
+      showAlert('Could not submit drink', error?.message || 'Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const addPersistedChugBeer = async (beerName: string): Promise<SessionBeer | null> => {
     if (!sessionId) return null;
 
@@ -215,7 +253,7 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
           }, catalog),
           consumed_at: new Date().toISOString(),
         })
-        .select('id, session_id, beer_name, volume, quantity, abv, beverage_category, note, consumed_at, created_at, excluded_from_stats, excluded_from_stats_at, excluded_from_stats_reason')
+        .select('id, session_id, beer_name, volume, quantity, abv, beverage_category, beverage_submission_id, beverage_submission_status, note, consumed_at, created_at, excluded_from_stats, excluded_from_stats_at, excluded_from_stats_reason')
         .single();
 
       if (error) throw error;
@@ -744,6 +782,7 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
           draft={beerDraft}
           onChange={setBeerDraft}
           onSubmit={addDraftBeer}
+          onSubmitUnknown={submitUnknownDraftBeer}
           submitLabel="Add Booze"
         />
       </Surface>

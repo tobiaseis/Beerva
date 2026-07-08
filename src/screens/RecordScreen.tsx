@@ -48,6 +48,7 @@ import {
   getTotalBeerQuantity,
   SessionBeer,
 } from '../lib/sessionBeers';
+import { BeverageSubmissionCategory, submitSessionBeverage } from '../lib/beverageSubmissions';
 import {
   CHUG_CONTAINER_TYPE,
   CHUG_REQUIRED_VOLUME,
@@ -410,7 +411,7 @@ export const RecordScreen = ({ navigation }: any) => {
   const fetchSessionBeers = useCallback(async (sessionId: string) => {
     const { data, error } = await supabase
       .from('session_beers')
-      .select('id, session_id, beer_name, volume, quantity, abv, beverage_category, note, consumed_at, created_at')
+      .select('id, session_id, beer_name, volume, quantity, abv, beverage_category, beverage_submission_id, beverage_submission_status, note, consumed_at, created_at')
       .eq('session_id', sessionId)
       .order('consumed_at', { ascending: true });
 
@@ -978,7 +979,7 @@ export const RecordScreen = ({ navigation }: any) => {
       const { data, error } = await supabase
         .from('session_beers')
         .insert(payload)
-        .select('id, session_id, beer_name, volume, quantity, abv, beverage_category, note, consumed_at, created_at')
+        .select('id, session_id, beer_name, volume, quantity, abv, beverage_category, beverage_submission_id, beverage_submission_status, note, consumed_at, created_at')
         .single();
 
       if (error) throw error;
@@ -999,6 +1000,43 @@ export const RecordScreen = ({ navigation }: any) => {
     }
   };
 
+  const submitUnknownBeerToSession = async ({
+    draft,
+    category,
+    abv,
+  }: {
+    draft: typeof beerDraft;
+    category: BeverageSubmissionCategory;
+    abv: number;
+  }) => {
+    if (!activeSession) {
+      showAlert('Start a session first', 'Choose where you are drinking before adding a new drink.');
+      return;
+    }
+
+    setAddingBeer(true);
+    try {
+      const createdBeer = await submitSessionBeverage({
+        sessionId: activeSession.id,
+        draft,
+        category,
+        abv,
+      });
+      const nextBeers = [...sessionBeers, createdBeer];
+      setSessionBeers(nextBeers);
+      setBeerDraft(createEmptyBeerDraft());
+      await syncLegacyFields(activeSession.id, nextBeers);
+      hapticSuccess();
+      showAlert('Drink added', 'This drink is on your session and waiting for Beerva approval.');
+    } catch (error: any) {
+      console.error('Submit beverage error:', error);
+      hapticError();
+      showAlert('Could not submit drink', error?.message || 'Please try again.');
+    } finally {
+      setAddingBeer(false);
+    }
+  };
+
   const incrementBeerInSession = async (beer: SessionBeer) => {
     if (!activeSession || !beer.id) return;
 
@@ -1014,7 +1052,7 @@ export const RecordScreen = ({ navigation }: any) => {
       .update({ quantity: nextQuantity })
       .eq('id', beer.id)
       .eq('session_id', activeSession.id)
-      .select('id, session_id, beer_name, volume, quantity, abv, beverage_category, note, consumed_at, created_at')
+      .select('id, session_id, beer_name, volume, quantity, abv, beverage_category, beverage_submission_id, beverage_submission_status, note, consumed_at, created_at')
       .single();
 
     if (error) {
@@ -2075,6 +2113,7 @@ export const RecordScreen = ({ navigation }: any) => {
                 draft={beerDraft}
                 onChange={setBeerDraft}
                 onSubmit={addBeerToSession}
+                onSubmitUnknown={submitUnknownBeerToSession}
                 submitLabel="Add Drink"
                 loading={addingBeer}
               />

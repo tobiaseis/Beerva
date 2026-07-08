@@ -10,6 +10,14 @@ const beerDraftFormSource = fs.readFileSync(
   path.resolve(__dirname, '..', 'src/components/BeerDraftForm.tsx'),
   'utf8'
 );
+const editSessionSource = fs.readFileSync(
+  path.resolve(__dirname, '..', 'src/screens/EditSessionScreen.tsx'),
+  'utf8'
+);
+const submissionHelperSource = fs.readFileSync(
+  path.resolve(__dirname, '..', 'src/lib/beverageSubmissions.ts'),
+  'utf8'
+);
 
 assert.match(
   source,
@@ -51,6 +59,60 @@ assert.match(
   beerDraftFormSource,
   /onSelectItem=\{selectBeverageName\}/,
   'selecting an autocomplete beverage should use a dedicated selection handler'
+);
+
+assert.match(
+  submissionHelperSource,
+  /submitSessionBeverage/,
+  'submission helper should expose the user-facing beverage submission RPC'
+);
+
+assert.match(
+  beerDraftFormSource,
+  /isUnknownBeverageName/,
+  'beer draft form should detect unknown catalog beverage names'
+);
+
+assert.match(
+  beerDraftFormSource,
+  /Add as new drink/,
+  'beer draft form should expose an explicit new-drink path'
+);
+
+assert.match(
+  beerDraftFormSource,
+  /Beer[\s\S]*Wine[\s\S]*Drink/,
+  'beer draft form should let users choose the submitted beverage category'
+);
+
+assert.match(
+  beerDraftFormSource,
+  /ABV/,
+  'beer draft form should ask for ABV on unknown beverage submissions'
+);
+
+assert.match(
+  source,
+  /submitSessionBeverage/,
+  'record screen should submit unknown beverages through the RPC helper'
+);
+
+assert.match(
+  editSessionSource,
+  /submitSessionBeverage/,
+  'edit session screen should submit new unknown beverages through the RPC helper'
+);
+
+assert.match(
+  source,
+  /beverage_submission_id/,
+  'record screen should select beverage submission linkage fields'
+);
+
+assert.match(
+  editSessionSource,
+  /beverage_submission_status/,
+  'edit session screen should preserve beverage submission status fields'
 );
 
 assert.match(
