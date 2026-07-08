@@ -4,7 +4,7 @@ const Module = require('node:module');
 const path = require('node:path');
 const ts = require('typescript');
 
-const loadTypeScriptModule = (relativePath) => {
+const loadTypeScriptModule = (relativePath, mocks = {}) => {
   const filename = path.resolve(__dirname, '..', relativePath);
   const source = fs.readFileSync(filename, 'utf8');
   const { outputText } = ts.transpileModule(source, {
@@ -19,6 +19,12 @@ const loadTypeScriptModule = (relativePath) => {
   const compiledModule = new Module(filename, module);
   compiledModule.filename = filename;
   compiledModule.paths = Module._nodeModulePaths(path.dirname(filename));
+  compiledModule.require = (request) => {
+    if (Object.prototype.hasOwnProperty.call(mocks, request)) {
+      return mocks[request];
+    }
+    return Module.prototype.require.call(compiledModule, request);
+  };
   compiledModule._compile(outputText, filename);
   return compiledModule.exports;
 };
@@ -34,6 +40,27 @@ const {
   getBeverageCatalogItem,
   mergeBeverageCatalog,
 } = loadTypeScriptModule('src/lib/sessionBeers.ts');
+
+const {
+  getBeverageSubmissionFallbackAbv,
+  getBeverageSubmissionStatusLabel,
+  isUnknownBeverageName,
+  mapBeverageSubmissionStatus,
+} = loadTypeScriptModule('src/lib/beverageSubmissions.ts', {
+  './sessionBeers': {
+    getBeverageCatalogItem,
+    getBeveragePayloadCategory: () => 'beer',
+  },
+  './supabase': {
+    supabase: {
+      rpc: async () => ({ data: null, error: null }),
+    },
+  },
+  './timeouts': {
+    getErrorMessage: (error, fallback) => error?.message || fallback,
+    withTimeout: async (operation) => operation,
+  },
+});
 
 const duplicateTuborgRows = [
   {
@@ -169,6 +196,40 @@ check('manually selected size is preserved in payload', () => {
     beerDraftToPayload({ beerName: 'Mystery Pub Ale', volume: '50cl', quantity: 3 }),
     { beer_name: 'Mystery Pub Ale', volume: '50cl', quantity: 3, abv: 5, beverage_category: 'beer' }
   );
+});
+
+check('unknown beverage detection respects names and aliases', () => {
+  const catalog = mergeBeverageCatalog([
+    { name: 'Codex Lager', abv: 6.4, aliases: ['Codex House Lager'] },
+  ]);
+
+  assert.equal(isUnknownBeverageName('', catalog), false);
+  assert.equal(isUnknownBeverageName('   ', catalog), false);
+  assert.equal(isUnknownBeverageName('Tuborg Classic', catalog), false);
+  assert.equal(isUnknownBeverageName('Codex House Lager', catalog), false);
+  assert.equal(isUnknownBeverageName('Missing Pub Ale', catalog), true);
+});
+
+check('submission fallback ABV uses category defaults', () => {
+  assert.equal(getBeverageSubmissionFallbackAbv('beer'), 5);
+  assert.equal(getBeverageSubmissionFallbackAbv('drink'), 5);
+  assert.equal(getBeverageSubmissionFallbackAbv('wine'), 12);
+  assert.equal(getBeverageSubmissionFallbackAbv('other'), 5);
+  assert.equal(getBeverageSubmissionFallbackAbv(null), 5);
+});
+
+check('submission status mapper is defensive', () => {
+  assert.equal(mapBeverageSubmissionStatus('pending'), 'pending');
+  assert.equal(mapBeverageSubmissionStatus('approved'), 'approved');
+  assert.equal(mapBeverageSubmissionStatus('rejected'), 'rejected');
+  assert.equal(mapBeverageSubmissionStatus('strange'), null);
+});
+
+check('submission status labels are calm and user-facing', () => {
+  assert.equal(getBeverageSubmissionStatusLabel('pending'), 'Pending approval');
+  assert.equal(getBeverageSubmissionStatusLabel('approved'), 'Approved');
+  assert.equal(getBeverageSubmissionStatusLabel('rejected'), 'ABV reset');
+  assert.equal(getBeverageSubmissionStatusLabel(null), null);
 });
 
 if (failures.length > 0) {

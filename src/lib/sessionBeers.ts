@@ -18,6 +18,8 @@ export type SessionBeer = {
   quantity: number | null;
   abv: number | null;
   beverage_category?: 'beer' | 'wine' | 'drink' | string | null;
+  beverage_submission_id?: string | null;
+  beverage_submission_status?: 'pending' | 'approved' | 'rejected' | string | null;
   note?: string | null;
   consumed_at?: string | null;
   created_at?: string | null;
