@@ -77,4 +77,40 @@ assert.doesNotMatch(
   'mixed-drink auto-add should avoid adding recipe-specific volume buttons to the record form'
 );
 
+assert.match(
+  beerDraftFormSource,
+  /const COMMON_VOLUMES = \['33cl', '50cl', 'Pint'\];/,
+  'beer draft form should define a short common-size set for fast casual logging'
+);
+
+assert.match(
+  beerDraftFormSource,
+  /const MORE_VOLUMES = VOLUMES\.filter\(\(volume\) => !COMMON_VOLUMES\.includes\(volume\)\);/,
+  'beer draft form should keep uncommon sizes available behind the size chooser'
+);
+
+assert.match(
+  beerDraftFormSource,
+  /setSizeSheetVisible\(true\)/,
+  'beer draft form should open a size chooser instead of rendering every volume by default'
+);
+
+assert.match(
+  beerDraftFormSource,
+  /Change size/,
+  'beer draft form should expose a clear change-size action'
+);
+
+assert.match(
+  beerDraftFormSource,
+  /selectedVolume\} selected/,
+  'beer draft form should show the currently selected size before submit'
+);
+
+assert.doesNotMatch(
+  beerDraftFormSource,
+  /<Text style=\{styles\.sectionLabel\}>Size<\/Text>\s*<View style=\{styles\.volumeRow\}>/,
+  'beer draft form should not show the old full volume grid in the default form'
+);
+
 console.log('record session drink checks passed');

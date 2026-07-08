@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Beer, Minus, Plus } from 'lucide-react-native';
+import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Beer, CheckCircle2, ChevronDown, Minus, Plus, X } from 'lucide-react-native';
 
 import { AutocompleteInput } from './AutocompleteInput';
 import { AppButton } from './AppButton';
@@ -25,6 +25,9 @@ type BeerDraftFormProps = {
   loading?: boolean;
 };
 
+const COMMON_VOLUMES = ['33cl', '50cl', 'Pint'];
+const MORE_VOLUMES = VOLUMES.filter((volume) => !COMMON_VOLUMES.includes(volume));
+
 export const BeerDraftForm = ({
   draft,
   onChange,
@@ -34,6 +37,7 @@ export const BeerDraftForm = ({
 }: BeerDraftFormProps) => {
   const { catalog, options } = useBeverageCatalog();
   const [autoAddingName, setAutoAddingName] = useState<string | null>(null);
+  const [sizeSheetVisible, setSizeSheetVisible] = useState(false);
 
   useEffect(() => {
     const normalizedAutoAddingName = autoAddingName?.trim().toLowerCase();
@@ -78,6 +82,38 @@ export const BeerDraftForm = ({
   const selectedVolume = volumeLocked ? lockedVolume || draft.volume : draft.volume;
   const hideDrinkControls = Boolean(autoAddingName && isBeverageAutoAdded(draft.beerName, catalog));
 
+  useEffect(() => {
+    if (hideDrinkControls || volumeLocked) {
+      setSizeSheetVisible(false);
+    }
+  }, [hideDrinkControls, volumeLocked]);
+
+  const selectVolume = (volume: string) => {
+    updateDraft({ volume });
+    setSizeSheetVisible(false);
+  };
+
+  const renderVolumeOption = (volume: string) => {
+    const selected = selectedVolume === volume;
+
+    return (
+      <TouchableOpacity
+        key={volume}
+        style={[styles.sizeOption, selected ? styles.sizeOptionActive : null]}
+        onPress={() => selectVolume(volume)}
+        activeOpacity={0.76}
+        accessibilityRole="button"
+        accessibilityState={{ selected }}
+        accessibilityLabel={`Use ${volume}`}
+      >
+        <Text style={[styles.sizeOptionText, selected ? styles.sizeOptionTextActive : null]}>
+          {volume}
+        </Text>
+        {selected ? <CheckCircle2 color={colors.background} size={16} /> : null}
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <View style={styles.container}>
       <AutocompleteInput
@@ -92,31 +128,26 @@ export const BeerDraftForm = ({
 
       {!hideDrinkControls && (
         <>
-          <Text style={styles.sectionLabel}>Size</Text>
-          <View style={styles.volumeRow}>
-            {VOLUMES.map((volume) => (
+          <View style={styles.sizeSummary}>
+            <View style={styles.sizeSummaryText}>
+              <Text style={styles.sizeLabel}>Size</Text>
+              <Text style={styles.sizeValue}>{selectedVolume} selected</Text>
+            </View>
+
+            {!volumeLocked ? (
               <TouchableOpacity
-                key={volume}
-                style={[
-                  styles.volumeButton,
-                  selectedVolume === volume && styles.volumeButtonActive,
-                  volumeLocked && selectedVolume !== volume && styles.volumeButtonLocked,
-                ]}
-                onPress={() => updateDraft({ volume: volumeLocked ? lockedVolume || draft.volume : volume })}
-                activeOpacity={volumeLocked ? 1 : 0.76}
-                disabled={volumeLocked && selectedVolume !== volume}
-                accessibilityState={{
-                  selected: selectedVolume === volume,
-                  disabled: volumeLocked && selectedVolume !== volume,
-                }}
+                style={styles.sizeChangeButton}
+                onPress={() => setSizeSheetVisible(true)}
+                activeOpacity={0.76}
+                accessibilityRole="button"
+                accessibilityLabel="Change drink size"
               >
-                <Text style={[
-                  styles.volumeText,
-                  selectedVolume === volume && styles.volumeTextActive,
-                  volumeLocked && selectedVolume !== volume && styles.volumeTextLocked,
-                ]}>{volume}</Text>
+                <Text style={styles.sizeChangeText}>Change size</Text>
+                <ChevronDown color={colors.primary} size={16} />
               </TouchableOpacity>
-            ))}
+            ) : (
+              <Text style={styles.sizeLockedText}>Auto</Text>
+            )}
           </View>
 
           <Text style={styles.sectionLabel}>Quantity</Text>
@@ -125,6 +156,8 @@ export const BeerDraftForm = ({
               style={styles.quantityBtn}
               onPress={() => updateDraft({ quantity: Math.max(1, draft.quantity - 1) })}
               activeOpacity={0.76}
+              accessibilityRole="button"
+              accessibilityLabel="Decrease quantity"
             >
               <Minus color={colors.primary} size={22} />
             </TouchableOpacity>
@@ -135,12 +168,48 @@ export const BeerDraftForm = ({
               style={styles.quantityBtn}
               onPress={() => updateDraft({ quantity: draft.quantity + 1 })}
               activeOpacity={0.76}
+              accessibilityRole="button"
+              accessibilityLabel="Increase quantity"
             >
               <Plus color={colors.primary} size={22} />
             </TouchableOpacity>
           </View>
 
           <AppButton label={submitLabel} onPress={() => onSubmit()} loading={loading} />
+
+          <Modal
+            visible={sizeSheetVisible}
+            transparent
+            animationType="fade"
+            onRequestClose={() => setSizeSheetVisible(false)}
+          >
+            <View style={styles.sizeSheetBackdrop}>
+              <View style={styles.sizeSheet}>
+                <View style={styles.sizeSheetHeader}>
+                  <Text style={styles.sizeSheetTitle}>Choose size</Text>
+                  <TouchableOpacity
+                    style={styles.sizeSheetClose}
+                    onPress={() => setSizeSheetVisible(false)}
+                    hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Close size chooser"
+                  >
+                    <X color={colors.text} size={20} />
+                  </TouchableOpacity>
+                </View>
+
+                <Text style={styles.sizeGroupLabel}>Common</Text>
+                <View style={styles.sizeOptionGrid}>
+                  {COMMON_VOLUMES.map(renderVolumeOption)}
+                </View>
+
+                <Text style={styles.sizeGroupLabel}>More sizes</Text>
+                <View style={styles.sizeOptionGrid}>
+                  {MORE_VOLUMES.map(renderVolumeOption)}
+                </View>
+              </View>
+            </View>
+          </Modal>
         </>
       )}
     </View>
@@ -156,43 +225,55 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginTop: 8,
   },
-  volumeRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  volumeButton: {
-    flexGrow: 1,
-    flexBasis: '30%',
-    minWidth: 96,
-    minHeight: 46,
-    backgroundColor: colors.surface,
+  sizeSummary: {
+    minHeight: 58,
+    borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.borderSoft,
-    paddingVertical: 11,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  sizeSummaryText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  sizeLabel: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontWeight: '700',
+  },
+  sizeValue: {
+    ...typography.body,
+    color: colors.text,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  sizeChangeButton: {
+    minHeight: 38,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    backgroundColor: colors.primarySoft,
     paddingHorizontal: 12,
-    borderRadius: radius.md,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 6,
   },
-  volumeButtonActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  volumeButtonLocked: {
-    opacity: 0.38,
-  },
-  volumeText: {
+  sizeChangeText: {
     ...typography.caption,
-    color: colors.text,
-    fontWeight: '600',
-    textAlign: 'center',
+    color: colors.primary,
+    fontWeight: '800',
   },
-  volumeTextActive: {
-    color: colors.background,
-  },
-  volumeTextLocked: {
+  sizeLockedText: {
+    ...typography.caption,
     color: colors.textMuted,
+    fontWeight: '800',
   },
   quantityContainer: {
     flexDirection: 'row',
@@ -215,5 +296,75 @@ const styles = StyleSheet.create({
     color: colors.text,
     width: 60,
     textAlign: 'center',
+  },
+  sizeSheetBackdrop: {
+    flex: 1,
+    backgroundColor: colors.overlay,
+    justifyContent: 'flex-end',
+    padding: 16,
+  },
+  sizeSheet: {
+    backgroundColor: colors.card,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    padding: 16,
+    gap: 12,
+  },
+  sizeSheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sizeSheetTitle: {
+    ...typography.h3,
+    color: colors.text,
+  },
+  sizeSheetClose: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+  },
+  sizeGroupLabel: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontWeight: '800',
+    marginTop: 4,
+  },
+  sizeOptionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  sizeOption: {
+    flexGrow: 1,
+    flexBasis: '30%',
+    minWidth: 92,
+    minHeight: 46,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.24)',
+    backgroundColor: colors.surfaceRaised,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  sizeOptionActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  sizeOptionText: {
+    ...typography.caption,
+    color: colors.text,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  sizeOptionTextActive: {
+    color: colors.background,
   },
 });
