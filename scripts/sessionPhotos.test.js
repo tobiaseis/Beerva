@@ -38,6 +38,10 @@ const feedScreenSource = fs.readFileSync(
   path.resolve(__dirname, '..', 'src/screens/FeedScreen.tsx'),
   'utf8'
 );
+const feedApiSource = fs.readFileSync(
+  path.resolve(__dirname, '..', 'src/lib/feedApi.ts'),
+  'utf8'
+);
 const editScreenSource = fs.readFileSync(
   path.resolve(__dirname, '..', 'src/screens/EditSessionScreen.tsx'),
   'utf8'
@@ -170,7 +174,7 @@ assert.match(
   'saving an edited post photo should insert the new keeper into session_photos'
 );
 assert.match(
-  feedScreenSource,
+  feedApiSource,
   /fetchSessionFeedDetails/,
   'feed should fetch session photos through the consolidated feed details RPC'
 );

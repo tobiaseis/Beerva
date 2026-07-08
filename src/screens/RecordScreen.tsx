@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -472,20 +472,19 @@ export const RecordScreen = ({ navigation }: any) => {
         comment: (session.comment || '').trim(),
       };
       setSavingPhoto(false);
-      await fetchActiveSessionPhotos(session);
-      await fetchSessionBeers(session.id);
-      if (session.pub_crawl_id) {
-        setActiveCrawl(await fetchActivePubCrawl());
-      } else {
-        setActiveCrawl(null);
-      }
+      const [, , nextActiveCrawl] = await Promise.all([
+        fetchActiveSessionPhotos(session),
+        fetchSessionBeers(session.id),
+        session.pub_crawl_id ? fetchActivePubCrawl() : Promise.resolve(null),
+      ]);
+      setActiveCrawl(nextActiveCrawl);
     } catch (error: any) {
       console.error('Active session fetch error:', error);
       showAlert('Could not load session', error?.message || 'Please try again.');
     } finally {
       setLoadingActive(false);
     }
-  }, [fetchActiveSessionPhotos, fetchSessionBeers, resetActiveState]);
+  }, [fetchActivePubCrawl, fetchActiveSessionPhotos, fetchSessionBeers, resetActiveState]);
 
   useFocusEffect(
     useCallback(() => {
@@ -1754,7 +1753,7 @@ export const RecordScreen = ({ navigation }: any) => {
   const previewImageUri = selectedImages.length > 0 ? selectedImages[keeperIndex]?.uri : existingImageUrl;
   const selectedPhotoCountLabel = `${selectedImages.length}/${MAX_SESSION_PHOTOS}`;
   const cleanPub = pub.trim();
-  const pubOptionLabels = pubOptions.map(formatPubLabel);
+  const pubOptionLabels = useMemo(() => pubOptions.map(formatPubLabel), [pubOptions]);
   const hasExactPubOption = cleanPub.length >= 2 && pubOptions.some((option) => labelsMatchPub(cleanPub, option));
   const nearbyQuickPubs = !cleanPub && userLocation ? pubOptions.slice(0, 4) : [];
   const selectedPubDetail = selectedPub ? formatPubDetail(selectedPub) : '';
@@ -1937,7 +1936,7 @@ export const RecordScreen = ({ navigation }: any) => {
                       if (p) setSelectedPub(p);
                       setCrawlPubDraft(label);
                     }}
-                    data={pubOptions.map(formatPubLabel)}
+                    data={pubOptionLabels}
                     placeholder="Search pub"
                     icon={<MapPin color={colors.textMuted} size={20} />}
                   />
@@ -1975,7 +1974,7 @@ export const RecordScreen = ({ navigation }: any) => {
                     if (p) setSelectedPub(p);
                     setCrawlPubDraft(label);
                   }}
-                  data={pubOptions.map(formatPubLabel)}
+                  data={pubOptionLabels}
                   placeholder="Search next pub"
                   icon={<MapPin color={colors.textMuted} size={20} />}
                 />

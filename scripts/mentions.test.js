@@ -198,8 +198,9 @@ assert.match(mentionTextSource, /mentionedUserId/, 'MentionText should keep stab
 const updatedMentionsSource = fs.readFileSync(path.join(root, 'src/lib/mentions.ts'), 'utf8');
 assert.match(updatedMentionsSource, /fetchContentMentionsForSources/, 'mentions lib should fetch persisted mention metadata');
 
+const updatedFeedApiSource = fs.readFileSync(path.join(root, 'src/lib/feedApi.ts'), 'utf8');
+assert.match(updatedFeedApiSource, /fetchContentMentionsForSources/, 'feed should hydrate persisted mention metadata');
 const updatedFeedSource = fs.readFileSync(path.join(root, 'src/screens/FeedScreen.tsx'), 'utf8');
-assert.match(updatedFeedSource, /fetchContentMentionsForSources/, 'feed should hydrate persisted mention metadata');
 assert.match(updatedFeedSource, /MentionText/, 'feed comment and caption text should render MentionText');
 
 const updatedPostDetailSource = fs.readFileSync(path.join(root, 'src/screens/PostDetailScreen.tsx'), 'utf8');

@@ -120,7 +120,7 @@ assert.match(adminApiSource, /failed to fetch\|network request failed\|abort/i, 
 assert.match(imageUploadSource, /check that the \$\{bucket\} bucket is available/, 'image upload errors should name the requested bucket');
 
 const adminScreenSource = read('src/screens/AdminToolsScreen.tsx');
-assert.match(adminScreenSource, /type AdminSegment = 'challenges' \| 'beers' \| 'official-posts'/, 'admin tools should add official posts segment');
+assert.match(adminScreenSource, /type AdminSegment = 'challenges' \| 'beverages' \| 'official-posts' \| 'moderation'/, 'admin tools should add official posts segment');
 assert.match(adminScreenSource, /fetchAdminOfficialPosts/, 'admin tools should load official posts');
 assert.match(adminScreenSource, /publishAdminOfficialPost/, 'admin tools should publish official posts');
 assert.match(adminScreenSource, /prepareWebImageFromPickerAsset/, 'web official photos should use shared compression');
@@ -146,6 +146,7 @@ assert.match(
 
 const officialCardSource = read('src/components/OfficialFeedPostCard.tsx');
 const feedScreenSource = read('src/screens/FeedScreen.tsx');
+const feedApiSource = read('src/lib/feedApi.ts');
 const winnerCardSection = officialCardSource.slice(
   officialCardSource.indexOf('const WinnerOfficialFeedPostCard'),
   officialCardSource.indexOf('const AnnouncementOfficialFeedPostCard')
@@ -170,11 +171,12 @@ assert.match(officialCardSource, /Join challenge/, 'announcement card should exp
 assert.match(officialCardSource, /View challenge/, 'announcement card should preserve detail navigation');
 assert.match(officialCardSource, /post\.imageUrl/, 'announcement card should render optional photos');
 assert.match(officialCardSource, /onImagePress/, 'announcement photos should open the shared image viewer');
-assert.match(feedScreenSource, /fetchOfficialPostLinkedChallengeSummaries/, 'feed should hydrate linked challenge summaries once per page');
+assert.match(feedApiSource, /fetchOfficialPostLinkedChallengeSummaries/, 'feed should hydrate linked challenge summaries once per page');
+assert.match(feedScreenSource, /fetchOfficialPostLinkedChallengeSummaries/, 'feed should refresh linked challenge summaries after joining');
 assert.match(feedScreenSource, /handleJoinOfficialPostChallenge/, 'feed should join challenges from announcements');
 assert.match(feedScreenSource, /onImagePress=\{setViewingImageUrl\}/, 'feed should route official photos to the existing viewer');
 assert.match(
-  feedScreenSource,
+  feedApiSource,
   /Official challenge actions fetch error/,
   'feed should treat official challenge CTA hydration as best-effort so announcement posts still render'
 );

@@ -89,7 +89,7 @@ assert.deepEqual(sorted.map((i) => i.id), ['b', 'c', 'a'], 'sortFeedItemsByPubli
 
 // --- Wiring: FeedScreen appends pages instead of globally re-sorting. ---
 const feedSource = fs.readFileSync(path.join(root, 'src/screens/FeedScreen.tsx'), 'utf8');
-assert.match(feedSource, /appendFeedPage\(previous, merged\)/, 'feed should append pages without re-sorting displayed items');
+assert.match(feedSource, /appendFeedPage\(previous, result\.items\)/, 'feed should append pages without re-sorting displayed items');
 assert.doesNotMatch(feedSource, /sortFeedItemsByPublishedAt\(\[\.\.\.previous/, 'feed should not globally re-sort the accumulated list on append');
 
 // --- Wiring: official posts fetch a look-ahead row so hasMore can advance. ---

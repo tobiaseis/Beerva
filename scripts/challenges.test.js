@@ -53,6 +53,7 @@ const challengeFinalizerPath = 'supabase/functions/finalize-challenges/index.ts'
 const officialFeedPostsPath = 'src/lib/officialFeedPosts.ts';
 const officialFeedPostsApiPath = 'src/lib/officialFeedPostsApi.ts';
 const officialFeedPostCardPath = 'src/components/OfficialFeedPostCard.tsx';
+const feedApiPath = 'src/lib/feedApi.ts';
 
 assert.ok(exists(challengesHelperPath), 'challenge helper module should exist');
 assert.ok(exists(challengesApiPath), 'challenge API module should exist');
@@ -75,6 +76,7 @@ assert.ok(exists(challengeFinalizerPath), 'challenge finalizer Edge Function sho
 assert.ok(exists(officialFeedPostsPath), 'official feed post mapper should exist');
 assert.ok(exists(officialFeedPostsApiPath), 'official feed post API should exist');
 assert.ok(exists(officialFeedPostCardPath), 'official feed post card should exist');
+assert.ok(exists(feedApiPath), 'feed API module should exist');
 
 const {
   CHALLENGE_STATUS,
@@ -1049,8 +1051,9 @@ assert.match(officialFeedCardSource, /Official Beerva/, 'official feed card shou
 assert.match(officialFeedCardSource, /Average ABV/, 'official feed card should show average ABV');
 assert.doesNotMatch(officialFeedCardSource, /onDelete|onToggleCheers|onOpenComments/, 'official feed card should not expose user post controls');
 
-assert.match(feedScreenSource, /fetchOfficialFeedPostsForFeedPage/, 'Feed should fetch official feed posts');
-assert.match(feedScreenSource, /type: 'official_post'/, 'Feed should merge official post items');
+const feedApiSource = read(feedApiPath);
+assert.match(feedApiSource, /fetchOfficialFeedPostsForFeedPage/, 'Feed should fetch official feed posts');
+assert.match(feedApiSource, /type: 'official_post'/, 'Feed should merge official post items');
 assert.match(feedScreenSource, /OfficialFeedPostCard/, 'Feed should render official feed post cards');
 
 const navigatorSource = read(navigatorPath);

@@ -271,6 +271,7 @@ assert.doesNotMatch(feedCardSource, /stop\.beers\.length\}\s*drinks/, 'expanded 
 assert.doesNotMatch(feedCardSource, /filter\(\(beer\) => !isIgnoredBeer\(beer\)\)/, 'pub crawl post stop counts should include suspicious drinks because posts remain visible history');
 
 const feedScreenSource = fs.readFileSync(path.resolve(__dirname, '..', feedScreenPath), 'utf8');
+const feedApiSource = fs.readFileSync(path.resolve(__dirname, '..', 'src/lib/feedApi.ts'), 'utf8');
 assert.match(feedScreenSource, /addPubCrawlComment\(/, 'pub crawl comments should be written through the crawl comments API');
 assert.match(feedScreenSource, /onOpenCheers=\{openCheers/, 'feed should pass the cheers modal handler to pub crawl posts');
 assert.match(feedScreenSource, /onImagePress=\{setViewingImageUrl\}/, 'feed should pass the image viewer handler to pub crawl photo slides');
@@ -278,8 +279,8 @@ assert.match(feedScreenSource, /<FeedSessionCard[\s\S]*onImagePress=\{setViewing
 assert.match(feedScreenSource, /pendingImageOpenRef/, 'normal feed photo taps should delay opening so double-tap cheers still works');
 assert.match(feedScreenSource, /loadedSessionCountRef/, 'feed pagination should track loaded normal sessions separately from merged feed items');
 assert.match(feedScreenSource, /loadedCrawlCountRef/, 'feed pagination should track loaded pub crawls separately from merged feed items');
-assert.match(feedScreenSource, /\.eq\('hide_from_feed', false\)/, 'feed should filter hidden crawl child sessions before paginating');
-assert.match(feedScreenSource, /fetchPublishedPubCrawlsForFeedPage\(feedUserIds, FEED_PAGE_SIZE, crawlOffset\)/, 'feed should request paged crawl posts with a crawl-specific offset');
+assert.match(feedApiSource, /\.eq\('hide_from_feed', false\)/, 'feed should filter hidden crawl child sessions before paginating');
+assert.match(feedApiSource, /fetchPublishedPubCrawlsForFeedPage\(feedUserIds, pageSize, crawlOffset\)/, 'feed should request paged crawl posts with a crawl-specific offset');
 
 const profileScreenSource = fs.readFileSync(path.resolve(__dirname, '..', profileScreenPath), 'utf8');
 const userProfileScreenSource = fs.readFileSync(path.resolve(__dirname, '..', userProfileScreenPath), 'utf8');

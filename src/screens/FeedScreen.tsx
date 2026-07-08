@@ -4,9 +4,9 @@ import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { Beer, ChevronDown, ChevronUp, Edit3, MapPin, Trash2, Bell, AlertTriangle, RefreshCw, MessageCircle, Send, Trophy, X } from 'lucide-react-native';
 import { supabase } from '../lib/supabase';
-import { getCurrentUser } from '../lib/authSession';
-import { fetchSessionFeedDetails, SessionFeedDetail } from '../lib/sessionFeedDetails';
-import { appendFeedPage, sortFeedItemsByPublishedAt } from '../lib/feedPagination';
+import { FeedComment, FeedItem, FeedSession, ProfilePreview } from '../lib/feedTypes';
+import { fetchFeedPage } from '../lib/feedApi';
+import { appendFeedPage } from '../lib/feedPagination';
 import { confirmDestructive } from '../lib/dialogs';
 import { useFocusEffect, useNavigation, useScrollToTop } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,31 +22,28 @@ import { floatingTabBarMetrics, radius, shadows } from '../theme/layout';
 import { hapticLight, hapticMedium, hapticWarning } from '../lib/haptics';
 import { useNotifications } from '../lib/notificationsContext';
 import { EmptyIllustration } from '../components/EmptyIllustration';
+import { FeedList } from '../components/FeedList';
 import { IgnoredDrinkBadge } from '../components/IgnoredDrinkBadge';
 import { getBeerLine, getSessionBeerSummary, SessionBeer } from '../lib/sessionBeers';
 import {
   formatChugDuration,
   getChugStatSubtitle,
   getVisibleChugStat,
-  mapChugAttemptRow,
-  SessionChugAttempt,
-  SessionChugAttemptRow,
 } from '../lib/chugAttempts';
 import { getVolumeMl, TrophyDefinition } from '../lib/profileStats';
 import { AllTrophiesUnlockedModal, TrophyUnlockModal } from '../components/TrophyUnlockModal';
 import { ImageViewerModal } from '../components/ImageViewerModal';
 import { openMaps } from '../lib/maps';
-import { getErrorMessage, withTimeout } from '../lib/timeouts';
+import { getErrorMessage } from '../lib/timeouts';
 import { PubCrawlFeedCard } from '../components/PubCrawlFeedCard';
 import { PubCrawl, PubCrawlComment } from '../lib/pubCrawls';
-import { fetchPublishedPubCrawlsForFeedPage, togglePubCrawlCheers, addPubCrawlComment } from '../lib/pubCrawlsApi';
+import { togglePubCrawlCheers, addPubCrawlComment } from '../lib/pubCrawlsApi';
 import { calculateAlcoholUnits } from '../lib/alcoholUnits';
-import { ContentMention, fetchContentMentionsForSources, MentionCandidate } from '../lib/mentions';
+import { MentionCandidate } from '../lib/mentions';
 import { notifyContentMentionsSafely } from '../lib/mentionNotifications';
 import { ChallengeSummary, formatChallengeProgress, formatChallengeRank } from '../lib/challenges';
 import { fetchJoinedActiveChallengeSummary, joinChallenge } from '../lib/challengesApi';
-import { OfficialFeedPost } from '../lib/officialFeedPosts';
-import { fetchOfficialFeedPostsForFeedPage, fetchOfficialPostLinkedChallengeSummaries } from '../lib/officialFeedPostsApi';
+import { fetchOfficialPostLinkedChallengeSummaries } from '../lib/officialFeedPostsApi';
 import { OfficialFeedPostCard } from '../components/OfficialFeedPostCard';
 import { FakeBeerUnlockOverlay } from '../components/FakeBeerUnlockOverlay';
 import { LiveMateButton } from '../components/LiveMateButton';
@@ -54,14 +51,11 @@ import { LiveMateSessionsSheet } from '../components/LiveMateSessionsSheet';
 import { requestWebMotionPermission } from '../lib/webMotionPermission';
 import { useLiveMateSessions } from '../lib/useLiveMateSessions';
 import {
-  fetchSessionBuddySummaries,
   formatDrinkingBuddyNames,
-  SessionBuddy,
 } from '../lib/sessionBuddies';
 import {
   getAllSessionPhotoUrls,
   getVisibleSessionPhotoUrls,
-  SessionPhoto,
 } from '../lib/sessionPhotos';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
@@ -72,68 +66,6 @@ type SessionCheer = {
   user_id: string;
   created_at?: string | null;
 };
-
-type FollowRow = {
-  following_id: string;
-};
-
-type ProfilePreview = {
-  id: string;
-  username?: string | null;
-  avatar_url?: string | null;
-};
-
-type FeedComment = {
-  id: string;
-  session_id: string;
-  user_id: string;
-  body: string;
-  created_at: string;
-  updated_at?: string | null;
-  profiles?: ProfilePreview | null;
-  mentions?: ContentMention[];
-};
-
-export type FeedSession = {
-  id: string;
-  user_id: string;
-  pub_id?: string | null;
-  pub_name: string;
-  beer_name: string;
-  volume: string | null;
-  quantity: number | null;
-  abv: number | null;
-  comment: string | null;
-  image_url: string | null;
-  status?: string | null;
-  started_at?: string | null;
-  ended_at?: string | null;
-  published_at?: string | null;
-  edited_at?: string | null;
-  hangover_score?: number | null;
-  created_at: string;
-  session_beers: SessionBeer[];
-  session_photos: SessionPhoto[];
-  session_chug_attempts: SessionChugAttempt[];
-  drinking_buddies: SessionBuddy[];
-  units?: number | null;
-  profiles?: {
-    username?: string | null;
-    avatar_url?: string | null;
-  } | null;
-  author_current_streak?: number | null;
-  cheer_profiles: ProfilePreview[];
-  comments: FeedComment[];
-  mentions?: ContentMention[];
-  comments_count: number;
-  cheers_count: number;
-  has_cheered: boolean;
-};
-
-export type FeedItem =
-  | { type: 'session'; id: string; publishedAt: string; session: FeedSession }
-  | { type: 'pub_crawl'; id: string; publishedAt: string; crawl: PubCrawl }
-  | { type: 'official_post'; id: string; publishedAt: string; post: OfficialFeedPost };
 
 const isPubCrawlPost = (item: FeedSession | PubCrawl): item is PubCrawl => (
   'userId' in item && 'stops' in item
@@ -889,287 +821,36 @@ export const FeedScreen = ({ route }: any) => {
     }
 
     try {
-      const user = await getCurrentUser();
-      if (!isLatestRequest()) return;
-
-      setCurrentUserId(user?.id || null);
-
-      if (!user) {
-        if (!isLatestRequest()) return;
-        setSessions([]);
-        sessionsRef.current = [];
-        loadedSessionCountRef.current = 0;
-        loadedCrawlCountRef.current = 0;
-        loadedOfficialPostCountRef.current = 0;
-        setOfficialPostChallengesById(new Map());
-        setFollowedUserCount(0);
-        setHasMore(false);
-        hasMoreRef.current = false;
-        return;
-      }
-
-      const { data: followsData, error: followsError } = await withTimeout(
-        supabase
-          .from('follows')
-          .select('following_id')
-          .eq('follower_id', user.id),
-        FEED_REQUEST_TIMEOUT_MS,
-        'Feed follows are taking too long.'
-      );
-      if (!isLatestRequest()) return;
-
-      if (followsError) {
-        console.error('Feed follows fetch error:', followsError);
-      }
-
-      const followingIds = ((followsData || []) as FollowRow[]).map((follow) => follow.following_id);
-      const feedUserIds = Array.from(new Set([user.id, ...followingIds]));
-      setFollowedUserCount(followingIds.length);
-
-      const [sessionsResult, crawlsResult, officialPostsResult] = await withTimeout(
-        Promise.all([
-          supabase
-            .from('sessions')
-            .select(`
-              id,
-              user_id,
-              pub_id,
-              pub_name,
-              beer_name,
-              volume,
-              quantity,
-              abv,
-              comment,
-              image_url,
-              status,
-              started_at,
-              ended_at,
-              published_at,
-              edited_at,
-              hangover_score,
-              created_at,
-              hide_from_feed
-            `)
-            .in('user_id', feedUserIds)
-            .eq('status', 'published')
-            .eq('hide_from_feed', false)
-            .order('published_at', { ascending: false, nullsFirst: false })
-            .range(sessionOffset, sessionOffset + FEED_PAGE_SIZE),
-          fetchPublishedPubCrawlsForFeedPage(feedUserIds, FEED_PAGE_SIZE, crawlOffset),
-          fetchOfficialFeedPostsForFeedPage(FEED_PAGE_SIZE, officialOffset)
-        ]),
-        FEED_REQUEST_TIMEOUT_MS,
-        'Feed items are taking too long.'
-      );
-
-      if (sessionsResult.error) throw sessionsResult.error;
-      if (!isLatestRequest()) return;
-
-      const rawRows = (sessionsResult.data || []) as any[];
-      const hasNextPage = rawRows.length > FEED_PAGE_SIZE || crawlsResult.hasMore || officialPostsResult.length > FEED_PAGE_SIZE;
-      const sessionRows = rawRows.slice(0, FEED_PAGE_SIZE);
-      const crawls = crawlsResult.crawls;
-      const officialPosts = officialPostsResult.slice(0, FEED_PAGE_SIZE);
-      loadedSessionCountRef.current = sessionOffset + sessionRows.length;
-      loadedCrawlCountRef.current = crawlOffset + crawlsResult.loadedCount;
-      loadedOfficialPostCountRef.current = officialOffset + officialPosts.length;
-      setHasMore(hasNextPage);
-      hasMoreRef.current = hasNextPage;
-
-      const sessionIds = sessionRows.map((session) => session.id);
-
-      const [detailsBySession, chugsResult, buddiesBySession, officialPostChallengeSummaries] = await withTimeout(
-        Promise.all([
-          sessionIds.length > 0
-            ? fetchSessionFeedDetails(sessionIds)
-            : Promise.resolve(new Map<string, SessionFeedDetail>()),
-          sessionIds.length > 0
-            ? supabase.rpc('get_session_chug_attempt_summaries', { session_ids: sessionIds })
-            : Promise.resolve({ data: [] as SessionChugAttemptRow[], error: null }),
-          sessionIds.length > 0
-            ? fetchSessionBuddySummaries(sessionIds).catch((error) => {
-                console.error('Session buddies fetch error:', error);
-                return new Map<string, SessionBuddy[]>();
-              })
-            : Promise.resolve(new Map<string, SessionBuddy[]>()),
-          fetchOfficialPostLinkedChallengeSummaries(officialPosts).catch((error) => {
-            console.error('Official challenge actions fetch error:', error);
-            return new Map<string, ChallengeSummary>();
-          }),
-        ]),
-        FEED_REQUEST_TIMEOUT_MS,
-        'Feed details are taking too long.'
-      );
+      const result = await fetchFeedPage({
+        sessionOffset,
+        crawlOffset,
+        officialOffset,
+        pageSize: FEED_PAGE_SIZE,
+        timeoutMs: FEED_REQUEST_TIMEOUT_MS,
+      });
 
       if (!isLatestRequest()) return;
 
-      if (chugsResult.error) {
-        console.error('Session chugs fetch error:', chugsResult.error);
-      }
+      setCurrentUserId(result.currentUserId);
+      setFollowedUserCount(result.followedUserCount);
+      loadedSessionCountRef.current = sessionOffset + result.loadedSessionCount;
+      loadedCrawlCountRef.current = crawlOffset + result.loadedCrawlCount;
+      loadedOfficialPostCountRef.current = officialOffset + result.loadedOfficialPostCount;
+      setHasMore(result.hasMore);
+      hasMoreRef.current = result.hasMore;
 
       setOfficialPostChallengesById((previous) => {
         const next = reset ? new Map<string, ChallengeSummary>() : new Map(previous);
-        officialPostChallengeSummaries.forEach((challenge, id) => next.set(id, challenge));
+        result.officialPostChallengesById.forEach((challenge, id) => next.set(id, challenge));
         return next;
       });
-
-      const chugRows = ((chugsResult.data || []) as SessionChugAttemptRow[]).map(mapChugAttemptRow);
-      const chugsBySession = chugRows.reduce((acc, attempt) => {
-        const existing = acc.get(attempt.sessionId) || [];
-        existing.push(attempt);
-        acc.set(attempt.sessionId, existing);
-        return acc;
-      }, new Map<string, SessionChugAttempt[]>());
-
-      const pageSessions = sessionRows.map((session): FeedItem => {
-        const detail = detailsBySession.get(session.id);
-        const detailCheers = detail?.cheers || [];
-        const detailComments = detail?.comments || [];
-        const sessionBeers = (detail?.beers && detail.beers.length > 0)
-          ? detail.beers
-          : (session.beer_name
-              ? [{
-                  session_id: session.id,
-                  beer_name: session.beer_name,
-                  volume: session.volume,
-                  quantity: session.quantity,
-                  abv: session.abv ?? null,
-                  consumed_at: session.created_at,
-                }]
-              : []);
-
-        return {
-          type: 'session',
-          id: session.id,
-          publishedAt: session.published_at || session.created_at,
-          session: {
-            ...session,
-            session_photos: detail?.photos || [],
-            session_beers: sessionBeers,
-            units: detail?.units ?? null,
-            session_chug_attempts: chugsBySession.get(session.id) || [],
-            drinking_buddies: buddiesBySession.get(session.id) || [],
-            profiles: detail?.author
-              ? { username: detail.author.username, avatar_url: detail.author.avatarUrl }
-              : null,
-            author_current_streak: detail?.authorCurrentStreak ?? 0,
-            cheer_profiles: detailCheers.map((cheer) => ({
-              id: cheer.userId,
-              username: cheer.username,
-              avatar_url: cheer.avatarUrl,
-            })),
-            comments: detailComments.map((comment) => ({
-              id: comment.id,
-              session_id: session.id,
-              user_id: comment.userId,
-              body: comment.body,
-              created_at: comment.createdAt,
-              updated_at: comment.updatedAt,
-              profiles: {
-                id: comment.userId,
-                username: comment.username,
-                avatar_url: comment.avatarUrl,
-              },
-            })),
-            comments_count: detail?.commentsCount ?? detailComments.length,
-            cheers_count: detail?.cheersCount ?? detailCheers.length,
-            has_cheered: user ? detailCheers.some((cheer) => cheer.userId === user.id) : false,
-          }
-        };
-      });
-
-      const pageCrawls = crawls.map((crawl): FeedItem => ({
-        type: 'pub_crawl',
-        id: crawl.id,
-        publishedAt: crawl.publishedAt || crawl.createdAt || '',
-        crawl: {
-          ...crawl,
-          has_cheered: user ? crawl.cheerProfiles.some(p => p.id === user.id) : false
-        } as any, // cheating types slightly
-      }));
-
-      const pageOfficialPosts = officialPosts.map((post): FeedItem => ({
-        type: 'official_post',
-        id: post.id,
-        publishedAt: post.publishedAt || post.createdAt || '',
-        post,
-      }));
-
-      const commentSourceIds = [
-        ...pageSessions.flatMap((feedItem) => (
-          feedItem.type === 'session'
-            ? feedItem.session.comments.map((comment) => comment.id)
-            : []
-        )),
-        ...pageCrawls.flatMap((feedItem) => (
-          feedItem.type === 'pub_crawl'
-            ? feedItem.crawl.comments.map((comment) => comment.id)
-            : []
-        )),
-      ];
-      const postSourceIds = [
-        ...pageSessions.flatMap((feedItem) => (
-          feedItem.type === 'session' ? [feedItem.session.id] : []
-        )),
-        ...pageCrawls.flatMap((feedItem) => (
-          feedItem.type === 'pub_crawl'
-            ? feedItem.crawl.stops.map((stop) => stop.id)
-            : []
-        )),
-      ];
-
-      const [commentMentionsBySource, postMentionsBySource] = await withTimeout(
-        Promise.all([
-          fetchContentMentionsForSources(supabase, 'comment', commentSourceIds),
-          fetchContentMentionsForSources(supabase, 'post', postSourceIds),
-        ]),
-        FEED_REQUEST_TIMEOUT_MS,
-        'Feed mentions are taking too long.'
-      );
-
-      if (!isLatestRequest()) return;
-
-      const hydratedPageSessions = pageSessions.map((feedItem): FeedItem => {
-        if (feedItem.type !== 'session') return feedItem;
-        return {
-          ...feedItem,
-          session: {
-            ...feedItem.session,
-            mentions: postMentionsBySource.get(feedItem.session.id) || [],
-            comments: feedItem.session.comments.map((comment) => ({
-              ...comment,
-              mentions: commentMentionsBySource.get(comment.id) || [],
-            })),
-          },
-        };
-      });
-
-      const hydratedPageCrawls = pageCrawls.map((feedItem): FeedItem => {
-        if (feedItem.type !== 'pub_crawl') return feedItem;
-        return {
-          ...feedItem,
-          crawl: {
-            ...feedItem.crawl,
-            comments: feedItem.crawl.comments.map((comment) => ({
-              ...comment,
-              mentions: commentMentionsBySource.get(comment.id) || [],
-            })),
-            stops: feedItem.crawl.stops.map((stop) => ({
-              ...stop,
-              mentions: postMentionsBySource.get(stop.id) || [],
-            })),
-          },
-        };
-      });
-
-      const merged = sortFeedItemsByPublishedAt([...hydratedPageSessions, ...hydratedPageCrawls, ...pageOfficialPosts]);
 
       setSessions((previous) => {
         // Append-only: never re-sort items the user has already scrolled past.
         // Sources paginate independently, so a global re-sort would relocate
         // already-shown sparse-source items and glitch the scroll. appendFeedPage
         // de-dupes and appends only the new page.
-        const nextSessions = reset ? merged : appendFeedPage(previous, merged);
+        const nextSessions = reset ? result.items : appendFeedPage(previous, result.items);
         sessionsRef.current = nextSessions;
         return nextSessions;
       });
@@ -1995,11 +1676,12 @@ export const FeedScreen = ({ route }: any) => {
           <SkeletonFeedCard />
         </View>
       ) : (
-        <FlatList
+        <FeedList
           ref={flatListRef}
           data={sessions}
           keyExtractor={(item) => item.id}
           renderItem={renderSession}
+          getItemType={(item) => item.type}
           extraData={cheeringSessionIds}
           contentContainerStyle={[
             styles.scrollContent,

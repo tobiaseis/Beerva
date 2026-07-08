@@ -159,12 +159,14 @@ assert.match(feedLibSource, /excluded_from_stats/, 'session feed details mapper 
 
 // ---- Feed wiring ----
 const feedScreenSource = fs.readFileSync(path.join(root, 'src/screens/FeedScreen.tsx'), 'utf8');
-assert.match(feedScreenSource, /fetchSessionFeedDetails/, 'feed should fetch session details through the consolidated RPC');
-assert.doesNotMatch(feedScreenSource, /\.from\('session_cheers'\)\s*\n\s*\.select/, 'feed should no longer query session_cheers directly');
-assert.match(feedScreenSource, /fetchSessionBuddySummaries/, 'feed should still fetch drinking buddy summaries');
-assert.match(feedScreenSource, /get_session_chug_attempt_summaries/, 'feed should still fetch chug summaries');
+const feedApiSource = fs.readFileSync(path.join(root, 'src/lib/feedApi.ts'), 'utf8');
+assert.match(feedScreenSource, /fetchFeedPage/, 'feed screen should delegate feed hydration to feedApi');
+assert.match(feedApiSource, /fetchSessionFeedDetails/, 'feed should fetch session details through the consolidated RPC');
+assert.doesNotMatch(feedApiSource, /\.from\('session_cheers'\)\s*\n\s*\.select/, 'feed should no longer query session_cheers directly');
+assert.match(feedApiSource, /fetchSessionBuddySummaries/, 'feed should still fetch drinking buddy summaries');
+assert.match(feedApiSource, /get_session_chug_attempt_summaries/, 'feed should still fetch chug summaries');
 assert.match(feedScreenSource, /getSessionUnits/, 'feed should calculate session units for the More stats card');
-assert.match(feedScreenSource, /detail\?\.units/, 'feed should hydrate session units from the feed details RPC');
+assert.match(feedApiSource, /detail\?\.units/, 'feed should hydrate session units from the feed details RPC');
 assert.match(feedScreenSource, />Units<\/Text>/, 'feed More stats should render a Units pill');
 assert.match(feedScreenSource, /IgnoredDrinkBadge/, 'feed should render ignored drinks with the detective badge component');
 assert.doesNotMatch(feedScreenSource, /visibleDrinkRows|summaryDrinkLine|summaryFlaggedDrinkText/, 'feed should not show ignored-drink badges in the collapsed session summary');
