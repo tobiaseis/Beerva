@@ -826,7 +826,7 @@ export const FeedScreen = ({ route }: any) => {
       setLivePhotoPreviewPhotos(photos);
     } catch (error: any) {
       if (livePhotoPreviewRequestIdRef.current !== requestId) return;
-      setLivePhotoPreviewError(getErrorMessage(error) || 'Please try again.');
+      setLivePhotoPreviewError(getErrorMessage(error, 'Please try again.'));
     } finally {
       if (livePhotoPreviewRequestIdRef.current === requestId) {
         setLivePhotoPreviewLoading(false);

@@ -9,8 +9,8 @@ const feedScreenSource = fs.readFileSync(
 
 assert.match(
   feedScreenSource,
-  /paddingTop:\s*Platform\.OS === 'web' \? 12 : 52/,
-  'feed header should use tighter top padding around the Beerva logo'
+  /paddingTop:\s*Platform\.OS === 'web' \? 12 : insets\.top \+ 12/,
+  'feed header should use safe-area-aware top padding around the Beerva logo'
 );
 
 assert.match(

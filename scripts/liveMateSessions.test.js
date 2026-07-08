@@ -189,7 +189,8 @@ const liveSheetPath = path.join(root, 'src/components/LiveMateSessionsSheet.tsx'
 assert.ok(fs.existsSync(liveSheetPath), 'LiveMateSessionsSheet component should exist');
 const liveSheetSource = fs.readFileSync(liveSheetPath, 'utf8');
 
-assert.match(liveSheetSource, /export const LiveMateSessionsSheet = \(\{ visible, sessions, onClose \}: LiveMateSessionsSheetProps\)/, 'live sheet should expose visibility, sessions, and close props');
+assert.match(liveSheetSource, /onPreviewSession: \(session: LiveMateSession\) => void;/, 'live sheet should expose preview callback props');
+assert.match(liveSheetSource, /export const LiveMateSessionsSheet = \(\{[\s\S]*visible,[\s\S]*sessions,[\s\S]*onPreviewSession,[\s\S]*onClose,[\s\S]*\}: LiveMateSessionsSheetProps\)/, 'live sheet should expose visibility, sessions, preview, and close props');
 assert.match(liveSheetSource, /animationType="none"/, 'live sheet should own its top-drop animation');
 assert.match(liveSheetSource, /translateY/, 'live sheet should animate from the top');
 assert.match(liveSheetSource, />Live mates</, 'live sheet should render the approved title');
