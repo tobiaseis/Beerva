@@ -686,4 +686,3 @@ git status --short
 ```
 
 Expected: no unintended changes outside `package.json`, `package-lock.json`, `app.json`, `scripts/activeSessionPhotoSave.test.js`, `src/lib/devicePhotoSave.ts`, `src/screens/RecordScreen.tsx`, and this plan file.
-
