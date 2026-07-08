@@ -10,6 +10,7 @@ export type NativeNotificationTarget =
   | { kind: 'post'; targetType: 'session' | 'pub_crawl'; targetId: string; notificationId?: string | null }
   | { kind: 'hangover'; targetType: 'session' | 'pub_crawl'; targetId: string; notificationId?: string | null }
   | { kind: 'chugVerification'; attemptId: string; notificationId?: string | null }
+  | { kind: 'adminTools'; initialSegment: 'submissions'; notificationId?: string | null }
   | { kind: 'challenge'; challengeSlug: string; notificationId?: string | null };
 
 const getSearchFromUrl = (url: string) => {
@@ -69,6 +70,14 @@ export const getNativeNotificationTargetFromUrl = (url?: string | null): NativeN
         notificationId: cleanString(params.get('notificationId')),
       };
     }
+  }
+
+  if (params.get('beverage_submission') === '1') {
+    return {
+      kind: 'adminTools',
+      initialSegment: 'submissions',
+      notificationId: cleanString(params.get('notificationId')),
+    };
   }
 
   if (params.get('tab') === 'record') {

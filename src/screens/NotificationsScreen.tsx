@@ -33,7 +33,8 @@ type NotificationType =
   | 'follow'
   | 'chug_verification'
   | 'drinking_buddy_added'
-  | 'official_post';
+  | 'official_post'
+  | 'beverage_submission';
 type InviteStatus = 'pending' | 'accepted' | 'declined';
 
 type ProfilePreview = {
@@ -292,6 +293,10 @@ export const NotificationsScreen = ({ navigation }: any) => {
     });
   }, [navigation]);
 
+  const openAdminSubmissions = useCallback(() => {
+    navigation.navigate('AdminTools', { initialSegment: 'submissions' });
+  }, [navigation]);
+
   const openOfficialChallenge = useCallback((item: NotificationRow) => {
     const challengeSlug = item.metadata?.challenge_slug?.trim();
     if (!challengeSlug) return;
@@ -366,6 +371,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
     if (item.type === 'follow') return <UserPlus color={colors.primary} size={24} />;
     if (item.type === 'drinking_buddy_added') return <UserPlus color={colors.primary} size={24} />;
     if (item.type === 'chug_verification') return <Timer color={colors.primary} size={24} />;
+    if (item.type === 'beverage_submission') return <Beer color={colors.primary} size={24} />;
     if (item.type === 'session_started') return <MapPin color={colors.primary} size={24} />;
     if (item.type === 'invite_response' && item.invite?.status === 'accepted') {
       return <Check color={colors.success} size={24} />;
@@ -420,8 +426,16 @@ export const NotificationsScreen = ({ navigation }: any) => {
       : null;
     const opensPost = Boolean(postTarget);
     const opensChugVerification = item.type === 'chug_verification' && Boolean(item.reference_id);
-    const ContentWrapper: any = opensPost || opensChugVerification ? TouchableOpacity : View;
-    const contentWrapperProps = opensChugVerification
+    const opensAdminSubmissions = item.type === 'beverage_submission';
+    const ContentWrapper: any = opensPost || opensChugVerification || opensAdminSubmissions ? TouchableOpacity : View;
+    const contentWrapperProps = opensAdminSubmissions
+      ? {
+          onPress: () => openAdminSubmissions(),
+          activeOpacity: 0.75,
+          accessibilityRole: 'button',
+          accessibilityLabel: 'Open beverage submissions',
+        }
+      : opensChugVerification
       ? {
           onPress: () => openChugVerification(item),
           activeOpacity: 0.75,
@@ -533,7 +547,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
         </View>
       </View>
     );
-  }, [currentUserId, declineBuddy, decliningBuddyIds, openChugVerification, openHangoverRating, openOfficialChallenge, openPost, openProfile, respondToInvite, respondingInviteIds]);
+  }, [currentUserId, declineBuddy, decliningBuddyIds, openAdminSubmissions, openChugVerification, openHangoverRating, openOfficialChallenge, openPost, openProfile, respondToInvite, respondingInviteIds]);
 
   return (
     <View style={styles.container}>

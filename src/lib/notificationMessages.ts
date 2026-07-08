@@ -14,6 +14,9 @@ export type NotificationMetadata = {
   push_body?: string | null;
   challenge_id?: string | null;
   challenge_slug?: string | null;
+  beverage_name?: string | null;
+  beverage_category?: string | null;
+  beverage_abv?: number | string | null;
   surface?: 'post' | 'comment' | string | null;
   mention_id?: string | null;
   source_id?: string | null;
@@ -77,5 +80,11 @@ export const getNotificationMessage = (item: NotificationMessageInput) => {
   }
   if (item.type === 'chug_verification') return ' wants you to verify a 33cl bottle chug.';
   if (item.type === 'drinking_buddy_added') return ' added you as a drinking buddy.';
+  if (item.type === 'beverage_submission') {
+    const beverageName = toCleanString(item.metadata?.beverage_name);
+    return beverageName
+      ? ` submitted ${beverageName} for Beerva approval.`
+      : ' submitted a beverage for Beerva approval.';
+  }
   return ' invited you to drink!';
 };

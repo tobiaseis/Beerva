@@ -84,7 +84,7 @@ type RootStackParamList = {
   HangoverRating: HangoverLaunchParams;
   ChugVerification: ChugVerificationLaunchParams;
   FakeBeer: undefined;
-  AdminTools: undefined;
+  AdminTools: { initialSegment?: 'submissions' } | undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -443,6 +443,14 @@ export const RootNavigator = () => {
 
     if (target.kind === 'challenge') {
       navigationRef.navigate('ChallengeDetail', { challengeSlug: target.challengeSlug });
+      markNotificationRead(target.notificationId);
+      return true;
+    }
+
+    if (target.kind === 'adminTools') {
+      navigationRef.navigate('AdminTools', {
+        initialSegment: target.initialSegment,
+      });
       markNotificationRead(target.notificationId);
       return true;
     }

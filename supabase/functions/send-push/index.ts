@@ -141,7 +141,7 @@ type NotificationRow = {
   id: string;
   user_id: string;
   actor_id: string | null;
-  type: 'cheer' | 'invite' | 'session_started' | 'comment' | 'mention' | 'invite_response' | 'pub_crawl_started' | 'hangover_check' | 'follow' | 'chug_verification' | 'drinking_buddy_added' | 'official_post';
+  type: 'cheer' | 'invite' | 'session_started' | 'comment' | 'mention' | 'invite_response' | 'pub_crawl_started' | 'hangover_check' | 'follow' | 'chug_verification' | 'drinking_buddy_added' | 'official_post' | 'beverage_submission';
   reference_id: string | null;
   metadata?: {
     pub_name?: string | null;
@@ -155,6 +155,9 @@ type NotificationRow = {
     push_title?: string | null;
     push_body?: string | null;
     challenge_slug?: string | null;
+    beverage_name?: string | null;
+    beverage_category?: string | null;
+    beverage_abv?: number | string | null;
     surface?: 'post' | 'comment' | string | null;
     mention_id?: string | null;
     source_id?: string | null;
@@ -294,6 +297,12 @@ Deno.serve(async (req) => {
   } else if (record.type === 'drinking_buddy_added') {
     title = 'Drinking buddy';
     bodyText = `${actorName} added you as a drinking buddy`;
+  } else if (record.type === 'beverage_submission') {
+    const beverageName = record.metadata?.beverage_name?.trim();
+    title = 'New beverage submission';
+    bodyText = beverageName
+      ? `${actorName} submitted ${beverageName}.`
+      : `${actorName} submitted a beverage.`;
   } else if (record.type === 'invite') {
     title = 'Invitation to drink';
     bodyText = `${actorName} wants to grab a beer with you`;
@@ -331,6 +340,8 @@ Deno.serve(async (req) => {
     url = `/?post=${encodeURIComponent(buddySessionId)}&post_type=session&notificationId=${encodeURIComponent(record.id)}`;
   } else if (record.type === 'drinking_buddy_added') {
     url = `/?notifications=1&notificationId=${encodeURIComponent(record.id)}`;
+  } else if (record.type === 'beverage_submission') {
+    url = `/?notifications=1&beverage_submission=1&notificationId=${encodeURIComponent(record.id)}`;
   } else if ((record.type === 'cheer' || record.type === 'comment' || record.type === 'mention') && record.reference_id) {
     // Deep-link straight to the post that was cheered, commented on, or mentioned the user.
     url = `/?post=${encodeURIComponent(record.reference_id)}&post_type=${encodeURIComponent(postTargetType)}&notificationId=${encodeURIComponent(record.id)}`;
