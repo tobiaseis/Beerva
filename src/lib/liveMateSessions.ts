@@ -1,3 +1,4 @@
+import type { SessionPhoto } from './sessionPhotos';
 import { supabase } from './supabase';
 
 export type LiveMateSession = {
@@ -26,6 +27,15 @@ type LiveMateSessionRow = {
   last_activity_at?: string | null;
   true_pints?: number | string | null;
   is_pub_crawl?: boolean | null;
+};
+
+type LiveSessionPhotoRow = {
+  id?: string | null;
+  session_id?: string | null;
+  image_url?: string | null;
+  is_keeper?: boolean | null;
+  expires_at?: string | null;
+  created_at?: string | null;
 };
 
 const toCleanString = (value: unknown) => {
@@ -60,6 +70,27 @@ export const fetchLiveMateSessions = async (): Promise<LiveMateSession[]> => {
   return ((data || []) as LiveMateSessionRow[])
     .map(mapLiveMateSessionRow)
     .filter((session) => session.id && session.userId && session.sessionId);
+};
+
+export const mapLiveSessionPhotoRow = (row: LiveSessionPhotoRow): SessionPhoto => ({
+  id: toCleanString(row.id) || '',
+  session_id: toCleanString(row.session_id),
+  image_url: toCleanString(row.image_url) || '',
+  is_keeper: row.is_keeper === true,
+  expires_at: toCleanString(row.expires_at),
+  created_at: toCleanString(row.created_at),
+});
+
+export const fetchLiveSessionPhotos = async (sessionId: string): Promise<SessionPhoto[]> => {
+  const cleanSessionId = toCleanString(sessionId);
+  if (!cleanSessionId) return [];
+
+  const { data, error } = await supabase.rpc('get_live_session_photos', { target_session_id: cleanSessionId });
+  if (error) throw error;
+
+  return ((data || []) as LiveSessionPhotoRow[])
+    .map(mapLiveSessionPhotoRow)
+    .filter((photo) => photo.id && photo.image_url);
 };
 
 export const formatLiveMateCount = (count: number) => `${Math.max(0, count)} drinking now`;
