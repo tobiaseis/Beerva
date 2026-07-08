@@ -48,14 +48,18 @@ import { OfficialFeedPostCard } from '../components/OfficialFeedPostCard';
 import { FakeBeerUnlockOverlay } from '../components/FakeBeerUnlockOverlay';
 import { LiveMateButton } from '../components/LiveMateButton';
 import { LiveMateSessionsSheet } from '../components/LiveMateSessionsSheet';
+import { LiveSessionPhotoPreviewModal } from '../components/LiveSessionPhotoPreviewModal';
 import { requestWebMotionPermission } from '../lib/webMotionPermission';
 import { useLiveMateSessions } from '../lib/useLiveMateSessions';
+import { fetchLiveSessionPhotos } from '../lib/liveMateSessions';
+import type { LiveMateSession } from '../lib/liveMateSessions';
 import {
   formatDrinkingBuddyNames,
 } from '../lib/sessionBuddies';
 import {
   getAllSessionPhotoUrls,
   getVisibleSessionPhotoUrls,
+  SessionPhoto,
 } from '../lib/sessionPhotos';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
@@ -763,6 +767,11 @@ export const FeedScreen = ({ route }: any) => {
   const [fakeBeerUnlocking, setFakeBeerUnlocking] = useState(false);
   const [liveMateSheetVisible, setLiveMateSheetVisible] = useState(false);
   const { sessions: liveMateSessions, refresh: refreshLiveMateSessions } = useLiveMateSessions();
+  const [livePhotoPreviewVisible, setLivePhotoPreviewVisible] = useState(false);
+  const [selectedLiveMateSession, setSelectedLiveMateSession] = useState<LiveMateSession | null>(null);
+  const [livePhotoPreviewPhotos, setLivePhotoPreviewPhotos] = useState<SessionPhoto[]>([]);
+  const [livePhotoPreviewLoading, setLivePhotoPreviewLoading] = useState(false);
+  const [livePhotoPreviewError, setLivePhotoPreviewError] = useState<string | null>(null);
   const sessionsRef = useRef<FeedItem[]>([]);
   const loadedSessionCountRef = useRef(0);
   const loadedCrawlCountRef = useRef(0);
@@ -771,6 +780,7 @@ export const FeedScreen = ({ route }: any) => {
   const loadingMoreRef = useRef(false);
   const refreshingRef = useRef(false);
   const latestRequestIdRef = useRef(0);
+  const livePhotoPreviewRequestIdRef = useRef(0);
   const cheeringSessionIdsRef = useRef<Set<string>>(new Set());
   const scrollOffsetY = useRef(0);
   const touchStartY = useRef(0);
@@ -791,11 +801,74 @@ export const FeedScreen = ({ route }: any) => {
     cheeringSessionIdsRef.current = cheeringSessionIds;
   }, [cheeringSessionIds]);
 
+  const selectedLiveMateSessionStillLive = Boolean(
+    selectedLiveMateSession
+    && liveMateSessions.some((session) => session.sessionId === selectedLiveMateSession.sessionId)
+  );
+
+  const selectedLiveMateSessionUnavailable = Boolean(
+    selectedLiveMateSession
+    && liveMateSessions.length > 0
+    && !selectedLiveMateSessionStillLive
+  );
+
+  const loadLiveSessionPhotos = useCallback(async (session: LiveMateSession) => {
+    const requestId = livePhotoPreviewRequestIdRef.current + 1;
+    livePhotoPreviewRequestIdRef.current = requestId;
+
+    setLivePhotoPreviewLoading(true);
+    setLivePhotoPreviewError(null);
+    setLivePhotoPreviewPhotos([]);
+
+    try {
+      const photos = await fetchLiveSessionPhotos(session.sessionId);
+      if (livePhotoPreviewRequestIdRef.current !== requestId) return;
+      setLivePhotoPreviewPhotos(photos);
+    } catch (error: any) {
+      if (livePhotoPreviewRequestIdRef.current !== requestId) return;
+      setLivePhotoPreviewError(getErrorMessage(error) || 'Please try again.');
+    } finally {
+      if (livePhotoPreviewRequestIdRef.current === requestId) {
+        setLivePhotoPreviewLoading(false);
+      }
+    }
+  }, []);
+
+  const openLiveSessionPreview = useCallback((session: LiveMateSession) => {
+    setSelectedLiveMateSession(session);
+    setLivePhotoPreviewVisible(true);
+    loadLiveSessionPhotos(session);
+  }, [loadLiveSessionPhotos]);
+
+  const closeLiveSessionPreview = useCallback(() => {
+    livePhotoPreviewRequestIdRef.current += 1;
+    setLivePhotoPreviewVisible(false);
+    setSelectedLiveMateSession(null);
+    setLivePhotoPreviewPhotos([]);
+    setLivePhotoPreviewLoading(false);
+    setLivePhotoPreviewError(null);
+  }, []);
+
+  const retryLiveSessionPreview = useCallback(() => {
+    if (!selectedLiveMateSession || selectedLiveMateSessionUnavailable) return;
+    loadLiveSessionPhotos(selectedLiveMateSession);
+  }, [loadLiveSessionPhotos, selectedLiveMateSession, selectedLiveMateSessionUnavailable]);
+
   useEffect(() => {
     if (liveMateSessions.length === 0) {
       setLiveMateSheetVisible(false);
+      closeLiveSessionPreview();
     }
-  }, [liveMateSessions.length]);
+  }, [closeLiveSessionPreview, liveMateSessions.length]);
+
+  useEffect(() => {
+    if (!selectedLiveMateSession || selectedLiveMateSessionStillLive) return;
+
+    livePhotoPreviewRequestIdRef.current += 1;
+    setLivePhotoPreviewLoading(false);
+    setLivePhotoPreviewError(null);
+    setLivePhotoPreviewPhotos([]);
+  }, [selectedLiveMateSession, selectedLiveMateSessionStillLive]);
 
   const fetchSessions = useCallback(async ({ reset = false }: { reset?: boolean } = {}) => {
     if (!reset && (loadingMoreRef.current || refreshingRef.current || !hasMoreRef.current)) {
@@ -1645,7 +1718,19 @@ export const FeedScreen = ({ route }: any) => {
       <LiveMateSessionsSheet
         visible={liveMateSheetVisible}
         sessions={liveMateSessions}
+        onPreviewSession={openLiveSessionPreview}
         onClose={() => setLiveMateSheetVisible(false)}
+      />
+
+      <LiveSessionPhotoPreviewModal
+        visible={livePhotoPreviewVisible}
+        session={selectedLiveMateSession}
+        photos={livePhotoPreviewPhotos}
+        loading={livePhotoPreviewLoading}
+        error={livePhotoPreviewError}
+        unavailable={selectedLiveMateSessionUnavailable}
+        onRetry={retryLiveSessionPreview}
+        onClose={closeLiveSessionPreview}
       />
 
       {fetchError && !loading ? (
