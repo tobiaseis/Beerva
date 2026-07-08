@@ -9,7 +9,7 @@ const root = path.resolve(__dirname, '..');
 const readText = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8');
 const readJson = (relativePath) => JSON.parse(readText(relativePath));
 
-const loadTypeScriptModule = (relativePath, mocks = {}) => {
+const withTypeScriptModule = async (relativePath, mocks = {}, runAssertions) => {
   const filename = path.join(root, relativePath);
   const source = fs.readFileSync(filename, 'utf8');
   const { outputText } = ts.transpileModule(source, {
@@ -35,7 +35,7 @@ const loadTypeScriptModule = (relativePath, mocks = {}) => {
 
   try {
     compiledModule._compile(outputText, filename);
-    return compiledModule.exports;
+    return await runAssertions(compiledModule.exports);
   } finally {
     Module._load = originalLoad;
   }
@@ -118,7 +118,7 @@ const createMediaLibraryMock = () => {
 
 (async () => {
   const localMedia = createMediaLibraryMock();
-  const localHelper = loadTypeScriptModule('src/lib/devicePhotoSave.ts', {
+  await withTypeScriptModule('src/lib/devicePhotoSave.ts', {
     'react-native': { Platform: { OS: 'ios' } },
     'expo-media-library': localMedia.module,
     'expo-file-system/legacy': {
@@ -128,15 +128,21 @@ const createMediaLibraryMock = () => {
         throw new Error('local files should not be downloaded');
       },
     },
-  });
+  }, async (localHelper) => {
+    await localHelper.saveImageToDeviceLibrary('file:///tmp/session-photo.jpg');
+    assert.deepEqual(localMedia.calls.permissions[0], [true, ['photo']], 'local save should request write-only photo permission');
+    assert.deepEqual(localMedia.calls.saved, ['file:///tmp/session-photo.jpg'], 'local save should write the original file URI');
 
-  await localHelper.saveImageToDeviceLibrary('file:///tmp/session-photo.jpg');
-  assert.deepEqual(localMedia.calls.permissions[0], [true, ['photo']], 'local save should request write-only photo permission');
-  assert.deepEqual(localMedia.calls.saved, ['file:///tmp/session-photo.jpg'], 'local save should write the original file URI');
+    await assert.rejects(
+      localHelper.saveImageToDeviceLibrary('   '),
+      /Could not save photo/,
+      'blank image URIs should be rejected'
+    );
+  });
 
   const remoteMedia = createMediaLibraryMock();
   const downloads = [];
-  const remoteHelper = loadTypeScriptModule('src/lib/devicePhotoSave.ts', {
+  await withTypeScriptModule('src/lib/devicePhotoSave.ts', {
     'react-native': { Platform: { OS: 'android' } },
     'expo-media-library': remoteMedia.module,
     'expo-file-system/legacy': {
@@ -147,14 +153,14 @@ const createMediaLibraryMock = () => {
         return { uri: targetUri, status: 200 };
       },
     },
+  }, async (remoteHelper) => {
+    await remoteHelper.saveImageToDeviceLibrary('https://example.com/photos/session.png?token=abc');
+    assert.equal(downloads[0].url, 'https://example.com/photos/session.png?token=abc', 'remote save should download the original image URL');
+    assert.match(downloads[0].targetUri, /^file:\/\/\/cache\/beerva-session-photo-\d+\.png$/, 'remote save should preserve a usable image extension');
+    assert.deepEqual(remoteMedia.calls.saved, [downloads[0].targetUri], 'remote save should write the downloaded file URI');
   });
 
-  await remoteHelper.saveImageToDeviceLibrary('https://example.com/photos/session.png?token=abc');
-  assert.equal(downloads[0].url, 'https://example.com/photos/session.png?token=abc', 'remote save should download the original image URL');
-  assert.match(downloads[0].targetUri, /^file:\/\/\/cache\/beerva-session-photo-\d+\.png$/, 'remote save should preserve a usable image extension');
-  assert.deepEqual(remoteMedia.calls.saved, [downloads[0].targetUri], 'remote save should write the downloaded file URI');
-
-  const deniedHelper = loadTypeScriptModule('src/lib/devicePhotoSave.ts', {
+  await withTypeScriptModule('src/lib/devicePhotoSave.ts', {
     'react-native': { Platform: { OS: 'ios' } },
     'expo-media-library': {
       requestPermissionsAsync: async () => ({ granted: false }),
@@ -167,15 +173,15 @@ const createMediaLibraryMock = () => {
       documentDirectory: 'file:///documents/',
       downloadAsync: async () => ({ uri: 'file:///cache/photo.jpg', status: 200 }),
     },
+  }, async (deniedHelper) => {
+    await assert.rejects(
+      deniedHelper.saveImageToDeviceLibrary('file:///tmp/session-photo.jpg'),
+      /Photo library access needed/,
+      'permission denial should produce user-facing permission copy'
+    );
   });
 
-  await assert.rejects(
-    deniedHelper.saveImageToDeviceLibrary('file:///tmp/session-photo.jpg'),
-    /Photo library access needed/,
-    'permission denial should produce user-facing permission copy'
-  );
-
-  const webHelper = loadTypeScriptModule('src/lib/devicePhotoSave.ts', {
+  await withTypeScriptModule('src/lib/devicePhotoSave.ts', {
     'react-native': { Platform: { OS: 'web' } },
     'expo-media-library': localMedia.module,
     'expo-file-system/legacy': {
@@ -183,19 +189,13 @@ const createMediaLibraryMock = () => {
       documentDirectory: 'file:///documents/',
       downloadAsync: async () => ({ uri: 'file:///cache/photo.jpg', status: 200 }),
     },
+  }, async (webHelper) => {
+    await assert.rejects(
+      webHelper.saveImageToDeviceLibrary('file:///tmp/session-photo.jpg'),
+      /iPhone and Android app/,
+      'web should clearly report that native photo saving is unavailable'
+    );
   });
-
-  await assert.rejects(
-    webHelper.saveImageToDeviceLibrary('file:///tmp/session-photo.jpg'),
-    /iPhone and Android app/,
-    'web should clearly report that native photo saving is unavailable'
-  );
-
-  await assert.rejects(
-    localHelper.saveImageToDeviceLibrary('   '),
-    /Could not save photo/,
-    'blank image URIs should be rejected'
-  );
 
   assert.match(
     recordScreenSource,
