@@ -1,0 +1,1107 @@
+{
+  "nodes": [
+    {
+      "id": "functions_cleanup_temporary_photos_index",
+      "label": "index.ts",
+      "file_type": "code",
+      "source_file": "functions/cleanup-temporary-photos/index.ts",
+      "source_location": "L1",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_cleanup_temporary_photos_index_getpublicstoragepath",
+      "label": "getPublicStoragePath()",
+      "file_type": "code",
+      "source_file": "functions/cleanup-temporary-photos/index.ts",
+      "source_location": "L9",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_enrich_pubs_index",
+      "label": "index.ts",
+      "file_type": "code",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L1",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_enrich_pubs_index_corsheaders",
+      "label": "corsHeaders",
+      "file_type": "code",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L15",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_enrich_pubs_index_pubrow",
+      "label": "PubRow",
+      "file_type": "code",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L21",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_enrich_pubs_index_nominatimlookuprow",
+      "label": "NominatimLookupRow",
+      "file_type": "code",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L29",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_enrich_pubs_index_pubupdate",
+      "label": "PubUpdate",
+      "file_type": "code",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L36",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_enrich_pubs_index_jsonresponse",
+      "label": "jsonResponse()",
+      "file_type": "code",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L42",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_enrich_pubs_index_jwtrole",
+      "label": "jwtRole()",
+      "file_type": "code",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L50",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_enrich_pubs_index_sleep",
+      "label": "sleep()",
+      "file_type": "code",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L58",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_enrich_pubs_index_fetchwithtimeout",
+      "label": "fetchWithTimeout()",
+      "file_type": "code",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L60",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_enrich_pubs_index_sourceidtolookupid",
+      "label": "sourceIdToLookupId()",
+      "file_type": "code",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L74",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_enrich_pubs_index_lookuprowtosourceid",
+      "label": "lookupRowToSourceId()",
+      "file_type": "code",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L86",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_enrich_pubs_index_clean",
+      "label": "clean()",
+      "file_type": "code",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L91",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_enrich_pubs_index_firstaddressvalue",
+      "label": "firstAddressValue()",
+      "file_type": "code",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L96",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_enrich_pubs_index_cityfromaddress",
+      "label": "cityFromAddress()",
+      "file_type": "code",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L104",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_enrich_pubs_index_conciseaddressfromlookup",
+      "label": "conciseAddressFromLookup()",
+      "file_type": "code",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L114",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_enrich_pubs_index_chunk",
+      "label": "chunk()",
+      "file_type": "code",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L141",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_finalize_challenges_index",
+      "label": "index.ts",
+      "file_type": "code",
+      "source_file": "functions/finalize-challenges/index.ts",
+      "source_location": "L1",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_nearby_pubs_index",
+      "label": "index.ts",
+      "file_type": "code",
+      "source_file": "functions/nearby-pubs/index.ts",
+      "source_location": "L1",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_nearby_pubs_index_corsheaders",
+      "label": "corsHeaders",
+      "file_type": "code",
+      "source_file": "functions/nearby-pubs/index.ts",
+      "source_location": "L13",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_nearby_pubs_index_userlocation",
+      "label": "UserLocation",
+      "file_type": "code",
+      "source_file": "functions/nearby-pubs/index.ts",
+      "source_location": "L19",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_nearby_pubs_index_overpasselement",
+      "label": "OverpassElement",
+      "file_type": "code",
+      "source_file": "functions/nearby-pubs/index.ts",
+      "source_location": "L24",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_nearby_pubs_index_osmpubcandidate",
+      "label": "OsmPubCandidate",
+      "file_type": "code",
+      "source_file": "functions/nearby-pubs/index.ts",
+      "source_location": "L36",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_nearby_pubs_index_jsonresponse",
+      "label": "jsonResponse()",
+      "file_type": "code",
+      "source_file": "functions/nearby-pubs/index.ts",
+      "source_location": "L46",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_nearby_pubs_index_fetchwithtimeout",
+      "label": "fetchWithTimeout()",
+      "file_type": "code",
+      "source_file": "functions/nearby-pubs/index.ts",
+      "source_location": "L54",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_nearby_pubs_index_firsttag",
+      "label": "firstTag()",
+      "file_type": "code",
+      "source_file": "functions/nearby-pubs/index.ts",
+      "source_location": "L68",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_nearby_pubs_index_tocity",
+      "label": "toCity()",
+      "file_type": "code",
+      "source_file": "functions/nearby-pubs/index.ts",
+      "source_location": "L76",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_nearby_pubs_index_toaddress",
+      "label": "toAddress()",
+      "file_type": "code",
+      "source_file": "functions/nearby-pubs/index.ts",
+      "source_location": "L103",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_nearby_pubs_index_buildoverpassquery",
+      "label": "buildOverpassQuery()",
+      "file_type": "code",
+      "source_file": "functions/nearby-pubs/index.ts",
+      "source_location": "L116",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_nearby_pubs_index_fetchosmpubsnear",
+      "label": "fetchOsmPubsNear()",
+      "file_type": "code",
+      "source_file": "functions/nearby-pubs/index.ts",
+      "source_location": "L140",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_seed_pubs_index",
+      "label": "index.ts",
+      "file_type": "code",
+      "source_file": "functions/seed-pubs/index.ts",
+      "source_location": "L1",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_seed_pubs_index_jwtrole",
+      "label": "jwtRole()",
+      "file_type": "code",
+      "source_file": "functions/seed-pubs/index.ts",
+      "source_location": "L6",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_seed_pubs_index_corsheaders",
+      "label": "corsHeaders",
+      "file_type": "code",
+      "source_file": "functions/seed-pubs/index.ts",
+      "source_location": "L18",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_seed_pubs_index_overpasselement",
+      "label": "OverpassElement",
+      "file_type": "code",
+      "source_file": "functions/seed-pubs/index.ts",
+      "source_location": "L24",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_seed_pubs_index_jsonresponse",
+      "label": "jsonResponse()",
+      "file_type": "code",
+      "source_file": "functions/seed-pubs/index.ts",
+      "source_location": "L36",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_seed_pubs_index_buildoverpassquery",
+      "label": "buildOverpassQuery()",
+      "file_type": "code",
+      "source_file": "functions/seed-pubs/index.ts",
+      "source_location": "L44",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_seed_pubs_index_firsttag",
+      "label": "firstTag()",
+      "file_type": "code",
+      "source_file": "functions/seed-pubs/index.ts",
+      "source_location": "L61",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_seed_pubs_index_tocity",
+      "label": "toCity()",
+      "file_type": "code",
+      "source_file": "functions/seed-pubs/index.ts",
+      "source_location": "L69",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_seed_pubs_index_toaddress",
+      "label": "toAddress()",
+      "file_type": "code",
+      "source_file": "functions/seed-pubs/index.ts",
+      "source_location": "L97",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_send_hangover_prompts_index",
+      "label": "index.ts",
+      "file_type": "code",
+      "source_file": "functions/send-hangover-prompts/index.ts",
+      "source_location": "L1",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_send_hangover_prompts_index_hangoverprompt",
+      "label": "HangoverPrompt",
+      "file_type": "code",
+      "source_file": "functions/send-hangover-prompts/index.ts",
+      "source_location": "L15",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_send_push_index",
+      "label": "index.ts",
+      "file_type": "code",
+      "source_file": "functions/send-push/index.ts",
+      "source_location": "L1",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_send_push_index_push_send_options",
+      "label": "PUSH_SEND_OPTIONS",
+      "file_type": "code",
+      "source_file": "functions/send-push/index.ts",
+      "source_location": "L22",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_send_push_index_pushdeliverystatus",
+      "label": "PushDeliveryStatus",
+      "file_type": "code",
+      "source_file": "functions/send-push/index.ts",
+      "source_location": "L30",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_send_push_index_nativepushdeliverystatus",
+      "label": "NativePushDeliveryStatus",
+      "file_type": "code",
+      "source_file": "functions/send-push/index.ts",
+      "source_location": "L31",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_send_push_index_pushsubscriptionrow",
+      "label": "PushSubscriptionRow",
+      "file_type": "code",
+      "source_file": "functions/send-push/index.ts",
+      "source_location": "L33",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_send_push_index_nativepushtokenrow",
+      "label": "NativePushTokenRow",
+      "file_type": "code",
+      "source_file": "functions/send-push/index.ts",
+      "source_location": "L40",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_send_push_index_getendpointhash",
+      "label": "getEndpointHash()",
+      "file_type": "code",
+      "source_file": "functions/send-push/index.ts",
+      "source_location": "L45",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_send_push_index_getpusherrormessage",
+      "label": "getPushErrorMessage()",
+      "file_type": "code",
+      "source_file": "functions/send-push/index.ts",
+      "source_location": "L52",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_send_push_index_recordpushdeliveryattempt",
+      "label": "recordPushDeliveryAttempt()",
+      "file_type": "code",
+      "source_file": "functions/send-push/index.ts",
+      "source_location": "L62",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_send_push_index_getnativetokenhash",
+      "label": "getNativeTokenHash()",
+      "file_type": "code",
+      "source_file": "functions/send-push/index.ts",
+      "source_location": "L91",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_send_push_index_recordnativepushdeliveryattempt",
+      "label": "recordNativePushDeliveryAttempt()",
+      "file_type": "code",
+      "source_file": "functions/send-push/index.ts",
+      "source_location": "L98",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_send_push_index_getexpopusherrormessage",
+      "label": "getExpoPushErrorMessage()",
+      "file_type": "code",
+      "source_file": "functions/send-push/index.ts",
+      "source_location": "L129",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_send_push_index_isdevicenotregistered",
+      "label": "isDeviceNotRegistered()",
+      "file_type": "code",
+      "source_file": "functions/send-push/index.ts",
+      "source_location": "L136",
+      "_origin": "ast"
+    },
+    {
+      "id": "functions_send_push_index_notificationrow",
+      "label": "NotificationRow",
+      "file_type": "code",
+      "source_file": "functions/send-push/index.ts",
+      "source_location": "L140",
+      "_origin": "ast"
+    }
+  ],
+  "edges": [
+    {
+      "source": "functions_cleanup_temporary_photos_index",
+      "target": "ref_https_deno_land_std_0_168_0_http_server_ts",
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/cleanup-temporary-photos/index.ts",
+      "source_location": "L2",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_cleanup_temporary_photos_index",
+      "target": "ref_https_esm_sh_supabase_supabase_js_2_38_4",
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/cleanup-temporary-photos/index.ts",
+      "source_location": "L3",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_cleanup_temporary_photos_index",
+      "target": "functions_cleanup_temporary_photos_index_getpublicstoragepath",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/cleanup-temporary-photos/index.ts",
+      "source_location": "L9",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_enrich_pubs_index",
+      "target": "ref_jsr_supabase_supabase_js_2",
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L1",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_enrich_pubs_index",
+      "target": "functions_enrich_pubs_index_corsheaders",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L15",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_enrich_pubs_index",
+      "target": "functions_enrich_pubs_index_pubrow",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L21",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_enrich_pubs_index",
+      "target": "functions_enrich_pubs_index_nominatimlookuprow",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L29",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_enrich_pubs_index",
+      "target": "functions_enrich_pubs_index_pubupdate",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L36",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_enrich_pubs_index",
+      "target": "functions_enrich_pubs_index_jsonresponse",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L42",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_enrich_pubs_index",
+      "target": "functions_enrich_pubs_index_jwtrole",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L50",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_enrich_pubs_index",
+      "target": "functions_enrich_pubs_index_sleep",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L58",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_enrich_pubs_index",
+      "target": "functions_enrich_pubs_index_fetchwithtimeout",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L60",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_enrich_pubs_index",
+      "target": "functions_enrich_pubs_index_sourceidtolookupid",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L74",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_enrich_pubs_index",
+      "target": "functions_enrich_pubs_index_lookuprowtosourceid",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L86",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_enrich_pubs_index",
+      "target": "functions_enrich_pubs_index_clean",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L91",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_enrich_pubs_index",
+      "target": "functions_enrich_pubs_index_firstaddressvalue",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L96",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_enrich_pubs_index",
+      "target": "functions_enrich_pubs_index_cityfromaddress",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L104",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_enrich_pubs_index",
+      "target": "functions_enrich_pubs_index_conciseaddressfromlookup",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L114",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_enrich_pubs_index",
+      "target": "functions_enrich_pubs_index_chunk",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L141",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_enrich_pubs_index_firstaddressvalue",
+      "target": "functions_enrich_pubs_index_clean",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L98",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_enrich_pubs_index_cityfromaddress",
+      "target": "functions_enrich_pubs_index_firstaddressvalue",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L104",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_enrich_pubs_index_conciseaddressfromlookup",
+      "target": "functions_enrich_pubs_index_cityfromaddress",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L116",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_enrich_pubs_index_conciseaddressfromlookup",
+      "target": "functions_enrich_pubs_index_firstaddressvalue",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/enrich-pubs/index.ts",
+      "source_location": "L117",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_finalize_challenges_index",
+      "target": "ref_jsr_supabase_supabase_js_2",
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/finalize-challenges/index.ts",
+      "source_location": "L1",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_nearby_pubs_index",
+      "target": "ref_jsr_supabase_supabase_js_2",
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/nearby-pubs/index.ts",
+      "source_location": "L1",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_nearby_pubs_index",
+      "target": "functions_nearby_pubs_index_corsheaders",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/nearby-pubs/index.ts",
+      "source_location": "L13",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_nearby_pubs_index",
+      "target": "functions_nearby_pubs_index_userlocation",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/nearby-pubs/index.ts",
+      "source_location": "L19",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_nearby_pubs_index",
+      "target": "functions_nearby_pubs_index_overpasselement",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/nearby-pubs/index.ts",
+      "source_location": "L24",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_nearby_pubs_index",
+      "target": "functions_nearby_pubs_index_osmpubcandidate",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/nearby-pubs/index.ts",
+      "source_location": "L36",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_nearby_pubs_index",
+      "target": "functions_nearby_pubs_index_jsonresponse",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/nearby-pubs/index.ts",
+      "source_location": "L46",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_nearby_pubs_index",
+      "target": "functions_nearby_pubs_index_fetchwithtimeout",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/nearby-pubs/index.ts",
+      "source_location": "L54",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_nearby_pubs_index",
+      "target": "functions_nearby_pubs_index_firsttag",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/nearby-pubs/index.ts",
+      "source_location": "L68",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_nearby_pubs_index",
+      "target": "functions_nearby_pubs_index_tocity",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/nearby-pubs/index.ts",
+      "source_location": "L76",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_nearby_pubs_index",
+      "target": "functions_nearby_pubs_index_toaddress",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/nearby-pubs/index.ts",
+      "source_location": "L103",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_nearby_pubs_index",
+      "target": "functions_nearby_pubs_index_buildoverpassquery",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/nearby-pubs/index.ts",
+      "source_location": "L116",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_nearby_pubs_index",
+      "target": "functions_nearby_pubs_index_fetchosmpubsnear",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/nearby-pubs/index.ts",
+      "source_location": "L140",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_nearby_pubs_index_tocity",
+      "target": "functions_nearby_pubs_index_firsttag",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/nearby-pubs/index.ts",
+      "source_location": "L77",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_nearby_pubs_index_toaddress",
+      "target": "functions_nearby_pubs_index_firsttag",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/nearby-pubs/index.ts",
+      "source_location": "L104",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_nearby_pubs_index_fetchosmpubsnear",
+      "target": "functions_nearby_pubs_index_fetchwithtimeout",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/nearby-pubs/index.ts",
+      "source_location": "L144",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_nearby_pubs_index_fetchosmpubsnear",
+      "target": "functions_nearby_pubs_index_buildoverpassquery",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/nearby-pubs/index.ts",
+      "source_location": "L151",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_nearby_pubs_index_fetchosmpubsnear",
+      "target": "functions_nearby_pubs_index_tocity",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/nearby-pubs/index.ts",
+      "source_location": "L174",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_nearby_pubs_index_fetchosmpubsnear",
+      "target": "functions_nearby_pubs_index_toaddress",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/nearby-pubs/index.ts",
+      "source_location": "L178",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_seed_pubs_index",
+      "target": "ref_jsr_supabase_supabase_js_2",
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/seed-pubs/index.ts",
+      "source_location": "L1",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_seed_pubs_index",
+      "target": "functions_seed_pubs_index_jwtrole",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/seed-pubs/index.ts",
+      "source_location": "L6",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_seed_pubs_index",
+      "target": "functions_seed_pubs_index_corsheaders",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/seed-pubs/index.ts",
+      "source_location": "L18",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_seed_pubs_index",
+      "target": "functions_seed_pubs_index_overpasselement",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/seed-pubs/index.ts",
+      "source_location": "L24",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_seed_pubs_index",
+      "target": "functions_seed_pubs_index_jsonresponse",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/seed-pubs/index.ts",
+      "source_location": "L36",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_seed_pubs_index",
+      "target": "functions_seed_pubs_index_buildoverpassquery",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/seed-pubs/index.ts",
+      "source_location": "L44",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_seed_pubs_index",
+      "target": "functions_seed_pubs_index_firsttag",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/seed-pubs/index.ts",
+      "source_location": "L61",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_seed_pubs_index",
+      "target": "functions_seed_pubs_index_tocity",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/seed-pubs/index.ts",
+      "source_location": "L69",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_seed_pubs_index",
+      "target": "functions_seed_pubs_index_toaddress",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/seed-pubs/index.ts",
+      "source_location": "L97",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_seed_pubs_index_tocity",
+      "target": "functions_seed_pubs_index_firsttag",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/seed-pubs/index.ts",
+      "source_location": "L70",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_seed_pubs_index_toaddress",
+      "target": "functions_seed_pubs_index_firsttag",
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/seed-pubs/index.ts",
+      "source_location": "L98",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_send_hangover_prompts_index",
+      "target": "ref_jsr_supabase_supabase_js_2",
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/send-hangover-prompts/index.ts",
+      "source_location": "L9",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_send_hangover_prompts_index",
+      "target": "functions_send_hangover_prompts_index_hangoverprompt",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/send-hangover-prompts/index.ts",
+      "source_location": "L15",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_send_push_index",
+      "target": "ref_npm_web_push_3_6_7",
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/send-push/index.ts",
+      "source_location": "L9",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_send_push_index",
+      "target": "ref_jsr_supabase_supabase_js_2",
+      "relation": "imports_from",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/send-push/index.ts",
+      "source_location": "L10",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_send_push_index",
+      "target": "functions_send_push_index_push_send_options",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/send-push/index.ts",
+      "source_location": "L22",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_send_push_index",
+      "target": "functions_send_push_index_pushdeliverystatus",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/send-push/index.ts",
+      "source_location": "L30",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_send_push_index",
+      "target": "functions_send_push_index_nativepushdeliverystatus",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/send-push/index.ts",
+      "source_location": "L31",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_send_push_index",
+      "target": "functions_send_push_index_pushsubscriptionrow",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/send-push/index.ts",
+      "source_location": "L33",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_send_push_index",
+      "target": "functions_send_push_index_nativepushtokenrow",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/send-push/index.ts",
+      "source_location": "L40",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_send_push_index",
+      "target": "functions_send_push_index_getendpointhash",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/send-push/index.ts",
+      "source_location": "L45",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_send_push_index",
+      "target": "functions_send_push_index_getpusherrormessage",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/send-push/index.ts",
+      "source_location": "L52",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_send_push_index",
+      "target": "functions_send_push_index_recordpushdeliveryattempt",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/send-push/index.ts",
+      "source_location": "L62",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_send_push_index",
+      "target": "functions_send_push_index_getnativetokenhash",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/send-push/index.ts",
+      "source_location": "L91",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_send_push_index",
+      "target": "functions_send_push_index_recordnativepushdeliveryattempt",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/send-push/index.ts",
+      "source_location": "L98",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_send_push_index",
+      "target": "functions_send_push_index_getexpopusherrormessage",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/send-push/index.ts",
+      "source_location": "L129",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_send_push_index",
+      "target": "functions_send_push_index_isdevicenotregistered",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/send-push/index.ts",
+      "source_location": "L136",
+      "weight": 1.0
+    },
+    {
+      "source": "functions_send_push_index",
+      "target": "functions_send_push_index_notificationrow",
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "functions/send-push/index.ts",
+      "source_location": "L140",
+      "weight": 1.0
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}
