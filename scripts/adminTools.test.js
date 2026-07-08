@@ -33,12 +33,14 @@ const archiveMigrationPath = 'supabase/migrations/20260603120000_add_admin_chall
 const beverageCategoryMigrationPath = 'supabase/migrations/20260617120000_add_admin_beverage_categories.sql';
 const targetChallengeUnitsMigrationPath = 'supabase/migrations/20260618120000_target_challenges_use_alcohol_units.sql';
 const drinkInvalidationMigrationPath = 'supabase/migrations/20260618160000_add_drink_invalidation.sql';
+const beverageSubmissionsMigrationPath = 'supabase/migrations/20260708170000_add_user_beverage_submissions.sql';
 assert.ok(exists(migrationPath), 'admin migration should exist');
 assert.ok(exists(retryMigrationPath), 'admin challenge retry migration should exist');
 assert.ok(exists(archiveMigrationPath), 'admin challenge archive migration should exist');
 assert.ok(exists(beverageCategoryMigrationPath), 'admin beverage category migration should exist');
 assert.ok(exists(targetChallengeUnitsMigrationPath), 'target challenge units migration should exist');
 assert.ok(exists(drinkInvalidationMigrationPath), 'admin drink invalidation migration should exist');
+assert.ok(exists(beverageSubmissionsMigrationPath), 'user beverage submissions migration should exist');
 assert.ok(exists('src/lib/adminApi.ts'), 'admin API should exist');
 assert.ok(exists('src/lib/beverageCatalogContext.tsx'), 'beverage catalog provider should exist');
 assert.ok(exists('src/lib/adminTools.ts'), 'admin form helpers should exist');
@@ -77,6 +79,7 @@ const archiveMigrationSql = read(archiveMigrationPath);
 const beverageCategoryMigrationSql = read(beverageCategoryMigrationPath);
 const targetChallengeUnitsMigrationSql = read(targetChallengeUnitsMigrationPath);
 const drinkInvalidationMigrationSql = read(drinkInvalidationMigrationPath);
+const beverageSubmissionsMigrationSql = read(beverageSubmissionsMigrationPath);
 assert.match(archiveMigrationSql, /add column if not exists archived_at timestamp with time zone/i);
 assert.match(archiveMigrationSql, /add column if not exists archived_by uuid references auth\.users\(id\) on delete set null/i);
 assert.match(archiveMigrationSql, /create index if not exists challenges_unarchived_window_idx/i);
@@ -167,6 +170,31 @@ assert.doesNotMatch(
   /insert into public\.notifications|insert into public\.push_notifications/i,
   'invalidating a drink should not create a user-facing warning'
 );
+assert.match(beverageSubmissionsMigrationSql, /create table if not exists public\.beverage_submissions/i);
+assert.match(beverageSubmissionsMigrationSql, /session_beer_id uuid references public\.session_beers\(id\) on delete set null/i);
+assert.match(beverageSubmissionsMigrationSql, /status text not null default 'pending'/i);
+assert.match(beverageSubmissionsMigrationSql, /category text not null/i);
+assert.match(beverageSubmissionsMigrationSql, /abv numeric not null/i);
+assert.match(beverageSubmissionsMigrationSql, /beverage_submissions_status_check/i);
+assert.match(beverageSubmissionsMigrationSql, /status in \('pending', 'approved', 'rejected'\)/i);
+assert.match(beverageSubmissionsMigrationSql, /beverage_submissions_category_check/i);
+assert.match(beverageSubmissionsMigrationSql, /category in \('beer', 'wine', 'drink'\)/i);
+assert.match(beverageSubmissionsMigrationSql, /beverage_submissions_pending_name_category_idx/i);
+assert.match(beverageSubmissionsMigrationSql, /where status = 'pending'/i);
+assert.match(beverageSubmissionsMigrationSql, /add column if not exists beverage_submission_id uuid references public\.beverage_submissions\(id\) on delete set null/i);
+assert.match(beverageSubmissionsMigrationSql, /add column if not exists beverage_submission_status text/i);
+assert.match(beverageSubmissionsMigrationSql, /create or replace function public\.submit_session_beverage/i);
+assert.match(beverageSubmissionsMigrationSql, /create or replace function public\.admin_get_beverage_submissions/i);
+assert.match(beverageSubmissionsMigrationSql, /create or replace function public\.admin_approve_beverage_submission/i);
+assert.match(beverageSubmissionsMigrationSql, /create or replace function public\.admin_reject_beverage_submission/i);
+assert.match(beverageSubmissionsMigrationSql, /public\.is_current_user_admin\(\)/i);
+assert.match(beverageSubmissionsMigrationSql, /insert into public\.notifications/i);
+assert.match(beverageSubmissionsMigrationSql, /'beverage_submission'/i);
+assert.match(beverageSubmissionsMigrationSql, /case[\s\S]*when submission_row\.category = 'wine' then 12[\s\S]*else 5[\s\S]*end/i);
+assert.match(beverageSubmissionsMigrationSql, /set[\s\S]*beer_name = session_beers\.beer_name[\s\S]*abv = fallback_abv/i);
+assert.match(beverageSubmissionsMigrationSql, /grant execute on function public\.submit_session_beverage/i);
+assert.match(beverageSubmissionsMigrationSql, /grant execute on function public\.admin_get_beverage_submissions/i);
+assert.match(beverageSubmissionsMigrationSql, /notify pgrst, 'reload schema'/i);
 
 const sessionBeers = loadTypeScriptModule('src/lib/sessionBeers.ts');
 const mergedCatalog = sessionBeers.mergeBeverageCatalog([
@@ -263,14 +291,28 @@ assert.match(adminApiSource, /fetchAdminModerationDrinks/, 'admin API should fet
 assert.match(adminApiSource, /setAdminDrinkExcluded/, 'admin API should toggle ignored drink state');
 assert.match(adminApiSource, /admin_get_moderation_drinks/, 'admin API should call moderation list RPC');
 assert.match(adminApiSource, /admin_set_session_beer_excluded/, 'admin API should call moderation toggle RPC');
+assert.match(adminApiSource, /AdminBeverageSubmission/, 'admin API should expose beverage submission type');
+assert.match(adminApiSource, /fetchAdminBeverageSubmissions/, 'admin API should fetch beverage submissions');
+assert.match(adminApiSource, /approveAdminBeverageSubmission/, 'admin API should approve beverage submissions');
+assert.match(adminApiSource, /rejectAdminBeverageSubmission/, 'admin API should reject beverage submissions');
 assert.match(adminToolsSource, /getAdminModerationDrinkTitle/, 'admin tools helpers should format moderation rows');
 assert.match(adminToolsSource, /getAdminModerationDrinkMeta/, 'admin tools helpers should format moderation metadata');
+assert.match(adminToolsSource, /getAdminBeverageSubmissionTitle/, 'admin tools helpers should format submission titles');
+assert.match(adminToolsSource, /getAdminBeverageSubmissionMeta/, 'admin tools helpers should format submission metadata');
 assert.match(adminScreenSource, /moderation/, 'admin tools should include a moderation segment');
 assert.match(adminScreenSource, /Moderation/, 'admin tools should label the moderation segment');
 assert.match(adminScreenSource, /Ignore in stats/, 'moderation rows should expose ignore action copy');
 assert.match(adminScreenSource, /Restore to stats/, 'moderation rows should expose restore action copy');
 assert.match(adminScreenSource, /fetchAdminModerationDrinks/, 'admin tools should load moderation rows');
 assert.match(adminScreenSource, /setAdminDrinkExcluded/, 'admin tools should toggle moderation rows');
+assert.match(adminScreenSource, /submissions/, 'admin tools should include a submissions segment');
+assert.match(adminScreenSource, /Submissions/, 'admin tools should label the submissions segment');
+assert.match(adminScreenSource, /Approve/, 'submission rows should expose approve action copy');
+assert.match(adminScreenSource, /Reject/, 'submission rows should expose reject action copy');
+assert.match(adminScreenSource, /fetchAdminBeverageSubmissions/, 'admin tools should load beverage submissions');
+assert.match(adminScreenSource, /approveAdminBeverageSubmission/, 'admin tools should approve beverage submissions');
+assert.match(adminScreenSource, /rejectAdminBeverageSubmission/, 'admin tools should reject beverage submissions');
+assert.match(adminScreenSource, /initialSegment/, 'admin tools should accept an initial segment route param');
 assert.doesNotMatch(adminScreenSource, /Admin beers/);
 assert.doesNotMatch(adminScreenSource, /No admin-added beers yet/);
 

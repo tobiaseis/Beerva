@@ -138,6 +138,11 @@ assert.equal(
 );
 
 assert.equal(
+  getNotificationMessage({ type: 'beverage_submission', metadata: { beverage_name: 'Missing Pub Ale' } }),
+  ' submitted Missing Pub Ale for Beerva approval.'
+);
+
+assert.equal(
   getOfficialNotificationTitle({ type: 'official_post', metadata: { official_title: 'Booze-in-June has begun' } }),
   'Booze-in-June has begun'
 );
@@ -194,6 +199,9 @@ assert.match(
   /item\.session\?\.status === 'published'/,
   'drinking buddy notifications should only open posts after the session is published'
 );
+assert.match(notificationsScreenSource, /\| 'beverage_submission'/, 'notifications screen should include beverage submission type');
+assert.match(notificationsScreenSource, /item\.type === 'beverage_submission'/, 'notifications screen should route beverage submission rows');
+assert.match(notificationsScreenSource, /initialSegment: 'submissions'/, 'beverage submission notifications should open admin submissions');
 
 const rootNavigatorSource = fs.readFileSync(path.resolve(__dirname, '..', 'src/navigation/RootNavigator.tsx'), 'utf8');
 assert.match(
@@ -243,12 +251,17 @@ assert.match(sendPushSource, /pub_crawl_started/, 'push delivery should support 
 assert.match(sendPushSource, /record\.metadata\?\.pub_name/, 'push delivery should prefer notification metadata pub names');
 assert.match(sendPushSource, /started a pub crawl at/, 'pub crawl push text should include the pub name when available');
 assert.match(sendPushSource, /post_type/, 'cheer/comment push URLs should include the post target type');
+assert.match(sendPushSource, /beverage_submission/, 'push delivery should support beverage submission notifications');
 
 const migrationSql = fs
   .readdirSync(path.resolve(__dirname, '..', 'supabase/migrations'))
   .filter((file) => file.endsWith('.sql'))
   .map((file) => fs.readFileSync(path.resolve(__dirname, '..', 'supabase/migrations', file), 'utf8'))
   .join('\n');
+const beverageSubmissionsMigrationSql = fs.readFileSync(
+  path.resolve(__dirname, '..', 'supabase/migrations/20260708170000_add_user_beverage_submissions.sql'),
+  'utf8'
+);
 assert.match(migrationSql, /add column if not exists metadata jsonb/, 'notifications should have metadata jsonb storage');
 assert.match(migrationSql, /set_notification_metadata/, 'database should backfill notification metadata on insert');
 assert.match(migrationSql, /update public\.notifications/, 'migration should backfill pub_name metadata for existing start notifications');
@@ -261,6 +274,11 @@ assert.match(
   migrationSql,
   /type = 'cheer'[\s\S]*pub_crawl_cheers[\s\S]*pub_crawl_cheers\.pub_crawl_id = notifications\.reference_id/,
   'notification insert policy should allow pub crawl cheer notifications'
+);
+assert.match(
+  beverageSubmissionsMigrationSql,
+  /notifications_type_check[\s\S]*'beverage_submission'/i,
+  'notifications should support beverage submission rows'
 );
 
 console.log('notification tests passed');
