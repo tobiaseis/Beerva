@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Beer, Camera, CheckCircle2, Clock, Home, Images, LocateFixed, Lock, MapPin, MessageSquare, PlusCircle, Sparkles, Star, Trash2, X } from 'lucide-react-native';
+import { Beer, Camera, CheckCircle2, Clock, Download, Home, Images, LocateFixed, Lock, MapPin, MessageSquare, PlusCircle, Sparkles, Star, Trash2, X } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 
 import { AppButton } from '../components/AppButton';
@@ -26,6 +26,7 @@ import { PubRouletteModal } from '../components/PubRouletteModal';
 import { Surface } from '../components/Surface';
 import { confirmDestructive, showAlert } from '../lib/dialogs';
 import { hapticError, hapticMedium, hapticSuccess, hapticWarning } from '../lib/haptics';
+import { saveImageToDeviceLibrary } from '../lib/devicePhotoSave';
 import {
   deletePublicImageUrl,
   prepareWebImageFromPickerAsset,
@@ -195,6 +196,8 @@ export const RecordScreen = ({ navigation }: any) => {
   const [keeperIndex, setKeeperIndex] = useState(0);
   const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
   const [photoChoiceVisible, setPhotoChoiceVisible] = useState(false);
+  const [photoSaveChoice, setPhotoSaveChoice] = useState<SessionImageDraft | null>(null);
+  const [savingDevicePhoto, setSavingDevicePhoto] = useState(false);
   const [pubCategoryChoiceVisible, setPubCategoryChoiceVisible] = useState(false);
   const [chugVisible, setChugVisible] = useState(false);
   const [chugBusy, setChugBusy] = useState(false);
@@ -383,6 +386,8 @@ export const RecordScreen = ({ navigation }: any) => {
     setKeeperIndex(0);
     setExistingImageUrl(null);
     setSavingPhoto(false);
+    setPhotoSaveChoice(null);
+    setSavingDevicePhoto(false);
     setChugVisible(false);
     setChugBusy(false);
     setChugAnalyzing(false);
@@ -1480,6 +1485,37 @@ export const RecordScreen = ({ navigation }: any) => {
     }
   };
 
+  const openPhotoSaveSheet = (image: SessionImageDraft) => {
+    if (savingPhoto || savingDevicePhoto) return;
+    setPhotoSaveChoice(image);
+  };
+
+  const closePhotoSaveSheet = () => {
+    if (savingDevicePhoto) return;
+    setPhotoSaveChoice(null);
+  };
+
+  const savePhotoToDevice = async () => {
+    if (!photoSaveChoice) return;
+
+    setSavingDevicePhoto(true);
+    try {
+      await saveImageToDeviceLibrary(photoSaveChoice.uri || photoSaveChoice.persistedUrl || '');
+      setPhotoSaveChoice(null);
+      hapticSuccess();
+      showAlert('Photo saved', 'Saved to your camera roll.');
+    } catch (error: any) {
+      hapticError();
+      const message = error?.message || 'Could not save photo.';
+      const title = message === 'Photo library access needed.'
+        ? 'Photo library access needed'
+        : 'Could not save photo';
+      showAlert(title, message);
+    } finally {
+      setSavingDevicePhoto(false);
+    }
+  };
+
   const handleChangeCurrentCrawlPub = async () => {
     if (!activeCrawl || !activeSession) return;
     const cleanDraft = crawlPubDraft.trim();
@@ -2117,9 +2153,15 @@ export const RecordScreen = ({ navigation }: any) => {
                     {selectedImages.map((image, index) => {
                       const isKeeper = index === keeperIndex;
                       return (
-                        <View
+                        <TouchableOpacity
                           key={`${image.uri}-${index}`}
                           style={[styles.photoTile, isKeeper ? styles.photoTileKeeper : null]}
+                          onLongPress={() => openPhotoSaveSheet(image)}
+                          disabled={savingPhoto || savingDevicePhoto}
+                          activeOpacity={0.88}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Photo ${index + 1}`}
+                          accessibilityHint="Long press to save this photo to your phone."
                         >
                           <Image source={{ uri: image.uri }} style={styles.photoTileImage} />
                           <TouchableOpacity
@@ -2146,7 +2188,7 @@ export const RecordScreen = ({ navigation }: any) => {
                           >
                             <X color={colors.background} size={14} />
                           </TouchableOpacity>
-                        </View>
+                        </TouchableOpacity>
                       );
                     })}
                     {selectedImages.length < MAX_SESSION_PHOTOS ? (
@@ -2334,6 +2376,50 @@ export const RecordScreen = ({ navigation }: any) => {
               <View style={styles.photoChoiceText}>
                 <Text style={styles.photoChoiceLabel}>Other</Text>
                 <Text style={styles.photoChoiceHint}>Excluded from Pub Legends</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={Boolean(photoSaveChoice)}
+        transparent
+        animationType="fade"
+        onRequestClose={closePhotoSaveSheet}
+      >
+        <View style={styles.photoChoiceBackdrop}>
+          <View style={styles.photoChoiceSheet}>
+            <View style={styles.photoChoiceHeader}>
+              <Text style={styles.photoChoiceTitle}>Photo Options</Text>
+              <TouchableOpacity
+                style={styles.photoChoiceClose}
+                onPress={closePhotoSaveSheet}
+                disabled={savingDevicePhoto}
+                hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}
+              >
+                <X color={colors.text} size={22} />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={styles.photoChoiceOption}
+              onPress={savePhotoToDevice}
+              disabled={savingDevicePhoto}
+              activeOpacity={0.76}
+              accessibilityRole="button"
+              accessibilityLabel="Save selected session photo to your phone"
+            >
+              <View style={styles.photoChoiceIcon}>
+                {savingDevicePhoto ? (
+                  <ActivityIndicator color={colors.primary} size="small" />
+                ) : (
+                  <Download color={colors.primary} size={22} />
+                )}
+              </View>
+              <View style={styles.photoChoiceText}>
+                <Text style={styles.photoChoiceLabel}>Save Photo</Text>
+                <Text style={styles.photoChoiceHint}>Save to camera roll</Text>
               </View>
             </TouchableOpacity>
           </View>
