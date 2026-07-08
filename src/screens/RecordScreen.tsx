@@ -1496,7 +1496,7 @@ export const RecordScreen = ({ navigation }: any) => {
   };
 
   const savePhotoToDevice = async () => {
-    if (!photoSaveChoice) return;
+    if (!photoSaveChoice || savingDevicePhoto) return;
 
     setSavingDevicePhoto(true);
     try {
@@ -2153,17 +2153,21 @@ export const RecordScreen = ({ navigation }: any) => {
                     {selectedImages.map((image, index) => {
                       const isKeeper = index === keeperIndex;
                       return (
-                        <TouchableOpacity
+                        <View
                           key={`${image.uri}-${index}`}
                           style={[styles.photoTile, isKeeper ? styles.photoTileKeeper : null]}
-                          onLongPress={() => openPhotoSaveSheet(image)}
-                          disabled={savingPhoto || savingDevicePhoto}
-                          activeOpacity={0.88}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Photo ${index + 1}`}
-                          accessibilityHint="Long press to save this photo to your phone."
                         >
-                          <Image source={{ uri: image.uri }} style={styles.photoTileImage} />
+                          <TouchableOpacity
+                            style={styles.photoTileImageAction}
+                            onLongPress={() => openPhotoSaveSheet(image)}
+                            disabled={savingPhoto || savingDevicePhoto}
+                            activeOpacity={0.88}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Photo ${index + 1}`}
+                            accessibilityHint="Long press to save this photo to your phone."
+                          >
+                            <Image source={{ uri: image.uri }} style={styles.photoTileImage} />
+                          </TouchableOpacity>
                           <TouchableOpacity
                             style={[styles.keeperButton, isKeeper ? styles.keeperButtonActive : null]}
                             onPress={() => chooseKeeperImage(index)}
@@ -2188,7 +2192,7 @@ export const RecordScreen = ({ navigation }: any) => {
                           >
                             <X color={colors.background} size={14} />
                           </TouchableOpacity>
-                        </TouchableOpacity>
+                        </View>
                       );
                     })}
                     {selectedImages.length < MAX_SESSION_PHOTOS ? (
@@ -2992,6 +2996,10 @@ const styles = StyleSheet.create({
   },
   photoTileKeeper: {
     borderColor: colors.primary,
+  },
+  photoTileImageAction: {
+    width: '100%',
+    height: '100%',
   },
   photoTileImage: {
     width: '100%',
