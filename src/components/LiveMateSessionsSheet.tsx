@@ -27,10 +27,16 @@ import {
 type LiveMateSessionsSheetProps = {
   visible: boolean;
   sessions: LiveMateSession[];
+  onPreviewSession: (session: LiveMateSession) => void;
   onClose: () => void;
 };
 
-export const LiveMateSessionsSheet = ({ visible, sessions, onClose }: LiveMateSessionsSheetProps) => {
+export const LiveMateSessionsSheet = ({
+  visible,
+  sessions,
+  onPreviewSession,
+  onClose,
+}: LiveMateSessionsSheetProps) => {
   const progress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -84,7 +90,15 @@ export const LiveMateSessionsSheet = ({ visible, sessions, onClose }: LiveMateSe
               const pubName = getLiveMatePubName(session);
 
               return (
-                <View key={session.id} style={styles.row}>
+                <TouchableOpacity
+                  key={session.id}
+                  style={styles.row}
+                  onPress={() => onPreviewSession(session)}
+                  activeOpacity={0.82}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Preview ${displayName}'s live session photos`}
+                  accessibilityHint="Opens photos uploaded to this active drinking session."
+                >
                   <CachedImage
                     uri={session.avatarUrl}
                     fallbackUri={`https://i.pravatar.cc/150?u=${session.userId}`}
@@ -111,7 +125,7 @@ export const LiveMateSessionsSheet = ({ visible, sessions, onClose }: LiveMateSe
                     <Text style={styles.truePints}>{formatLiveTruePints(session.truePints)}</Text>
                     <Text style={styles.elapsed}>{formatLiveStartedLabel(session.startedAt)}</Text>
                   </View>
-                </View>
+                </TouchableOpacity>
               );
             })}
           </ScrollView>
