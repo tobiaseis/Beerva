@@ -48,7 +48,11 @@ import {
   getTotalBeerQuantity,
   SessionBeer,
 } from '../lib/sessionBeers';
-import { BeverageSubmissionCategory, submitSessionBeverage } from '../lib/beverageSubmissions';
+import {
+  BeverageSubmissionCategory,
+  getBeverageSubmissionStatusLabel,
+  submitSessionBeverage,
+} from '../lib/beverageSubmissions';
 import {
   CHUG_CONTAINER_TYPE,
   CHUG_REQUIRED_VOLUME,
@@ -176,6 +180,17 @@ const uniquePhotoUrls = (urls: Array<string | null | undefined>) => {
     seen.add(url);
     return true;
   });
+};
+
+const SubmissionStatusChip = ({ status }: { status?: SessionBeer['beverage_submission_status'] }) => {
+  const label = getBeverageSubmissionStatusLabel(status);
+  if (!label) return null;
+
+  return (
+    <View style={styles.submissionStatusChip}>
+      <Text style={styles.submissionStatusText}>{label}</Text>
+    </View>
+  );
 };
 
 export const RecordScreen = ({ navigation }: any) => {
@@ -2081,7 +2096,10 @@ export const RecordScreen = ({ navigation }: any) => {
                       <Image source={beervaLogo} style={styles.beerRowLogo} />
                       <View style={styles.beerRowText}>
                         <Text style={styles.beerRowTitle}>{beer.beer_name}</Text>
-                        <Text style={styles.beerRowMeta}>{getBeerLine(beer)}</Text>
+                        <View style={styles.beerRowMetaLine}>
+                          <Text style={styles.beerRowMeta}>{getBeerLine(beer)}</Text>
+                          <SubmissionStatusChip status={beer.beverage_submission_status} />
+                        </View>
                       </View>
                       <View style={styles.beerRowActions}>
                         <TouchableOpacity
@@ -2888,7 +2906,29 @@ const styles = StyleSheet.create({
   },
   beerRowMeta: {
     ...typography.caption,
+    flexShrink: 1,
+  },
+  beerRowMetaLine: {
     marginTop: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  submissionStatusChip: {
+    minHeight: 22,
+    borderRadius: radius.pill,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primarySoft,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+  },
+  submissionStatusText: {
+    ...typography.tiny,
+    color: colors.primary,
+    fontWeight: '900',
   },
   beerRowActions: {
     flexDirection: 'row',

@@ -39,7 +39,11 @@ import {
   getLegacySessionBeerFields,
   SessionBeer,
 } from '../lib/sessionBeers';
-import { BeverageSubmissionCategory, submitSessionBeverage } from '../lib/beverageSubmissions';
+import {
+  BeverageSubmissionCategory,
+  getBeverageSubmissionStatusLabel,
+  submitSessionBeverage,
+} from '../lib/beverageSubmissions';
 import {
   buildSessionPhotoRecords,
   getAllSessionPhotoUrls,
@@ -89,6 +93,17 @@ type ChugAnalysisPreview = {
   confidenceScore?: number | null;
   detectedStartMs?: number | null;
   detectedEndMs?: number | null;
+};
+
+const SubmissionStatusChip = ({ status }: { status?: SessionBeer['beverage_submission_status'] }) => {
+  const label = getBeverageSubmissionStatusLabel(status);
+  if (!label) return null;
+
+  return (
+    <View style={styles.submissionStatusChip}>
+      <Text style={styles.submissionStatusText}>{label}</Text>
+    </View>
+  );
 };
 
 export const EditSessionScreen = ({ navigation, route }: any) => {
@@ -760,6 +775,7 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
                 <Text style={styles.beerRowTitle}>{beer.beer_name}</Text>
                 <View style={styles.beerRowMetaLine}>
                   <Text style={styles.beerRowMeta}>{getBeerLine(beer)}</Text>
+                  <SubmissionStatusChip status={beer.beverage_submission_status} />
                   <IgnoredDrinkBadge excludedFromStats={beer.excluded_from_stats} />
                 </View>
               </View>
@@ -1013,7 +1029,23 @@ const styles = StyleSheet.create({
     marginTop: 2,
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
     gap: 6,
+  },
+  submissionStatusChip: {
+    minHeight: 22,
+    borderRadius: radius.pill,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primarySoft,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+  },
+  submissionStatusText: {
+    ...typography.tiny,
+    color: colors.primary,
+    fontWeight: '900',
   },
   quantityControls: {
     flexDirection: 'row',
