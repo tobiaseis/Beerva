@@ -765,10 +765,14 @@ assert.match(challengeProfileStatsPanelSource, /challengeAwards/, 'ProfileStatsP
 assert.match(challengeProfileStatsPanelSource, /\.\.\.challengeAwards/, 'ProfileStatsPanel should merge challenge awards into trophies');
 assert.match(challengeProfileStatsPanelSource, /stats\.totalUnits/, 'ProfileStatsPanel should render total alcohol units');
 assert.match(challengeProfileStatsPanelSource, /Show alcohol unit details/, 'ProfileStatsPanel should keep total alcohol units tappable for details');
-assert.match(challengeProfileStatsPanelSource, /styles\.statsGridRow/, 'ProfileStatsPanel should lay top stats out in a 2x2 grid');
-assert.match(challengeProfileStatsPanelSource, /styles\.statCellRightBorder/, 'ProfileStatsPanel should separate the two stat columns');
-assert.match(challengeProfileStatsPanelSource, /styles\.statCellBottomBorder/, 'ProfileStatsPanel should separate the two stat rows');
-assert.match(challengeProfileStatsPanelSource, /style=\{\[styles\.statBox,\s*styles\.statCellBottomBorder\]\}[\s\S]*setUnitsModalVisible\(true\)/, 'ProfileStatsPanel should integrate units as a compact grid stat');
+assert.doesNotMatch(challengeProfileStatsPanelSource, /styles\.statsGridRow/, 'ProfileStatsPanel should not use a 2x2 grid for top stats');
+assert.match(challengeProfileStatsPanelSource, /flexDirection: 'row'/, 'ProfileStatsPanel should lay top stats out in one row');
+assert.match(challengeProfileStatsPanelSource, /styles\.statCellRightBorder/, 'ProfileStatsPanel should separate the one-row stat cells');
+assert.doesNotMatch(challengeProfileStatsPanelSource, /statCellBottomBorder/, 'ProfileStatsPanel should not use row separators in the one-row stat strip');
+assert.match(challengeProfileStatsPanelSource, /\{'True\\nPints'\}/, 'ProfileStatsPanel should split True Pints onto two lines');
+assert.match(challengeProfileStatsPanelSource, /\{'Unique\\nPubs'\}/, 'ProfileStatsPanel should split Unique Pubs onto two lines');
+assert.match(challengeProfileStatsPanelSource, /\{'Avg\\nABV'\}/, 'ProfileStatsPanel should split Avg ABV onto two lines');
+assert.match(challengeProfileStatsPanelSource, /numberOfLines=\{2\}/, 'ProfileStatsPanel should allow stat labels to render on two lines');
 assert.doesNotMatch(challengeProfileStatsPanelSource, /<View style=\{styles\.divider\}/, 'ProfileStatsPanel should not use one-row divider separators for the top stats');
 assert.doesNotMatch(challengeProfileStatsPanelSource, /unitsHero/, 'ProfileStatsPanel should not render total units as a large standalone hero band');
 assert.match(challengeProfileStatsPanelSource, />Units<\/Text>/, 'ProfileStatsPanel should label total alcohol units clearly');

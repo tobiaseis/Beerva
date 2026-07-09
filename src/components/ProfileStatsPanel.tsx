@@ -98,48 +98,44 @@ export const ProfileStatsPanel = ({ stats, pintTimeline = [], topPubVisits = [],
   return (
     <>
       <Surface padded={false} style={styles.statsContainer}>
-        <View style={styles.statsGridRow}>
-          <Pressable
-            style={[styles.statBox, styles.statCellRightBorder, styles.statCellBottomBorder]}
-            onPress={() => setPintsModalVisible(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Show true pint details"
-          >
-            <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
-              {stats.totalPints}
-            </Text>
-            <Text style={styles.statLabel} numberOfLines={1}>True Pints</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.statBox, styles.statCellBottomBorder]}
-            onPress={() => setUnitsModalVisible(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Show alcohol unit details"
-          >
-            <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>
-              {stats.totalUnits}
-            </Text>
-            <Text style={styles.statLabel} numberOfLines={1}>Units</Text>
-          </Pressable>
-        </View>
-        <View style={styles.statsGridRow}>
-          <Pressable
-            style={[styles.statBox, styles.statCellRightBorder]}
-            onPress={() => setPubsModalVisible(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Show unique pub details"
-          >
-            <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
-              {stats.uniquePubs}
-            </Text>
-            <Text style={styles.statLabel} numberOfLines={1}>Unique Pubs</Text>
-          </Pressable>
-          <View style={styles.statBox}>
-            <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
-              {stats.avgAbv}%
-            </Text>
-            <Text style={styles.statLabel} numberOfLines={1}>Avg ABV</Text>
-          </View>
+        <Pressable
+          style={[styles.statBox, styles.statCellRightBorder]}
+          onPress={() => setPintsModalVisible(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Show true pint details"
+        >
+          <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
+            {stats.totalPints}
+          </Text>
+          <Text style={styles.statLabel} numberOfLines={2}>{'True\nPints'}</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.statBox, styles.statCellRightBorder]}
+          onPress={() => setUnitsModalVisible(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Show alcohol unit details"
+        >
+          <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>
+            {stats.totalUnits}
+          </Text>
+          <Text style={styles.statLabel} numberOfLines={2}>Units</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.statBox, styles.statCellRightBorder]}
+          onPress={() => setPubsModalVisible(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Show unique pub details"
+        >
+          <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
+            {stats.uniquePubs}
+          </Text>
+          <Text style={styles.statLabel} numberOfLines={2}>{'Unique\nPubs'}</Text>
+        </Pressable>
+        <View style={styles.statBox}>
+          <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
+            {stats.avgAbv}%
+          </Text>
+          <Text style={styles.statLabel} numberOfLines={2}>{'Avg\nABV'}</Text>
         </View>
       </Surface>
 
@@ -430,27 +426,21 @@ export const ProfileStatsPanel = ({ stats, pintTimeline = [], topPubVisits = [],
 
 const styles = StyleSheet.create({
   statsContainer: {
+    flexDirection: 'row',
     marginHorizontal: 16,
     overflow: 'hidden',
-  },
-  statsGridRow: {
-    flexDirection: 'row',
   },
   statBox: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: Platform.OS === 'web' ? 58 : 62,
-    paddingHorizontal: 12,
-    paddingVertical: Platform.OS === 'web' ? 8 : 9,
+    minHeight: Platform.OS === 'web' ? 66 : 70,
+    paddingHorizontal: Platform.OS === 'web' ? 6 : 4,
+    paddingVertical: Platform.OS === 'web' ? 9 : 10,
   },
   statCellRightBorder: {
     borderRightWidth: 1,
     borderRightColor: colors.borderSoft,
-  },
-  statCellBottomBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderSoft,
   },
   statValue: {
     ...typography.h3,
@@ -464,6 +454,8 @@ const styles = StyleSheet.create({
     marginTop: 1,
     textAlign: 'center',
     maxWidth: '100%',
+    fontSize: 12,
+    lineHeight: 14,
   },
   highScoreGrid: {
     flexDirection: 'row',
