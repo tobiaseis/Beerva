@@ -3,6 +3,7 @@ import { calculateStats, calculateTopPubVisits, emptyStats, getVolumeMl, Profile
 
 type ProfileStatsRpcRow = {
   total_pints?: number | null;
+  total_units?: number | null;
   unique_pubs?: number | null;
   avg_abv?: number | null;
   max_session_pints?: number | null;
@@ -40,6 +41,7 @@ const statsFromRpcRow = (row?: ProfileStatsRpcRow | null): Stats => {
 
   return {
     totalPints: numberOrZero(row.total_pints),
+    totalUnits: numberOrZero(row.total_units),
     uniquePubs: numberOrZero(row.unique_pubs),
     avgAbv: numberOrZero(row.avg_abv),
     maxSessionPints: numberOrZero(row.max_session_pints),
@@ -122,6 +124,20 @@ const fetchStatsFallback = async (userId: string): Promise<Stats> => {
   })) as ProfileSessionStatsRow[]);
 };
 
+const fetchProfileTotalUnits = async (userId: string): Promise<number | null> => {
+  const { data, error } = await supabase.rpc('get_profile_total_units', {
+    target_user_id: userId,
+  });
+
+  if (error) {
+    console.warn('Profile total units RPC unavailable:', error.message);
+    return null;
+  }
+
+  const value = Array.isArray(data) ? data[0] : data;
+  return numberOrZero(typeof value === 'number' ? value : Number(value));
+};
+
 export const fetchProfileStats = async (userId: string): Promise<Stats> => {
   const { data, error } = await supabase.rpc('get_profile_stats', {
     target_user_id: userId,
@@ -133,7 +149,17 @@ export const fetchProfileStats = async (userId: string): Promise<Stats> => {
   }
 
   const row = Array.isArray(data) ? data[0] : data;
-  return statsFromRpcRow(row as ProfileStatsRpcRow | null);
+  const stats = statsFromRpcRow(row as ProfileStatsRpcRow | null);
+  const rowHasUnits = Boolean(row && typeof row === 'object' && Object.prototype.hasOwnProperty.call(row, 'total_units'));
+  if (rowHasUnits) return stats;
+
+  const totalUnits = await fetchProfileTotalUnits(userId);
+  if (totalUnits !== null) {
+    return { ...stats, totalUnits };
+  }
+
+  const fallbackStats = await fetchStatsFallback(userId);
+  return { ...stats, totalUnits: fallbackStats.totalUnits };
 };
 
 const getMonthKey = (value?: string | null) => {

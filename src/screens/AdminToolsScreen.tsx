@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
-import { Archive, ArrowLeft, Beer, Camera, Edit3, ImagePlus, Megaphone, Plus, RotateCcw, Search, ShieldCheck, Trophy, X } from 'lucide-react-native';
+import { Archive, ArrowLeft, Beer, Camera, Check, ChevronDown, Edit3, ImagePlus, Megaphone, Plus, RotateCcw, Search, ShieldCheck, Trophy, X } from 'lucide-react-native';
 
 import { AppButton } from '../components/AppButton';
 import {
@@ -81,14 +81,52 @@ import { typography } from '../theme/typography';
 type AdminSegment = 'challenges' | 'beverages' | 'submissions' | 'official-posts' | 'moderation';
 type ActiveModal = 'challenge' | 'beverage' | 'official-post' | null;
 
-const ADMIN_SEGMENTS: AdminSegment[] = ['challenges', 'beverages', 'submissions', 'official-posts', 'moderation'];
+const ADMIN_SEGMENT_OPTIONS = [
+  {
+    segment: 'challenges',
+    label: 'Challenges',
+    description: 'Create competitions and goals',
+    Icon: Trophy,
+  },
+  {
+    segment: 'beverages',
+    label: 'Beverages',
+    description: 'Add official catalog drinks',
+    Icon: Beer,
+  },
+  {
+    segment: 'submissions',
+    label: 'Submissions',
+    description: 'Approve user-submitted drinks',
+    Icon: Plus,
+  },
+  {
+    segment: 'official-posts',
+    label: 'Official posts',
+    description: 'Publish Beerva announcements',
+    Icon: Megaphone,
+  },
+  {
+    segment: 'moderation',
+    label: 'Moderation',
+    description: 'Review suspicious drinks',
+    Icon: ShieldCheck,
+  },
+] as const satisfies ReadonlyArray<{
+  segment: AdminSegment;
+  label: string;
+  description: string;
+  Icon: React.ComponentType<{ color: string; size: number }>;
+}>;
+
+const ADMIN_SEGMENTS: AdminSegment[] = ADMIN_SEGMENT_OPTIONS.map((option) => option.segment);
+
+const getSegmentOption = (segment: AdminSegment) => (
+  ADMIN_SEGMENT_OPTIONS.find((option) => option.segment === segment) || ADMIN_SEGMENT_OPTIONS[0]
+);
 
 const getSegmentLabel = (segment: AdminSegment) => {
-  if (segment === 'challenges') return 'Challenges';
-  if (segment === 'beverages') return 'Beverages';
-  if (segment === 'submissions') return 'Submissions';
-  if (segment === 'official-posts') return 'Official posts';
-  return 'Moderation';
+  return getSegmentOption(segment).label;
 };
 
 const formatChallengeWindow = (challenge: AdminChallenge) => {
@@ -119,6 +157,7 @@ export const AdminToolsScreen = ({ navigation, route }: any) => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [activeModal, setActiveModal] = useState<ActiveModal>(null);
+  const [adminSegmentMenuVisible, setAdminSegmentMenuVisible] = useState(false);
   const [beverageDraft, setBeverageDraft] = useState<AdminBeverageDraft>(createEmptyBeverageDraft);
   const [challengeDraft, setChallengeDraft] = useState<AdminChallengeDraft>(createEmptyChallengeDraft);
   const [selectedChallenge, setSelectedChallenge] = useState<AdminChallenge | null>(null);
@@ -867,8 +906,14 @@ export const AdminToolsScreen = ({ navigation, route }: any) => {
     : activeSegment === 'beverages'
       ? 'Add beverage'
       : activeSegment === 'official-posts'
-          ? 'Create official post'
-          : null;
+        ? 'Create official post'
+        : null;
+  const activeSegmentOption = getSegmentOption(activeSegment);
+  const ActiveSegmentIcon = activeSegmentOption.Icon;
+  const selectAdminSegment = (segment: AdminSegment) => {
+    setActiveSegment(segment);
+    setAdminSegmentMenuVisible(false);
+  };
 
   return (
     <View style={styles.container}>
@@ -888,23 +933,56 @@ export const AdminToolsScreen = ({ navigation, route }: any) => {
         <View style={styles.iconButtonPlaceholder} />
       </View>
 
-      <View style={styles.segmentedControl}>
-        {ADMIN_SEGMENTS.map((segment) => (
-          <TouchableOpacity
-            key={segment}
-            style={[styles.segmentButton, activeSegment === segment ? styles.segmentButtonActive : null]}
-            onPress={() => setActiveSegment(segment)}
-            accessibilityRole="button"
-            accessibilityState={{ selected: activeSegment === segment }}
-          >
-            <Text
-              style={[styles.segmentText, activeSegment === segment ? styles.segmentTextActive : null]}
-              numberOfLines={1}
-            >
-              {getSegmentLabel(segment)}
-            </Text>
-          </TouchableOpacity>
-        ))}
+      <View style={styles.segmentSelectorWrap}>
+        <TouchableOpacity
+          style={styles.segmentSelector}
+          onPress={() => setAdminSegmentMenuVisible((visible) => !visible)}
+          activeOpacity={0.78}
+          accessibilityRole="button"
+          accessibilityLabel="Choose admin tool"
+          accessibilityState={{ expanded: adminSegmentMenuVisible }}
+        >
+          <View style={styles.segmentSelectorIcon}>
+            <ActiveSegmentIcon color={colors.primary} size={18} />
+          </View>
+          <View style={styles.segmentSelectorCopy}>
+            <Text style={styles.segmentSelectorLabel} numberOfLines={1}>{activeSegmentOption.label}</Text>
+            <Text style={styles.segmentSelectorDescription} numberOfLines={1}>{activeSegmentOption.description}</Text>
+          </View>
+          <ChevronDown color={colors.textMuted} size={20} />
+        </TouchableOpacity>
+
+        {adminSegmentMenuVisible ? (
+          <View style={styles.segmentMenu}>
+            {ADMIN_SEGMENT_OPTIONS.map((option) => {
+              const selected = activeSegment === option.segment;
+              const OptionIcon = option.Icon;
+              return (
+                <TouchableOpacity
+                  key={option.segment}
+                  style={[styles.segmentMenuItem, selected ? styles.segmentMenuItemActive : null]}
+                  onPress={() => selectAdminSegment(option.segment)}
+                  activeOpacity={0.76}
+                  accessibilityRole="menuitem"
+                  accessibilityState={{ selected }}
+                >
+                  <View style={[styles.segmentMenuIcon, selected ? styles.segmentMenuIconActive : null]}>
+                    <OptionIcon color={selected ? colors.background : colors.primary} size={17} />
+                  </View>
+                  <View style={styles.segmentMenuCopy}>
+                    <Text style={[styles.segmentMenuLabel, selected ? styles.segmentMenuLabelActive : null]} numberOfLines={1}>
+                      {option.label}
+                    </Text>
+                    <Text style={styles.segmentMenuDescription} numberOfLines={1}>
+                      {option.description}
+                    </Text>
+                  </View>
+                  {selected ? <Check color={colors.primary} size={18} /> : null}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.toolbar}>
@@ -1420,34 +1498,98 @@ const styles = StyleSheet.create({
     ...typography.tiny,
     marginTop: 1,
   },
-  segmentedControl: {
-    minHeight: 42,
-    borderRadius: radius.pill,
+  segmentSelectorWrap: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    gap: 8,
+  },
+  segmentSelector: {
+    minHeight: 58,
+    borderRadius: radius.lg,
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.borderSoft,
-    padding: 4,
-    marginHorizontal: 16,
-    marginTop: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
     flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
-  segmentButton: {
-    flex: 1,
-    minHeight: 32,
-    borderRadius: radius.pill,
+  segmentSelectorIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  segmentButtonActive: {
     backgroundColor: colors.primarySoft,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
   },
-  segmentText: {
+  segmentSelectorCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  segmentSelectorLabel: {
+    ...typography.body,
+    color: colors.text,
+    fontWeight: '900',
+  },
+  segmentSelectorDescription: {
     ...typography.caption,
     color: colors.textMuted,
+    marginTop: 2,
+  },
+  segmentMenu: {
+    borderRadius: radius.lg,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    overflow: 'hidden',
+    ...shadows.card,
+  },
+  segmentMenuItem: {
+    minHeight: 58,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSoft,
+  },
+  segmentMenuItemActive: {
+    backgroundColor: colors.primarySoft,
+  },
+  segmentMenuIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+  },
+  segmentMenuIconActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  segmentMenuCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  segmentMenuLabel: {
+    ...typography.body,
+    color: colors.text,
     fontWeight: '800',
   },
-  segmentTextActive: {
+  segmentMenuLabelActive: {
     color: colors.primary,
+  },
+  segmentMenuDescription: {
+    ...typography.caption,
+    color: colors.textMuted,
+    marginTop: 1,
   },
   toolbar: {
     paddingHorizontal: 16,

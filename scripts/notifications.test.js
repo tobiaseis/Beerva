@@ -92,6 +92,15 @@ assert.deepEqual(
   'drinking buddy notifications should open the session from metadata instead of the buddy row'
 );
 
+assert.deepEqual(
+  getNotificationPostTarget({
+    reference_id: 'session-buddy-row-2',
+    metadata: { target_type: 'pub_crawl', session_id: 'stop-1', pub_crawl_id: 'crawl-1' },
+  }),
+  { targetType: 'pub_crawl', targetId: 'crawl-1' },
+  'drinking buddy notifications for crawl stops should open the pub crawl post, not the hidden stop session'
+);
+
 assert.equal(
   getNotificationPubName({
     metadata: { pub_name: '  John Bull Pub  ' },

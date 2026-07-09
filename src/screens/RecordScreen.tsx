@@ -2330,15 +2330,13 @@ export const RecordScreen = ({ navigation }: any) => {
                 </View>
               ) : null}
 
-              {!activeCrawl ? (
-                <View style={styles.postDetailBuddies}>
-                  <DrinkingBuddiesPicker
-                    sessionId={activeSession.id}
-                    disabled={ending || cancelling}
-                    variant="inline"
-                  />
-                </View>
-              ) : null}
+              <View style={styles.postDetailBuddies}>
+                <DrinkingBuddiesPicker
+                  sessionId={activeSession.id}
+                  disabled={ending || cancelling || crawlBusy}
+                  variant="inline"
+                />
+              </View>
 
               {activeCrawl && crawlPubAction !== 'next' ? (
                 <View style={{ marginBottom: 12 }}>

@@ -473,6 +473,9 @@ const runAsyncRegressionTests = async () => {
     './authSession': {
       getCurrentUser: async () => ({ id: 'user-1' }),
     },
+    './currentStreaks': {
+      fetchCurrentStreaks: async () => new Map(),
+    },
     './supabase': {
       supabase: createHydrationFailingSupabaseMock(),
     },
@@ -529,6 +532,9 @@ const runAsyncRegressionTests = async () => {
     './pubCrawls': helpersModule,
     './authSession': {
       getCurrentUser: async () => ({ id: 'user-1' }),
+    },
+    './currentStreaks': {
+      fetchCurrentStreaks: async () => new Map(),
     },
     './supabase': {
       supabase: createHydrationSuccessfulSupabaseMock(),

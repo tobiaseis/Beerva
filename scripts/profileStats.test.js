@@ -4,6 +4,7 @@ const Module = require('node:module');
 const path = require('node:path');
 const ts = require('typescript');
 
+const root = path.resolve(__dirname, '..');
 const challengeAwardsPath = 'src/lib/challengeAwards.ts';
 const challengeAwardsApiPath = 'src/lib/challengeAwardsApi.ts';
 const profileStatsApiPath = 'src/lib/profileStatsApi.ts';
@@ -14,6 +15,7 @@ const specialMixedDrinksMigrationPath = 'supabase/migrations/20260522100000_add_
 const commonCocktailsMigrationPath = 'supabase/migrations/20260531160000_add_common_cocktails_and_wine.sql';
 const beverageCategoryMigrationPath = 'supabase/migrations/20260617120000_add_admin_beverage_categories.sql';
 const drinkInvalidationMigrationPath = 'supabase/migrations/20260618160000_add_drink_invalidation.sql';
+const profileUnitsMigrationPath = 'supabase/migrations/20260709121000_add_profile_total_units_rpc.sql';
 
 const exists = (relativePath) => fs.existsSync(path.resolve(__dirname, '..', relativePath));
 const readSource = (relativePath) => fs.readFileSync(path.resolve(__dirname, '..', relativePath), 'utf8');
@@ -33,6 +35,16 @@ const loadTypeScriptModule = (relativePath) => {
   const compiledModule = new Module(filename, module);
   compiledModule.filename = filename;
   compiledModule.paths = Module._nodeModulePaths(path.dirname(filename));
+  compiledModule.require = (request) => {
+    if (request.startsWith('.')) {
+      const resolved = path.resolve(path.dirname(filename), request);
+      const tsPath = resolved.endsWith('.ts') ? resolved : `${resolved}.ts`;
+      if (fs.existsSync(tsPath)) {
+        return loadTypeScriptModule(path.relative(root, tsPath));
+      }
+    }
+    return Module.prototype.require.call(compiledModule, request);
+  };
   compiledModule._compile(outputText, filename);
   return compiledModule.exports;
 };
@@ -85,6 +97,23 @@ const normalizedBeerStats = calculateStats([
 
 assert.equal(normalizedBeerStats.uniqueBeers, 1, 'beer names should be normalized for unique beer trophies');
 assert.equal(normalizedBeerStats.maxBeersInOneDay, 1, 'daily beer variety should use normalized beer names');
+assert.equal(emptyStats.totalUnits, 0, 'empty profile stats should include total alcohol units');
+
+const alcoholUnitStats = calculateStats([
+  baseRow({
+    session_id: 'units-1',
+    volume: '50cl',
+    quantity: 2,
+    abv: 5,
+  }),
+  baseRow({
+    session_id: 'units-2',
+    volume: '25cl',
+    quantity: 1,
+    abv: 40,
+  }),
+]);
+assert.equal(alcoholUnitStats.totalUnits, 9.9, 'profile stats should total Danish alcohol units across all drinks');
 
 const longSessionStats = calculateStats([
   baseRow({
@@ -725,6 +754,7 @@ assert.equal(karnevalAbvTrophy.description, 'Are you ok? You had the highest ABV
 const profileStatsSource = readSource('src/lib/profileStats.ts');
 assert.match(profileStatsSource, /\| 'challenge'/, 'TrophyKind should include challenge awards');
 assert.match(profileStatsSource, /beverage_category/, 'local profile stats should read captured beverage category');
+assert.match(profileStatsSource, /totalUnits/, 'local profile stats should expose total alcohol units');
 
 const challengeAwardsApiSource = readSource(challengeAwardsApiPath);
 assert.match(challengeAwardsApiSource, /get_challenge_awards/, 'challenge award API should call award RPC');
@@ -733,6 +763,9 @@ assert.match(challengeAwardsApiSource, /mapChallengeAwardRow/, 'challenge award 
 const challengeProfileStatsPanelSource = readSource(profileStatsPanelPath);
 assert.match(challengeProfileStatsPanelSource, /challengeAwards/, 'ProfileStatsPanel should accept challenge awards');
 assert.match(challengeProfileStatsPanelSource, /\.\.\.challengeAwards/, 'ProfileStatsPanel should merge challenge awards into trophies');
+assert.match(challengeProfileStatsPanelSource, /stats\.totalUnits/, 'ProfileStatsPanel should render total alcohol units');
+assert.match(challengeProfileStatsPanelSource, /styles\.unitsHero/, 'ProfileStatsPanel should integrate units in a dedicated visual stat band');
+assert.match(challengeProfileStatsPanelSource, />Units<\/Text>/, 'ProfileStatsPanel should label total alcohol units clearly');
 
 const profileScreenSource = readSource(profileScreenPath);
 assert.match(profileScreenSource, /fetchChallengeAwards/, 'ProfileScreen should fetch current user challenge awards');
@@ -750,6 +783,8 @@ assert.match(userProfileScreenSource, /excludedFromStats=\{beer\.excluded_from_s
 
 const profileStatsApiSource = readSource(profileStatsApiPath);
 assert.match(profileStatsApiSource, /fetchTopPubVisits/, 'profile stats API should expose top pub visit fetching');
+assert.match(profileStatsApiSource, /total_units/, 'profile stats API should map total units from the RPC');
+assert.match(profileStatsApiSource, /get_profile_total_units/, 'profile stats API should fetch profile total units from the server');
 assert.match(profileStatsApiSource, /beverage_category/, 'profile stats fallback query should select captured beverage category');
 assert.match(profileStatsApiSource, /beverage_category: beer\.beverage_category/, 'profile stats fallback rows should pass captured beverage category');
 assert.match(profileStatsApiSource, /excluded_from_stats/, 'profile stats fallback query should select ignored-drink metadata');
@@ -758,6 +793,15 @@ assert.match(
   /filter\(\(beer\) => !beer\.excluded_from_stats\)/,
   'profile stats fallback rows should ignore admin-invalidated drinks'
 );
+
+assert.ok(exists(profileUnitsMigrationPath), 'profile total units migration should exist');
+const profileUnitsMigrationSql = readSource(profileUnitsMigrationPath);
+assert.match(profileUnitsMigrationSql, /create or replace function public\.get_profile_total_units\(target_user_id uuid\)/i, 'profile total units RPC should exist');
+assert.match(profileUnitsMigrationSql, /public\.beerva_serving_volume_ml\(session_beers\.volume\)/i, 'profile total units RPC should use the shared serving parser');
+assert.match(profileUnitsMigrationSql, /0\.789/i, 'profile total units RPC should use ethanol grams per ml');
+assert.match(profileUnitsMigrationSql, /12\.0/i, 'profile total units RPC should divide by Danish alcohol unit grams');
+assert.match(profileUnitsMigrationSql, /coalesce\(session_beers\.excluded_from_stats,\s*false\) = false/i, 'profile total units RPC should ignore admin-invalidated drinks');
+assert.match(profileUnitsMigrationSql, /grant execute on function public\.get_profile_total_units\(uuid\) to authenticated/i, 'authenticated users should execute profile total units RPC');
 assert.match(profileScreenSource, /fetchTopPubVisits/, 'ProfileScreen should fetch current user top pub visits');
 assert.match(profileScreenSource, /topPubVisits=\{topPubVisits\}/, 'ProfileScreen should pass top pub visits to stats panel');
 assert.match(userProfileScreenSource, /fetchTopPubVisits/, 'UserProfileScreen should fetch viewed user top pub visits');

@@ -307,6 +307,11 @@ assert.match(adminScreenSource, /fetchAdminModerationDrinks/, 'admin tools shoul
 assert.match(adminScreenSource, /setAdminDrinkExcluded/, 'admin tools should toggle moderation rows');
 assert.match(adminScreenSource, /submissions/, 'admin tools should include a submissions segment');
 assert.match(adminScreenSource, /Submissions/, 'admin tools should label the submissions segment');
+assert.match(adminScreenSource, /adminSegmentMenuVisible/, 'admin tools should open segments from a dropdown menu');
+assert.match(adminScreenSource, /Choose admin tool/, 'admin tools dropdown should expose an accessible menu trigger');
+assert.match(adminScreenSource, /styles\.segmentMenu/, 'admin tools should render a dropdown list for segment choices');
+assert.match(adminScreenSource, /ADMIN_SEGMENT_OPTIONS/, 'admin tools should keep segment labels and icons in one option list');
+assert.doesNotMatch(adminScreenSource, /ADMIN_SEGMENTS\.map\(\(segment\)/, 'admin tools should not render all five segments as a cramped horizontal bar');
 assert.match(adminScreenSource, /Approve/, 'submission rows should expose approve action copy');
 assert.match(adminScreenSource, /Reject/, 'submission rows should expose reject action copy');
 assert.match(adminScreenSource, /fetchAdminBeverageSubmissions/, 'admin tools should load beverage submissions');

@@ -7,6 +7,8 @@ const ts = require('typescript');
 const root = path.resolve(__dirname, '..');
 const migrationPath = path.join(root, 'supabase/migrations/20260601150000_add_session_buddies.sql');
 const migrationSql = fs.existsSync(migrationPath) ? fs.readFileSync(migrationPath, 'utf8') : '';
+const pubCrawlBuddiesMigrationPath = path.join(root, 'supabase/migrations/20260709120000_allow_pub_crawl_drinking_buddies.sql');
+const pubCrawlBuddiesMigrationSql = fs.existsSync(pubCrawlBuddiesMigrationPath) ? fs.readFileSync(pubCrawlBuddiesMigrationPath, 'utf8') : '';
 
 const loadTypeScriptModule = (relativePath, mocks = {}) => {
   const filename = path.join(root, relativePath);
@@ -46,6 +48,11 @@ assert.match(migrationSql, /create or replace function public\.decline_session_b
 assert.match(migrationSql, /create or replace function public\.get_session_buddy_summaries/, 'feed summary RPC should exist');
 assert.match(migrationSql, /public\.is_mutual_follower\(requesting_user_id,\s*requested_buddy_id\)/, 'adding buddies should require mutual mates');
 assert.match(migrationSql, /and pub_crawl_id is null/, 'pub crawl stops should stay outside the first drinking buddies pass');
+assert.equal(fs.existsSync(pubCrawlBuddiesMigrationPath), true, 'follow-up migration should allow drinking buddies on pub crawl stops');
+assert.match(pubCrawlBuddiesMigrationSql, /create or replace function public\.set_session_buddies/, 'follow-up migration should replace the buddy reconciliation RPC');
+assert.doesNotMatch(pubCrawlBuddiesMigrationSql, /and\s+pub_crawl_id\s+is\s+null/i, 'pub crawl stop sessions should no longer be blocked by the buddy RPC');
+assert.match(pubCrawlBuddiesMigrationSql, /coalesce\(target_session\.pub_crawl_id,\s*target_session_id\)/i, 'buddy notifications should target the crawl id for crawl stops');
+assert.match(pubCrawlBuddiesMigrationSql, /case\s+when target_session\.pub_crawl_id is not null then 'pub_crawl'/i, 'buddy notifications should mark crawl-stop tags as pub crawl targets');
 assert.match(migrationSql, /status = 'declined'[\s\S]*cannot be re-added/i, 'declined buddies should not be reactivated');
 assert.match(migrationSql, /'drinking_buddy_added'/, 'notification type should include drinking_buddy_added');
 assert.match(migrationSql, /jsonb_build_object\([\s\S]*'target_type', 'session'[\s\S]*'session_id'/, 'buddy notifications should snapshot session metadata');
@@ -128,6 +135,7 @@ assert.match(recordScreenSource, /DrinkingBuddiesPicker/, 'record screen should 
 assert.match(recordScreenSource, /sessionId=\{activeSession\.id\}/, 'record screen should pass active session id to the picker');
 assert.match(recordScreenSource, /variant="inline"/, 'record screen should render buddies as an integrated post details action');
 assert.match(recordScreenSource, /postDetailBuddies/, 'record screen should place the inline buddies action inside the post details surface');
+assert.doesNotMatch(recordScreenSource, /!\s*activeCrawl\s*\?\s*\(\s*<View style=\{styles\.postDetailBuddies\}/, 'record screen should not hide drinking buddies while a pub crawl is active');
 assert.match(editScreenSource, /DrinkingBuddiesPicker/, 'edit screen should render the shared drinking buddies picker');
 assert.match(editScreenSource, /sessionId=\{sessionId\}/, 'edit screen should pass edited session id to the picker');
 

@@ -13,6 +13,7 @@ import { IgnoredDrinkBadge } from './IgnoredDrinkBadge';
 import { MentionText } from './MentionText';
 import { PubCrawlMediaCarousel } from './PubCrawlMediaCarousel';
 import { Surface } from './Surface';
+import { StreakAvatar } from './StreakAvatar';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
 const cheersLogoSource = beervaLogo;
@@ -115,12 +116,14 @@ export const PubCrawlFeedCard = ({
           onPress={() => onOpenProfile(crawl.userId)}
           activeOpacity={0.75}
         >
-          <CachedImage
+          <StreakAvatar
             uri={crawl.avatarUrl}
             fallbackUri={`https://i.pravatar.cc/150?u=${crawl.userId}`}
+            size={38}
             style={styles.avatar}
             recyclingKey={`avatar-${crawl.userId}-${crawl.avatarUrl || 'fallback'}`}
             accessibilityLabel={`${username}'s avatar`}
+            streak={crawl.authorCurrentStreak || 0}
           />
           <View style={styles.userInfo}>
             <Text style={styles.userName} numberOfLines={1}>{username}</Text>

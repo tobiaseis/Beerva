@@ -1,5 +1,8 @@
+import { calculateAlcoholUnits } from './alcoholUnits';
+
 export type Stats = {
   totalPints: number;
+  totalUnits: number;
   uniquePubs: number;
   avgAbv: number;
   maxSessionPints: number;
@@ -69,6 +72,7 @@ export type TopPubVisit = {
 
 export const emptyStats: Stats = {
   totalPints: 0,
+  totalUnits: 0,
   uniquePubs: 0,
   avgAbv: 0,
   maxSessionPints: 0,
@@ -620,6 +624,7 @@ export const calculateStats = (sessions: ProfileSessionStatsRow[] = [], referenc
 
   return {
     totalPints: roundStat(totalMl / 568),
+    totalUnits: calculateAlcoholUnits(sessions),
     uniquePubs,
     avgAbv: totalMl > 0 ? roundStat(weightedAbvSum / totalMl) : 0,
     maxSessionPints: roundStat(maxSessionPints),

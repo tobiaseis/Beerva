@@ -43,6 +43,7 @@ export type PubCrawlRow = {
   ended_at?: string | null;
   published_at?: string | null;
   hangover_score?: number | string | null;
+  author_current_streak?: number | string | null;
   created_at?: string | null;
   profiles?: {
     username?: string | null;
@@ -94,6 +95,7 @@ export type PubCrawl = {
   createdAt: string | null;
   username: string | null;
   avatarUrl: string | null;
+  authorCurrentStreak: number;
   cheersCount: number;
   commentsCount: number;
   cheerProfiles: PubCrawlProfile[];
@@ -196,6 +198,7 @@ export const mapPubCrawlRow = (row: PubCrawlRow): PubCrawl => ({
   createdAt: toStringOrNull(row.created_at),
   username: toStringOrNull(row.profiles?.username),
   avatarUrl: toStringOrNull(row.profiles?.avatar_url),
+  authorCurrentStreak: Math.max(0, Math.round(toNumber(row.author_current_streak))),
   cheersCount: row.pub_crawl_cheers?.length || 0,
   commentsCount: row.pub_crawl_comments?.length || 0,
   cheerProfiles: [],

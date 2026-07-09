@@ -11,6 +11,7 @@ import {
 } from './pubCrawls';
 import { supabase } from './supabase';
 import { getCurrentUser } from './authSession';
+import { fetchCurrentStreaks } from './currentStreaks';
 import { getErrorMessage, withTimeout } from './timeouts';
 
 const PUB_CRAWL_TIMEOUT_MS = 15000;
@@ -155,14 +156,15 @@ const hydratePubCrawls = async (crawlRows: PubCrawlBaseRow[], currentUserId?: st
   const pubIds = Array.from(new Set(stopRows.map((stop) => stop.pub_id).filter(Boolean))) as string[];
   const cheers = (cheersResult.data || []) as CheerRow[];
   const comments = (commentsResult.data || []) as CommentRow[];
+  const authorIds = Array.from(new Set(crawlRows.map((crawl) => crawl.user_id).filter(Boolean))) as string[];
   const profileIds = Array.from(new Set([
-    ...crawlRows.map((crawl) => crawl.user_id),
+    ...authorIds,
     ...cheers.map((cheer) => cheer.user_id),
     ...comments.map((comment) => comment.user_id),
     currentUserId,
   ].filter(Boolean))) as string[];
 
-  const [beersResult, pubsResult, profilesResult] = await withTimeout(
+  const [beersResult, pubsResult, profilesResult, authorStreaks] = await withTimeout(
     Promise.all([
       sessionIds.length > 0
         ? supabase
@@ -183,6 +185,7 @@ const hydratePubCrawls = async (crawlRows: PubCrawlBaseRow[], currentUserId?: st
             .select('id, username, avatar_url')
             .in('id', profileIds)
         : Promise.resolve({ data: [] as any[], error: null }),
+      fetchCurrentStreaks(authorIds),
     ]),
     PUB_CRAWL_TIMEOUT_MS,
     'Pub crawl support data is taking too long.'
@@ -268,6 +271,7 @@ const hydratePubCrawls = async (crawlRows: PubCrawlBaseRow[], currentUserId?: st
 
     return {
       ...mapped,
+      authorCurrentStreak: authorStreaks.get(crawlRow.user_id) || 0,
       cheerProfiles: crawlCheers
         .map((cheer) => profilesById.get(cheer.user_id))
         .filter(Boolean) as PubCrawlProfile[],

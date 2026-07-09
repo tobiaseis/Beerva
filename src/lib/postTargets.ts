@@ -14,6 +14,7 @@ type NotificationTargetInput = {
   metadata?: {
     target_type?: unknown;
     session_id?: unknown;
+    pub_crawl_id?: unknown;
   } | null;
 };
 
@@ -40,11 +41,14 @@ export const getPostLaunchParamsFromSearch = (search: string): PostLaunchParams 
 };
 
 export const getNotificationPostTarget = (item: NotificationTargetInput): PostTarget | null => {
-  const targetId = toCleanString(item.metadata?.session_id) || toCleanString(item.reference_id);
+  const targetType = normalizePostTargetType(item.metadata?.target_type);
+  const targetId = targetType === 'pub_crawl'
+    ? toCleanString(item.metadata?.pub_crawl_id) || toCleanString(item.reference_id)
+    : toCleanString(item.metadata?.session_id) || toCleanString(item.reference_id);
   if (!targetId) return null;
 
   return {
-    targetType: normalizePostTargetType(item.metadata?.target_type),
+    targetType,
     targetId,
   };
 };

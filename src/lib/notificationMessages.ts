@@ -2,7 +2,9 @@ export type NotificationMetadata = {
   pub_name?: string | null;
   prompt_id?: string | null;
   target_type?: 'session' | 'pub_crawl' | 'chug_attempt' | string | null;
+  target_id?: string | null;
   session_id?: string | null;
+  pub_crawl_id?: string | null;
   beer_name?: string | null;
   duration_ms?: number | string | null;
   session_status?: string | null;

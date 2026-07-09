@@ -106,6 +106,13 @@ const feedScreen = readSource('src/screens/FeedScreen.tsx');
 assert.match(feedScreen, /StreakAvatar/);
 assert.match(feedScreen, /author_current_streak/);
 
+const pubCrawlCard = readSource('src/components/PubCrawlFeedCard.tsx');
+assert.match(pubCrawlCard, /StreakAvatar/, 'pub crawl posts should use the shared streak avatar');
+assert.match(pubCrawlCard, /crawl\.authorCurrentStreak/, 'pub crawl avatar flames should read the crawl author streak');
+
+const pubCrawlsApi = readSource('src/lib/pubCrawlsApi.ts');
+assert.match(pubCrawlsApi, /fetchCurrentStreaks/, 'pub crawl hydration should load author current streaks');
+
 const postDetail = readSource('src/screens/PostDetailScreen.tsx');
 assert.match(postDetail, /fetchCurrentStreaks/);
 assert.match(postDetail, /author_current_streak/);
