@@ -1,5 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  Keyboard,
+  Pressable,
+  ScrollView,
+  StyleProp,
+  StyleSheet,
+  Text,
+  TextInput,
+  TextStyle,
+  View,
+  ViewStyle,
+} from 'react-native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { radius, shadows } from '../theme/layout';
@@ -13,6 +24,10 @@ interface Props {
   icon?: React.ReactNode;
   footer?: React.ReactNode;
   getSearchText?: (item: string) => string;
+  containerStyle?: StyleProp<ViewStyle>;
+  inputWrapperStyle?: StyleProp<ViewStyle>;
+  inputStyle?: StyleProp<TextStyle>;
+  placeholderTextColor?: string;
 }
 
 const normalizeSearchText = (text: string) => (
@@ -34,6 +49,10 @@ export const AutocompleteInput = ({
   icon,
   footer,
   getSearchText,
+  containerStyle,
+  inputWrapperStyle,
+  inputStyle,
+  placeholderTextColor = colors.textMuted,
 }: Props) => {
   const [showDropdown, setShowDropdown] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -87,13 +106,13 @@ export const AutocompleteInput = ({
   const hasDropdownContent = filteredData.length > 0 || Boolean(footer);
 
   return (
-    <View style={[styles.container, { zIndex: showDropdown ? 100 : 1 }]}>
-      <View style={[styles.inputWrapper, focused ? styles.inputWrapperFocused : null]}>
+    <View style={[styles.container, containerStyle, { zIndex: showDropdown ? 100 : 1 }]}>
+      <View style={[styles.inputWrapper, inputWrapperStyle, focused ? styles.inputWrapperFocused : null]}>
         {icon && <View style={styles.icon}>{icon}</View>}
         <TextInput
-          style={styles.input}
+          style={[styles.input, inputStyle]}
           placeholder={placeholder}
-          placeholderTextColor={colors.textMuted}
+          placeholderTextColor={placeholderTextColor}
           value={value}
           onChangeText={(text) => {
             onChangeText(text);

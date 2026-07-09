@@ -2139,13 +2139,6 @@ export const RecordScreen = ({ navigation }: any) => {
 
             <ChugBottleButton onPress={openChugFlow} />
 
-            {!activeCrawl ? (
-              <DrinkingBuddiesPicker
-                sessionId={activeSession.id}
-                disabled={ending || cancelling}
-              />
-            ) : null}
-
             <Surface style={styles.formSurface}>
               <Text style={styles.sectionTitle}>Post Details</Text>
 
@@ -2266,6 +2259,16 @@ export const RecordScreen = ({ navigation }: any) => {
                     ) : null}
                   </ScrollView>
                   <Text style={styles.photoKeeperHint}>Starred photo stays. Others disappear after 24 hours.</Text>
+                </View>
+              ) : null}
+
+              {!activeCrawl ? (
+                <View style={styles.postDetailBuddies}>
+                  <DrinkingBuddiesPicker
+                    sessionId={activeSession.id}
+                    disabled={ending || cancelling}
+                    variant="inline"
+                  />
                 </View>
               ) : null}
 
@@ -3128,6 +3131,9 @@ const styles = StyleSheet.create({
     ...typography.caption,
     marginTop: 8,
     color: colors.textMuted,
+  },
+  postDetailBuddies: {
+    marginBottom: spacing.md,
   },
   endActions: {
     flexDirection: 'row',

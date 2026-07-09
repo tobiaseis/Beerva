@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { AlertCircle, Beer, CheckCircle2, ChevronDown, Minus, Plus, X } from 'lucide-react-native';
+import { AlertCircle, CheckCircle2, ChevronDown, Minus, Plus, Search, X } from 'lucide-react-native';
 
 import { AutocompleteInput } from './AutocompleteInput';
 import { AppButton } from './AppButton';
@@ -172,9 +172,11 @@ export const BeerDraftForm = ({
         onChangeText={updateBeverageName}
         onSelectItem={selectBeverageName}
         data={options}
-        placeholder="What are you drinking?"
-        icon={<Beer color={colors.textMuted} size={20} />}
+        placeholder="Search for your drink"
+        icon={<Search color={colors.primary} size={20} />}
         getSearchText={(beverageName) => getBeverageOptionSearchText(beverageName, catalog)}
+        inputWrapperStyle={styles.drinkSearchWrapper}
+        inputStyle={styles.drinkSearchInput}
       />
 
       {canSubmitUnknown && !unknownFormVisible ? (
@@ -214,29 +216,31 @@ export const BeerDraftForm = ({
             )}
           </View>
 
-          <Text style={styles.sectionLabel}>Quantity</Text>
-          <View style={styles.quantityContainer}>
-            <TouchableOpacity
-              style={styles.quantityBtn}
-              onPress={() => updateDraft({ quantity: Math.max(1, draft.quantity - 1) })}
-              activeOpacity={0.76}
-              accessibilityRole="button"
-              accessibilityLabel="Decrease quantity"
-            >
-              <Minus color={colors.primary} size={22} />
-            </TouchableOpacity>
+          <View style={styles.quantityRow}>
+            <Text style={styles.quantityInlineLabel}>Qty</Text>
+            <View style={styles.quantityContainer}>
+              <TouchableOpacity
+                style={styles.quantityBtn}
+                onPress={() => updateDraft({ quantity: Math.max(1, draft.quantity - 1) })}
+                activeOpacity={0.76}
+                accessibilityRole="button"
+                accessibilityLabel="Decrease quantity"
+              >
+                <Minus color={colors.primary} size={18} />
+              </TouchableOpacity>
 
-            <Text style={styles.quantityText}>{draft.quantity}</Text>
+              <Text style={styles.quantityText}>{draft.quantity}</Text>
 
-            <TouchableOpacity
-              style={styles.quantityBtn}
-              onPress={() => updateDraft({ quantity: draft.quantity + 1 })}
-              activeOpacity={0.76}
-              accessibilityRole="button"
-              accessibilityLabel="Increase quantity"
-            >
-              <Plus color={colors.primary} size={22} />
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.quantityBtn}
+                onPress={() => updateDraft({ quantity: draft.quantity + 1 })}
+                activeOpacity={0.76}
+                accessibilityRole="button"
+                accessibilityLabel="Increase quantity"
+              >
+                <Plus color={colors.primary} size={18} />
+              </TouchableOpacity>
+            </View>
           </View>
 
           <AppButton label={submitLabel} onPress={() => onSubmit()} loading={loading} />
@@ -329,6 +333,14 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.textMuted,
     marginTop: 8,
+  },
+  drinkSearchWrapper: {
+    height: 58,
+    backgroundColor: colors.surfaceRaised,
+    borderColor: 'rgba(247, 181, 58, 0.22)',
+  },
+  drinkSearchInput: {
+    fontWeight: '700',
   },
   unknownCta: {
     minHeight: 42,
@@ -460,27 +472,46 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontWeight: '800',
   },
-  quantityContainer: {
+  quantityRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: spacing.sm,
+  },
+  quantityInlineLabel: {
+    ...typography.caption,
+    color: colors.textMuted,
+    fontWeight: '800',
+  },
+  quantityContainer: {
+    minHeight: 42,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.surfaceRaised,
+    padding: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  quantityBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.borderSoft,
-    borderRadius: radius.md,
-    padding: 8,
-    marginBottom: spacing.sm,
-  },
-  quantityBtn: {
-    padding: 12,
-    backgroundColor: colors.glass,
-    borderRadius: radius.sm,
   },
   quantityText: {
-    ...typography.h1,
+    ...typography.body,
     color: colors.text,
-    width: 60,
+    minWidth: 34,
     textAlign: 'center',
+    fontWeight: '900',
+    fontVariant: ['tabular-nums'],
   },
   sizeSheetBackdrop: {
     flex: 1,

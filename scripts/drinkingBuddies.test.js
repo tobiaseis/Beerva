@@ -119,19 +119,26 @@ const editScreenSource = fs.readFileSync(path.join(root, 'src/screens/EditSessio
 
 assert.match(pickerSource, /export const DrinkingBuddiesPicker/, 'shared picker should export DrinkingBuddiesPicker');
 assert.match(pickerSource, /Add your drinking buddies/, 'picker button should use the approved label');
+assert.match(pickerSource, /variant\?: 'card' \| 'inline'/, 'picker should support an inline variant for integrated post details placement');
+assert.match(pickerSource, /styles\.inlineContainer/, 'inline buddies picker should avoid rendering as a nested card');
 assert.match(pickerSource, /fetchMutualMateOptions/, 'picker should load mutual mates');
 assert.match(pickerSource, /setSessionBuddies/, 'picker should autosave selections through the RPC wrapper');
 assert.match(pickerSource, /selectedBuddyIds/, 'picker should track selected buddy ids');
 assert.match(recordScreenSource, /DrinkingBuddiesPicker/, 'record screen should render the shared drinking buddies picker');
 assert.match(recordScreenSource, /sessionId=\{activeSession\.id\}/, 'record screen should pass active session id to the picker');
+assert.match(recordScreenSource, /variant="inline"/, 'record screen should render buddies as an integrated post details action');
+assert.match(recordScreenSource, /postDetailBuddies/, 'record screen should place the inline buddies action inside the post details surface');
 assert.match(editScreenSource, /DrinkingBuddiesPicker/, 'edit screen should render the shared drinking buddies picker');
 assert.match(editScreenSource, /sessionId=\{sessionId\}/, 'edit screen should pass edited session id to the picker');
 
 const feedSource = fs.readFileSync(path.join(root, 'src/screens/FeedScreen.tsx'), 'utf8');
+const feedApiSource = fs.readFileSync(path.join(root, 'src/lib/feedApi.ts'), 'utf8');
+const feedTypesSource = fs.readFileSync(path.join(root, 'src/lib/feedTypes.ts'), 'utf8');
 const postDetailSource = fs.readFileSync(path.join(root, 'src/screens/PostDetailScreen.tsx'), 'utf8');
 
-assert.match(feedSource, /drinking_buddies:\s*SessionBuddy\[\]/, 'FeedSession should include drinking buddies');
-assert.match(feedSource, /fetchSessionBuddySummaries/, 'feed should fetch drinking buddy summaries');
+assert.match(feedTypesSource, /drinking_buddies:\s*SessionBuddy\[\]/, 'FeedSession should include drinking buddies');
+assert.match(feedApiSource, /fetchSessionBuddySummaries/, 'feed should fetch drinking buddy summaries');
+assert.match(feedApiSource, /drinking_buddies:\s*buddiesBySession\.get\(session\.id\) \|\| \[\]/, 'feed API should hydrate sessions with buddy summaries');
 assert.match(feedSource, /formatDrinkingBuddyNames/, 'feed should format drinking buddy names');
 assert.match(feedSource, /Drinking buddies:/, 'feed More stats should render drinking buddies');
 assert.match(postDetailSource, /fetchSessionBuddySummaries/, 'post detail should fetch drinking buddy summaries');

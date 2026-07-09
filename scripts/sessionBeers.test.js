@@ -187,8 +187,8 @@ check('ordinary beer payload records beer category', () => {
   );
 });
 
-check('empty draft keeps Pint as the unknown-drink fallback', () => {
-  assert.equal(createEmptyBeerDraft().volume, 'Pint');
+check('empty draft defaults casual session logging to 33cl', () => {
+  assert.equal(createEmptyBeerDraft().volume, '33cl');
 });
 
 check('manually selected size is preserved in payload', () => {

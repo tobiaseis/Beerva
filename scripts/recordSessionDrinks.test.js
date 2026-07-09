@@ -169,6 +169,36 @@ assert.match(
   'beer draft form should show the currently selected size before submit'
 );
 
+assert.match(
+  beerDraftFormSource,
+  /placeholder="Search for your drink"/,
+  'drink input should use explicit search-oriented placeholder copy'
+);
+
+assert.match(
+  beerDraftFormSource,
+  /Search color=\{colors\.primary\} size=\{20\} \/>/,
+  'drink input should use a search icon with stronger affordance than the generic beer icon'
+);
+
+assert.match(
+  beerDraftFormSource,
+  /inputWrapperStyle=\{styles\.drinkSearchWrapper\}/,
+  'drink input should use a lighter integrated search surface'
+);
+
+assert.doesNotMatch(
+  beerDraftFormSource,
+  /placeholder="What are you drinking\?"/,
+  'drink input should not keep button-like vague placeholder copy'
+);
+
+assert.match(
+  beerDraftFormSource,
+  /quantityInlineLabel/,
+  'quantity controls should use a compact inline label instead of a large standalone block'
+);
+
 assert.doesNotMatch(
   beerDraftFormSource,
   /<Text style=\{styles\.sectionLabel\}>Size<\/Text>\s*<View style=\{styles\.volumeRow\}>/,

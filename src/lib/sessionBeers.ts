@@ -490,7 +490,7 @@ export const VOLUMES = ['2cl', '4cl', '25cl', '27.5cl', '33cl', '40cl', '44cl', 
 
 export const createEmptyBeerDraft = (): BeerDraft => ({
   beerName: '',
-  volume: 'Pint',
+  volume: '33cl',
   quantity: 1,
 });
 

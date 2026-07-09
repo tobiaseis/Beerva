@@ -30,9 +30,14 @@ import { typography } from '../theme/typography';
 type DrinkingBuddiesPickerProps = {
   sessionId: string;
   disabled?: boolean;
+  variant?: 'card' | 'inline';
 };
 
-export const DrinkingBuddiesPicker = ({ sessionId, disabled = false }: DrinkingBuddiesPickerProps) => {
+export const DrinkingBuddiesPicker = ({
+  sessionId,
+  disabled = false,
+  variant = 'card',
+}: DrinkingBuddiesPickerProps) => {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [selectedBuddies, setSelectedBuddies] = useState<SessionBuddy[]>([]);
   const [mutualMates, setMutualMates] = useState<MutualMateOption[]>([]);
@@ -105,46 +110,47 @@ export const DrinkingBuddiesPicker = ({ sessionId, disabled = false }: DrinkingB
     setQuery('');
   };
 
-  return (
-    <Surface style={styles.container}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.title}>Drinking buddies</Text>
-          <Text style={styles.subtitle}>
-            {selectedBuddies.length ? `${selectedBuddies.length} added` : 'Mutual mates only'}
-          </Text>
+  const isInline = variant === 'inline';
+  const buddySummary = selectedBuddies.length ? `${selectedBuddies.length} added` : 'Mutual mates only';
+  const buttonLabel = isInline
+    ? selectedBuddies.length ? 'Edit buddies' : 'Add buddies'
+    : 'Add your drinking buddies';
+
+  const buddyChips = selectedBuddies.length > 0 ? (
+    <View style={styles.chipList}>
+      {selectedBuddies.map((buddy) => (
+        <View key={buddy.id} style={styles.chip}>
+          <CachedImage
+            uri={buddy.avatarUrl}
+            fallbackUri={`https://i.pravatar.cc/150?u=${buddy.buddyUserId}`}
+            style={styles.chipAvatar}
+            recyclingKey={`buddy-${buddy.buddyUserId}-${buddy.avatarUrl || 'fallback'}`}
+            accessibilityLabel={`${buddy.username || 'Someone'}'s avatar`}
+          />
+          <Text style={styles.chipText} numberOfLines={1}>{buddy.username || 'Someone'}</Text>
         </View>
-        {loading ? <ActivityIndicator color={colors.primary} size="small" /> : null}
-      </View>
+      ))}
+    </View>
+  ) : null;
 
-      {selectedBuddies.length > 0 ? (
-        <View style={styles.chipList}>
-          {selectedBuddies.map((buddy) => (
-            <View key={buddy.id} style={styles.chip}>
-              <CachedImage
-                uri={buddy.avatarUrl}
-                fallbackUri={`https://i.pravatar.cc/150?u=${buddy.buddyUserId}`}
-                style={styles.chipAvatar}
-                recyclingKey={`buddy-${buddy.buddyUserId}-${buddy.avatarUrl || 'fallback'}`}
-                accessibilityLabel={`${buddy.username || 'Someone'}'s avatar`}
-              />
-              <Text style={styles.chipText} numberOfLines={1}>{buddy.username || 'Someone'}</Text>
-            </View>
-          ))}
-        </View>
-      ) : null}
+  const addButton = (
+    <TouchableOpacity
+      style={[
+        isInline ? styles.inlineAddButton : styles.addButton,
+        disabled || saving ? styles.addButtonDisabled : null,
+      ]}
+      onPress={() => setModalVisible(true)}
+      disabled={disabled || saving}
+      activeOpacity={0.76}
+      accessibilityRole="button"
+      accessibilityLabel="Add your drinking buddies"
+    >
+      <UserRound color={colors.primary} size={isInline ? 16 : 18} />
+      <Text style={isInline ? styles.inlineAddButtonText : styles.addButtonText}>{buttonLabel}</Text>
+    </TouchableOpacity>
+  );
 
-      <TouchableOpacity
-        style={[styles.addButton, disabled || saving ? styles.addButtonDisabled : null]}
-        onPress={() => setModalVisible(true)}
-        disabled={disabled || saving}
-        activeOpacity={0.76}
-        accessibilityRole="button"
-      >
-        <UserRound color={colors.primary} size={18} />
-        <Text style={styles.addButtonText}>Add your drinking buddies</Text>
-      </TouchableOpacity>
-
+  const pickerModal = (
       <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={closePicker}>
         <View style={styles.backdrop}>
           <View style={styles.sheet}>
@@ -205,6 +211,37 @@ export const DrinkingBuddiesPicker = ({ sessionId, disabled = false }: DrinkingB
           </View>
         </View>
       </Modal>
+  );
+
+  if (variant === 'inline') {
+    return (
+      <View style={styles.inlineContainer}>
+        <View style={styles.inlineHeader}>
+          <View style={styles.inlineText}>
+            <Text style={styles.inlineTitle}>Drinking buddies</Text>
+            <Text style={styles.inlineSubtitle}>{buddySummary}</Text>
+          </View>
+          {loading ? <ActivityIndicator color={colors.primary} size="small" /> : addButton}
+        </View>
+        {buddyChips}
+        {loading ? null : pickerModal}
+      </View>
+    );
+  }
+
+  return (
+    <Surface style={styles.container}>
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.title}>Drinking buddies</Text>
+          <Text style={styles.subtitle}>{buddySummary}</Text>
+        </View>
+        {loading ? <ActivityIndicator color={colors.primary} size="small" /> : null}
+      </View>
+
+      {buddyChips}
+      {addButton}
+      {pickerModal}
     </Surface>
   );
 };
@@ -225,6 +262,35 @@ const styles = StyleSheet.create({
   subtitle: {
     ...typography.caption,
     marginTop: 2,
+  },
+  inlineContainer: {
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.borderSoft,
+    backgroundColor: colors.surface,
+    padding: 10,
+    gap: 8,
+  },
+  inlineHeader: {
+    minHeight: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  inlineText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  inlineTitle: {
+    ...typography.caption,
+    color: colors.text,
+    fontWeight: '900',
+  },
+  inlineSubtitle: {
+    ...typography.tiny,
+    color: colors.textMuted,
+    marginTop: 1,
   },
   chipList: {
     flexDirection: 'row',
@@ -268,6 +334,23 @@ const styles = StyleSheet.create({
   },
   addButtonDisabled: {
     opacity: 0.65,
+  },
+  inlineAddButton: {
+    minHeight: 38,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    backgroundColor: colors.primarySoft,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    paddingHorizontal: 11,
+  },
+  inlineAddButtonText: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: '900',
   },
   addButtonText: {
     ...typography.body,
