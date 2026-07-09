@@ -764,7 +764,9 @@ const challengeProfileStatsPanelSource = readSource(profileStatsPanelPath);
 assert.match(challengeProfileStatsPanelSource, /challengeAwards/, 'ProfileStatsPanel should accept challenge awards');
 assert.match(challengeProfileStatsPanelSource, /\.\.\.challengeAwards/, 'ProfileStatsPanel should merge challenge awards into trophies');
 assert.match(challengeProfileStatsPanelSource, /stats\.totalUnits/, 'ProfileStatsPanel should render total alcohol units');
-assert.match(challengeProfileStatsPanelSource, /styles\.unitsHero/, 'ProfileStatsPanel should integrate units in a dedicated visual stat band');
+assert.match(challengeProfileStatsPanelSource, /Show alcohol unit details/, 'ProfileStatsPanel should keep total alcohol units tappable for details');
+assert.match(challengeProfileStatsPanelSource, /style=\{styles\.statBox\}[\s\S]*setUnitsModalVisible\(true\)/, 'ProfileStatsPanel should integrate units as a compact top stat');
+assert.doesNotMatch(challengeProfileStatsPanelSource, /unitsHero/, 'ProfileStatsPanel should not render total units as a large standalone hero band');
 assert.match(challengeProfileStatsPanelSource, />Units<\/Text>/, 'ProfileStatsPanel should label total alcohol units clearly');
 
 const profileScreenSource = readSource(profileScreenPath);

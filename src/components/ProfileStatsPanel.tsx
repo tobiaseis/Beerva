@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Award, Beer, CalendarDays, ChevronDown, ChevronUp, Flame, MapPin, Moon, PartyPopper, Repeat, Sparkles, Sunrise, Trophy, Wine, X } from 'lucide-react-native';
+import { Award, Beer, CalendarDays, ChevronDown, ChevronUp, Flame, MapPin, Moon, PartyPopper, Repeat, Sparkles, Sunrise, Trophy, X } from 'lucide-react-native';
 
 import { getTrophies, Stats, TopPubVisit, TrophyDefinition, TrophyKind } from '../lib/profileStats';
 import { PintTimelinePoint } from '../lib/profileStatsApi';
@@ -112,6 +112,18 @@ export const ProfileStatsPanel = ({ stats, pintTimeline = [], topPubVisits = [],
         <View style={styles.divider} />
         <Pressable
           style={styles.statBox}
+          onPress={() => setUnitsModalVisible(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Show alcohol unit details"
+        >
+          <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>
+            {stats.totalUnits}
+          </Text>
+          <Text style={styles.statLabel} numberOfLines={1}>Units</Text>
+        </Pressable>
+        <View style={styles.divider} />
+        <Pressable
+          style={styles.statBox}
           onPress={() => setPubsModalVisible(true)}
           accessibilityRole="button"
           accessibilityLabel="Show unique pub details"
@@ -129,28 +141,6 @@ export const ProfileStatsPanel = ({ stats, pintTimeline = [], topPubVisits = [],
           <Text style={styles.statLabel} numberOfLines={1}>Avg ABV</Text>
         </View>
       </Surface>
-
-      <Pressable
-        style={styles.unitsHeroPressable}
-        onPress={() => setUnitsModalVisible(true)}
-        accessibilityRole="button"
-        accessibilityLabel="Show alcohol unit details"
-      >
-        <Surface padded={false} style={styles.unitsHero}>
-          <View style={styles.unitsIcon}>
-            <Wine color={colors.primary} size={22} />
-          </View>
-          <View style={styles.unitsCopy}>
-            <Text style={styles.unitsLabel}>Units</Text>
-            <Text style={styles.unitsMeta} numberOfLines={1}>All-time alcohol units consumed</Text>
-          </View>
-          <View style={styles.unitsValueBlock}>
-            <Text style={styles.unitsValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-              {stats.totalUnits}
-            </Text>
-          </View>
-        </Surface>
-      </Pressable>
 
       <View style={styles.highScoreGrid}>
         <Pressable
@@ -467,60 +457,6 @@ const styles = StyleSheet.create({
     ...typography.caption,
     marginTop: 1,
     textAlign: 'center',
-    maxWidth: '100%',
-  },
-  unitsHeroPressable: {
-    marginHorizontal: 16,
-    marginTop: 12,
-  },
-  unitsHero: {
-    minHeight: 74,
-    borderRadius: radius.lg,
-    borderColor: colors.primaryBorder,
-    backgroundColor: colors.primarySoft,
-    paddingHorizontal: Platform.OS === 'web' ? 14 : 16,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  unitsIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.primaryBorder,
-  },
-  unitsCopy: {
-    flex: 1,
-    minWidth: 0,
-  },
-  unitsLabel: {
-    ...typography.body,
-    color: colors.text,
-    fontSize: 15,
-    lineHeight: 20,
-    fontWeight: '900',
-  },
-  unitsMeta: {
-    ...typography.caption,
-    color: colors.textMuted,
-    marginTop: 2,
-  },
-  unitsValueBlock: {
-    minWidth: 84,
-    maxWidth: 118,
-    alignItems: 'flex-end',
-  },
-  unitsValue: {
-    fontFamily: 'Righteous_400Regular',
-    fontSize: 34,
-    lineHeight: 38,
-    color: colors.primary,
-    fontVariant: ['tabular-nums'],
     maxWidth: '100%',
   },
   highScoreGrid: {
