@@ -769,6 +769,9 @@ assert.doesNotMatch(challengeProfileStatsPanelSource, /styles\.statsGridRow/, 'P
 assert.match(challengeProfileStatsPanelSource, /flexDirection: 'row'/, 'ProfileStatsPanel should lay top stats out in one row');
 assert.match(challengeProfileStatsPanelSource, /styles\.statCellRightBorder/, 'ProfileStatsPanel should separate the one-row stat cells');
 assert.doesNotMatch(challengeProfileStatsPanelSource, /statCellBottomBorder/, 'ProfileStatsPanel should not use row separators in the one-row stat strip');
+assert.match(challengeProfileStatsPanelSource, /styles\.statValueSlot/, 'ProfileStatsPanel should align all top stat numbers in a fixed value row');
+assert.match(challengeProfileStatsPanelSource, /styles\.statLabelSlot/, 'ProfileStatsPanel should align all top stat labels in a fixed label row');
+assert.match(challengeProfileStatsPanelSource, /statLabelSlot:[\s\S]*height:[\s\S]*justifyContent: 'flex-start'/, 'ProfileStatsPanel should start labels from the same vertical line');
 assert.match(challengeProfileStatsPanelSource, /\{'True\\nPints'\}/, 'ProfileStatsPanel should split True Pints onto two lines');
 assert.match(challengeProfileStatsPanelSource, /\{'Unique\\nPubs'\}/, 'ProfileStatsPanel should split Unique Pubs onto two lines');
 assert.match(challengeProfileStatsPanelSource, /\{'Avg\\nABV'\}/, 'ProfileStatsPanel should split Avg ABV onto two lines');

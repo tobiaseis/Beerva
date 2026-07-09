@@ -104,10 +104,14 @@ export const ProfileStatsPanel = ({ stats, pintTimeline = [], topPubVisits = [],
           accessibilityRole="button"
           accessibilityLabel="Show true pint details"
         >
-          <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
-            {stats.totalPints}
-          </Text>
-          <Text style={styles.statLabel} numberOfLines={2}>{'True\nPints'}</Text>
+          <View style={styles.statValueSlot}>
+            <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
+              {stats.totalPints}
+            </Text>
+          </View>
+          <View style={styles.statLabelSlot}>
+            <Text style={styles.statLabel} numberOfLines={2}>{'True\nPints'}</Text>
+          </View>
         </Pressable>
         <Pressable
           style={[styles.statBox, styles.statCellRightBorder]}
@@ -115,10 +119,14 @@ export const ProfileStatsPanel = ({ stats, pintTimeline = [], topPubVisits = [],
           accessibilityRole="button"
           accessibilityLabel="Show alcohol unit details"
         >
-          <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>
-            {stats.totalUnits}
-          </Text>
-          <Text style={styles.statLabel} numberOfLines={2}>Units</Text>
+          <View style={styles.statValueSlot}>
+            <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72}>
+              {stats.totalUnits}
+            </Text>
+          </View>
+          <View style={styles.statLabelSlot}>
+            <Text style={styles.statLabel} numberOfLines={2}>Units</Text>
+          </View>
         </Pressable>
         <Pressable
           style={[styles.statBox, styles.statCellRightBorder]}
@@ -126,16 +134,24 @@ export const ProfileStatsPanel = ({ stats, pintTimeline = [], topPubVisits = [],
           accessibilityRole="button"
           accessibilityLabel="Show unique pub details"
         >
-          <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
-            {stats.uniquePubs}
-          </Text>
-          <Text style={styles.statLabel} numberOfLines={2}>{'Unique\nPubs'}</Text>
+          <View style={styles.statValueSlot}>
+            <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
+              {stats.uniquePubs}
+            </Text>
+          </View>
+          <View style={styles.statLabelSlot}>
+            <Text style={styles.statLabel} numberOfLines={2}>{'Unique\nPubs'}</Text>
+          </View>
         </Pressable>
         <View style={styles.statBox}>
-          <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
-            {stats.avgAbv}%
-          </Text>
-          <Text style={styles.statLabel} numberOfLines={2}>{'Avg\nABV'}</Text>
+          <View style={styles.statValueSlot}>
+            <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
+              {stats.avgAbv}%
+            </Text>
+          </View>
+          <View style={styles.statLabelSlot}>
+            <Text style={styles.statLabel} numberOfLines={2}>{'Avg\nABV'}</Text>
+          </View>
         </View>
       </Surface>
 
@@ -437,10 +453,23 @@ const styles = StyleSheet.create({
     minHeight: Platform.OS === 'web' ? 66 : 70,
     paddingHorizontal: Platform.OS === 'web' ? 6 : 4,
     paddingVertical: Platform.OS === 'web' ? 9 : 10,
+    gap: 2,
   },
   statCellRightBorder: {
     borderRightWidth: 1,
     borderRightColor: colors.borderSoft,
+  },
+  statValueSlot: {
+    height: 28,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statLabelSlot: {
+    height: 28,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
   },
   statValue: {
     ...typography.h3,
