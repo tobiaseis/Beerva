@@ -48,6 +48,7 @@ type ChugAttemptModalProps = {
   analysisPreview: AnalysisPreview | null;
   needsManualTiming: boolean;
   analyzing: boolean;
+  skipAnalysisBusy: boolean;
   busy: boolean;
   error: string | null;
   onClose: () => void;
@@ -57,6 +58,7 @@ type ChugAttemptModalProps = {
   onRetry: () => void;
   onAccept: () => void;
   onSubmitManualTiming: () => void;
+  onSkipAnalysis: () => void;
 };
 
 export const ChugAttemptModal = ({
@@ -67,6 +69,7 @@ export const ChugAttemptModal = ({
   analysisPreview,
   needsManualTiming,
   analyzing,
+  skipAnalysisBusy,
   busy,
   error,
   onClose,
@@ -76,6 +79,7 @@ export const ChugAttemptModal = ({
   onRetry,
   onAccept,
   onSubmitManualTiming,
+  onSkipAnalysis,
 }: ChugAttemptModalProps) => {
   const { catalog } = useBeverageCatalog();
   const [beerSearch, setBeerSearch] = useState('');
@@ -242,6 +246,15 @@ export const ChugAttemptModal = ({
             <View style={styles.analysisOverlay}>
               <ActivityIndicator color={colors.primary} size="large" />
               <Text style={styles.analysisTitle}>Your chug is being analyzed. Be patient...</Text>
+              <Text style={styles.analysisHint}>Taking too long? Send the video to your mate for manual timing.</Text>
+              <View style={styles.analysisActions}>
+                <AppButton
+                  label="Skip ML and send"
+                  onPress={onSkipAnalysis}
+                  loading={skipAnalysisBusy}
+                  variant="secondary"
+                />
+              </View>
             </View>
           ) : null}
         </View>
@@ -478,5 +491,15 @@ const styles = StyleSheet.create({
     ...typography.h3,
     color: colors.text,
     textAlign: 'center',
+  },
+  analysisHint: {
+    ...typography.caption,
+    color: colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  analysisActions: {
+    width: '100%',
+    maxWidth: 260,
   },
 });

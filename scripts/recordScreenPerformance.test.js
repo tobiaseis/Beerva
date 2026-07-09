@@ -26,3 +26,28 @@ assert.match(
   /\}, \[fetchActivePubCrawl, fetchActiveSessionPhotos, fetchSessionBeers, resetActiveState\]\);/,
   'fetchActiveSession dependencies include fetchActivePubCrawl'
 );
+assert.match(
+  source,
+  /const \[pubRefreshingNearby, setPubRefreshingNearby\] = useState\(false\);/,
+  'RecordScreen tracks nearby pub refresh separately from the blocking saved-pub search'
+);
+assert.match(
+  source,
+  /const results = await searchCachedPubs\([\s\S]*?setPubOptions\(results\);[\s\S]*?setPubSearching\(false\);[\s\S]*?getPreviouslyGrantedDeviceLocation/,
+  'saved pub matches should render before optional location lookup starts'
+);
+assert.match(
+  source,
+  /setPubRefreshingNearby\(true\);[\s\S]*?fetchAndCacheNearbyPubs\(searchLocation, cleanPub\)/,
+  'OpenStreetMap enrichment should run as a nearby refresh after cached results are shown'
+);
+assert.doesNotMatch(
+  source,
+  /getPreviouslyGrantedDeviceLocation\(\)\s*\|\|\s*await getCurrentDeviceLocation\(\)/,
+  'typing in pub search should not prompt for fresh location; the Nearby button owns that'
+);
+assert.match(
+  source,
+  /pubRefreshingNearby \? \([\s\S]*?Checking nearby pubs/,
+  'RecordScreen should show a non-blocking nearby refresh hint'
+);

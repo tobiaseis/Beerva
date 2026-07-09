@@ -218,6 +218,7 @@ export const RecordScreen = ({ navigation }: any) => {
   const [chugVisible, setChugVisible] = useState(false);
   const [chugBusy, setChugBusy] = useState(false);
   const [chugAnalyzing, setChugAnalyzing] = useState(false);
+  const [chugSkippingAnalysis, setChugSkippingAnalysis] = useState(false);
   const [chugNeedsManualTiming, setChugNeedsManualTiming] = useState(false);
   const [chugError, setChugError] = useState<string | null>(null);
   const [chugSelectedBeerId, setChugSelectedBeerId] = useState<string | null>(null);
@@ -232,6 +233,7 @@ export const RecordScreen = ({ navigation }: any) => {
   const [ending, setEnding] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [pubSearching, setPubSearching] = useState(false);
+  const [pubRefreshingNearby, setPubRefreshingNearby] = useState(false);
   const [pubSearchError, setPubSearchError] = useState<string | null>(null);
   const [locatingPubs, setLocatingPubs] = useState(false);
   const [addingPub, setAddingPub] = useState(false);
@@ -254,6 +256,7 @@ export const RecordScreen = ({ navigation }: any) => {
   const passiveLocationAttempted = useRef(false);
   const passiveSeedAttempted = useRef(false);
   const photoWarningBypassAction = useRef<'next' | 'end' | null>(null);
+  const chugAnalysisRunRef = useRef(0);
   const lastSavedComment = useRef<{ sessionId: string | null; comment: string }>({
     sessionId: null,
     comment: '',
@@ -301,6 +304,7 @@ export const RecordScreen = ({ navigation }: any) => {
     if ((activeSession && !isCrawlAction) || (cleanPub.length < 2 && !userLocation)) {
       setPubOptions([]);
       setPubSearching(false);
+      setPubRefreshingNearby(false);
       setPubSearchError(null);
       return;
     }
@@ -311,12 +315,14 @@ export const RecordScreen = ({ navigation }: any) => {
     if (cachedOptions) {
       setPubOptions(cachedOptions);
       setPubSearching(false);
+      setPubRefreshingNearby(false);
       setPubSearchError(null);
       return;
     }
 
     let cancelled = false;
     setPubSearching(true);
+    setPubRefreshingNearby(false);
     setPubSearchError(null);
 
     const delayDebounceFn = setTimeout(async () => {
@@ -330,12 +336,27 @@ export const RecordScreen = ({ navigation }: any) => {
 
         let nextResults = results;
         let searchLocation = userLocation;
+        if (cancelled) return;
+
+        if (results.length > 0) {
+          pubSearchCache.current.set(cacheKey, results);
+        }
+        setPubOptions(results);
+        setPubSearchError(null);
+        setPubSearching(false);
+
+        const shouldRefreshNearby = cleanPub.length >= PUB_SEARCH_MIN_LENGTH && results.length < 6;
+        if (!shouldRefreshNearby) {
+          pubSearchCache.current.set(cacheKey, results);
+          return;
+        }
+
+        setPubRefreshingNearby(true);
 
         if (!searchLocation && cleanPub.length >= PUB_SEARCH_MIN_LENGTH && !passiveLocationAttempted.current) {
           passiveLocationAttempted.current = true;
           try {
-            searchLocation = await getPreviouslyGrantedDeviceLocation()
-              || await getCurrentDeviceLocation();
+            searchLocation = await getPreviouslyGrantedDeviceLocation();
             if (searchLocation && !cancelled) {
               setUserLocation(searchLocation);
             }
@@ -344,7 +365,7 @@ export const RecordScreen = ({ navigation }: any) => {
           }
         }
 
-        if (searchLocation && cleanPub.length >= PUB_SEARCH_MIN_LENGTH && results.length < 6) {
+        if (searchLocation && cleanPub.length >= PUB_SEARCH_MIN_LENGTH) {
           const remoteKey = `${cleanPub.toLowerCase()}|${getLocationCacheKey(searchLocation)}`;
           if (!remotePubSearchCache.current.has(remoteKey)) {
             try {
@@ -381,7 +402,10 @@ export const RecordScreen = ({ navigation }: any) => {
           setPubSearchError(e?.message || 'Pub search failed.');
         }
       } finally {
-        if (!cancelled) setPubSearching(false);
+        if (!cancelled) {
+          setPubSearching(false);
+          setPubRefreshingNearby(false);
+        }
       }
     }, 320);
 
@@ -1144,9 +1168,11 @@ export const RecordScreen = ({ navigation }: any) => {
     setChugAnalysisPreview(null);
     setChugNeedsManualTiming(false);
     setChugAnalyzing(false);
+    setChugSkippingAnalysis(false);
     setChugVideo(null);
     setChugSelectedBeerId(null);
     setChugSelectedVerifierId(null);
+    chugAnalysisRunRef.current += 1;
 
     try {
       const followers = await loadMutualFollowers();
@@ -1176,13 +1202,15 @@ export const RecordScreen = ({ navigation }: any) => {
   };
 
   const recordChugVideo = async () => {
-    if (!activeSession || !chugSelectedBeerId || !chugSelectedVerifierId || chugBusy) return;
+    if (!activeSession || !chugSelectedBeerId || !chugSelectedVerifierId || chugBusy || chugSkippingAnalysis) return;
 
     setChugBusy(true);
     setChugError(null);
     setChugAnalysisPreview(null);
     setChugNeedsManualTiming(false);
+    setChugSkippingAnalysis(false);
     setChugVideo(null);
+    let analysisRunId: number | null = null;
 
     try {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
@@ -1204,10 +1232,13 @@ export const RecordScreen = ({ navigation }: any) => {
 
       const preparedVideo = await chugVideoFromPickerAsset(result.assets[0]);
       setChugVideo(preparedVideo);
+      analysisRunId = chugAnalysisRunRef.current + 1;
+      chugAnalysisRunRef.current = analysisRunId;
       setChugAnalyzing(true);
 
       try {
         const analysis = await analyzeChugVideo(preparedVideo);
+        if (chugAnalysisRunRef.current !== analysisRunId) return;
 
         if (!analysis.ok || !analysis.durationMs) {
           setChugNeedsManualTiming(true);
@@ -1222,19 +1253,29 @@ export const RecordScreen = ({ navigation }: any) => {
           detectedEndMs: analysis.detectedEndMs,
         });
       } catch (analysisError: any) {
+        if (chugAnalysisRunRef.current !== analysisRunId) return;
         setChugNeedsManualTiming(true);
         setChugError(analysisError?.message || 'Could not analyze this chug attempt.');
       } finally {
-        setChugAnalyzing(false);
+        if (chugAnalysisRunRef.current === analysisRunId) {
+          setChugAnalyzing(false);
+        }
       }
     } catch (error: any) {
-      setChugError(error?.message || 'Could not analyze this chug attempt.');
+      if (analysisRunId === null || chugAnalysisRunRef.current === analysisRunId) {
+        setChugError(error?.message || 'Could not analyze this chug attempt.');
+      }
     } finally {
-      setChugBusy(false);
+      if (analysisRunId === null || chugAnalysisRunRef.current === analysisRunId) {
+        setChugBusy(false);
+      }
     }
   };
 
-  const saveChugAttempt = async (timingSource: 'ai' | 'pending_manual') => {
+  const saveChugAttempt = async (
+    timingSource: 'ai' | 'pending_manual',
+    options: { allowWhileBusy?: boolean } = {}
+  ) => {
     const durationMs = timingSource === 'ai' ? chugAnalysisPreview?.durationMs ?? null : null;
     if (
       !activeSession
@@ -1242,7 +1283,7 @@ export const RecordScreen = ({ navigation }: any) => {
       || !chugSelectedVerifierId
       || !chugVideo
       || (timingSource === 'ai' && !chugAnalysisPreview)
-      || chugBusy
+      || (chugBusy && !options.allowWhileBusy)
     ) {
       return;
     }
@@ -1298,6 +1339,7 @@ export const RecordScreen = ({ navigation }: any) => {
       setChugVisible(false);
       setChugAnalysisPreview(null);
       setChugNeedsManualTiming(false);
+      setChugSkippingAnalysis(false);
       setChugVideo(null);
       hapticSuccess();
       showAlert(
@@ -1315,6 +1357,30 @@ export const RecordScreen = ({ navigation }: any) => {
 
   const acceptChugAttempt = () => saveChugAttempt('ai');
   const sendChugForManualTiming = () => saveChugAttempt('pending_manual');
+  const skipChugAnalysis = async () => {
+    if (chugSkippingAnalysis || !chugAnalyzing) return;
+    if (!activeSession || !chugSelectedBeerId || !chugSelectedVerifierId || !chugVideo) {
+      chugAnalysisRunRef.current += 1;
+      setChugAnalyzing(false);
+      setChugBusy(false);
+      setChugNeedsManualTiming(true);
+      setChugError('Could not send this chug yet. Try recording it again.');
+      return;
+    }
+
+    chugAnalysisRunRef.current += 1;
+    setChugSkippingAnalysis(true);
+    setChugAnalysisPreview(null);
+    setChugNeedsManualTiming(true);
+    setChugError(null);
+
+    try {
+      await saveChugAttempt('pending_manual', { allowWhileBusy: true });
+    } finally {
+      setChugSkippingAnalysis(false);
+      setChugAnalyzing(false);
+    }
+  };
 
   const prepareSessionImageAsset = async (asset: ImagePicker.ImagePickerAsset): Promise<SessionImageDraft> => {
     if (Platform.OS === 'web') {
@@ -1942,6 +2008,8 @@ export const RecordScreen = ({ navigation }: any) => {
               </View>
             ) : pubSearching ? (
               <Text style={styles.pubSearchHint}>Searching pubs...</Text>
+            ) : pubRefreshingNearby ? (
+              <Text style={styles.pubSearchHint}>Checking nearby pubs...</Text>
             ) : pubSearchError ? (
               <Text style={styles.pubSearchError} numberOfLines={3}>{pubSearchError}</Text>
             ) : (cleanPub.length >= 2 && pubOptions.length === 0 && !userLocation && !hasExactPubOption) ? (
@@ -2320,6 +2388,7 @@ export const RecordScreen = ({ navigation }: any) => {
         analysisPreview={chugAnalysisPreview}
         needsManualTiming={chugNeedsManualTiming}
         analyzing={chugAnalyzing}
+        skipAnalysisBusy={chugSkippingAnalysis}
         busy={chugBusy}
         error={chugError}
         onClose={() => setChugVisible(false)}
@@ -2329,6 +2398,7 @@ export const RecordScreen = ({ navigation }: any) => {
         onRetry={recordChugVideo}
         onAccept={acceptChugAttempt}
         onSubmitManualTiming={sendChugForManualTiming}
+        onSkipAnalysis={skipChugAnalysis}
       />
 
       <PubRouletteModal

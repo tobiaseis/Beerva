@@ -12,14 +12,22 @@ assert.match(editSource, /ImagePicker\.launchCameraAsync\(\{[\s\S]*mediaTypes:\s
 assert.match(editSource, /videoMaxDuration:\s*CHUG_VIDEO_MAX_SECONDS/, 'edit chug flow should cap chug video length');
 assert.match(editSource, /analyzeChugVideo/, 'edit chug flow should analyze chug video locally');
 assert.match(editSource, /uploadChugProofVideo/, 'edit chug flow should upload accepted proof video');
-assert.match(editSource, /\.from\('session_beers'\)\s*[\s\S]*?\.insert\([\s\S]*?CHUG_REQUIRED_VOLUME[\s\S]*?\.select\('id, session_id, beer_name, volume, quantity, abv, note, consumed_at, created_at'\)/, 'edit chug flow should persist the chug beer before saving an attempt');
+assert.match(
+  editSource,
+  /\.from\('session_beers'\)\s*[\s\S]*?\.insert\([\s\S]*?CHUG_REQUIRED_VOLUME[\s\S]*?\.select\('id, session_id, beer_name, volume, quantity, abv, beverage_category[\s\S]*?created_at[\s\S]*?excluded_from_stats_reason'\)/,
+  'edit chug flow should persist the chug beer before saving an attempt'
+);
 assert.match(editSource, /\.from\('session_chug_attempts'\)\s*[\s\S]*?\.insert/, 'edit chug flow should insert a chug attempt');
 assert.match(editSource, /ai_duration_ms:\s*durationMs/, 'edit chug flow should preserve the original AI timing');
+assert.match(editSource, /const \[chugSkippingAnalysis, setChugSkippingAnalysis\]/, 'edit chug flow should track skip-save progress separately');
+assert.match(editSource, /chugAnalysisRunRef/, 'edit chug flow should ignore stale analysis results after skipping');
 assert.match(editSource, /timingSource: 'ai' \| 'pending_manual'/, 'edit chug flow should save timed and pending-manual attempts');
+assert.match(editSource, /allowWhileBusy\?: boolean/, 'edit manual skip should be able to save while analysis is busy');
 assert.match(editSource, /timing_source:\s*timingSource/, 'edit chug insert should persist timing source');
 assert.match(editSource, /duration_ms:\s*durationMs/, 'edit chug insert should allow missing pending-manual duration');
 assert.match(editSource, /type:\s*'chug_verification'/, 'edit chug flow should notify chosen verifier');
 assert.match(editSource, /onSubmitManualTiming=\{sendChugForManualTiming\}/, 'edit modal should submit preserved failed-analysis proof');
+assert.match(editSource, /onSkipAnalysis=\{skipChugAnalysis\}/, 'edit modal should send the recorded proof without waiting for ML');
 
 const addBoozeIndex = editSource.indexOf('submitLabel="Add Booze"');
 const chugPanelIndex = editSource.indexOf('<ChugBottleButton');

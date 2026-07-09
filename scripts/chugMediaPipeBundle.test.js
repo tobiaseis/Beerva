@@ -18,5 +18,14 @@ assert.match(source, /getLowerFaceBoxFromFaceBox/, 'MediaPipe analyzer should se
 assert.match(source, /getFaceAnchorFromLandmarks/, 'MediaPipe analyzer should send a stable face anchor to the detector');
 assert.match(source, /getAverageLandmarkVisibility/, 'MediaPipe analyzer should send mouth landmark visibility to the detector');
 assert.match(source, /bottleScore/, 'MediaPipe analyzer should send object detector confidence to the detector');
+assert.match(source, /CHUG_VIDEO_SEEK_TIMEOUT_MS/, 'MediaPipe analyzer should bound video seek waits');
+assert.match(source, /CHUG_ANALYSIS_TIMEOUT_MS/, 'MediaPipe analyzer should bound total analysis time');
+assert.match(source, /seekVideoTo/, 'MediaPipe analyzer should use a guarded seek helper');
+assert.match(source, /waitForVideoEvent/, 'MediaPipe analyzer should time out video loading events');
+assert.match(
+  source,
+  /Automatic chug timing took too long/,
+  'MediaPipe analyzer should explain timeout fallback to manual timing'
+);
 
 console.log('chug MediaPipe bundle guard passed');

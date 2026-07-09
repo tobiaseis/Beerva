@@ -41,19 +41,25 @@ assert.match(modalSource, /getChugBeerOptions/, 'chug modal should filter search
 assert.match(modalSource, /verifierSearch/, 'chug modal should locally filter mutual followers');
 assert.match(modalSource, /height:\s*220/, 'recording angle illustration should be taller');
 assert.match(modalSource, /Your chug is being analyzed\. Be patient\.\.\./, 'analysis should cover the modal with progress feedback');
+assert.match(modalSource, /Skip ML and send/, 'analysis overlay should let users skip ML and send to the verifier');
+assert.match(modalSource, /onSkipAnalysis/, 'chug modal should expose an analysis skip action');
 assert.match(modalSource, /Send for manual timing/, 'failed detection should allow verifier timing');
 assert.match(recordSource, /const \[chugAnalyzing, setChugAnalyzing\]/, 'record flow should separate analysis progress from general busy state');
+assert.match(recordSource, /const \[chugSkippingAnalysis, setChugSkippingAnalysis\]/, 'record flow should track skip-save progress separately');
+assert.match(recordSource, /chugAnalysisRunRef/, 'record flow should ignore stale analysis results after skipping');
 assert.match(recordSource, /timingSource: 'ai' \| 'pending_manual'/, 'record flow should save timed and pending-manual attempts');
+assert.match(recordSource, /allowWhileBusy\?: boolean/, 'manual skip should be able to save while analysis is busy');
 assert.match(recordSource, /timing_source:\s*timingSource/, 'record insert should persist timing source');
 assert.match(recordSource, /duration_ms:\s*durationMs/, 'record insert should allow missing pending-manual duration');
 assert.match(recordSource, /onSubmitManualTiming=\{sendChugForManualTiming\}/, 'modal should submit preserved failed-analysis proof');
+assert.match(recordSource, /onSkipAnalysis=\{skipChugAnalysis\}/, 'modal should send the recorded proof without waiting for ML');
 
-const addBoozeIndex = recordSource.indexOf('submitLabel="Add Booze"');
+const addDrinkIndex = recordSource.indexOf('submitLabel="Add Drink"');
 const chugPanelIndex = recordSource.indexOf('<ChugBottleButton');
 const postDetailsIndex = recordSource.indexOf('<Text style={styles.sectionTitle}>Post Details</Text>');
 assert.ok(
-  addBoozeIndex !== -1 && chugPanelIndex > addBoozeIndex && postDetailsIndex > chugPanelIndex,
-  'chug panel should sit between Add Booze and Post Details'
+  addDrinkIndex !== -1 && chugPanelIndex > addDrinkIndex && postDetailsIndex > chugPanelIndex,
+  'chug panel should sit between Add Drink and Post Details'
 );
 
 console.log('chug record screen checks passed');

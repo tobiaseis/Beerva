@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -123,6 +123,7 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
   const [chugVisible, setChugVisible] = useState(false);
   const [chugBusy, setChugBusy] = useState(false);
   const [chugAnalyzing, setChugAnalyzing] = useState(false);
+  const [chugSkippingAnalysis, setChugSkippingAnalysis] = useState(false);
   const [chugNeedsManualTiming, setChugNeedsManualTiming] = useState(false);
   const [chugError, setChugError] = useState<string | null>(null);
   const [chugSelectedBeerId, setChugSelectedBeerId] = useState<string | null>(null);
@@ -133,6 +134,7 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const chugAnalysisRunRef = useRef(0);
 
   const fetchSession = useCallback(async () => {
     if (!sessionId) return;
@@ -172,6 +174,7 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
       setChugVisible(false);
       setChugBusy(false);
       setChugAnalyzing(false);
+      setChugSkippingAnalysis(false);
       setChugNeedsManualTiming(false);
       setChugError(null);
       setChugSelectedBeerId(null);
@@ -179,6 +182,7 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
       setChugAnalysisPreview(null);
       setChugVideo(null);
       setMutualFollowers([]);
+      chugAnalysisRunRef.current += 1;
     } catch (error: any) {
       console.error('Edit session fetch error:', error);
       showAlert('Could not load post', error?.message || 'Please try again.');
@@ -327,9 +331,11 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
     setChugAnalysisPreview(null);
     setChugNeedsManualTiming(false);
     setChugAnalyzing(false);
+    setChugSkippingAnalysis(false);
     setChugVideo(null);
     setChugSelectedBeerId(null);
     setChugSelectedVerifierId(null);
+    chugAnalysisRunRef.current += 1;
 
     try {
       const followers = await loadMutualFollowers();
@@ -355,13 +361,15 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
   };
 
   const recordChugVideo = async () => {
-    if (!sessionId || !chugSelectedBeerId || !chugSelectedVerifierId || chugBusy) return;
+    if (!sessionId || !chugSelectedBeerId || !chugSelectedVerifierId || chugBusy || chugSkippingAnalysis) return;
 
     setChugBusy(true);
     setChugError(null);
     setChugAnalysisPreview(null);
     setChugNeedsManualTiming(false);
+    setChugSkippingAnalysis(false);
     setChugVideo(null);
+    let analysisRunId: number | null = null;
 
     try {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
@@ -383,10 +391,13 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
 
       const preparedVideo = await chugVideoFromPickerAsset(result.assets[0]);
       setChugVideo(preparedVideo);
+      analysisRunId = chugAnalysisRunRef.current + 1;
+      chugAnalysisRunRef.current = analysisRunId;
       setChugAnalyzing(true);
 
       try {
         const analysis = await analyzeChugVideo(preparedVideo);
+        if (chugAnalysisRunRef.current !== analysisRunId) return;
 
         if (!analysis.ok || !analysis.durationMs) {
           setChugNeedsManualTiming(true);
@@ -401,19 +412,29 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
           detectedEndMs: analysis.detectedEndMs,
         });
       } catch (analysisError: any) {
+        if (chugAnalysisRunRef.current !== analysisRunId) return;
         setChugNeedsManualTiming(true);
         setChugError(analysisError?.message || 'Could not analyze this chug attempt.');
       } finally {
-        setChugAnalyzing(false);
+        if (chugAnalysisRunRef.current === analysisRunId) {
+          setChugAnalyzing(false);
+        }
       }
     } catch (error: any) {
-      setChugError(error?.message || 'Could not analyze this chug attempt.');
+      if (analysisRunId === null || chugAnalysisRunRef.current === analysisRunId) {
+        setChugError(error?.message || 'Could not analyze this chug attempt.');
+      }
     } finally {
-      setChugBusy(false);
+      if (analysisRunId === null || chugAnalysisRunRef.current === analysisRunId) {
+        setChugBusy(false);
+      }
     }
   };
 
-  const saveChugAttempt = async (timingSource: 'ai' | 'pending_manual') => {
+  const saveChugAttempt = async (
+    timingSource: 'ai' | 'pending_manual',
+    options: { allowWhileBusy?: boolean } = {}
+  ) => {
     const durationMs = timingSource === 'ai' ? chugAnalysisPreview?.durationMs ?? null : null;
     if (
       !session
@@ -422,7 +443,7 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
       || !chugSelectedVerifierId
       || !chugVideo
       || (timingSource === 'ai' && !chugAnalysisPreview)
-      || chugBusy
+      || (chugBusy && !options.allowWhileBusy)
     ) {
       return;
     }
@@ -478,6 +499,7 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
       setChugVisible(false);
       setChugAnalysisPreview(null);
       setChugNeedsManualTiming(false);
+      setChugSkippingAnalysis(false);
       setChugVideo(null);
       hapticSuccess();
       showAlert(
@@ -496,6 +518,30 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
 
   const acceptChugAttempt = () => saveChugAttempt('ai');
   const sendChugForManualTiming = () => saveChugAttempt('pending_manual');
+  const skipChugAnalysis = async () => {
+    if (chugSkippingAnalysis || !chugAnalyzing) return;
+    if (!session || !sessionId || !chugSelectedBeerId || !chugSelectedVerifierId || !chugVideo) {
+      chugAnalysisRunRef.current += 1;
+      setChugAnalyzing(false);
+      setChugBusy(false);
+      setChugNeedsManualTiming(true);
+      setChugError('Could not send this chug yet. Try recording it again.');
+      return;
+    }
+
+    chugAnalysisRunRef.current += 1;
+    setChugSkippingAnalysis(true);
+    setChugAnalysisPreview(null);
+    setChugNeedsManualTiming(true);
+    setChugError(null);
+
+    try {
+      await saveChugAttempt('pending_manual', { allowWhileBusy: true });
+    } finally {
+      setChugSkippingAnalysis(false);
+      setChugAnalyzing(false);
+    }
+  };
 
   const removeBeer = (beer: SessionBeer) => {
     hapticWarning();
@@ -855,6 +901,7 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
         analysisPreview={chugAnalysisPreview}
         needsManualTiming={chugNeedsManualTiming}
         analyzing={chugAnalyzing}
+        skipAnalysisBusy={chugSkippingAnalysis}
         busy={chugBusy}
         error={chugError}
         onClose={() => setChugVisible(false)}
@@ -864,6 +911,7 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
         onRetry={recordChugVideo}
         onAccept={acceptChugAttempt}
         onSubmitManualTiming={sendChugForManualTiming}
+        onSkipAnalysis={skipChugAnalysis}
       />
 
       <Modal
