@@ -119,6 +119,7 @@ const recordNativePushDeliveryAttempt = async (
       http_status: params.httpStatus ?? null,
       error_message: params.errorMessage ?? null,
       expo_ticket_id: params.expoTicketId ?? null,
+      receipt_status: params.expoTicketId ? 'pending' : 'not_requested',
     });
 
   if (error) {

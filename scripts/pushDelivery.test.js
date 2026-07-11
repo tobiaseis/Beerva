@@ -270,4 +270,15 @@ assert.match(
   'native push payload should include route data and notification id'
 );
 
+assert.match(
+  sendPushSource,
+  /receipt_status:\s*params\.expoTicketId\s*\?\s*'pending'\s*:\s*'not_requested'/,
+  'accepted Expo tickets should enter pending receipt state'
+);
+assert.match(
+  sendPushSource,
+  /await Promise\.all\([\s\S]*webPushSubscriptions[\s\S]*let nativeSent[\s\S]*nativePushTokens/,
+  'web and native destinations should remain separate fan-out phases'
+);
+
 console.log('push delivery checks passed');
