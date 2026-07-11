@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.finalize-challenges]
 verify_jwt = false
+
+[functions.check-native-push-receipts]
+verify_jwt = false
