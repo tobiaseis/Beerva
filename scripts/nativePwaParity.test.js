@@ -93,4 +93,25 @@ const fakeBeer = read('src/screens/FakeBeerScreen.tsx');
 assert.match(fakeBeer, /usePwaParityInsets/);
 assert.doesNotMatch(fakeBeer, /top:\s*Platform\.OS === 'web'\s*\?\s*18\s*:\s*54/);
 
+const chug = read('src/screens/ChugVerificationScreen.tsx');
+assert.match(chug, /Proof video review is available in the web app for this version\./);
+assert.match(chug, /Manual timing is available in the web app for this version\./);
+
+for (const webOnlyComponent of [
+  'src/components/PwaInstallPrompt.tsx',
+  'src/components/PushReminderPrompt.tsx',
+  'src/components/UpdateAvailableBanner.tsx',
+]) {
+  assert.match(read(webOnlyComponent), /Platform\.OS !== 'web'/);
+}
+
+for (const nativeCapability of [
+  'src/lib/deviceLocation.ts',
+  'src/lib/devicePhotoSave.ts',
+  'src/lib/haptics.ts',
+  'src/lib/pushNotifications.ts',
+]) {
+  assert.match(read(nativeCapability), /Platform\.OS/);
+}
+
 console.log('native PWA parity checks passed');
