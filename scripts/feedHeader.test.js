@@ -9,14 +9,14 @@ const feedScreenSource = fs.readFileSync(
 
 assert.match(
   feedScreenSource,
-  /paddingTop:\s*Platform\.OS === 'web' \? 12 : insets\.top \+ 12/,
-  'feed header should use safe-area-aware top padding around the Beerva logo'
+  /const \{ feedHeaderPaddingTop, tabContentPaddingBottom \} = usePwaParityInsets\(\)/,
+  'feed header should use the shared safe-area-aware parity padding'
 );
 
 assert.match(
   feedScreenSource,
-  /paddingBottom:\s*Platform\.OS === 'web' \? 10 : 14/,
-  'feed header should use tighter bottom padding around the Beerva logo'
+  /paddingBottom:\s*10/,
+  'feed header should preserve the PWA bottom padding around the Beerva logo'
 );
 
 assert.match(
