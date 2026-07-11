@@ -21,6 +21,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { colors } from '../theme/colors';
 import { radius, spacing } from '../theme/layout';
+import { usePwaParityInsets } from '../theme/usePwaParityInsets';
 import { typography } from '../theme/typography';
 
 type ReviewAttempt = {
@@ -79,6 +80,7 @@ const WebVideo = React.forwardRef<WebVideoHandle, { uri: string }>(({ uri }, ref
 });
 
 export const ChugVerificationScreen = () => {
+  const { screenTopBarPaddingTop } = usePwaParityInsets();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const attemptId = route?.params?.attemptId as string | undefined;
@@ -256,7 +258,7 @@ export const ChugVerificationScreen = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { paddingTop: screenTopBarPaddingTop }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <ArrowLeft color={colors.text} size={22} />
         </TouchableOpacity>
@@ -413,7 +415,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   topBar: {
-    paddingTop: Platform.OS === 'web' ? 18 : 54,
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,

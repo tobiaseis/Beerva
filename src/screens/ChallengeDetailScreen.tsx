@@ -19,6 +19,7 @@ import {
 import { fetchChallengeDetail, joinChallenge } from '../lib/challengesApi';
 import { colors } from '../theme/colors';
 import { radius, shadows, spacing } from '../theme/layout';
+import { usePwaParityInsets } from '../theme/usePwaParityInsets';
 import { typography } from '../theme/typography';
 
 type ChallengeDetailRouteParams = {
@@ -37,6 +38,7 @@ type LoadChallengeOptions = {
 };
 
 export const ChallengeDetailScreen = ({ navigation, route }: any) => {
+  const { screenTopBarPaddingTop } = usePwaParityInsets();
   const { challengeSlug } = (route?.params || {}) as ChallengeDetailRouteParams;
   const [challenge, setChallenge] = useState<ChallengeDetail | null>(null);
   const [leaderboardScope, setLeaderboardScope] = useState<ChallengeLeaderboardScope>(CHALLENGE_LEADERBOARD_SCOPE.LOCAL);
@@ -166,7 +168,7 @@ export const ChallengeDetailScreen = ({ navigation, route }: any) => {
 
   const renderHeader = useCallback(() => (
     <View style={styles.headerBlock}>
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { paddingTop: screenTopBarPaddingTop }]}>
         <Pressable
           style={({ pressed }) => [styles.backButton, pressed ? styles.pressed : null]}
           onPress={() => navigation.goBack()}
@@ -335,7 +337,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   content: {
-    paddingTop: Platform.OS === 'web' ? 18 : 58,
+    paddingTop: 0,
     paddingHorizontal: 16,
     paddingBottom: 110,
     gap: spacing.sm,

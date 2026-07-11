@@ -34,6 +34,7 @@ import { deletePublicImageUrl } from '../lib/imageUpload';
 import { hapticLight, hapticWarning } from '../lib/haptics';
 import { colors } from '../theme/colors';
 import { radius } from '../theme/layout';
+import { usePwaParityInsets } from '../theme/usePwaParityInsets';
 import { typography } from '../theme/typography';
 import { fetchSessionBuddySummaries, SessionBuddy } from '../lib/sessionBuddies';
 import { getAllSessionPhotoUrls, SessionPhoto } from '../lib/sessionPhotos';
@@ -93,6 +94,7 @@ const getDetailCommentProfile = (comment: DetailComment): ProfilePreview | null 
 };
 
 export const PostDetailScreen = () => {
+  const { screenTopBarPaddingTop } = usePwaParityInsets();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const routeTargetType = route?.params?.targetType as PostTargetType | undefined;
@@ -714,7 +716,7 @@ export const PostDetailScreen = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { paddingTop: screenTopBarPaddingTop }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <ArrowLeft color={colors.text} size={22} />
         </TouchableOpacity>
@@ -804,7 +806,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   topBar: {
-    paddingTop: Platform.OS === 'web' ? 18 : 54,
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
@@ -837,10 +838,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   listContent: {
-    padding: Platform.OS === 'web' ? 12 : 14,
+    padding: 12,
     paddingBottom: 16,
     width: '100%',
-    maxWidth: Platform.OS === 'web' ? 520 : undefined,
+    maxWidth: 520,
     alignSelf: 'center',
   },
   commentsHeader: {

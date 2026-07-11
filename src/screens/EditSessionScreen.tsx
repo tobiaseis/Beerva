@@ -61,6 +61,7 @@ import { useFocused } from '../lib/useFocused';
 import { useBeverageCatalog } from '../lib/beverageCatalogContext';
 import { colors } from '../theme/colors';
 import { radius, shadows, spacing } from '../theme/layout';
+import { usePwaParityInsets } from '../theme/usePwaParityInsets';
 import { typography } from '../theme/typography';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
@@ -107,6 +108,7 @@ const SubmissionStatusChip = ({ status }: { status?: SessionBeer['beverage_submi
 };
 
 export const EditSessionScreen = ({ navigation, route }: any) => {
+  const { screenTopBarPaddingTop } = usePwaParityInsets();
   const { catalog } = useBeverageCatalog();
   const sessionId = route?.params?.sessionId as string | undefined;
   const [session, setSession] = useState<EditableSession | null>(null);
@@ -782,7 +784,7 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic">
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { paddingTop: screenTopBarPaddingTop }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <ArrowLeft color={colors.text} size={22} />
         </TouchableOpacity>
@@ -965,7 +967,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   content: {
-    paddingBottom: Platform.OS === 'web' ? 24 : 32,
+    paddingBottom: 24,
     gap: spacing.lg,
   },
   loader: {
@@ -975,7 +977,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   topBar: {
-    paddingTop: Platform.OS === 'web' ? 18 : 54,
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
@@ -1161,7 +1162,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.borderSoft,
-    height: Platform.OS === 'web' ? 132 : 150,
+    height: 132,
     borderStyle: 'dashed',
     overflow: 'hidden',
   },

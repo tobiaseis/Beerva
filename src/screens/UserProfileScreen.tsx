@@ -16,6 +16,7 @@ import { showAlert } from '../lib/dialogs';
 import { openMaps } from '../lib/maps';
 import { colors } from '../theme/colors';
 import { radius, shadows, spacing } from '../theme/layout';
+import { usePwaParityInsets } from '../theme/usePwaParityInsets';
 import { typography } from '../theme/typography';
 
 const INVITE_MESSAGES = [
@@ -130,6 +131,7 @@ const formatPints = (session: PublicSession) => {
 };
 
 export const UserProfileScreen = ({ navigation, route }: any) => {
+  const { screenTopBarPaddingTop } = usePwaParityInsets();
   const profileId = route?.params?.userId as string | undefined;
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -361,7 +363,7 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
   if (!profile) {
     return (
       <View style={styles.container}>
-        <View style={styles.topBar}>
+        <View style={[styles.topBar, { paddingTop: screenTopBarPaddingTop }]}>
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
             <ArrowLeft color={colors.text} size={22} />
           </TouchableOpacity>
@@ -386,7 +388,7 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
       contentContainerStyle={styles.content}
       contentInsetAdjustmentBehavior="automatic"
     >
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { paddingTop: screenTopBarPaddingTop }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <ArrowLeft color={colors.text} size={22} />
         </TouchableOpacity>
@@ -399,7 +401,7 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
           <StreakAvatar
             uri={profile.avatar_url}
             fallbackUri={`https://i.pravatar.cc/150?u=${profile.id}`}
-            size={Platform.OS === 'web' ? 104 : 120}
+            size={104}
             style={styles.avatar}
             recyclingKey={`profile-${profile.id}-${profile.avatar_url || 'fallback'}`}
             accessibilityLabel={`${profile.username || 'Beer Lover'}'s avatar`}
@@ -541,7 +543,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   content: {
-    paddingBottom: Platform.OS === 'web' ? 24 : 32,
+    paddingBottom: 24,
   },
   loader: {
     flex: 1,
@@ -550,7 +552,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   topBar: {
-    paddingTop: Platform.OS === 'web' ? 18 : 54,
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
@@ -579,7 +580,7 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    paddingTop: Platform.OS === 'web' ? 22 : 28,
+    paddingTop: 22,
     paddingBottom: 22,
     paddingHorizontal: 16,
   },
@@ -588,9 +589,9 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   avatar: {
-    width: Platform.OS === 'web' ? 104 : 120,
-    height: Platform.OS === 'web' ? 104 : 120,
-    borderRadius: Platform.OS === 'web' ? 52 : 60,
+    width: 104,
+    height: 104,
+    borderRadius: 52,
     borderWidth: 3,
     borderColor: colors.primaryBorder,
   },

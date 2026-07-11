@@ -76,6 +76,7 @@ import { getBeverageCatalogItem } from '../lib/sessionBeers';
 import { supabase } from '../lib/supabase';
 import { colors } from '../theme/colors';
 import { radius, shadows, spacing } from '../theme/layout';
+import { usePwaParityInsets } from '../theme/usePwaParityInsets';
 import { typography } from '../theme/typography';
 
 type AdminSegment = 'challenges' | 'beverages' | 'submissions' | 'official-posts' | 'moderation';
@@ -137,6 +138,7 @@ const formatChallengeWindow = (challenge: AdminChallenge) => {
 };
 
 export const AdminToolsScreen = ({ navigation, route }: any) => {
+  const { screenTopBarPaddingTop } = usePwaParityInsets();
   const { refresh: refreshCatalog } = useBeverageCatalog();
   const initialSegment = route?.params?.initialSegment as AdminSegment | undefined;
   const [activeSegment, setActiveSegment] = useState<AdminSegment>(
@@ -917,7 +919,7 @@ export const AdminToolsScreen = ({ navigation, route }: any) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { paddingTop: screenTopBarPaddingTop }]}>
         <TouchableOpacity
           style={styles.iconButton}
           onPress={() => navigation.goBack()}
@@ -1463,7 +1465,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   topBar: {
-    paddingTop: Platform.OS === 'web' ? 18 : 54,
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,

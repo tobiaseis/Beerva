@@ -11,6 +11,7 @@ import { fetchKingOfThePub, setPubPlaceCategory } from '../lib/pubLegendsApi';
 import { hapticLight } from '../lib/haptics';
 import { colors } from '../theme/colors';
 import { radius, shadows, spacing } from '../theme/layout';
+import { usePwaParityInsets } from '../theme/usePwaParityInsets';
 import { typography } from '../theme/typography';
 
 const formatSessionDate = (value?: string | null) => {
@@ -25,6 +26,7 @@ const formatSessionDate = (value?: string | null) => {
 };
 
 export const PubLegendDetailScreen = ({ navigation, route }: any) => {
+  const { screenTopBarPaddingTop } = usePwaParityInsets();
   const pubKey = route?.params?.pubKey as string | undefined;
   const pubId = route?.params?.pubId as string | null | undefined;
   const pubName = (route?.params?.pubName as string | undefined) || 'Pub';
@@ -159,7 +161,7 @@ export const PubLegendDetailScreen = ({ navigation, route }: any) => {
 
   const renderHeader = useCallback(() => (
     <View style={styles.headerBlock}>
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { paddingTop: screenTopBarPaddingTop }]}>
         <Pressable
           style={({ pressed }) => [styles.backButton, pressed ? styles.pressed : null]}
           onPress={() => navigation.goBack()}
@@ -262,7 +264,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: 16,
-    paddingBottom: Platform.OS === 'web' ? 28 : 32,
+    paddingBottom: 28,
     gap: spacing.md,
   },
   emptyContent: {
@@ -272,7 +274,6 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   topBar: {
-    paddingTop: Platform.OS === 'web' ? 18 : 54,
     paddingBottom: 2,
     flexDirection: 'row',
     alignItems: 'center',

@@ -9,6 +9,7 @@ import { hapticError, hapticLight, hapticSuccess } from '../lib/haptics';
 import { supabase } from '../lib/supabase';
 import { colors } from '../theme/colors';
 import { radius, shadows, spacing } from '../theme/layout';
+import { usePwaParityInsets } from '../theme/usePwaParityInsets';
 import { typography } from '../theme/typography';
 
 type HangoverTargetType = 'session' | 'pub_crawl';
@@ -44,6 +45,7 @@ const formatPublishedAt = (dateString?: string | null) => {
 };
 
 export const HangoverRatingScreen = ({ navigation, route }: any) => {
+  const { screenTopBarPaddingTop } = usePwaParityInsets();
   const targetType = route?.params?.targetType as HangoverTargetType | undefined;
   const targetId = route?.params?.targetId as string | undefined;
   const [summary, setSummary] = useState<TargetSummary | null>(null);
@@ -159,7 +161,7 @@ export const HangoverRatingScreen = ({ navigation, route }: any) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { paddingTop: screenTopBarPaddingTop }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <ArrowLeft color={colors.text} size={22} />
         </TouchableOpacity>
@@ -253,7 +255,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   topBar: {
-    paddingTop: Platform.OS === 'web' ? 18 : 54,
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,

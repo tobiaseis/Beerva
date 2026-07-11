@@ -44,4 +44,40 @@ assert.equal(
 );
 assert.match(read('src/components/PubCrawlMediaCarousel.tsx'), /const FEED_HORIZONTAL_PADDING = 14/);
 
+const safeAreaScreens = [
+  'AdminToolsScreen.tsx',
+  'ChallengeDetailScreen.tsx',
+  'ChugVerificationScreen.tsx',
+  'EditSessionScreen.tsx',
+  'HangoverRatingScreen.tsx',
+  'NotificationsScreen.tsx',
+  'PostDetailScreen.tsx',
+  'PubLegendDetailScreen.tsx',
+  'UserProfileScreen.tsx',
+];
+
+for (const name of safeAreaScreens) {
+  const source = read(`src/screens/${name}`);
+  assert.match(source, /usePwaParityInsets/);
+  assert.doesNotMatch(source, /paddingTop:\s*Platform\.OS === 'web'\s*\?\s*18\s*:\s*(54|58|60)/);
+}
+
+for (const file of [
+  'src/screens/EditSessionScreen.tsx',
+  'src/screens/PostDetailScreen.tsx',
+  'src/screens/PubLegendDetailScreen.tsx',
+  'src/screens/UserProfileScreen.tsx',
+]) {
+  assert.doesNotMatch(
+    read(file),
+    /Platform\.OS === 'web'\s*\?\s*(12|24|28|104|132)\s*:\s*(14|32|120|150)/,
+    `${file} should preserve PWA detail geometry on native`
+  );
+}
+assert.equal(
+  (read('src/screens/UserProfileScreen.tsx').match(/size=\{104\}/g) || []).length,
+  1,
+  'other-user avatar should match the PWA size'
+);
+
 console.log('native PWA parity checks passed');

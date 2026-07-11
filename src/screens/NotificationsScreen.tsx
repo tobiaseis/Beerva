@@ -17,6 +17,7 @@ import { declineSessionBuddy } from '../lib/sessionBuddies';
 import { supabase } from '../lib/supabase';
 import { colors } from '../theme/colors';
 import { radius, shadows, spacing } from '../theme/layout';
+import { usePwaParityInsets } from '../theme/usePwaParityInsets';
 import { typography } from '../theme/typography';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
@@ -98,6 +99,7 @@ const getInviteStatusText = (status: InviteStatus) => {
 };
 
 export const NotificationsScreen = ({ navigation }: any) => {
+  const { screenTopBarPaddingTop } = usePwaParityInsets();
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -551,7 +553,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.topBar}>
+      <View style={[styles.topBar, { paddingTop: screenTopBarPaddingTop }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <ArrowLeft color={colors.text} size={22} />
         </TouchableOpacity>
@@ -595,7 +597,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   topBar: {
-    paddingTop: Platform.OS === 'web' ? 18 : 54,
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
