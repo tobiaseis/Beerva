@@ -23,7 +23,8 @@ import {
 import { fetchFriendPubWatchLeaderboards, fetchPubLegends } from '../lib/pubLegendsApi';
 import { hapticLight } from '../lib/haptics';
 import { colors } from '../theme/colors';
-import { floatingTabBarMetrics, radius, shadows, spacing } from '../theme/layout';
+import { radius, shadows, spacing } from '../theme/layout';
+import { usePwaParityInsets } from '../theme/usePwaParityInsets';
 import { typography } from '../theme/typography';
 
 const getPubLocation = (item: PubLegend) => item.city || item.address || 'Pub';
@@ -66,6 +67,7 @@ const getMsUntilNextHour = () => {
 };
 
 export const PubLegendsScreen = ({ navigation }: any) => {
+  const { tabContentPaddingBottom } = usePwaParityInsets();
   const [activeSegment, setActiveSegment] = useState<'pub-legends' | 'challenges'>('pub-legends');
   const [legends, setLegends] = useState<PubLegend[]>([]);
   const [challenges, setChallenges] = useState<ChallengeSummary[]>([]);
@@ -545,7 +547,7 @@ export const PubLegendsScreen = ({ navigation }: any) => {
           windowSize={5}
           removeClippedSubviews={Platform.OS !== 'web'}
           contentInsetAdjustmentBehavior="automatic"
-          contentContainerStyle={[styles.listContent, activeFriendRows.length === 0 ? styles.emptyContent : null]}
+          contentContainerStyle={[styles.listContent, { paddingBottom: tabContentPaddingBottom }, activeFriendRows.length === 0 ? styles.emptyContent : null]}
           refreshControl={<RefreshControl refreshing={refreshing || friendLoading} onRefresh={onRefresh} tintColor={colors.primary} />}
           ListHeaderComponent={renderFriendListHeader}
           ListEmptyComponent={
@@ -566,7 +568,7 @@ export const PubLegendsScreen = ({ navigation }: any) => {
           windowSize={5}
           removeClippedSubviews={Platform.OS !== 'web'}
           contentInsetAdjustmentBehavior="automatic"
-          contentContainerStyle={[styles.listContent, legends.length === 0 ? styles.emptyContent : null]}
+          contentContainerStyle={[styles.listContent, { paddingBottom: tabContentPaddingBottom }, legends.length === 0 ? styles.emptyContent : null]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={
@@ -587,7 +589,7 @@ export const PubLegendsScreen = ({ navigation }: any) => {
           windowSize={5}
           removeClippedSubviews={Platform.OS !== 'web'}
           contentInsetAdjustmentBehavior="automatic"
-          contentContainerStyle={[styles.listContent, challenges.length === 0 ? styles.emptyContent : null]}
+          contentContainerStyle={[styles.listContent, { paddingBottom: tabContentPaddingBottom }, challenges.length === 0 ? styles.emptyContent : null]}
           refreshControl={<RefreshControl refreshing={challengesLoading} onRefresh={loadChallenges} tintColor={colors.primary} />}
           ListHeaderComponent={renderHeader}
           ListEmptyComponent={
@@ -616,9 +618,6 @@ const styles = StyleSheet.create({
   listContent: {
     paddingTop: Platform.OS === 'web' ? 18 : 58,
     paddingHorizontal: 16,
-    paddingBottom: Platform.OS === 'web'
-      ? floatingTabBarMetrics.webContentInset
-      : floatingTabBarMetrics.nativeContentInset,
     gap: spacing.md,
   },
   emptyContent: {

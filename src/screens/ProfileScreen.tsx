@@ -19,7 +19,8 @@ import { StreakAvatar } from '../components/StreakAvatar';
 import { getUsernameSaveErrorMessage, normalizeUsername } from '../lib/usernames';
 import { AppButton } from '../components/AppButton';
 import { AvatarCropModal } from '../components/AvatarCropModal';
-import { floatingTabBarMetrics, radius, shadows, spacing } from '../theme/layout';
+import { radius, shadows, spacing } from '../theme/layout';
+import { usePwaParityInsets } from '../theme/usePwaParityInsets';
 import { SkeletonProfile } from '../components/Skeleton';
 import { useFocused } from '../lib/useFocused';
 import {
@@ -100,6 +101,7 @@ const formatPints = (session: PublicSession) => {
 };
 
 export const ProfileScreen = ({ route }: any) => {
+  const { tabContentPaddingBottom } = usePwaParityInsets();
   const navigation = useNavigation<any>();
   const [profile, setProfile] = useState<any>(null);
   const [stats, setStats] = useState<Stats>(emptyStats);
@@ -445,7 +447,7 @@ export const ProfileScreen = ({ route }: any) => {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.scrollContent}
+      contentContainerStyle={[styles.scrollContent, { paddingBottom: tabContentPaddingBottom }]}
       contentInsetAdjustmentBehavior="automatic"
     >
       <View style={styles.header}>
@@ -747,9 +749,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   scrollContent: {
-    paddingBottom: Platform.OS === 'web'
-      ? floatingTabBarMetrics.webContentInset
-      : floatingTabBarMetrics.nativeContentInset,
   },
   header: {
     alignItems: 'center',

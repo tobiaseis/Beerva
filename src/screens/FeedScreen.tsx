@@ -9,7 +9,6 @@ import { fetchFeedPage } from '../lib/feedApi';
 import { appendFeedPage } from '../lib/feedPagination';
 import { confirmDestructive } from '../lib/dialogs';
 import { useFocusEffect, useNavigation, useScrollToTop } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CachedImage } from '../components/CachedImage';
 import { StreakAvatar } from '../components/StreakAvatar';
 import { MentionComposer } from '../components/MentionComposer';
@@ -18,7 +17,8 @@ import { deletePublicImageUrl } from '../lib/imageUpload';
 import { Surface } from '../components/Surface';
 import { SkeletonFeedCard } from '../components/Skeleton';
 import { feedCardColors, feedCardMetrics, getCompactFeedActionCount } from '../theme/feedCard';
-import { floatingTabBarMetrics, radius, shadows } from '../theme/layout';
+import { radius, shadows } from '../theme/layout';
+import { usePwaParityInsets } from '../theme/usePwaParityInsets';
 import { hapticLight, hapticMedium, hapticWarning } from '../lib/haptics';
 import { useNotifications } from '../lib/notificationsContext';
 import { EmptyIllustration } from '../components/EmptyIllustration';
@@ -719,7 +719,7 @@ export const FeedSessionCard = React.memo(({
 
 export const FeedScreen = ({ route }: any) => {
   const navigation = useNavigation<any>();
-  const insets = useSafeAreaInsets();
+  const { feedHeaderPaddingTop, tabContentPaddingBottom } = usePwaParityInsets();
   const [sessions, setSessions] = useState<FeedItem[]>([]);
   const [unlockedTrophies, setUnlockedTrophies] = useState<TrophyDefinition[]>([]);
   const [allTrophiesPrizeVisible, setAllTrophiesPrizeVisible] = useState(false);
@@ -1676,7 +1676,7 @@ export const FeedScreen = ({ route }: any) => {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: Platform.OS === 'web' ? 12 : insets.top + 12 }]}>
+      <View style={[styles.header, { paddingTop: feedHeaderPaddingTop }]}>
         <View style={styles.logoContainer}>
           <Image source={beervaLogo} style={styles.logoImage} />
           <TouchableOpacity
@@ -1770,6 +1770,7 @@ export const FeedScreen = ({ route }: any) => {
           extraData={cheeringSessionIds}
           contentContainerStyle={[
             styles.scrollContent,
+            { paddingBottom: tabContentPaddingBottom },
             sessions.length === 0 ? styles.emptyContent : null,
           ]}
           initialNumToRender={6}
@@ -2068,9 +2069,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: Platform.OS === 'web' ? 10 : 12,
-    paddingBottom: Platform.OS === 'web'
-      ? floatingTabBarMetrics.webContentInset
-      : floatingTabBarMetrics.nativeContentInset,
     width: '100%',
     maxWidth: Platform.OS === 'web' ? 520 : undefined,
     alignSelf: 'center',

@@ -5,7 +5,8 @@ import { Search, UserCheck, UserPlus, Users } from 'lucide-react-native';
 import { CachedImage } from '../components/CachedImage';
 import { supabase } from '../lib/supabase';
 import { colors } from '../theme/colors';
-import { floatingTabBarMetrics, radius, shadows, spacing } from '../theme/layout';
+import { radius, shadows, spacing } from '../theme/layout';
+import { usePwaParityInsets } from '../theme/usePwaParityInsets';
 import { typography } from '../theme/typography';
 import { SkeletonPersonRow } from '../components/Skeleton';
 import { EmptyIllustration } from '../components/EmptyIllustration';
@@ -34,6 +35,7 @@ const useDebouncedValue = <T,>(value: T, delayMs: number) => {
 };
 
 export const PeopleScreen = ({ navigation }: any) => {
+  const { tabContentPaddingBottom } = usePwaParityInsets();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const searchFocus = useFocused();
@@ -266,7 +268,11 @@ export const PeopleScreen = ({ navigation }: any) => {
           windowSize={7}
           removeClippedSubviews={Platform.OS !== 'web'}
           contentInsetAdjustmentBehavior="automatic"
-          contentContainerStyle={[styles.listContent, people.length === 0 ? styles.emptyContent : null]}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: tabContentPaddingBottom },
+            people.length === 0 ? styles.emptyContent : null,
+          ]}
           keyboardShouldPersistTaps="handled"
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
@@ -334,9 +340,6 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: Platform.OS === 'web' ? 14 : 16,
-    paddingBottom: Platform.OS === 'web'
-      ? floatingTabBarMetrics.webContentInset
-      : floatingTabBarMetrics.nativeContentInset,
     gap: spacing.md,
   },
   emptyContent: {

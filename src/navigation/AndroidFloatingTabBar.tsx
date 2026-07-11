@@ -1,18 +1,17 @@
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors } from '../theme/colors';
 import { floatingTabBarMetrics, radius, shadows } from '../theme/layout';
+import { usePwaParityInsets } from '../theme/usePwaParityInsets';
 
 export const AndroidFloatingTabBar = ({ descriptors, navigation, state }: BottomTabBarProps) => {
-  const insets = useSafeAreaInsets();
+  const { tabBarBottom } = usePwaParityInsets();
   const { width: viewportWidth } = useWindowDimensions();
   const width = Math.min(Math.max(viewportWidth - 32, 0), 520);
-  const bottom = Math.max(insets.bottom + 12, floatingTabBarMetrics.nativeBottom);
 
   return (
-    <View pointerEvents="box-none" style={[styles.wrapper, { bottom, width }]}>
+    <View pointerEvents="box-none" style={[styles.wrapper, { bottom: tabBarBottom, width }]}>
       <View style={styles.pill}>
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];

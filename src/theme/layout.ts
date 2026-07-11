@@ -26,13 +26,12 @@ export const shadows = {
 
 const floatingTabBarHeight = 60;
 const floatingTabBarWebBottom = 16;
-const floatingTabBarNativeBottom = 56;
 
 export const floatingTabBarMetrics = {
   webBottom: floatingTabBarWebBottom,
   webHeight: floatingTabBarHeight,
   webContentInset: floatingTabBarHeight + floatingTabBarWebBottom + 16,
-  nativeBottom: floatingTabBarNativeBottom,
   nativeHeight: floatingTabBarHeight,
-  nativeContentInset: floatingTabBarHeight + floatingTabBarNativeBottom + 24,
+  nativeGap: 16,
+  contentGap: 16,
 };

@@ -76,8 +76,8 @@ assert.match(
 );
 assert.match(
   layoutSource,
-  /nativeContentInset:/,
-  'Shared floating nav metrics should include a native content inset'
+  /nativeGap:\s*16/,
+  'Shared floating nav metrics should expose the native safe-area gap'
 );
 
 assert.ok(
@@ -100,8 +100,13 @@ assert.match(
 );
 assert.match(
   androidTabBarSource,
-  /const bottom = Math\.max\(insets\.bottom \+ 12, floatingTabBarMetrics\.nativeBottom\)/,
-  'Android pill should stay above the system navigation area'
+  /const \{ tabBarBottom \} = usePwaParityInsets\(\)/,
+  'Android pill should derive its bottom position from the shared safe-area hook'
+);
+assert.doesNotMatch(
+  androidTabBarSource,
+  /Math\.max\(insets\.bottom \+ 12, floatingTabBarMetrics\.nativeBottom\)/,
+  'Android pill should not override real system insets with a fixed fallback'
 );
 assert.match(
   androidTabBarSource,
@@ -110,13 +115,8 @@ assert.match(
 );
 assert.match(
   feedScreenSource,
-  /useSafeAreaInsets/,
-  'Feed header should read the real device top safe area'
-);
-assert.match(
-  feedScreenSource,
-  /paddingTop: Platform\.OS === 'web' \? 12 : insets\.top \+ 12/,
-  'PWA top spacing should stay at 12 while Android derives spacing from the system inset'
+  /usePwaParityInsets/,
+  'Feed header should use the shared parity inset hook'
 );
 
 const screenOptions = extractScreenOptionsBlock(source);
@@ -216,13 +216,8 @@ const tabContentFiles = [
 for (const file of tabContentFiles) {
   assert.match(
     readSource(file),
-    /floatingTabBarMetrics\.webContentInset/,
-    `${file} should reserve scroll/list bottom space for the floating pill`
-  );
-  assert.match(
-    readSource(file),
-    /floatingTabBarMetrics\.nativeContentInset/,
-    `${file} should reserve native bottom space for the floating pill`
+    /tabContentPaddingBottom/,
+    `${file} should reserve the shared dynamic pill inset`
   );
 }
 

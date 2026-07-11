@@ -92,7 +92,8 @@ import { getCurrentDeviceLocation, getPreviouslyGrantedDeviceLocation } from '..
 import { MentionCandidate } from '../lib/mentions';
 import { notifyContentMentionsSafely } from '../lib/mentionNotifications';
 import { colors } from '../theme/colors';
-import { floatingTabBarMetrics, radius, shadows, spacing } from '../theme/layout';
+import { radius, shadows, spacing } from '../theme/layout';
+import { usePwaParityInsets } from '../theme/usePwaParityInsets';
 import { typography } from '../theme/typography';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
@@ -194,6 +195,7 @@ const SubmissionStatusChip = ({ status }: { status?: SessionBeer['beverage_submi
 };
 
 export const RecordScreen = ({ navigation }: any) => {
+  const { tabContentPaddingBottom } = usePwaParityInsets();
   const { catalog } = useBeverageCatalog();
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
   const [activeCrawl, setActiveCrawl] = useState<ActivePubCrawlState | null>(null);
@@ -1942,7 +1944,7 @@ export const RecordScreen = ({ navigation }: any) => {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={styles.scrollContent}
+      contentContainerStyle={[styles.scrollContent, { paddingBottom: tabContentPaddingBottom }]}
       contentInsetAdjustmentBehavior="automatic"
       keyboardShouldPersistTaps="always"
       nestedScrollEnabled
@@ -2616,9 +2618,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: Platform.OS === 'web'
-      ? floatingTabBarMetrics.webContentInset
-      : floatingTabBarMetrics.nativeContentInset,
   },
   header: {
     paddingTop: Platform.OS === 'web' ? 18 : 60,
