@@ -15,6 +15,7 @@ import { hapticLight } from '../lib/haptics';
 import { queryWebMotionPermissionState, requestWebMotionPermission } from '../lib/webMotionPermission';
 import { colors } from '../theme/colors';
 import { radius } from '../theme/layout';
+import { usePwaParityInsets } from '../theme/usePwaParityInsets';
 
 const SENSOR_UPDATE_MS = 80;
 const DEVICE_MOTION_WATCHDOG_MS = 650;
@@ -86,6 +87,7 @@ const getErrorMessage = (error: unknown) => {
 
 export const FakeBeerScreen = () => {
   const navigation = useNavigation<any>();
+  const { screenTopBarPaddingTop } = usePwaParityInsets();
   const [fillLevel, setFillLevel] = useState(1);
   const [liquidTiltDegrees, setLiquidTiltDegrees] = useState(0);
   const [sloshOffset, setSloshOffset] = useState(0);
@@ -579,7 +581,7 @@ export const FakeBeerScreen = () => {
       )}
 
       <Pressable
-        style={styles.closeButton}
+        style={[styles.closeButton, { top: screenTopBarPaddingTop }]}
         onPress={() => navigation.goBack()}
         accessibilityRole="button"
         accessibilityLabel="Close fake beer"
@@ -598,7 +600,6 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     position: 'absolute',
-    top: Platform.OS === 'web' ? 18 : 54,
     right: 18,
     width: 38,
     height: 38,

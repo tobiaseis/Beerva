@@ -80,4 +80,17 @@ assert.equal(
   'other-user avatar should match the PWA size'
 );
 
+const auth = read('src/screens/AuthScreen.tsx');
+assert.doesNotMatch(auth, /Platform\.OS === 'web'\s*\?\s*24\s*:\s*20/);
+assert.doesNotMatch(auth, /Platform\.OS === 'web'\s*\?\s*34\s*:\s*60/);
+assert.doesNotMatch(auth, /Platform\.OS === 'web'\s*\?\s*spacing\.lg\s*:\s*spacing\.xl/);
+
+const crop = read('src/components/AvatarCropModal.tsx');
+assert.match(crop, /usePwaParityInsets/);
+assert.doesNotMatch(crop, /paddingTop:\s*Platform\.OS === 'web'\s*\?\s*18\s*:\s*48/);
+
+const fakeBeer = read('src/screens/FakeBeerScreen.tsx');
+assert.match(fakeBeer, /usePwaParityInsets/);
+assert.doesNotMatch(fakeBeer, /top:\s*Platform\.OS === 'web'\s*\?\s*18\s*:\s*54/);
+
 console.log('native PWA parity checks passed');

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, Platform, Image } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, Image } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
@@ -182,11 +182,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
     justifyContent: 'center',
-    padding: Platform.OS === 'web' ? 24 : 20,
+    padding: 24,
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: Platform.OS === 'web' ? 34 : 60,
+    marginBottom: 34,
   },
   logoText: {
     fontFamily: 'Righteous_400Regular',
@@ -200,7 +200,7 @@ const styles = StyleSheet.create({
     resizeMode: 'contain',
   },
   formContainer: {
-    padding: Platform.OS === 'web' ? spacing.lg : spacing.xl,
+    padding: spacing.lg,
   },
   input: {
     ...typography.body,

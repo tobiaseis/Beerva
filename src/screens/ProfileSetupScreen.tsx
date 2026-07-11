@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Bell, BellOff, Camera, LogOut } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -296,8 +296,8 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: Platform.OS === 'web' ? spacing.xl : 20,
-    paddingBottom: Platform.OS === 'web' ? 32 : 36,
+    padding: spacing.xl,
+    paddingBottom: 32,
   },
   loader: {
     flex: 1,
@@ -360,7 +360,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   form: {
-    padding: Platform.OS === 'web' ? 18 : 20,
+    padding: 18,
   },
   inputLabel: {
     ...typography.body,

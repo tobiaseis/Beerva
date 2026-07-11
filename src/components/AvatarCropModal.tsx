@@ -26,6 +26,7 @@ import {
 import { imageFromPickerAsset, SelectedImage, UPLOAD_IMAGE_MAX_WIDTH } from '../lib/imageUpload';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/layout';
+import { usePwaParityInsets } from '../theme/usePwaParityInsets';
 import { typography } from '../theme/typography';
 import { AppButton } from './AppButton';
 
@@ -180,6 +181,7 @@ export const AvatarCropModal = ({
   onCancel,
   onConfirm,
 }: AvatarCropModalProps) => {
+  const { screenTopBarPaddingTop } = usePwaParityInsets();
   const { width } = useWindowDimensions();
   const frameSize = Math.max(180, Math.min(320, width - 48));
   const sourceWidth = Math.max(1, asset?.width || frameSize);
@@ -280,7 +282,7 @@ export const AvatarCropModal = ({
       onRequestClose={onCancel}
     >
       <View style={styles.container}>
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: screenTopBarPaddingTop }]}>
           <Text style={styles.title}>{title}</Text>
           <TouchableOpacity
             accessibilityRole="button"
@@ -392,8 +394,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    minHeight: Platform.OS === 'web' ? 68 : 96,
-    paddingTop: Platform.OS === 'web' ? 18 : 48,
+    minHeight: 68,
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.md,
     borderBottomWidth: 1,
