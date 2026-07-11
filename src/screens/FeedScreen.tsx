@@ -2006,7 +2006,7 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 20,
-    paddingBottom: Platform.OS === 'web' ? 10 : 14,
+    paddingBottom: 10,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderSoft,
     backgroundColor: colors.background,
@@ -2068,9 +2068,9 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   scrollContent: {
-    padding: Platform.OS === 'web' ? 10 : 12,
+    padding: 10,
     width: '100%',
-    maxWidth: Platform.OS === 'web' ? 520 : undefined,
+    maxWidth: 520,
     alignSelf: 'center',
   },
   emptyContent: {
@@ -2194,7 +2194,7 @@ const styles = StyleSheet.create({
   imageWrap: {
     position: 'relative',
     aspectRatio: 4 / 5,
-    maxHeight: Platform.OS === 'web' ? 540 : undefined,
+    maxHeight: 540,
   },
   sessionPhotoScroller: {
     width: '100%',
@@ -2632,7 +2632,7 @@ const styles = StyleSheet.create({
     borderColor: colors.borderSoft,
   },
   modalList: {
-    maxHeight: Platform.OS === 'web' ? 420 : 460,
+    maxHeight: 420,
   },
   modalListContent: {
     padding: 16,

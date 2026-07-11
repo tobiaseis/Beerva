@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator, Platform, FlatList } from 'react-native';
+import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator, FlatList } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
@@ -101,7 +101,7 @@ const formatPints = (session: PublicSession) => {
 };
 
 export const ProfileScreen = ({ route }: any) => {
-  const { tabContentPaddingBottom } = usePwaParityInsets();
+  const { modalHeaderPaddingTop, profileHeaderPaddingTop, tabContentPaddingBottom } = usePwaParityInsets();
   const navigation = useNavigation<any>();
   const [profile, setProfile] = useState<any>(null);
   const [stats, setStats] = useState<Stats>(emptyStats);
@@ -450,12 +450,12 @@ export const ProfileScreen = ({ route }: any) => {
       contentContainerStyle={[styles.scrollContent, { paddingBottom: tabContentPaddingBottom }]}
       contentInsetAdjustmentBehavior="automatic"
     >
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: profileHeaderPaddingTop }]}>
         <View style={styles.avatarContainer}>
           <StreakAvatar
             uri={profile?.avatar_url}
             fallbackUri={'https://i.pravatar.cc/150?u=' + profile?.id}
-            size={Platform.OS === 'web' ? 104 : 120}
+            size={104}
             style={styles.avatar}
             recyclingKey={`profile-${profile?.id}-${profile?.avatar_url || 'fallback'}`}
             accessibilityLabel={`${profile?.username || 'Beer Lover'}'s avatar`}
@@ -632,7 +632,7 @@ export const ProfileScreen = ({ route }: any) => {
 
       <Modal visible={isEditing} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
+          <View style={[styles.modalHeader, { paddingTop: modalHeaderPaddingTop }]}>
             <Text style={typography.h2}>Edit Profile</Text>
             <TouchableOpacity onPress={() => setIsEditing(false)}>
               <X color={colors.text} size={24} />
@@ -752,17 +752,16 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    paddingTop: Platform.OS === 'web' ? 22 : 60,
-    paddingBottom: Platform.OS === 'web' ? 22 : 30,
+    paddingBottom: 22,
   },
   avatarContainer: {
     position: 'relative',
     marginBottom: 16,
   },
   avatar: {
-    width: Platform.OS === 'web' ? 104 : 120,
-    height: Platform.OS === 'web' ? 104 : 120,
-    borderRadius: Platform.OS === 'web' ? 52 : 60,
+    width: 104,
+    height: 104,
+    borderRadius: 52,
     borderWidth: 3,
     borderColor: colors.primaryBorder,
   },
@@ -822,7 +821,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     marginHorizontal: 16,
     borderRadius: 14,
-    padding: Platform.OS === 'web' ? 16 : 20,
+    padding: 16,
     borderWidth: 1,
     borderColor: colors.borderSoft,
   },
@@ -851,7 +850,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 12,
     borderRadius: 14,
-    padding: Platform.OS === 'web' ? 16 : 18,
+    padding: 16,
     borderWidth: 1,
     borderColor: colors.border,
   },
@@ -871,7 +870,7 @@ const styles = StyleSheet.create({
     marginLeft: 16,
   },
   section: {
-    padding: Platform.OS === 'web' ? 16 : 20,
+    padding: 16,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -896,7 +895,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     flexBasis: '30%',
     minWidth: 104,
-    minHeight: Platform.OS === 'web' ? 146 : 154,
+    minHeight: 146,
     padding: 12,
     borderRadius: 12,
     alignItems: 'center',
@@ -1068,7 +1067,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 20,
-    paddingTop: Platform.OS === 'web' ? 20 : 60,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderSoft,
   },

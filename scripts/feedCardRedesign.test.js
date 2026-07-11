@@ -179,8 +179,8 @@ assert.match(
 );
 assert.match(
   feedScreen,
-  /maxWidth:\s*Platform\.OS === 'web' \? 520/,
-  'Feed should use a narrower Instagram-style web column'
+  /maxWidth:\s*520/,
+  'Feed should preserve the PWA column width on native'
 );
 
 assertModernFeedCard(feedScreen, 'Feed session');

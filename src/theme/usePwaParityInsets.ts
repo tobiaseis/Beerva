@@ -14,6 +14,7 @@ export const usePwaParityInsets = () => {
     feedHeaderPaddingTop: isWeb ? 12 : insets.top + 12,
     screenTopBarPaddingTop: isWeb ? 18 : insets.top + 18,
     profileHeaderPaddingTop: isWeb ? 22 : insets.top + 22,
+    modalHeaderPaddingTop: isWeb ? 20 : insets.top + 20,
     tabBarBottom,
     tabContentPaddingBottom: floatingTabBarMetrics.nativeHeight
       + tabBarBottom

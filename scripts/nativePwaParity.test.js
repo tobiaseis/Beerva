@@ -21,4 +21,27 @@ assert.match(hook, /insets\.bottom \+ floatingTabBarMetrics\.nativeGap/);
 assert.doesNotMatch(layout, /floatingTabBarNativeBottom\s*=\s*56/);
 assert.match(layout, /nativeGap:\s*16/);
 
+const visualFiles = [
+  'src/screens/FeedScreen.tsx',
+  'src/screens/PeopleScreen.tsx',
+  'src/screens/RecordScreen.tsx',
+  'src/screens/PubLegendsScreen.tsx',
+  'src/screens/ProfileScreen.tsx',
+  'src/components/ProfileStatsPanel.tsx',
+];
+
+for (const file of visualFiles) {
+  assert.doesNotMatch(
+    read(file),
+    /Platform\.OS === 'web'\s*\?\s*(10|12|14|16|18|20|22|24|104|132|146)\s*:\s*(12|14|16|18|20|22|24|28|30|32|60|70|88|120|150|154)/,
+    `${file} should not keep accidental larger Android geometry`
+  );
+}
+assert.equal(
+  (read('src/screens/ProfileScreen.tsx').match(/size=\{104\}/g) || []).length,
+  1,
+  'own-profile avatar should match the PWA size'
+);
+assert.match(read('src/components/PubCrawlMediaCarousel.tsx'), /const FEED_HORIZONTAL_PADDING = 14/);
+
 console.log('native PWA parity checks passed');

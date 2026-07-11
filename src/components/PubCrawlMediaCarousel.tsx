@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, StyleSheet, ScrollView, Platform, TouchableOpacity, useWindowDimensions } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { PubCrawlRouteMap } from './PubCrawlRouteMap';
 import { CachedImage } from './CachedImage';
 import { buildPubCrawlMediaSlides, PubCrawl } from '../lib/pubCrawls';
@@ -7,7 +7,7 @@ import { colors } from '../theme/colors';
 import { spacing } from '../theme/layout';
 
 const FEED_CONTENT_MAX_WIDTH = 680;
-const FEED_HORIZONTAL_PADDING = Platform.OS === 'web' ? 14 : 16;
+const FEED_HORIZONTAL_PADDING = 14;
 const MIN_SLIDE_WIDTH = 260;
 
 type Props = {

@@ -195,7 +195,7 @@ const SubmissionStatusChip = ({ status }: { status?: SessionBeer['beverage_submi
 };
 
 export const RecordScreen = ({ navigation }: any) => {
-  const { tabContentPaddingBottom } = usePwaParityInsets();
+  const { screenTopBarPaddingTop, tabContentPaddingBottom } = usePwaParityInsets();
   const { catalog } = useBeverageCatalog();
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
   const [activeCrawl, setActiveCrawl] = useState<ActivePubCrawlState | null>(null);
@@ -1949,7 +1949,7 @@ export const RecordScreen = ({ navigation }: any) => {
       keyboardShouldPersistTaps="always"
       nestedScrollEnabled
     >
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: screenTopBarPaddingTop }]}>
         <Text style={typography.h2}>{activeSession ? 'Drinking Session' : 'Start Session'}</Text>
       </View>
 
@@ -2620,16 +2620,15 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   header: {
-    paddingTop: Platform.OS === 'web' ? 18 : 60,
     paddingHorizontal: 20,
-    paddingBottom: Platform.OS === 'web' ? 14 : 20,
+    paddingBottom: 14,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderSoft,
     backgroundColor: colors.background,
     zIndex: 10,
   },
   content: {
-    padding: Platform.OS === 'web' ? 16 : 20,
+    padding: 16,
     gap: spacing.lg,
   },
   formSurface: {
@@ -3075,7 +3074,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.borderSoft,
-    height: Platform.OS === 'web' ? 132 : 150,
+    height: 132,
     marginBottom: spacing.md,
     borderStyle: 'dashed',
     overflow: 'hidden',

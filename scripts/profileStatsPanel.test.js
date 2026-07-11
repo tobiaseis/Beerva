@@ -87,8 +87,8 @@ assert.match(
 
 assert.match(
   source,
-  /highScoreMetricRow: \{[\s\S]*gap: Platform\.OS === 'web' \? 8 : 6,/,
-  'high-score metric rows should use compact gaps so decimal values like 15.6 fit'
+  /highScoreMetricRow: \{[\s\S]*gap: 8,/,
+  'high-score metric rows should preserve the PWA gap on native'
 );
 
 assert.match(

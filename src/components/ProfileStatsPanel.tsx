@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Award, Beer, CalendarDays, ChevronDown, ChevronUp, Flame, MapPin, Moon, PartyPopper, Repeat, Sparkles, Sunrise, Trophy, X } from 'lucide-react-native';
 
 import { getTrophies, Stats, TopPubVisit, TrophyDefinition, TrophyKind } from '../lib/profileStats';
@@ -450,9 +450,9 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: Platform.OS === 'web' ? 66 : 70,
-    paddingHorizontal: Platform.OS === 'web' ? 6 : 4,
-    paddingVertical: Platform.OS === 'web' ? 9 : 10,
+    minHeight: 66,
+    paddingHorizontal: 6,
+    paddingVertical: 9,
     gap: 2,
   },
   statCellRightBorder: {
@@ -497,9 +497,9 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   highScoreTile: {
-    minHeight: Platform.OS === 'web' ? 82 : 88,
-    paddingHorizontal: Platform.OS === 'web' ? 10 : 12,
-    paddingVertical: Platform.OS === 'web' ? 11 : 13,
+    minHeight: 82,
+    paddingHorizontal: 10,
+    paddingVertical: 11,
     alignItems: 'center',
     justifyContent: 'center',
     borderColor: colors.borderSoft,
@@ -519,7 +519,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Platform.OS === 'web' ? 8 : 6,
+    gap: 8,
   },
   highScoreEmoji: {
     width: 24,
@@ -539,7 +539,7 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   section: {
-    padding: Platform.OS === 'web' ? 16 : 20,
+    padding: 16,
     gap: spacing.md,
   },
   cabinetHeader: {
@@ -588,7 +588,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     flexBasis: '30%',
     minWidth: 104,
-    minHeight: Platform.OS === 'web' ? 146 : 154,
+    minHeight: 146,
     padding: 12,
     borderRadius: radius.lg,
     alignItems: 'center',

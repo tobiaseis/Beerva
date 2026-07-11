@@ -35,7 +35,7 @@ const useDebouncedValue = <T,>(value: T, delayMs: number) => {
 };
 
 export const PeopleScreen = ({ navigation }: any) => {
-  const { tabContentPaddingBottom } = usePwaParityInsets();
+  const { screenTopBarPaddingTop, tabContentPaddingBottom } = usePwaParityInsets();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const searchFocus = useFocused();
@@ -229,7 +229,7 @@ export const PeopleScreen = ({ navigation }: any) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: screenTopBarPaddingTop }]}>
         <View style={styles.titleRow}>
           <Users color={colors.primary} size={26} />
           <Text style={styles.title}>People</Text>
@@ -295,7 +295,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   header: {
-    paddingTop: Platform.OS === 'web' ? 18 : 60,
     paddingHorizontal: 16,
     paddingBottom: 14,
     borderBottomWidth: 1,
@@ -330,7 +329,7 @@ const styles = StyleSheet.create({
     flex: 1,
     color: colors.text,
     fontSize: 16,
-    paddingVertical: Platform.OS === 'web' ? 10 : 8,
+    paddingVertical: 10,
     marginLeft: 10,
   },
   loader: {
@@ -339,7 +338,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   listContent: {
-    padding: Platform.OS === 'web' ? 14 : 16,
+    padding: 14,
     gap: spacing.md,
   },
   emptyContent: {
