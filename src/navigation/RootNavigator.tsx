@@ -46,6 +46,7 @@ import {
 } from '../lib/nativeNotificationRouting';
 import { syncCurrentTimezone } from '../lib/timezone';
 import { BeverageCatalogProvider } from '../lib/beverageCatalogContext';
+import { useNativePushLifecycle } from '../lib/useNativePushLifecycle';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
 
@@ -400,6 +401,7 @@ export const RootNavigator = () => {
   const pendingChallengeOpenRef = useRef<ChallengeLaunchParams | null>(getChallengeLaunchParamsFromUrl());
   const pendingChugVerificationOpenRef = useRef<ChugVerificationLaunchParams | null>(getChugVerificationLaunchParamsFromUrl());
   const sessionUserId = session?.user?.id ?? null;
+  useNativePushLifecycle(sessionUserId);
   const sessionHasCachedUsername = hasCachedUsername(session);
 
   const openPushReminderProfileHint = useCallback(() => {
