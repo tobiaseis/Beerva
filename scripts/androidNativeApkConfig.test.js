@@ -31,6 +31,10 @@ for (const dependencyName of ['expo-notifications', 'expo-constants', 'expo-loca
 
 assert.equal(appJson.expo.scheme, 'beerva', 'app should declare a beerva:// native scheme');
 assert.equal(appJson.expo.android.package, 'com.beerva.app', 'Android package id should be stable');
+assert.ok(
+  Number.isInteger(appJson.expo.android.versionCode) && appJson.expo.android.versionCode >= 2,
+  'Android builds should use an explicit incrementing versionCode'
+);
 const firebaseConfigPath = path.join(root, 'google-services.json');
 assert.ok(fs.existsSync(firebaseConfigPath), 'Android push requires the Firebase google-services.json config file');
 const firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, 'utf8'));

@@ -41,6 +41,7 @@
     },
     "android": {
       "package": "com.beerva.app",
+      "versionCode": 2,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/beerva-android-adaptive-foreground.png",
