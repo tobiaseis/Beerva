@@ -31,6 +31,11 @@ export const PubCrawlMediaCarousel = ({ crawl, onImagePress }: Props & { onImage
     setActiveIndex((currentIndex) => currentIndex === clampedIndex ? currentIndex : clampedIndex);
   };
 
+  // Unmapped crawls with no photos have nothing to show, so skip the media block.
+  if (slides.length === 0) {
+    return null;
+  }
+
   return (
     <View style={[styles.container, { height: slideHeight }]}>
       <ScrollView

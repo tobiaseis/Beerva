@@ -265,8 +265,15 @@ export const calculatePubCrawlSummary = (stops: PubCrawlStop[] = []): PubCrawlSu
   };
 };
 
+export const hasMappableLocation = (stop: PubCrawlStop) => (
+  typeof stop.latitude === 'number'
+  && Number.isFinite(stop.latitude)
+  && typeof stop.longitude === 'number'
+  && Number.isFinite(stop.longitude)
+);
+
 export const buildPubCrawlMediaSlides = (stops: PubCrawlStop[] = []): PubCrawlMediaSlide[] => [
-  { id: 'map', type: 'map' },
+  ...(stops.some(hasMappableLocation) ? [{ id: 'map' as const, type: 'map' as const }] : []),
   ...stops
     .filter((stop) => Boolean(stop.imageUrl))
     .map((stop) => ({

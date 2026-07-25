@@ -22,15 +22,9 @@ export const PubCrawlRouteMap = ({ stops, width = 640, height = 420 }: Props) =>
     setFailedTiles(prev => new Set(prev).add(key));
   };
 
+  // Nothing to plot means an empty grey box, so render no map at all.
   if (viewport.mappedStops.length === 0) {
-    return (
-      <View style={[styles.container, { aspectRatio: width / height }]}>
-        <View style={styles.fallbackContainer}>
-          <Text style={styles.fallbackTitle}>Route Map</Text>
-          <Text style={styles.fallbackText}>No locations mapped for this crawl.</Text>
-        </View>
-      </View>
-    );
+    return null;
   }
 
   return (
@@ -146,19 +140,5 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.background,
     fontSize: 10,
-  },
-  fallbackContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  fallbackTitle: {
-    ...typography.h3,
-    marginBottom: 4,
-  },
-  fallbackText: {
-    ...typography.caption,
-    color: colors.textMuted,
   },
 });

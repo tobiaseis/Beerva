@@ -245,7 +245,34 @@ assert.deepEqual(
   'photo slides should skip stops without photos'
 );
 
+const unmappedStops = crawl.stops.map((stop) => ({ ...stop, latitude: null, longitude: null }));
+const unmappedSlides = buildPubCrawlMediaSlides(unmappedStops);
+assert.ok(
+  unmappedSlides.every((slide) => slide.type !== 'map'),
+  'crawls without a single mapped stop should not get a map slide at all'
+);
+assert.deepEqual(
+  unmappedSlides.map((slide) => slide.stopOrder),
+  [1, 3],
+  'dropping the map slide should leave the photo slides untouched'
+);
+assert.equal(
+  buildPubCrawlMediaSlides(unmappedStops.map((stop) => ({ ...stop, imageUrl: null }))).length,
+  0,
+  'an unmapped crawl with no photos should produce no media slides'
+);
+assert.equal(
+  buildPubCrawlMediaSlides([{ ...unmappedStops[0], latitude: 57.0488, longitude: 9.9217 }])[0].type,
+  'map',
+  'one mapped stop should still be enough to keep the map slide'
+);
+
 const mediaCarouselSource = fs.readFileSync(path.resolve(__dirname, '..', mediaCarouselPath), 'utf8');
+assert.match(
+  mediaCarouselSource,
+  /slides\.length === 0[\s\S]*return null/,
+  'carousel should render nothing when a crawl has neither a map nor photos'
+);
 assert.match(
   mediaCarouselSource,
   /buildPubCrawlMediaSlides/,
@@ -315,6 +342,21 @@ assert.doesNotMatch(routeMapSource, /Polyline/, 'route map should not draw lines
 assert.doesNotMatch(routeMapSource, /buildOsrmWalkingRouteUrl|router\.project-osrm\.org/, 'route map should not fetch route geometry when only markers are shown');
 assert.match(routeMapSource, /<Circle/, 'route map should still render numbered marker circles');
 assert.match(routeMapSource, /<SvgText/, 'route map should still render stop numbers');
+assert.match(
+  routeMapSource,
+  /viewport\.mappedStops\.length === 0[\s\S]*?return null/,
+  'route map should render nothing rather than an empty grey box when no stop is mapped'
+);
+assert.doesNotMatch(
+  routeMapSource,
+  /No locations mapped for this crawl/,
+  'the empty-map placeholder should be gone'
+);
+assert.match(
+  routeMapSource,
+  /viewport\.missingCount > 0/,
+  'partially mapped crawls should still surface the missing-stop note'
+);
 
 const mappedStops = getMappedStops(crawl.stops);
 assert.deepEqual(

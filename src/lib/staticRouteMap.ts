@@ -1,4 +1,4 @@
-import { PubCrawlStop } from './pubCrawls';
+import { hasMappableLocation, PubCrawlStop } from './pubCrawls';
 
 const TILE_SIZE = 256;
 const MIN_MERCATOR_LAT = -85.05112878;
@@ -82,12 +82,9 @@ export const projectLatLonToWorld = (latitude: number, longitude: number, zoom: 
 };
 
 export const getMappedStops = (stops: PubCrawlStop[] = []) => {
-  const mappedStops = stops.filter((stop): stop is MappedPubCrawlStop => (
-    typeof stop.latitude === 'number'
-    && Number.isFinite(stop.latitude)
-    && typeof stop.longitude === 'number'
-    && Number.isFinite(stop.longitude)
-  ));
+  const mappedStops = stops.filter(
+    (stop): stop is MappedPubCrawlStop => hasMappableLocation(stop)
+  );
 
   return Object.assign(mappedStops, {
     missingCount: stops.length - mappedStops.length,
