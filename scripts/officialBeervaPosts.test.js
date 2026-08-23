@@ -12,24 +12,7 @@ const exists = (relativePath) => fs.existsSync(path.join(root, relativePath));
 const migrationSql = exists(migrationPath) ? read(migrationPath) : '';
 const editMigrationSql = exists(editMigrationPath) ? read(editMigrationPath) : '';
 
-const loadTypeScriptModule = (relativePath) => {
-  const filename = path.join(root, relativePath);
-  const source = fs.readFileSync(filename, 'utf8');
-  const { outputText } = ts.transpileModule(source, {
-    compilerOptions: {
-      esModuleInterop: true,
-      module: ts.ModuleKind.CommonJS,
-      target: ts.ScriptTarget.ES2020,
-    },
-    fileName: filename,
-  });
-
-  const compiledModule = new Module(filename, module);
-  compiledModule.filename = filename;
-  compiledModule.paths = Module._nodeModulePaths(path.dirname(filename));
-  compiledModule._compile(outputText, filename);
-  return compiledModule.exports;
-};
+const { loadTypeScriptModule } = require('./loadTypeScriptModule');
 
 assert.ok(exists(migrationPath), 'official posts migration should exist');
 assert.match(migrationSql, /add column if not exists admin_request_key uuid/i, 'official posts should store retry keys');
@@ -88,6 +71,75 @@ assert.equal(
     officialFeedPosts.mapOfficialFeedPostRow({ kind: 'challenge_winner' })
   ),
   true
+);
+
+const unitWinner = officialFeedPosts.mapOfficialFeedPostRow({
+  id: 'post-units',
+  kind: 'challenge_winner',
+  title: 'Winner of Summer Sprint',
+  body: 'strong won Summer Sprint with 15.4 units.',
+  metadata: {
+    winner_user_id: 'user-1',
+    winner_username: 'strong',
+    metric_type: 'alcohol_units',
+    progress_value: 15.4,
+    true_pints: 15.4,
+    drink_count: 12,
+  },
+});
+assert.equal(unitWinner.metricType, 'alcohol_units');
+assert.equal(unitWinner.progressValue, 15.4);
+assert.equal(
+  officialFeedPosts.getOfficialWinnerProgressLabel(unitWinner),
+  'Units',
+  'unit challenges should label the winner stat as units'
+);
+assert.equal(
+  officialFeedPosts.formatOfficialWinnerStat(
+    officialFeedPosts.getOfficialWinnerProgressLabel(unitWinner),
+    unitWinner.progressValue
+  ),
+  'Units 15.4'
+);
+
+const pintWinner = officialFeedPosts.mapOfficialFeedPostRow({
+  id: 'post-pints',
+  kind: 'challenge_winner',
+  title: 'Winner of Pint Classic',
+  body: 'hoppy won Pint Classic with 8.8 true pints.',
+  metadata: {
+    winner_user_id: 'user-2',
+    metric_type: 'true_pints',
+    progress_value: 8.8,
+    true_pints: 8.8,
+  },
+});
+assert.equal(
+  officialFeedPosts.getOfficialWinnerProgressLabel(pintWinner),
+  'True pints',
+  'true-pint challenges should keep the true pint label'
+);
+
+const legacyWinner = officialFeedPosts.mapOfficialFeedPostRow({
+  id: 'post-legacy',
+  kind: 'challenge_winner',
+  title: 'Winner of Old Challenge',
+  body: 'someone won with 4.2 true pints.',
+  metadata: { true_pints: 4.2 },
+});
+assert.equal(
+  legacyWinner.metricType,
+  'true_pints',
+  'winner posts published before metrics were stored should read as true pints'
+);
+assert.equal(
+  legacyWinner.progressValue,
+  4.2,
+  'winner posts published before metrics were stored should fall back to their true pint value'
+);
+assert.equal(
+  officialFeedPosts.getOfficialWinnerProgressLabel(legacyWinner),
+  'True pints'
 );
 
 const emptyOfficialDraft = adminTools.createEmptyOfficialPostDraft();
@@ -216,8 +268,13 @@ assert.match(officialCardSource, /isOfficialWinnerPost/, 'official card should p
 assert.match(winnerCardSection, /statGrid/, 'winner announcements should keep official winner stats');
 assert.match(
   winnerCardSection,
+  /formatOfficialWinnerStat\(getOfficialWinnerProgressLabel\(post\), post\.progressValue\)/,
+  'winner announcements should label the stat with the metric the challenge was scored on'
+);
+assert.doesNotMatch(
+  winnerCardSection,
   /formatOfficialWinnerStat\('True pints'/,
-  'winner announcements should render official winner stat values'
+  'winner announcements should not hardcode true pints'
 );
 assert.doesNotMatch(
   announcementCardSection,

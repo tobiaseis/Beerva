@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { ChallengeMetricType, toChallengeMetricType } from './challenges';
 import { mapOfficialFeedPostRow, OfficialFeedPost, OfficialFeedPostRow } from './officialFeedPosts';
 import { getErrorMessage, TimeoutError, withRetryableTimeout, withTimeout } from './timeouts';
 
@@ -26,11 +27,14 @@ export type AdminBeverage = {
 
 export type AdminChallengeType = 'target' | 'leaderboard';
 
+export type AdminChallengeMetricType = ChallengeMetricType;
+
 export type AdminChallengeRow = {
   id?: string | null;
   slug?: string | null;
   title?: string | null;
   description?: string | null;
+  metric_type?: string | null;
   challenge_type?: string | null;
   target_value?: number | string | null;
   starts_at?: string | null;
@@ -49,6 +53,7 @@ export type AdminChallenge = {
   slug: string;
   title: string;
   description: string;
+  metricType: AdminChallengeMetricType;
   challengeType: AdminChallengeType;
   targetValue: number | null;
   startsAt: string;
@@ -157,6 +162,7 @@ export type SaveAdminChallengeInput = {
   id?: string;
   title: string;
   description: string;
+  metricType: AdminChallengeMetricType;
   challengeType: AdminChallengeType;
   targetValue: number | null;
   startsAt: string;
@@ -242,6 +248,7 @@ export const mapAdminChallengeRow = (row: AdminChallengeRow): AdminChallenge => 
   slug: toString(row.slug),
   title: toString(row.title),
   description: toString(row.description),
+  metricType: toChallengeMetricType(row.metric_type),
   challengeType: row.challenge_type === 'leaderboard' ? 'leaderboard' : 'target',
   targetValue: row.challenge_type === 'leaderboard' ? null : toNumber(row.target_value),
   startsAt: toString(row.starts_at),
@@ -506,6 +513,7 @@ export const saveAdminChallenge = async (input: SaveAdminChallengeInput): Promis
         challenge_title: input.title,
         challenge_description: input.description,
         target_challenge_type: input.challengeType,
+        challenge_metric_type: input.metricType,
         challenge_target_value: input.targetValue,
         challenge_starts_at: input.startsAt,
         challenge_ends_at: input.endsAt,

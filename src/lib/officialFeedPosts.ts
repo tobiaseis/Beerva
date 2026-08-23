@@ -1,3 +1,5 @@
+import { ChallengeMetricType, getChallengeMetricTitle, toChallengeMetricType } from './challenges';
+
 export type OfficialFeedPostRow = {
   id?: string | null;
   challenge_id?: string | null;
@@ -22,6 +24,8 @@ export type OfficialFeedPost = {
   winnerUserId: string | null;
   winnerUsername: string | null;
   winnerAvatarUrl: string | null;
+  metricType: ChallengeMetricType;
+  progressValue: number;
   truePints: number;
   drinkCount: number;
   averageAbv: number;
@@ -53,6 +57,12 @@ export const formatOfficialWinnerStat = (
   return `${label} ${formatted}${suffix}`;
 };
 
+// Winner posts published before challenges could be scored in alcohol units
+// carry no metric_type, and their value lives in the true_pints key.
+export const getOfficialWinnerProgressLabel = (
+  post: Pick<OfficialFeedPost, 'metricType'>
+) => getChallengeMetricTitle(post.metricType);
+
 export const isOfficialWinnerPost = (post: Pick<OfficialFeedPost, 'kind'>) => (
   post.kind === 'challenge_winner'
 );
@@ -71,6 +81,12 @@ export const mapOfficialFeedPostRow = (row: OfficialFeedPostRow): OfficialFeedPo
     winnerUserId: toStringOrNull(metadata.winner_user_id),
     winnerUsername: toStringOrNull(metadata.winner_username),
     winnerAvatarUrl: toStringOrNull(metadata.winner_avatar_url),
+    metricType: toChallengeMetricType(toStringOrNull(metadata.metric_type)),
+    progressValue: toNumber(
+      metadata.progress_value === undefined || metadata.progress_value === null
+        ? metadata.true_pints
+        : metadata.progress_value
+    ),
     truePints: toNumber(metadata.true_pints),
     drinkCount: Math.round(toNumber(metadata.drink_count)),
     averageAbv: toNumber(metadata.average_abv),

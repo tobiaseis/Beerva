@@ -594,6 +594,20 @@ export const beerDraftToPayload = (
   };
 };
 
+export const MIN_BEER_QUANTITY = 1;
+
+export const getBeerQuantity = (beer: Pick<SessionBeer, 'quantity'>) => (
+  Math.max(MIN_BEER_QUANTITY, beer.quantity || MIN_BEER_QUANTITY)
+);
+
+export const getAdjustedBeerQuantity = (beer: Pick<SessionBeer, 'quantity'>, delta: number) => (
+  Math.max(MIN_BEER_QUANTITY, getBeerQuantity(beer) + delta)
+);
+
+export const canDecrementBeerQuantity = (beer: Pick<SessionBeer, 'quantity'>) => (
+  getBeerQuantity(beer) > MIN_BEER_QUANTITY
+);
+
 export const getBeerDrinkLabel = (beer: Pick<SessionBeer, 'volume' | 'quantity'>) => {
   const volume = beer.volume || 'Pint';
   const quantity = beer.quantity || 1;

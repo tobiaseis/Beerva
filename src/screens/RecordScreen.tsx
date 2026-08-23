@@ -12,7 +12,7 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Beer, Camera, CheckCircle2, Clock, Download, Home, Images, LocateFixed, Lock, MapPin, MessageSquare, PlusCircle, Sparkles, Star, Trash2, X } from 'lucide-react-native';
+import { Beer, Camera, CheckCircle2, Clock, Download, Home, Images, LocateFixed, Lock, MapPin, MessageSquare, Minus, Plus, PlusCircle, Sparkles, Star, Trash2, X } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 
 import { AppButton } from '../components/AppButton';
@@ -42,8 +42,11 @@ import {
 } from '../lib/sessionPhotos';
 import {
   beerDraftToPayload,
+  canDecrementBeerQuantity,
   createEmptyBeerDraft,
+  getAdjustedBeerQuantity,
   getBeerLine,
+  getBeerQuantity,
   getLegacySessionBeerFields,
   getTotalBeerQuantity,
   SessionBeer,
@@ -1078,10 +1081,13 @@ export const RecordScreen = ({ navigation }: any) => {
     }
   };
 
-  const incrementBeerInSession = async (beer: SessionBeer) => {
+  const adjustBeerQuantityInSession = async (beer: SessionBeer, delta: number) => {
     if (!activeSession || !beer.id) return;
 
-    const nextQuantity = (beer.quantity || 1) + 1;
+    const currentQuantity = getBeerQuantity(beer);
+    const nextQuantity = getAdjustedBeerQuantity(beer, delta);
+    if (nextQuantity === currentQuantity) return;
+
     const nextBeers = sessionBeers.map((item) => (
       item.id === beer.id ? { ...item, quantity: nextQuantity } : item
     ));
@@ -1099,7 +1105,7 @@ export const RecordScreen = ({ navigation }: any) => {
     if (error) {
       setSessionBeers(sessionBeers);
       hapticError();
-      showAlert('Could not add one more', error.message);
+      showAlert(delta > 0 ? 'Could not add one more' : 'Could not remove one', error.message);
       return;
     }
 
@@ -1110,6 +1116,10 @@ export const RecordScreen = ({ navigation }: any) => {
     syncLegacyFields(activeSession.id, persistedBeers);
     hapticSuccess();
   };
+
+  const incrementBeerInSession = (beer: SessionBeer) => adjustBeerQuantityInSession(beer, 1);
+
+  const decrementBeerInSession = (beer: SessionBeer) => adjustBeerQuantityInSession(beer, -1);
 
   const removeBeerFromSession = async (beer: SessionBeer) => {
     if (!activeSession || !beer.id) return;
@@ -2172,24 +2182,42 @@ export const RecordScreen = ({ navigation }: any) => {
                         </View>
                       </View>
                       <View style={styles.beerRowActions}>
-                        <TouchableOpacity
-                          style={styles.incrementBeerButton}
-                          onPress={() => incrementBeerInSession(beer)}
-                          hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Add one more ${beer.beer_name}`}
-                        >
-                          <PlusCircle color={colors.primary} size={17} />
-                          <Text style={styles.incrementBeerLabel}>+1</Text>
-                        </TouchableOpacity>
+                        <View style={styles.quantityControls}>
+                          <TouchableOpacity
+                            style={[
+                              styles.quantityButton,
+                              canDecrementBeerQuantity(beer) ? null : styles.quantityButtonDisabled,
+                            ]}
+                            onPress={() => decrementBeerInSession(beer)}
+                            disabled={!canDecrementBeerQuantity(beer)}
+                            hitSlop={{ top: 8, right: 2, bottom: 8, left: 8 }}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Remove one ${beer.beer_name}`}
+                            accessibilityState={{ disabled: !canDecrementBeerQuantity(beer) }}
+                          >
+                            <Minus
+                              color={canDecrementBeerQuantity(beer) ? colors.primary : colors.textMuted}
+                              size={15}
+                            />
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={styles.quantityButton}
+                            onPress={() => incrementBeerInSession(beer)}
+                            hitSlop={{ top: 8, right: 3, bottom: 8, left: 2 }}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Add one more ${beer.beer_name}`}
+                          >
+                            <Plus color={colors.primary} size={15} />
+                          </TouchableOpacity>
+                        </View>
                         <TouchableOpacity
                           style={styles.removeBeerButton}
                           onPress={() => removeBeerFromSession(beer)}
-                          hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                          hitSlop={{ top: 8, right: 8, bottom: 8, left: 3 }}
                           accessibilityRole="button"
                           accessibilityLabel={`Remove ${beer.beer_name}`}
                         >
-                          <Trash2 color={colors.danger} size={17} />
+                          <Trash2 color={colors.danger} size={16} />
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -3002,30 +3030,31 @@ const styles = StyleSheet.create({
   beerRowActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
-  incrementBeerButton: {
-    minWidth: 46,
-    height: 34,
-    borderRadius: 17,
-    paddingHorizontal: 8,
+  quantityControls: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 4,
+  },
+  quantityButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
     backgroundColor: colors.primarySoft,
     borderWidth: 1,
     borderColor: colors.primaryBorder,
   },
-  incrementBeerLabel: {
-    ...typography.tiny,
-    color: colors.primary,
-    fontWeight: '900',
+  quantityButtonDisabled: {
+    backgroundColor: 'transparent',
+    borderColor: colors.borderSoft,
   },
   removeBeerButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.dangerSoft,

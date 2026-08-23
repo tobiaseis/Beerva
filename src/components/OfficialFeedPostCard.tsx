@@ -6,6 +6,7 @@ import { CachedImage } from './CachedImage';
 import { ChallengeSummary } from '../lib/challenges';
 import {
   formatOfficialWinnerStat,
+  getOfficialWinnerProgressLabel,
   isOfficialWinnerPost,
   OfficialFeedPost,
 } from '../lib/officialFeedPosts';
@@ -60,7 +61,7 @@ const WinnerOfficialFeedPostCard = ({
     ) : null}
 
     <View style={styles.statGrid}>
-      <Text style={styles.statText}>{formatOfficialWinnerStat('True pints', post.truePints)}</Text>
+      <Text style={styles.statText}>{formatOfficialWinnerStat(getOfficialWinnerProgressLabel(post), post.progressValue)}</Text>
       <Text style={styles.statText}>{formatOfficialWinnerStat('Average ABV', post.averageAbv, '%')}</Text>
       <Text style={styles.statText}>{formatOfficialWinnerStat('Drinks', post.drinkCount)}</Text>
       <Text style={styles.statText}>{formatOfficialWinnerStat('Sessions', post.sessionCount)}</Text>

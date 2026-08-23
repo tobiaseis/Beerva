@@ -3,9 +3,11 @@ import type {
   AdminBeverageCategory,
   AdminBeverageSubmission,
   AdminChallenge,
+  AdminChallengeMetricType,
   AdminChallengeType,
   AdminModerationDrink,
 } from './adminApi';
+import { CHALLENGE_METRIC_TYPE, getChallengeMetricLabel, getChallengeMetricTitle } from './challenges';
 import type { OfficialFeedPost } from './officialFeedPosts';
 
 export type AdminBeverageDraft = {
@@ -19,6 +21,7 @@ export type AdminChallengeDraft = {
   id?: string;
   title: string;
   description: string;
+  metricType: AdminChallengeMetricType;
   challengeType: AdminChallengeType;
   targetValue: string;
   startsAt: string;
@@ -106,6 +109,7 @@ export const createEmptyChallengeDraft = (now = new Date()): AdminChallengeDraft
   return {
     title: '',
     description: '',
+    metricType: CHALLENGE_METRIC_TYPE.ALCOHOL_UNITS,
     challengeType: 'target',
     targetValue: '',
     startsAt: toLocalDateTimeInput(startsAt.toISOString()),
@@ -151,6 +155,7 @@ export const adminChallengeToDraft = (challenge: AdminChallenge): AdminChallenge
   id: challenge.id,
   title: challenge.title,
   description: challenge.description,
+  metricType: challenge.metricType,
   challengeType: challenge.challengeType,
   targetValue: challenge.targetValue === null ? '' : `${challenge.targetValue}`,
   startsAt: toLocalDateTimeInput(challenge.startsAt),
@@ -173,9 +178,24 @@ export const validateBeverageDraft = (draft: Pick<AdminBeverageDraft, 'name' | '
   return null;
 };
 
+export const getChallengeTargetLabel = (metricType: AdminChallengeMetricType) => (
+  `Target ${getChallengeMetricLabel(metricType)}`
+);
+
+export const getChallengeMetricSummary = (
+  challenge: Pick<AdminChallenge, 'challengeType' | 'metricType' | 'targetValue'>
+) => (
+  challenge.challengeType === 'target'
+    ? `${challenge.targetValue} ${getChallengeMetricLabel(challenge.metricType)}`
+    : `Leaderboard - ${getChallengeMetricTitle(challenge.metricType)}`
+);
+
 export const validateChallengeDraft = (draft: AdminChallengeDraft) => {
   if (!draft.title.trim()) return 'Challenge title is required.';
   if (!draft.description.trim()) return 'Challenge description is required.';
+  if (draft.metricType !== 'true_pints' && draft.metricType !== 'alcohol_units') {
+    return 'Choose what the challenge counts.';
+  }
 
   const startsAt = fromLocalDateTimeInput(draft.startsAt);
   const endsAt = fromLocalDateTimeInput(draft.endsAt);
@@ -195,7 +215,7 @@ export const validateChallengeDraft = (draft: AdminChallengeDraft) => {
   if (draft.challengeType === 'target') {
     const targetValue = Number(draft.targetValue.trim().replace(',', '.'));
     if (!Number.isFinite(targetValue) || targetValue <= 0) {
-      return 'Target units must be greater than 0.';
+      return `${getChallengeTargetLabel(draft.metricType)} must be greater than 0.`;
     }
   }
 
