@@ -157,6 +157,8 @@ const createLegacyPlaceholder = () => ({
   abv: 0,
 });
 
+type PubDraftTarget = 'session' | 'crawl';
+
 const getLocationCacheKey = (location: UserLocation) => (
   `${location.latitude.toFixed(2)},${location.longitude.toFixed(2)}`
 );
@@ -217,6 +219,7 @@ export const RecordScreen = ({ navigation }: any) => {
   const [photoSaveChoice, setPhotoSaveChoice] = useState<SessionImageDraft | null>(null);
   const [savingDevicePhoto, setSavingDevicePhoto] = useState(false);
   const [pubCategoryChoiceVisible, setPubCategoryChoiceVisible] = useState(false);
+  const [pubCategoryTarget, setPubCategoryTarget] = useState<PubDraftTarget>('session');
   const [chugVisible, setChugVisible] = useState(false);
   const [chugBusy, setChugBusy] = useState(false);
   const [chugAnalyzing, setChugAnalyzing] = useState(false);
@@ -764,6 +767,11 @@ export const RecordScreen = ({ navigation }: any) => {
     setPub(formatPubLabel(pubRecord));
   };
 
+  const selectCrawlPubRecord = (pubRecord: PubRecord) => {
+    setSelectedPub(pubRecord);
+    setCrawlPubDraft(formatPubLabel(pubRecord));
+  };
+
   const selectPubLabel = (label: string) => {
     const matchingPub = pubOptions.find((option) => labelsMatchPub(label, option));
     if (matchingPub) {
@@ -771,6 +779,36 @@ export const RecordScreen = ({ navigation }: any) => {
     } else {
       setSelectedPub(null);
     }
+  };
+
+  const selectCrawlPubLabel = (label: string) => {
+    const matchingPub = pubOptions.find((option) => labelsMatchPub(label, option));
+    if (matchingPub) {
+      selectCrawlPubRecord(matchingPub);
+    } else {
+      setSelectedPub(null);
+      setCrawlPubDraft(label);
+    }
+  };
+
+  const openCrawlPubAction = (action: 'change' | 'next', draft = '') => {
+    setSelectedPub(null);
+    setCrawlPubDraft(draft);
+    setCrawlPubAction(action);
+  };
+
+  // New places should be pinned where the user is right now, not where the crawl started.
+  const resolveNewPlaceLocation = async (): Promise<UserLocation | null> => {
+    try {
+      const freshLocation = await getPreviouslyGrantedDeviceLocation();
+      if (freshLocation) {
+        setUserLocation(freshLocation);
+        return freshLocation;
+      }
+    } catch (error) {
+      console.warn('Could not refresh location for the new place:', error);
+    }
+    return userLocation;
   };
 
   const loadRoulettePubs = useCallback(async () => {
@@ -852,25 +890,33 @@ export const RecordScreen = ({ navigation }: any) => {
     hapticSuccess();
   };
 
-  const openPubCategoryChoice = () => {
-    if (pub.trim().length < 2 || addingPub) return;
+  const openPubCategoryChoice = (target: PubDraftTarget = 'session') => {
+    const draft = target === 'crawl' ? crawlPubDraft.trim() : pub.trim();
+    if (draft.length < 2 || addingPub) return;
+    setPubCategoryTarget(target);
     setPubCategoryChoiceVisible(true);
     hapticMedium();
   };
 
   const addTypedPub = async (placeCategory: PlaceCategory = 'pub') => {
-    const cleanPub = pub.trim();
+    const isCrawlDraft = pubCategoryTarget === 'crawl';
+    const cleanPub = (isCrawlDraft ? crawlPubDraft : pub).trim();
     if (cleanPub.length < 2 || addingPub) return;
 
     setPubCategoryChoiceVisible(false);
     setAddingPub(true);
     try {
-      const pubRecord = await createUserPub(cleanPub, userLocation, placeCategory);
+      const placeLocation = await resolveNewPlaceLocation();
+      const pubRecord = await createUserPub(cleanPub, placeLocation, placeCategory);
       setPubOptions((previous) => [
         pubRecord,
         ...previous.filter((item) => item.id !== pubRecord.id),
       ]);
-      selectPubRecord(pubRecord);
+      if (isCrawlDraft) {
+        selectCrawlPubRecord(pubRecord);
+      } else {
+        selectPubRecord(pubRecord);
+      }
       hapticSuccess();
     } catch (error: any) {
       hapticError();
@@ -896,7 +942,7 @@ export const RecordScreen = ({ navigation }: any) => {
 
       await ensureProfile(user);
 
-      const resolvedPubRecord = pubRecord || await createUserPub(trimmedPub, userLocation);
+      const resolvedPubRecord = pubRecord || await createUserPub(trimmedPub, await resolveNewPlaceLocation());
       const sessionPubName = resolvedPubRecord ? formatPubLabel(resolvedPubRecord) : trimmedPub;
       const now = new Date().toISOString();
       const { data, error } = await supabase
@@ -1637,16 +1683,36 @@ export const RecordScreen = ({ navigation }: any) => {
     }
   };
 
+  // Typed-but-unknown crawl stops must still land in the pub directory, just like Start Session does.
+  const resolveCrawlPubRecord = async (cleanDraft: string): Promise<PubRecord | null> => {
+    const knownPub = selectedPub && labelsMatchPub(cleanDraft, selectedPub)
+      ? selectedPub
+      : pubOptions.find((option) => labelsMatchPub(cleanDraft, option)) || null;
+    if (knownPub) return knownPub;
+
+    try {
+      return await createUserPub(cleanDraft, await resolveNewPlaceLocation());
+    } catch (error: any) {
+      console.warn('Could not add the typed crawl stop as a place:', error?.message || error);
+      return null;
+    }
+  };
+
   const handleChangeCurrentCrawlPub = async () => {
     if (!activeCrawl || !activeSession) return;
     const cleanDraft = crawlPubDraft.trim();
     if (cleanDraft.length < 2) return;
-    
+    if (cleanDraft === activeSession.pub_name.trim() && !selectedPub) {
+      setCrawlPubAction(null);
+      return;
+    }
+
     setCrawlBusy(true);
     try {
-      const pubRecord = selectedPub || pubOptions.find(o => labelsMatchPub(cleanDraft, o)) || null;
+      const pubRecord = await resolveCrawlPubRecord(cleanDraft);
       await updateCurrentCrawlStopPub(activeCrawl.crawl.id, pubRecord, cleanDraft);
       setCrawlPubAction(null);
+      setSelectedPub(null);
       await fetchActiveSession();
       hapticSuccess();
     } catch (e: any) {
@@ -1669,7 +1735,7 @@ export const RecordScreen = ({ navigation }: any) => {
     }
     
     if (crawlPubAction !== 'next') {
-      setCrawlPubAction('next');
+      openCrawlPubAction('next');
       setPhotoWarningAction(null);
       return;
     }
@@ -1694,7 +1760,7 @@ export const RecordScreen = ({ navigation }: any) => {
 
       await saveActiveSessionComment(comment);
 
-      const pubRecord = selectedPub || pubOptions.find(o => labelsMatchPub(cleanDraft, o)) || null;
+      const pubRecord = await resolveCrawlPubRecord(cleanDraft);
       const { finishedStop } = await finishCrawlStopAndStartNext(activeCrawl.crawl.id, pubRecord, cleanDraft);
 
       if (finishedStop?.id) {
@@ -1910,28 +1976,41 @@ export const RecordScreen = ({ navigation }: any) => {
   const previewImageUri = selectedImages.length > 0 ? selectedImages[keeperIndex]?.uri : existingImageUrl;
   const selectedPhotoCountLabel = `${selectedImages.length}/${MAX_SESSION_PHOTOS}`;
   const cleanPub = pub.trim();
+  const cleanCrawlPubDraft = crawlPubDraft.trim();
   const pubOptionLabels = useMemo(() => pubOptions.map(formatPubLabel), [pubOptions]);
   const hasExactPubOption = cleanPub.length >= 2 && pubOptions.some((option) => labelsMatchPub(cleanPub, option));
   const nearbyQuickPubs = !cleanPub && userLocation ? pubOptions.slice(0, 4) : [];
   const selectedPubDetail = selectedPub ? formatPubDetail(selectedPub) : '';
-  const addPubFooter = cleanPub.length >= 2 && !selectedPub && !hasExactPubOption ? (
-    <TouchableOpacity
-      style={styles.addPubFooter}
-      onPress={openPubCategoryChoice}
-      disabled={addingPub}
-      activeOpacity={0.76}
-    >
-      <View style={styles.addPubIcon}>
-        <PlusCircle color={colors.primary} size={19} />
-      </View>
-      <View style={styles.addPubText}>
-        <Text style={styles.addPubTitle} numberOfLines={1}>
-          {addingPub ? 'Adding pub...' : `Add "${cleanPub}"`}
-        </Text>
-        <Text style={styles.addPubHint}>New Beerva pub</Text>
-      </View>
-    </TouchableOpacity>
-  ) : null;
+  const crawlSelectedPub = selectedPub && labelsMatchPub(cleanCrawlPubDraft, selectedPub) ? selectedPub : null;
+  const crawlSelectedPubDetail = crawlSelectedPub ? formatPubDetail(crawlSelectedPub) : '';
+
+  const renderAddPlaceFooter = (draft: string, target: PubDraftTarget) => {
+    const matchedSelection = selectedPub && labelsMatchPub(draft, selectedPub);
+    const hasExactOption = pubOptions.some((option) => labelsMatchPub(draft, option));
+    if (draft.length < 2 || matchedSelection || hasExactOption) return null;
+
+    return (
+      <TouchableOpacity
+        style={styles.addPubFooter}
+        onPress={() => openPubCategoryChoice(target)}
+        disabled={addingPub}
+        activeOpacity={0.76}
+      >
+        <View style={styles.addPubIcon}>
+          <PlusCircle color={colors.primary} size={19} />
+        </View>
+        <View style={styles.addPubText}>
+          <Text style={styles.addPubTitle} numberOfLines={1}>
+            {addingPub ? 'Adding pub...' : `Add "${draft}"`}
+          </Text>
+          <Text style={styles.addPubHint}>New Beerva pub</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  const addPubFooter = renderAddPlaceFooter(cleanPub, 'session');
+  const addCrawlPubFooter = renderAddPlaceFooter(cleanCrawlPubDraft, 'crawl');
 
   if (loadingActive) {
     return (
@@ -2086,21 +2165,47 @@ export const RecordScreen = ({ navigation }: any) => {
               
               {activeCrawl && crawlPubAction === 'change' ? (
                 <View style={styles.crawlPubEditContainer}>
-                  <Text style={styles.sectionLabel}>Change Current Pub</Text>
+                  <View style={styles.introRow}>
+                    <Text style={styles.sectionLabel}>Change Current Pub</Text>
+                    <TouchableOpacity
+                      style={[styles.nearbyButton, locatingPubs ? styles.nearbyButtonActive : null]}
+                      onPress={useNearbyPubs}
+                      disabled={locatingPubs}
+                      activeOpacity={0.76}
+                    >
+                      {locatingPubs ? (
+                        <ActivityIndicator color={colors.primary} size="small" />
+                      ) : (
+                        <LocateFixed color={colors.primary} size={17} />
+                      )}
+                      <Text style={styles.nearbyButtonText}>{locatingPubs ? 'Looking' : 'Nearby'}</Text>
+                    </TouchableOpacity>
+                  </View>
                   <AutocompleteInput
                     value={crawlPubDraft}
-                    onChangeText={setCrawlPubDraft}
-                    onSelectItem={(label) => {
-                      const p = pubOptions.find(o => labelsMatchPub(label, o));
-                      if (p) setSelectedPub(p);
-                      setCrawlPubDraft(label);
+                    onChangeText={(text) => {
+                      setCrawlPubDraft(text);
+                      setSelectedPub(null);
                     }}
+                    onSelectItem={selectCrawlPubLabel}
                     data={pubOptionLabels}
                     placeholder="Search pub"
                     icon={<MapPin color={colors.textMuted} size={20} />}
+                    footer={addCrawlPubFooter}
                   />
+                  {crawlSelectedPub ? (
+                    <View style={styles.selectedPubBox}>
+                      <CheckCircle2 color={colors.success} size={18} />
+                      <View style={styles.selectedPubText}>
+                        <Text style={styles.selectedPubName} numberOfLines={1}>{formatPubLabel(crawlSelectedPub)}</Text>
+                        {crawlSelectedPubDetail ? (
+                          <Text style={styles.selectedPubDetail} numberOfLines={1}>{crawlSelectedPubDetail}</Text>
+                        ) : null}
+                      </View>
+                    </View>
+                  ) : null}
                   <View style={styles.crawlPubEditActions}>
-                    <TouchableOpacity onPress={() => setCrawlPubAction(null)} style={styles.cancelButton}>
+                    <TouchableOpacity onPress={() => { setCrawlPubAction(null); setSelectedPub(null); }} style={styles.cancelButton}>
                       <Text style={styles.cancelText}>Cancel</Text>
                     </TouchableOpacity>
                     <View style={styles.endButtonWrap}>
@@ -2109,7 +2214,7 @@ export const RecordScreen = ({ navigation }: any) => {
                   </View>
                 </View>
               ) : activeCrawl && !crawlPubAction ? (
-                <TouchableOpacity onPress={() => { setCrawlPubAction('change'); setCrawlPubDraft(activeSession.pub_name); }} style={styles.changePubButton}>
+                <TouchableOpacity onPress={() => openCrawlPubAction('change', activeSession.pub_name)} style={styles.changePubButton}>
                   <Text style={styles.changePubText}>Change Pub</Text>
                 </TouchableOpacity>
               ) : null}
@@ -2124,21 +2229,53 @@ export const RecordScreen = ({ navigation }: any) => {
 
             {activeCrawl && crawlPubAction === 'next' ? (
               <Surface style={styles.formSurface}>
-                <Text style={styles.sectionTitle}>Where to next?</Text>
+                <View style={styles.introRow}>
+                  <Text style={styles.sectionTitle}>Where to next?</Text>
+                  <TouchableOpacity
+                    style={[styles.nearbyButton, locatingPubs ? styles.nearbyButtonActive : null]}
+                    onPress={useNearbyPubs}
+                    disabled={locatingPubs}
+                    activeOpacity={0.76}
+                  >
+                    {locatingPubs ? (
+                      <ActivityIndicator color={colors.primary} size="small" />
+                    ) : (
+                      <LocateFixed color={colors.primary} size={17} />
+                    )}
+                    <Text style={styles.nearbyButtonText}>{locatingPubs ? 'Looking' : 'Nearby'}</Text>
+                  </TouchableOpacity>
+                </View>
                 <AutocompleteInput
                   value={crawlPubDraft}
-                  onChangeText={setCrawlPubDraft}
-                  onSelectItem={(label) => {
-                    const p = pubOptions.find(o => labelsMatchPub(label, o));
-                    if (p) setSelectedPub(p);
-                    setCrawlPubDraft(label);
+                  onChangeText={(text) => {
+                    setCrawlPubDraft(text);
+                    setSelectedPub(null);
                   }}
+                  onSelectItem={selectCrawlPubLabel}
                   data={pubOptionLabels}
                   placeholder="Search next pub"
                   icon={<MapPin color={colors.textMuted} size={20} />}
+                  footer={addCrawlPubFooter}
                 />
+                {crawlSelectedPub ? (
+                  <View style={styles.selectedPubBox}>
+                    <CheckCircle2 color={colors.success} size={18} />
+                    <View style={styles.selectedPubText}>
+                      <Text style={styles.selectedPubName} numberOfLines={1}>{formatPubLabel(crawlSelectedPub)}</Text>
+                      {crawlSelectedPubDetail ? (
+                        <Text style={styles.selectedPubDetail} numberOfLines={1}>{crawlSelectedPubDetail}</Text>
+                      ) : null}
+                    </View>
+                  </View>
+                ) : pubSearching ? (
+                  <Text style={styles.pubSearchHint}>Searching pubs...</Text>
+                ) : pubRefreshingNearby ? (
+                  <Text style={styles.pubSearchHint}>Checking nearby pubs...</Text>
+                ) : pubSearchError ? (
+                  <Text style={styles.pubSearchError} numberOfLines={3}>{pubSearchError}</Text>
+                ) : null}
                 <View style={styles.crawlPubEditActions}>
-                  <TouchableOpacity onPress={() => { photoWarningBypassAction.current = null; setCrawlPubAction(null); }} style={styles.cancelButton}>
+                  <TouchableOpacity onPress={() => { photoWarningBypassAction.current = null; setCrawlPubAction(null); setSelectedPub(null); }} style={styles.cancelButton}>
                     <Text style={styles.cancelText}>Cancel</Text>
                   </TouchableOpacity>
                   <View style={styles.endButtonWrap}>

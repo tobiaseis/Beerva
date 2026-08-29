@@ -55,4 +55,40 @@ assert.match(
   'other option should explain that it is excluded from Pub Legends'
 );
 
+assert.match(
+  source,
+  /openPubCategoryChoice = \(target: PubDraftTarget/,
+  'the category sheet should know which pub field asked for the new place'
+);
+
+assert.match(
+  source,
+  /openPubCategoryChoice\('crawl'\)|renderAddPlaceFooter\(cleanCrawlPubDraft, 'crawl'\)/,
+  'the pub crawl next-stop field should offer the same add-new-place footer'
+);
+
+assert.match(
+  source,
+  /footer=\{addCrawlPubFooter\}/,
+  'crawl pub inputs should render the add-new-place footer'
+);
+
+assert.match(
+  source,
+  /const resolveCrawlPubRecord = async/,
+  'crawl stops should resolve a real pub record for typed names'
+);
+
+assert.match(
+  source,
+  /return await createUserPub\(cleanDraft, await resolveNewPlaceLocation\(\)\)/,
+  'a typed crawl stop that matches no known pub should be created in the pub directory with a location'
+);
+
+assert.match(
+  source,
+  /const pubRecord = await resolveCrawlPubRecord\(cleanDraft\);[\s\S]*finishCrawlStopAndStartNext/,
+  'moving to the next bar should persist the typed place before starting the next stop'
+);
+
 console.log('record place category checks passed');
