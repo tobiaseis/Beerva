@@ -57,12 +57,15 @@ import {
   getAdminBeverageSubmissionTitle,
   getAdminModerationDrinkMeta,
   getAdminModerationDrinkTitle,
+  getChallengeMetricSummary,
+  getChallengeTargetLabel,
   officialPostToDraft,
   validateBeverageDraft,
   validateChallengeDraft,
   validateOfficialPostDraft,
 } from '../lib/adminTools';
 import { useBeverageCatalog } from '../lib/beverageCatalogContext';
+import { CHALLENGE_METRIC_TYPES, getChallengeMetricTitle } from '../lib/challenges';
 import { confirmDestructive } from '../lib/dialogs';
 import {
   deletePublicImageUrl,
@@ -404,6 +407,7 @@ export const AdminToolsScreen = ({ navigation, route }: any) => {
         id: challengeDraft.id,
         title: challengeDraft.title.trim(),
         description: challengeDraft.description.trim(),
+        metricType: challengeDraft.metricType,
         challengeType: challengeDraft.challengeType,
         targetValue: challengeDraft.challengeType === 'target'
           ? Number(challengeDraft.targetValue.replace(',', '.'))
@@ -732,7 +736,7 @@ export const AdminToolsScreen = ({ navigation, route }: any) => {
       <View style={styles.rowBody}>
         <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
         <Text style={styles.rowMeta} numberOfLines={1}>
-          {item.challengeType === 'target' ? `${item.targetValue} units` : 'Leaderboard'} - {formatChallengeWindow(item)}
+          {getChallengeMetricSummary(item)} - {formatChallengeWindow(item)}
         </Text>
         {item.winnerTrophyEnabled ? (
           <Text style={styles.rowAccent} numberOfLines={1}>Winner trophy: {item.winnerTrophyTitle}</Text>
@@ -1181,9 +1185,31 @@ export const AdminToolsScreen = ({ navigation, route }: any) => {
                     ))}
                   </View>
 
+                  <FormLabel>Counts</FormLabel>
+                  <View style={styles.typeControl}>
+                    {CHALLENGE_METRIC_TYPES.map((metricType) => (
+                      <TouchableOpacity
+                        key={metricType}
+                        style={[styles.typeButton, challengeDraft.metricType === metricType ? styles.typeButtonActive : null]}
+                        onPress={() => setChallengeDraft((current) => ({ ...current, metricType }))}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: challengeDraft.metricType === metricType }}
+                      >
+                        <Text style={[styles.typeText, challengeDraft.metricType === metricType ? styles.typeTextActive : null]}>
+                          {getChallengeMetricTitle(metricType)}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <Text style={styles.fieldHint}>
+                    {challengeDraft.metricType === 'alcohol_units'
+                      ? 'Scores the alcohol in every drink, so a strong short counts more than a weak pint.'
+                      : 'Scores serving volume normalized to 568 ml pints, whatever the strength.'}
+                  </Text>
+
                   {challengeDraft.challengeType === 'target' ? (
                     <>
-                      <FormLabel>Target units</FormLabel>
+                      <FormLabel>{getChallengeTargetLabel(challengeDraft.metricType)}</FormLabel>
                       <FormInput
                         value={challengeDraft.targetValue}
                         onChangeText={(targetValue) => setChallengeDraft((current) => ({ ...current, targetValue }))}
@@ -1913,6 +1939,10 @@ const styles = StyleSheet.create({
   switchDescription: {
     ...typography.caption,
     marginTop: 2,
+  },
+  fieldHint: {
+    ...typography.caption,
+    marginTop: 6,
   },
   formError: {
     ...typography.caption,

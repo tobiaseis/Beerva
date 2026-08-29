@@ -33,8 +33,10 @@ import {
 } from '../lib/imageUpload';
 import {
   beerDraftToPayload,
+  canDecrementBeerQuantity,
   createClientBeerId,
   createEmptyBeerDraft,
+  getAdjustedBeerQuantity,
   getBeerLine,
   getLegacySessionBeerFields,
   SessionBeer,
@@ -555,7 +557,7 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
       if ((item.id || item.clientId) !== (beer.id || beer.clientId)) return item;
       return {
         ...item,
-        quantity: Math.max(1, (item.quantity || 1) + delta),
+        quantity: getAdjustedBeerQuantity(item, delta),
       };
     }));
   };
@@ -828,10 +830,28 @@ export const EditSessionScreen = ({ navigation, route }: any) => {
                 </View>
               </View>
               <View style={styles.quantityControls}>
-                <TouchableOpacity style={styles.quantityButton} onPress={() => updateBeerQuantity(beer, -1)}>
-                  <Minus color={colors.primary} size={15} />
+                <TouchableOpacity
+                  style={[
+                    styles.quantityButton,
+                    canDecrementBeerQuantity(beer) ? null : styles.quantityButtonDisabled,
+                  ]}
+                  onPress={() => updateBeerQuantity(beer, -1)}
+                  disabled={!canDecrementBeerQuantity(beer)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove one ${beer.beer_name}`}
+                  accessibilityState={{ disabled: !canDecrementBeerQuantity(beer) }}
+                >
+                  <Minus
+                    color={canDecrementBeerQuantity(beer) ? colors.primary : colors.textMuted}
+                    size={15}
+                  />
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.quantityButton} onPress={() => updateBeerQuantity(beer, 1)}>
+                <TouchableOpacity
+                  style={styles.quantityButton}
+                  onPress={() => updateBeerQuantity(beer, 1)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Add one more ${beer.beer_name}`}
+                >
                   <Plus color={colors.primary} size={15} />
                 </TouchableOpacity>
               </View>
@@ -1109,6 +1129,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primarySoft,
     borderWidth: 1,
     borderColor: colors.primaryBorder,
+  },
+  quantityButtonDisabled: {
+    backgroundColor: 'transparent',
+    borderColor: colors.borderSoft,
   },
   removeBeerButton: {
     width: 32,

@@ -14,10 +14,20 @@ export const CHALLENGE_LEADERBOARD_SCOPE = {
   GLOBAL: 'global',
 } as const;
 
+export const CHALLENGE_METRIC_TYPE = {
+  TRUE_PINTS: 'true_pints',
+  ALCOHOL_UNITS: 'alcohol_units',
+} as const;
+
+export const CHALLENGE_METRIC_TYPES = [
+  CHALLENGE_METRIC_TYPE.ALCOHOL_UNITS,
+  CHALLENGE_METRIC_TYPE.TRUE_PINTS,
+] as const;
+
 export type ChallengeStatus = typeof CHALLENGE_STATUS[keyof typeof CHALLENGE_STATUS];
 export type ChallengeType = typeof CHALLENGE_TYPE[keyof typeof CHALLENGE_TYPE];
 export type ChallengeLeaderboardScope = typeof CHALLENGE_LEADERBOARD_SCOPE[keyof typeof CHALLENGE_LEADERBOARD_SCOPE];
-export type ChallengeMetricType = 'true_pints' | 'alcohol_units';
+export type ChallengeMetricType = typeof CHALLENGE_METRIC_TYPE[keyof typeof CHALLENGE_METRIC_TYPE];
 
 export type ChallengeSummaryRow = {
   id?: string | null;
@@ -116,9 +126,25 @@ const toStringOrNull = (value: string | null | undefined) => {
   return trimmed.length > 0 ? trimmed : null;
 };
 
-const toMetricType = (value: string | null | undefined): ChallengeMetricType => (
-  value === 'alcohol_units' ? 'alcohol_units' : 'true_pints'
+export const toChallengeMetricType = (value: string | null | undefined): ChallengeMetricType => (
+  value === CHALLENGE_METRIC_TYPE.ALCOHOL_UNITS
+    ? CHALLENGE_METRIC_TYPE.ALCOHOL_UNITS
+    : CHALLENGE_METRIC_TYPE.TRUE_PINTS
 );
+
+export const isAlcoholUnitChallenge = (
+  metricType: ChallengeMetricType | string | null | undefined
+) => toChallengeMetricType(metricType) === CHALLENGE_METRIC_TYPE.ALCOHOL_UNITS;
+
+// Sentence-case wording for running copy: "8.4 units", "8.4 true pints".
+export const getChallengeMetricLabel = (
+  metricType: ChallengeMetricType | string | null | undefined
+) => (isAlcoholUnitChallenge(metricType) ? 'units' : 'true pints');
+
+// Title-case wording for labels and buttons.
+export const getChallengeMetricTitle = (
+  metricType: ChallengeMetricType | string | null | undefined
+) => (isAlcoholUnitChallenge(metricType) ? 'Units' : 'True pints');
 
 const toChallengeType = (value: string | null | undefined): ChallengeType => (
   value === CHALLENGE_TYPE.LEADERBOARD ? CHALLENGE_TYPE.LEADERBOARD : CHALLENGE_TYPE.TARGET
@@ -165,15 +191,11 @@ export const formatChallengeProgress = (
 ) => {
   const progressValue = toNumber(progress).toFixed(1);
   if (challengeType === CHALLENGE_TYPE.LEADERBOARD) {
-    if (metricType === 'alcohol_units') {
-      return `${progressValue} units`;
-    }
-
-    return `${progressValue} true pints`;
+    return `${progressValue} ${getChallengeMetricLabel(metricType)}`;
   }
 
   const targetValue = toNumber(target).toFixed(0);
-  if (metricType === 'alcohol_units') {
+  if (isAlcoholUnitChallenge(metricType)) {
     return `${progressValue}/${targetValue} units`;
   }
 
@@ -216,7 +238,7 @@ export const mapChallengeSummaryRow = (row: ChallengeSummaryRow): ChallengeSumma
     slug: toStringOrNull(row.slug) || 'unknown',
     title: toStringOrNull(row.title) || 'Challenge',
     description: toStringOrNull(row.description) || '',
-    metricType: toMetricType(row.metric_type),
+    metricType: toChallengeMetricType(row.metric_type),
     challengeType,
     targetValue: toTargetValue(row.target_value, challengeType),
     startsAt: toStringOrNull(row.starts_at) || '',

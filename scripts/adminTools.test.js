@@ -8,24 +8,7 @@ const root = path.resolve(__dirname, '..');
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8');
 const exists = (relativePath) => fs.existsSync(path.join(root, relativePath));
 
-const loadTypeScriptModule = (relativePath) => {
-  const filename = path.join(root, relativePath);
-  const source = fs.readFileSync(filename, 'utf8');
-  const { outputText } = ts.transpileModule(source, {
-    compilerOptions: {
-      esModuleInterop: true,
-      module: ts.ModuleKind.CommonJS,
-      target: ts.ScriptTarget.ES2020,
-    },
-    fileName: filename,
-  });
-
-  const compiledModule = new Module(filename, module);
-  compiledModule.filename = filename;
-  compiledModule.paths = Module._nodeModulePaths(path.dirname(filename));
-  compiledModule._compile(outputText, filename);
-  return compiledModule.exports;
-};
+const { loadTypeScriptModule } = require('./loadTypeScriptModule');
 
 const migrationPath = 'supabase/migrations/20260531170000_add_admin_challenges_and_beverages.sql';
 const retryMigrationPath = 'supabase/migrations/20260531180000_make_admin_challenge_save_retryable.sql';
@@ -34,6 +17,7 @@ const beverageCategoryMigrationPath = 'supabase/migrations/20260617120000_add_ad
 const targetChallengeUnitsMigrationPath = 'supabase/migrations/20260618120000_target_challenges_use_alcohol_units.sql';
 const drinkInvalidationMigrationPath = 'supabase/migrations/20260618160000_add_drink_invalidation.sql';
 const beverageSubmissionsMigrationPath = 'supabase/migrations/20260708170000_add_user_beverage_submissions.sql';
+const challengeMetricChoiceMigrationPath = 'supabase/migrations/20260823120000_admin_challenge_metric_choice.sql';
 assert.ok(exists(migrationPath), 'admin migration should exist');
 assert.ok(exists(retryMigrationPath), 'admin challenge retry migration should exist');
 assert.ok(exists(archiveMigrationPath), 'admin challenge archive migration should exist');
@@ -41,6 +25,7 @@ assert.ok(exists(beverageCategoryMigrationPath), 'admin beverage category migrat
 assert.ok(exists(targetChallengeUnitsMigrationPath), 'target challenge units migration should exist');
 assert.ok(exists(drinkInvalidationMigrationPath), 'admin drink invalidation migration should exist');
 assert.ok(exists(beverageSubmissionsMigrationPath), 'user beverage submissions migration should exist');
+assert.ok(exists(challengeMetricChoiceMigrationPath), 'admin challenge metric choice migration should exist');
 assert.ok(exists('src/lib/adminApi.ts'), 'admin API should exist');
 assert.ok(exists('src/lib/beverageCatalogContext.tsx'), 'beverage catalog provider should exist');
 assert.ok(exists('src/lib/adminTools.ts'), 'admin form helpers should exist');
@@ -80,6 +65,7 @@ const beverageCategoryMigrationSql = read(beverageCategoryMigrationPath);
 const targetChallengeUnitsMigrationSql = read(targetChallengeUnitsMigrationPath);
 const drinkInvalidationMigrationSql = read(drinkInvalidationMigrationPath);
 const beverageSubmissionsMigrationSql = read(beverageSubmissionsMigrationPath);
+const challengeMetricChoiceMigrationSql = read(challengeMetricChoiceMigrationPath);
 assert.match(archiveMigrationSql, /add column if not exists archived_at timestamp with time zone/i);
 assert.match(archiveMigrationSql, /add column if not exists archived_by uuid references auth\.users\(id\) on delete set null/i);
 assert.match(archiveMigrationSql, /create index if not exists challenges_unarchived_window_idx/i);
@@ -101,6 +87,21 @@ assert.match(
   targetChallengeUnitsMigrationSql,
   /case[\s\S]*when target_challenge_type = 'target' then 'alcohol_units'[\s\S]*else 'true_pints'[\s\S]*end/i,
   'admin save challenge should store metric type from challenge type'
+);
+assert.match(
+  challengeMetricChoiceMigrationSql,
+  /raise exception 'Target % must be greater than 0\.',/i,
+  'the database target error should name the metric the admin picked'
+);
+assert.match(
+  challengeMetricChoiceMigrationSql,
+  /metric_type = resolved_metric_type/i,
+  'editing a challenge should store the resolved metric'
+);
+assert.match(
+  challengeMetricChoiceMigrationSql,
+  /revoke execute on function public\.admin_save_challenge\([\s\S]*?\) from public, anon;/i,
+  'the new admin save signature should stay closed to anonymous callers'
 );
 assert.match(beverageCategoryMigrationSql, /alter table public\.admin_beverages[\s\S]*add column if not exists category text not null default 'beer'/i);
 assert.match(beverageCategoryMigrationSql, /admin_beverages_category_check/i);
@@ -218,6 +219,7 @@ assert.equal(adminTools.createEmptyBeverageDraft().category, 'beer');
 const baseChallengeDraft = {
   title: 'Summer sprint',
   description: 'Most units wins.',
+  metricType: 'alcohol_units',
   challengeType: 'target',
   startsAt: '2026-06-01T12:00',
   endsAt: '2026-06-02T12:00',
@@ -229,9 +231,72 @@ const baseChallengeDraft = {
 };
 assert.equal(adminTools.validateChallengeDraft(baseChallengeDraft), 'Target units must be greater than 0.');
 assert.equal(
+  adminTools.validateChallengeDraft({ ...baseChallengeDraft, metricType: 'true_pints' }),
+  'Target true pints must be greater than 0.',
+  'target validation should name the metric the admin chose'
+);
+assert.equal(
+  adminTools.validateChallengeDraft({ ...baseChallengeDraft, metricType: 'true_pints', targetValue: '15' }),
+  null,
+  'a true-pint target challenge should be valid'
+);
+assert.equal(
+  adminTools.validateChallengeDraft({ ...baseChallengeDraft, metricType: 'schooners', targetValue: '15' }),
+  'Choose what the challenge counts.',
+  'an unknown metric should be rejected before it reaches the database'
+);
+assert.equal(
+  adminTools.createEmptyChallengeDraft().metricType,
+  'alcohol_units',
+  'new challenges should default to alcohol units'
+);
+assert.equal(
+  adminTools.getChallengeTargetLabel('alcohol_units'),
+  'Target units'
+);
+assert.equal(
+  adminTools.getChallengeTargetLabel('true_pints'),
+  'Target true pints'
+);
+assert.equal(
+  adminTools.getChallengeMetricSummary({ challengeType: 'target', metricType: 'alcohol_units', targetValue: 15 }),
+  '15 units'
+);
+assert.equal(
+  adminTools.getChallengeMetricSummary({ challengeType: 'target', metricType: 'true_pints', targetValue: 15 }),
+  '15 true pints'
+);
+assert.equal(
+  adminTools.getChallengeMetricSummary({ challengeType: 'leaderboard', metricType: 'alcohol_units', targetValue: null }),
+  'Leaderboard - Units'
+);
+assert.equal(
+  adminTools.getChallengeMetricSummary({ challengeType: 'leaderboard', metricType: 'true_pints', targetValue: null }),
+  'Leaderboard - True pints'
+);
+assert.equal(
+  adminTools.adminChallengeToDraft({
+    id: 'challenge-1',
+    title: 'Summer Sprint',
+    description: 'Most units wins.',
+    metricType: 'alcohol_units',
+    challengeType: 'leaderboard',
+    targetValue: null,
+    startsAt: '2026-06-01T12:00:00.000Z',
+    endsAt: '2026-06-30T12:00:00.000Z',
+    joinClosesAt: '2026-06-10T12:00:00.000Z',
+    winnerTrophyEnabled: false,
+    winnerTrophyTitle: null,
+    winnerTrophyDescription: null,
+  }).metricType,
+  'alcohol_units',
+  'editing a challenge should load its stored metric into the form'
+);
+assert.equal(
   adminTools.validateChallengeDraft({
     title: 'Summer sprint',
     description: 'Most pints wins.',
+    metricType: 'true_pints',
     challengeType: 'leaderboard',
     startsAt: '2026-06-01T12:00',
     endsAt: '2026-06-02T12:00',
@@ -260,12 +325,43 @@ assert.match(adminScreenSource, /Add beverage/);
 assert.match(adminScreenSource, /Save Beverage/);
 assert.match(adminScreenSource, /Beer[\s\S]*Wine[\s\S]*Drink/, 'admin beverage form should expose category options');
 assert.match(adminScreenSource, /Winner trophy/);
-assert.match(adminScreenSource, /Target units/, 'admin target challenge form should use units wording');
-assert.match(adminScreenSource, /\$\{item\.targetValue\} units/, 'admin challenge rows should label target values as units');
-assert.doesNotMatch(adminScreenSource, /Target true pints/);
-assert.doesNotMatch(adminScreenSource, /targetValue\} true pints/);
-assert.match(adminToolsSource, /Target units must be greater than 0\./);
-assert.doesNotMatch(adminToolsSource, /Target true pints must be greater than 0\./);
+assert.match(
+  adminScreenSource,
+  /<FormLabel>\{getChallengeTargetLabel\(challengeDraft\.metricType\)\}<\/FormLabel>/,
+  'admin target challenge form should label the target with the chosen metric'
+);
+assert.match(
+  adminScreenSource,
+  /<FormLabel>Counts<\/FormLabel>/,
+  'admin challenge form should ask what the challenge counts'
+);
+assert.match(
+  adminScreenSource,
+  /CHALLENGE_METRIC_TYPES\.map\(\(metricType\)/,
+  'admin challenge form should offer every supported metric'
+);
+assert.match(
+  adminScreenSource,
+  /onPress=\{\(\) => setChallengeDraft\(\(current\) => \(\{ \.\.\.current, metricType \}\)\)\}/,
+  'picking a metric should update the challenge draft'
+);
+assert.match(
+  adminScreenSource,
+  /metricType: challengeDraft\.metricType,/,
+  'saving a challenge should send the chosen metric'
+);
+assert.match(
+  adminScreenSource,
+  /\{getChallengeMetricSummary\(item\)\}/,
+  'admin challenge rows should say which metric each challenge counts'
+);
+assert.doesNotMatch(
+  adminScreenSource,
+  /\$\{item\.targetValue\} units/,
+  'admin challenge rows should no longer hardcode units'
+);
+assert.match(adminApiSource, /challenge_metric_type: input\.metricType/, 'admin save payload should send the metric');
+assert.match(adminApiSource, /metricType: toChallengeMetricType\(row\.metric_type\)/, 'admin API should map the stored metric');
 assert.match(adminApiSource, /archived_at\?: string \| null;/);
 assert.match(adminApiSource, /archivedBy: toStringOrNull\(row\.archived_by\)/);
 assert.match(adminApiSource, /archiveAdminChallenge/);

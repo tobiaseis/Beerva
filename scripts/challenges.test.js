@@ -9,24 +9,7 @@ const root = path.resolve(__dirname, '..');
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8');
 const exists = (relativePath) => fs.existsSync(path.join(root, relativePath));
 
-const loadTypeScriptModule = (relativePath) => {
-  const filename = path.join(root, relativePath);
-  const source = fs.readFileSync(filename, 'utf8');
-  const { outputText } = ts.transpileModule(source, {
-    compilerOptions: {
-      esModuleInterop: true,
-      module: ts.ModuleKind.CommonJS,
-      target: ts.ScriptTarget.ES2020,
-    },
-    fileName: filename,
-  });
-
-  const compiledModule = new Module(filename, module);
-  compiledModule.filename = filename;
-  compiledModule.paths = Module._nodeModulePaths(path.dirname(filename));
-  compiledModule._compile(outputText, filename);
-  return compiledModule.exports;
-};
+const { loadTypeScriptModule } = require('./loadTypeScriptModule');
 
 const challengesHelperPath = 'src/lib/challenges.ts';
 const challengesApiPath = 'src/lib/challengesApi.ts';
@@ -44,6 +27,8 @@ const targetChallengeUnitsMigrationPath = 'supabase/migrations/20260618120000_ta
 const boozeInJuneUnitsFixMigrationPath = 'supabase/migrations/20260618130000_fix_booze_in_june_units.sql';
 const forceTargetUnitsMigrationPath = 'supabase/migrations/20260618140000_force_target_challenges_to_units.sql';
 const boozeInJuneLeaderboardUnitsMigrationPath = 'supabase/migrations/20260618150000_booze_in_june_leaderboard_units.sql';
+const challengeMetricChoiceMigrationPath = 'supabase/migrations/20260823120000_admin_challenge_metric_choice.sql';
+const summerSprintUnitsMigrationPath = 'supabase/migrations/20260823130000_summer_sprint_alcohol_units.sql';
 const drinkInvalidationMigrationPath = 'supabase/migrations/20260618160000_add_drink_invalidation.sql';
 const karnevalTestMigrationPath = 'supabase/migrations/20260521110000_add_karneval_test_challenge.sql';
 const removeKarnevalTestMigrationPath = 'supabase/migrations/20260521120000_remove_karneval_test_challenge.sql';
@@ -67,6 +52,8 @@ assert.ok(exists(targetChallengeUnitsMigrationPath), 'target challenge units mig
 assert.ok(exists(boozeInJuneUnitsFixMigrationPath), 'Booze-in-June units fix migration should exist');
 assert.ok(exists(forceTargetUnitsMigrationPath), 'target challenge force-units migration should exist');
 assert.ok(exists(boozeInJuneLeaderboardUnitsMigrationPath), 'Booze-in-June leaderboard units migration should exist');
+assert.ok(exists(challengeMetricChoiceMigrationPath), 'admin challenge metric choice migration should exist');
+assert.ok(exists(summerSprintUnitsMigrationPath), 'Summer Sprint units migration should exist');
 assert.ok(exists(drinkInvalidationMigrationPath), 'admin drink invalidation migration should exist');
 assert.ok(exists(karnevalTestMigrationPath), 'Karneval test challenge migration should exist');
 assert.ok(exists(removeKarnevalTestMigrationPath), 'Karneval test cleanup migration should exist');
@@ -79,9 +66,15 @@ assert.ok(exists(officialFeedPostCardPath), 'official feed post card should exis
 assert.ok(exists(feedApiPath), 'feed API module should exist');
 
 const {
+  CHALLENGE_METRIC_TYPE,
+  CHALLENGE_METRIC_TYPES,
   CHALLENGE_STATUS,
   CHALLENGE_TYPE,
   formatChallengeProgress,
+  getChallengeMetricLabel,
+  getChallengeMetricTitle,
+  isAlcoholUnitChallenge,
+  toChallengeMetricType,
   formatChallengeRank,
   formatChallengeStatusLabel,
   getChallengePreJoinCopy,
@@ -118,6 +111,27 @@ assert.equal(
   '8.4 units',
   'leaderboard challenges with an alcohol-unit metric should show unit copy'
 );
+assert.equal(CHALLENGE_METRIC_TYPE.ALCOHOL_UNITS, 'alcohol_units');
+assert.equal(CHALLENGE_METRIC_TYPE.TRUE_PINTS, 'true_pints');
+assert.deepEqual(
+  [...CHALLENGE_METRIC_TYPES],
+  ['alcohol_units', 'true_pints'],
+  'the metric picker should offer units first, since that is the default'
+);
+assert.equal(toChallengeMetricType('alcohol_units'), 'alcohol_units');
+assert.equal(toChallengeMetricType('true_pints'), 'true_pints');
+assert.equal(
+  toChallengeMetricType('schooners'),
+  'true_pints',
+  'an unknown stored metric should read as true pints, matching the database helper'
+);
+assert.equal(toChallengeMetricType(null), 'true_pints');
+assert.equal(isAlcoholUnitChallenge('alcohol_units'), true);
+assert.equal(isAlcoholUnitChallenge('true_pints'), false);
+assert.equal(getChallengeMetricLabel('alcohol_units'), 'units');
+assert.equal(getChallengeMetricLabel('true_pints'), 'true pints');
+assert.equal(getChallengeMetricTitle('alcohol_units'), 'Units');
+assert.equal(getChallengeMetricTitle('true_pints'), 'True pints');
 assert.equal(
   getChallengePreJoinCopy({ challengeType: 'leaderboard', slug: 'karnevalsdruk-2026' }),
   'Join to count your Karneval drinks from the full 06:00 to 06:00 window.'
@@ -543,6 +557,8 @@ const targetChallengeUnitsMigrationSql = read(targetChallengeUnitsMigrationPath)
 const boozeInJuneUnitsFixMigrationSql = read(boozeInJuneUnitsFixMigrationPath);
 const forceTargetUnitsMigrationSql = read(forceTargetUnitsMigrationPath);
 const boozeInJuneLeaderboardUnitsMigrationSql = read(boozeInJuneLeaderboardUnitsMigrationPath);
+const challengeMetricChoiceMigrationSql = read(challengeMetricChoiceMigrationPath);
+const summerSprintUnitsMigrationSql = read(summerSprintUnitsMigrationPath);
 const drinkInvalidationMigrationSql = read(drinkInvalidationMigrationPath);
 assert.match(
   archiveMigrationSql,
@@ -748,6 +764,105 @@ assert.match(
   boozeInJuneLeaderboardUnitsMigrationSql,
   /notify pgrst,\s*'reload schema'/i,
   'Booze-in-June leaderboard migration should reload PostgREST schema cache'
+);
+
+// Admins choose the metric, so the stored metric_type is what challenges score on.
+assert.match(
+  challengeMetricChoiceMigrationSql,
+  /update public\.challenges[\s\S]*set metric_type = 'alcohol_units'[\s\S]*where challenge_type = 'target'[\s\S]*create or replace function public\.beerva_effective_challenge_metric_type/i,
+  'the backfill must run before the helper stops forcing target challenges to units, so no live challenge changes score'
+);
+assert.match(
+  challengeMetricChoiceMigrationSql,
+  /create or replace function public\.beerva_effective_challenge_metric_type\(\s*challenge_type_value text,\s*stored_metric_type text\s*\)/i,
+  'the effective metric helper should keep its signature so every caller keeps working'
+);
+assert.match(
+  challengeMetricChoiceMigrationSql,
+  /when nullif\(btrim\(coalesce\(stored_metric_type, ''\)\), ''\) = 'alcohol_units' then 'alcohol_units'\s*else 'true_pints'/i,
+  'the stored metric should decide for target and leaderboard challenges alike'
+);
+assert.doesNotMatch(
+  challengeMetricChoiceMigrationSql,
+  /when challenge_type_value = 'target' then 'alcohol_units'/i,
+  'target challenges should no longer be forced to alcohol units'
+);
+assert.match(
+  challengeMetricChoiceMigrationSql,
+  /drop function if exists public\.admin_save_challenge\(\s*uuid,\s*text,\s*text,\s*text,\s*numeric,/i,
+  'the previous admin save signature should be dropped so no ambiguous overload remains'
+);
+assert.match(
+  challengeMetricChoiceMigrationSql,
+  /challenge_metric_type text default null/i,
+  'admin save challenge should accept a metric'
+);
+assert.match(
+  challengeMetricChoiceMigrationSql,
+  /raise exception 'Challenge metric must be true pints or alcohol units\.'/i,
+  'admin save challenge should reject unknown metrics'
+);
+assert.match(
+  challengeMetricChoiceMigrationSql,
+  /existing_row\.metric_type is distinct from resolved_metric_type/i,
+  'the metric should be locked once people have joined, like every other competition rule'
+);
+assert.match(
+  challengeMetricChoiceMigrationSql,
+  /resolved_metric_type := coalesce\(\s*requested_metric_type,\s*nullif\(btrim\(coalesce\(existing_row\.metric_type, ''\)\), ''\)/i,
+  'a client that sends no metric should keep the stored one instead of resetting it'
+);
+assert.match(
+  challengeMetricChoiceMigrationSql,
+  /challenge_metric_label := case\s*when challenge_metric_type = 'alcohol_units' then 'units'\s*else 'true pints'\s*end/i,
+  'winner announcements should name the metric the challenge was scored on'
+);
+assert.match(
+  challengeMetricChoiceMigrationSql,
+  /'metric_type', challenge_metric_type,\s*'progress_value', round\(leader_row\.progress_value::numeric, 1\),\s*'true_pints', round\(leader_row\.progress_value::numeric, 1\)/i,
+  'winner metadata should carry the metric while keeping true_pints for older clients'
+);
+assert.match(
+  challengeMetricChoiceMigrationSql,
+  /grant execute on function public\.admin_save_challenge\([\s\S]*?\) to authenticated;/i,
+  'the new admin save signature should be granted to signed-in admins'
+);
+assert.match(
+  challengeMetricChoiceMigrationSql,
+  /grant execute on function public\.finalize_generic_due_challenges\(integer\) to service_role;/i,
+  'the finalizer should stay service-role only'
+);
+assert.match(
+  challengeMetricChoiceMigrationSql,
+  /notify pgrst,\s*'reload schema'/i,
+  'the metric choice migration should reload the PostgREST schema cache'
+);
+
+// Summer Sprint moves to alcohol units without disturbing past Summer Sprints.
+assert.match(
+  summerSprintUnitsMigrationSql,
+  /update public\.challenges\s*set metric_type = 'alcohol_units'/i,
+  'the Summer Sprint migration should move the challenge to alcohol units'
+);
+assert.match(
+  summerSprintUnitsMigrationSql,
+  /finalized_at is null/i,
+  'finalized Summer Sprints should keep the metric they were scored on'
+);
+assert.match(
+  summerSprintUnitsMigrationSql,
+  /ends_at > now\(\)/i,
+  'only the running Summer Sprint should change metric'
+);
+assert.match(
+  summerSprintUnitsMigrationSql,
+  /summer-sprint/i,
+  'the Summer Sprint migration should match the challenge by stable slug/title'
+);
+assert.match(
+  summerSprintUnitsMigrationSql,
+  /notify pgrst,\s*'reload schema'/i,
+  'the Summer Sprint migration should reload the PostgREST schema cache'
 );
 assert.match(
   drinkInvalidationMigrationSql,

@@ -1,6 +1,26 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const Module = require('node:module');
 const path = require('node:path');
+const ts = require('typescript');
+
+const loadTypeScriptModule = (relativePath) => {
+  const filename = path.resolve(__dirname, '..', relativePath);
+  const { outputText } = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
+    compilerOptions: {
+      esModuleInterop: true,
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2020,
+    },
+    fileName: filename,
+  });
+
+  const compiledModule = new Module(filename, module);
+  compiledModule.filename = filename;
+  compiledModule.paths = Module._nodeModulePaths(path.dirname(filename));
+  compiledModule._compile(outputText, filename);
+  return compiledModule.exports;
+};
 
 const source = fs.readFileSync(
   path.resolve(__dirname, '..', 'src/screens/RecordScreen.tsx'),
@@ -27,14 +47,44 @@ assert.match(
 
 assert.match(
   source,
-  /const incrementBeerInSession = async/,
+  /const adjustBeerQuantityInSession = async \(beer: SessionBeer, delta: number\)/,
+  'record screen should adjust existing drink quantities in both directions'
+);
+
+assert.match(
+  source,
+  /const incrementBeerInSession = \(beer: SessionBeer\) => adjustBeerQuantityInSession\(beer, 1\);/,
   'record screen should expose a fast increment handler for existing drinks'
 );
 
 assert.match(
   source,
+  /const decrementBeerInSession = \(beer: SessionBeer\) => adjustBeerQuantityInSession\(beer, -1\);/,
+  'record screen should expose a fast decrement handler for existing drinks'
+);
+
+assert.match(
+  source,
   /\.from\('session_beers'\)\s*[\s\S]*?\.update\(\{\s*quantity: nextQuantity\s*\}\)/,
-  'incrementing an existing drink should update its session_beers quantity'
+  'adjusting an existing drink should update its session_beers quantity'
+);
+
+assert.match(
+  source,
+  /const nextQuantity = getAdjustedBeerQuantity\(beer, delta\);/,
+  'record screen quantity changes should clamp through the shared helper'
+);
+
+assert.match(
+  source,
+  /if \(nextQuantity === currentQuantity\) return;/,
+  'a clamped quantity change should not hit the database'
+);
+
+assert.match(
+  source,
+  /showAlert\(delta > 0 \? 'Could not add one more' : 'Could not remove one', error\.message\)/,
+  'a failed quantity change should report the direction that failed'
 );
 
 assert.match(
@@ -45,14 +95,58 @@ assert.match(
 
 assert.match(
   source,
-  /<PlusCircle color=\{colors\.primary\} size=\{17\} \/>/,
-  'the fast increment action should use the plus icon beside the delete action'
+  /onPress=\{\(\) => decrementBeerInSession\(beer\)\}/,
+  'each active-session drink row should wire the minus button to decrement that drink'
+);
+
+assert.match(
+  source,
+  /<Plus color=\{colors\.primary\} size=\{15\} \/>/,
+  'the increment action should use the plus icon beside the delete action'
+);
+
+assert.match(
+  source,
+  /<Minus\s+color=\{canDecrementBeerQuantity\(beer\) \? colors\.primary : colors\.textMuted\}/,
+  'the decrement action should use a minus icon that dims when it cannot go lower'
+);
+
+assert.match(
+  source,
+  /disabled=\{!canDecrementBeerQuantity\(beer\)\}/,
+  'the minus control should be disabled once a drink is down to a single serving'
+);
+
+assert.match(
+  source,
+  /style=\{styles\.quantityControls\}/,
+  'record drink rows should group the minus and plus controls into one stepper'
+);
+
+const recordQuantityButton = source.slice(
+  source.indexOf('  quantityButton: {'),
+  source.indexOf('  quantityButtonDisabled: {')
+);
+const editQuantityButton = editSessionSource.slice(
+  editSessionSource.indexOf('  quantityButton: {'),
+  editSessionSource.indexOf('  quantityButtonDisabled: {')
+);
+assert.equal(
+  recordQuantityButton,
+  editQuantityButton,
+  'the record and edit steppers should be the same control, so both screens feel the same'
 );
 
 assert.match(
   source,
   /style=\{styles\.beerRowActions\}/,
-  'drink row actions should group the plus and delete controls together'
+  'drink row actions should group the stepper and delete controls together'
+);
+
+assert.doesNotMatch(
+  source,
+  /incrementBeerLabel/,
+  'the drink stepper should replace the old single-direction +1 pill'
 );
 
 assert.match(
@@ -224,9 +318,32 @@ assert.match(
 );
 
 assert.match(
-  source,
-  /<Text style=\{styles\.incrementBeerLabel\}>\+1<\/Text>/,
-  'existing drink rows should show the repeat action as a visible +1 same-again control'
+  editSessionSource,
+  /quantity: getAdjustedBeerQuantity\(item, delta\)/,
+  'edit session quantity steps should share the record screen clamping helper'
 );
+
+assert.match(
+  editSessionSource,
+  /disabled=\{!canDecrementBeerQuantity\(beer\)\}/,
+  'edit session should dim its minus control at a single serving like the record screen'
+);
+
+const quantityHelpers = loadTypeScriptModule('src/lib/sessionBeers.ts');
+assert.equal(quantityHelpers.MIN_BEER_QUANTITY, 1);
+assert.equal(quantityHelpers.getBeerQuantity({ quantity: 3 }), 3);
+assert.equal(quantityHelpers.getBeerQuantity({ quantity: null }), 1);
+assert.equal(quantityHelpers.getBeerQuantity({ quantity: 0 }), 1);
+assert.equal(quantityHelpers.getAdjustedBeerQuantity({ quantity: 3 }, 1), 4);
+assert.equal(quantityHelpers.getAdjustedBeerQuantity({ quantity: 3 }, -1), 2);
+assert.equal(
+  quantityHelpers.getAdjustedBeerQuantity({ quantity: 1 }, -1),
+  1,
+  'stepping below a single serving should clamp instead of deleting the drink'
+);
+assert.equal(quantityHelpers.getAdjustedBeerQuantity({ quantity: null }, -1), 1);
+assert.equal(quantityHelpers.canDecrementBeerQuantity({ quantity: 2 }), true);
+assert.equal(quantityHelpers.canDecrementBeerQuantity({ quantity: 1 }), false);
+assert.equal(quantityHelpers.canDecrementBeerQuantity({ quantity: null }), false);
 
 console.log('record session drink checks passed');
