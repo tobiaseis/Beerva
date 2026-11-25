@@ -80,7 +80,8 @@
     "test:live-safe-performance": "node scripts/liveSafePerformance.test.js",
     "test:feed-api": "node scripts/feedApi.test.js",
     "test:record-performance": "node scripts/recordScreenPerformance.test.js",
-    "test:feed-list": "node scripts/feedList.test.js"
+    "test:feed-list": "node scripts/feedList.test.js",
+    "test:post-views": "node scripts/postViews.test.js"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",
