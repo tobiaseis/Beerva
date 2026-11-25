@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -19,6 +19,14 @@ import { ImageViewerModal } from '../components/ImageViewerModal';
 import { MentionComposer } from '../components/MentionComposer';
 import { MentionText } from '../components/MentionText';
 import { PubCrawlFeedCard } from '../components/PubCrawlFeedCard';
+import { PostViewersModal } from '../components/PostViewersModal';
+import {
+  fetchMyPostViewCounts,
+  getPostViewKey,
+  getPostViewTargetForAuthor,
+  postViewRecorder,
+  PostViewTarget,
+} from '../lib/postViews';
 import { FeedSessionCard } from './FeedScreen';
 import { FeedSession } from '../lib/feedTypes';
 import { PubCrawl, PubCrawlComment } from '../lib/pubCrawls';
@@ -115,6 +123,8 @@ export const PostDetailScreen = () => {
   const [commentMentions, setCommentMentions] = useState<MentionCandidate[]>([]);
   const [submittingComment, setSubmittingComment] = useState(false);
   const [viewingImageUrl, setViewingImageUrl] = useState<string | null>(null);
+  const [ownViewsCount, setOwnViewsCount] = useState<number | null>(null);
+  const [viewersTarget, setViewersTarget] = useState<PostViewTarget | null>(null);
   const composerRef = useRef<TextInput>(null);
   const listRef = useRef<FlatList>(null);
 
@@ -355,6 +365,38 @@ export const PostDetailScreen = () => {
       fetchPost();
     }, [fetchPost])
   );
+
+  const loadedTargetId = targetType === 'pub_crawl' ? crawl?.id ?? null : session?.id ?? null;
+  const loadedAuthorId = targetType === 'pub_crawl' ? crawl?.userId ?? null : session?.user_id ?? null;
+  const viewTarget = useMemo<PostViewTarget | null>(
+    () => (loadedTargetId ? { targetType, targetId: loadedTargetId } : null),
+    [loadedTargetId, targetType]
+  );
+
+  useEffect(() => {
+    setOwnViewsCount(null);
+    if (!viewTarget || !currentUserId || !loadedAuthorId) return undefined;
+
+    const viewerTarget = getPostViewTargetForAuthor(viewTarget, loadedAuthorId, currentUserId);
+    if (viewerTarget) {
+      postViewRecorder.markSeen(viewerTarget);
+      void postViewRecorder.flush();
+      return undefined;
+    }
+
+    let cancelled = false;
+    fetchMyPostViewCounts([viewTarget])
+      .then((counts) => {
+        if (!cancelled) setOwnViewsCount(counts.get(getPostViewKey(viewTarget)) ?? 0);
+      })
+      .catch((error) => {
+        console.error('Post view count fetch error:', error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserId, loadedAuthorId, viewTarget]);
 
   const openProfile = useCallback((userId: string) => {
     if (userId === currentUserId) {
@@ -666,11 +708,12 @@ export const PostDetailScreen = () => {
       return (
         <View>
           <PubCrawlFeedCard
-            crawl={crawl}
+            crawl={ownViewsCount === null ? crawl : { ...crawl, viewsCount: ownViewsCount }}
             currentUserId={currentUserId}
             isCheering={cheering}
             onToggleCheer={toggleCrawlCheers}
             onOpenCheers={() => {}}
+            onOpenViewers={setViewersTarget}
             onOpenComments={openComments}
             onOpenProfile={openProfile}
             onImagePress={setViewingImageUrl}
@@ -691,12 +734,13 @@ export const PostDetailScreen = () => {
     return (
       <View>
         <FeedSessionCard
-          item={session}
+          item={ownViewsCount === null ? session : { ...session, views_count: ownViewsCount }}
           currentUserId={currentUserId}
           isCheering={cheering}
           onDeleteSession={deleteSession}
           onEditSession={editSession}
           onOpenCheers={() => {}}
+          onOpenViewers={setViewersTarget}
           onOpenComments={openComments}
           onOpenProfile={openProfile}
           onImagePress={setViewingImageUrl}
@@ -712,7 +756,7 @@ export const PostDetailScreen = () => {
         </View>
       </View>
     );
-  }, [cheering, crawl, currentUserId, deleteSession, editSession, openComments, openProfile, session, toggleCheers, toggleCrawlCheers]);
+  }, [cheering, crawl, currentUserId, deleteSession, editSession, openComments, openProfile, ownViewsCount, session, toggleCheers, toggleCrawlCheers]);
 
   return (
     <View style={styles.container}>
@@ -792,6 +836,15 @@ export const PostDetailScreen = () => {
         visible={Boolean(viewingImageUrl)}
         imageUrl={viewingImageUrl}
         onClose={() => setViewingImageUrl(null)}
+      />
+
+      <PostViewersModal
+        target={viewersTarget}
+        onClose={() => setViewersTarget(null)}
+        onOpenProfile={(userId) => {
+          setViewersTarget(null);
+          openProfile(userId);
+        }}
       />
     </View>
   );
