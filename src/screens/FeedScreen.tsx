@@ -24,6 +24,9 @@ import { useNotifications } from '../lib/notificationsContext';
 import { EmptyIllustration } from '../components/EmptyIllustration';
 import { FeedList } from '../components/FeedList';
 import { usePostViewTracking } from '../lib/usePostViewTracking';
+import { PostViewsSummary } from '../components/PostViewsSummary';
+import { PostViewersModal } from '../components/PostViewersModal';
+import type { PostViewTarget } from '../lib/postViews';
 import { IgnoredDrinkBadge } from '../components/IgnoredDrinkBadge';
 import { getBeerLine, getSessionBeerSummary, SessionBeer } from '../lib/sessionBeers';
 import {
@@ -255,6 +258,7 @@ type FeedSessionCardProps = {
   onDeleteSession: (session: FeedSession) => void;
   onEditSession: (session: FeedSession) => void;
   onOpenCheers: (session: FeedSession) => void;
+  onOpenViewers?: (target: PostViewTarget) => void;
   onOpenComments: (session: FeedSession) => void;
   onOpenProfile: (userId: string) => void;
   onImagePress: (url: string) => void;
@@ -268,12 +272,15 @@ export const FeedSessionCard = React.memo(({
   onDeleteSession,
   onEditSession,
   onOpenCheers,
+  onOpenViewers,
   onOpenComments,
   onOpenProfile,
   onImagePress,
   onToggleCheers,
 }: FeedSessionCardProps) => {
   const isOwnPost = item.user_id === currentUserId;
+  const viewsCount = item.views_count ?? 0;
+  const showViews = isOwnPost && viewsCount > 0 && Boolean(onOpenViewers);
   const username = item.profiles?.username || 'Unknown';
   const latestComments = item.comments.slice(-2);
   const cheerNames = item.cheer_profiles
@@ -654,7 +661,7 @@ export const FeedSessionCard = React.memo(({
         </TouchableOpacity>
       </View>
 
-      {item.cheers_count > 0 || item.comments_count > 0 ? (
+      {item.cheers_count > 0 || item.comments_count > 0 || showViews ? (
         <View style={styles.engagementPanel}>
           {item.cheers_count > 0 ? (
             <TouchableOpacity
@@ -686,6 +693,13 @@ export const FeedSessionCard = React.memo(({
                 {cheerSummary}
               </Text>
             </TouchableOpacity>
+          ) : null}
+
+          {showViews ? (
+            <PostViewsSummary
+              count={viewsCount}
+              onPress={() => onOpenViewers?.({ targetType: 'session', targetId: item.id })}
+            />
           ) : null}
 
           {latestComments.length > 0 ? (
@@ -756,6 +770,7 @@ export const FeedScreen = ({ route }: any) => {
   const [cheeringSessionIds, setCheeringSessionIds] = useState<Set<string>>(() => new Set());
   const [commentingSession, setCommentingSession] = useState<FeedSession | PubCrawl | null>(null);
   const [cheersSession, setCheersSession] = useState<FeedSession | PubCrawl | null>(null);
+  const [viewersTarget, setViewersTarget] = useState<PostViewTarget | null>(null);
   const [commentDraft, setCommentDraft] = useState('');
   const [commentMentions, setCommentMentions] = useState<MentionCandidate[]>([]);
   const [viewingImageUrl, setViewingImageUrl] = useState<string | null>(null);
@@ -1103,6 +1118,19 @@ export const FeedScreen = ({ route }: any) => {
   const closeCheers = useCallback(() => {
     setCheersSession(null);
   }, []);
+
+  const openViewers = useCallback((target: PostViewTarget) => {
+    setViewersTarget(target);
+  }, []);
+
+  const closeViewers = useCallback(() => {
+    setViewersTarget(null);
+  }, []);
+
+  const openViewerProfile = useCallback((userId: string) => {
+    setViewersTarget(null);
+    openProfile(userId);
+  }, [openProfile]);
 
   const submitComment = useCallback(async () => {
     const cleanComment = commentDraft.trim();
@@ -1642,6 +1670,7 @@ export const FeedScreen = ({ route }: any) => {
           onToggleCheer={toggleCrawlCheers}
           onOpenComments={openComments}
           onOpenCheers={openCheers}
+          onOpenViewers={openViewers}
           onOpenProfile={openProfile}
           onImagePress={setViewingImageUrl}
         />
@@ -1656,6 +1685,7 @@ export const FeedScreen = ({ route }: any) => {
         onDeleteSession={deleteSession}
         onEditSession={editSession}
         onOpenCheers={openCheers}
+        onOpenViewers={openViewers}
         onOpenComments={openComments as any}
         onOpenProfile={openProfile}
         onImagePress={setViewingImageUrl}
@@ -1673,6 +1703,7 @@ export const FeedScreen = ({ route }: any) => {
     openCheers,
     openComments,
     openProfile,
+    openViewers,
     toggleCheers,
     toggleCrawlCheers,
   ]);
@@ -1819,6 +1850,12 @@ export const FeedScreen = ({ route }: any) => {
         visible={Boolean(viewingImageUrl)}
         imageUrl={viewingImageUrl}
         onClose={() => setViewingImageUrl(null)}
+      />
+
+      <PostViewersModal
+        target={viewersTarget}
+        onClose={closeViewers}
+        onOpenProfile={openViewerProfile}
       />
 
       {(() => {

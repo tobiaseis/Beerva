@@ -14,6 +14,8 @@ import { MentionText } from './MentionText';
 import { PubCrawlMediaCarousel } from './PubCrawlMediaCarousel';
 import { Surface } from './Surface';
 import { StreakAvatar } from './StreakAvatar';
+import { PostViewsSummary } from './PostViewsSummary';
+import type { PostViewTarget } from '../lib/postViews';
 
 const beervaLogo = require('../../assets/beerva-header-logo.png');
 const cheersLogoSource = beervaLogo;
@@ -25,6 +27,7 @@ type Props = {
   onToggleCheer: (crawl: PubCrawl) => void;
   onOpenComments: (crawl: PubCrawl) => void;
   onOpenCheers: (crawl: PubCrawl) => void;
+  onOpenViewers?: (target: PostViewTarget) => void;
   onOpenProfile: (userId: string) => void;
   onImagePress?: (url: string) => void;
 };
@@ -88,6 +91,7 @@ export const PubCrawlFeedCard = ({
   onToggleCheer,
   onOpenComments,
   onOpenCheers,
+  onOpenViewers,
   onOpenProfile,
   onImagePress,
 }: Props) => {
@@ -95,6 +99,8 @@ export const PubCrawlFeedCard = ({
   const summary = calculatePubCrawlSummary(crawl.stops);
   const username = crawl.username || 'Unknown';
   const isOwnPost = crawl.userId === currentUserId;
+  const viewsCount = crawl.viewsCount ?? 0;
+  const showViews = isOwnPost && viewsCount > 0 && Boolean(onOpenViewers);
   const hasCheered = currentUserId ? crawl.cheerProfiles.some((profile) => profile.id === currentUserId) : false;
   const latestComments = crawl.comments.slice(-2);
   const cheerNames = crawl.cheerProfiles
@@ -292,7 +298,7 @@ export const PubCrawlFeedCard = ({
         </TouchableOpacity>
       </View>
 
-      {crawl.cheersCount > 0 || crawl.commentsCount > 0 ? (
+      {crawl.cheersCount > 0 || crawl.commentsCount > 0 || showViews ? (
         <View style={styles.engagementPanel}>
           {crawl.cheersCount > 0 ? (
             <TouchableOpacity
@@ -324,6 +330,13 @@ export const PubCrawlFeedCard = ({
                 {cheerSummary}
               </Text>
             </TouchableOpacity>
+          ) : null}
+
+          {showViews ? (
+            <PostViewsSummary
+              count={viewsCount}
+              onPress={() => onOpenViewers?.({ targetType: 'pub_crawl', targetId: crawl.id })}
+            />
           ) : null}
 
           {latestComments.length > 0 ? (
