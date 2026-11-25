@@ -57,6 +57,7 @@ export type FeedSession = {
   comments_count: number;
   cheers_count: number;
   has_cheered: boolean;
+  views_count?: number | null;
 };
 
 export type FeedItem =

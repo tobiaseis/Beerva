@@ -10,6 +10,7 @@ import { fetchSessionBuddySummaries, SessionBuddy } from './sessionBuddies';
 import { mapChugAttemptRow, SessionChugAttempt, SessionChugAttemptRow } from './chugAttempts';
 import { FeedItem } from './feedTypes';
 import { ChallengeSummary } from './challenges';
+import { fetchMyPostViewCounts, getPostViewKey, PostViewTarget } from './postViews';
 
 type FollowRow = {
   following_id: string;
@@ -256,10 +257,23 @@ const fetchFeedPageViaClientHydration = async ({
     )),
   ];
 
-  const [commentMentionsBySource, postMentionsBySource] = await withTimeout(
+  const ownPostViewTargets: PostViewTarget[] = [
+    ...sessionRows
+      .filter((session) => session.user_id === user.id)
+      .map((session): PostViewTarget => ({ targetType: 'session', targetId: session.id })),
+    ...crawls
+      .filter((crawl) => crawl.userId === user.id)
+      .map((crawl): PostViewTarget => ({ targetType: 'pub_crawl', targetId: crawl.id })),
+  ];
+
+  const [commentMentionsBySource, postMentionsBySource, viewCountsByPost] = await withTimeout(
     Promise.all([
       fetchContentMentionsForSources(supabase, 'comment', commentSourceIds),
       fetchContentMentionsForSources(supabase, 'post', postSourceIds),
+      fetchMyPostViewCounts(ownPostViewTargets).catch((error) => {
+        console.error('Post view counts fetch error:', error);
+        return new Map<string, number>();
+      }),
     ]),
     timeoutMs,
     'Feed mentions are taking too long.'
@@ -271,6 +285,7 @@ const fetchFeedPageViaClientHydration = async ({
       ...feedItem,
       session: {
         ...feedItem.session,
+        views_count: viewCountsByPost.get(getPostViewKey({ targetType: 'session', targetId: feedItem.session.id })) ?? null,
         mentions: postMentionsBySource.get(feedItem.session.id) || [],
         comments: feedItem.session.comments.map((comment) => ({
           ...comment,
@@ -286,6 +301,7 @@ const fetchFeedPageViaClientHydration = async ({
       ...feedItem,
       crawl: {
         ...feedItem.crawl,
+        viewsCount: viewCountsByPost.get(getPostViewKey({ targetType: 'pub_crawl', targetId: feedItem.crawl.id })) ?? null,
         comments: feedItem.crawl.comments.map((comment) => ({
           ...comment,
           mentions: commentMentionsBySource.get(comment.id) || [],

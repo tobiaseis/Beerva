@@ -101,6 +101,7 @@ export type PubCrawl = {
   cheerProfiles: PubCrawlProfile[];
   comments: PubCrawlComment[];
   stops: PubCrawlStop[];
+  viewsCount?: number | null;
 };
 
 export type PubCrawlProfile = {
