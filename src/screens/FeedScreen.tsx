@@ -8,7 +8,7 @@ import { FeedComment, FeedItem, FeedSession, ProfilePreview } from '../lib/feedT
 import { fetchFeedPage } from '../lib/feedApi';
 import { appendFeedPage } from '../lib/feedPagination';
 import { confirmDestructive } from '../lib/dialogs';
-import { useFocusEffect, useNavigation, useScrollToTop } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused, useNavigation, useScrollToTop } from '@react-navigation/native';
 import { CachedImage } from '../components/CachedImage';
 import { StreakAvatar } from '../components/StreakAvatar';
 import { MentionComposer } from '../components/MentionComposer';
@@ -23,6 +23,7 @@ import { hapticLight, hapticMedium, hapticWarning } from '../lib/haptics';
 import { useNotifications } from '../lib/notificationsContext';
 import { EmptyIllustration } from '../components/EmptyIllustration';
 import { FeedList } from '../components/FeedList';
+import { usePostViewTracking } from '../lib/usePostViewTracking';
 import { IgnoredDrinkBadge } from '../components/IgnoredDrinkBadge';
 import { getBeerLine, getSessionBeerSummary, SessionBeer } from '../lib/sessionBeers';
 import {
@@ -786,6 +787,8 @@ export const FeedScreen = ({ route }: any) => {
   const touchStartY = useRef(0);
   const isPulling = useRef(false);
   const flatListRef = useRef<FlatList>(null);
+  const isFeedFocused = useIsFocused();
+  const { viewabilityConfig, onViewableItemsChanged } = usePostViewTracking({ currentUserId, isActive: isFeedFocused });
 
   useScrollToTop(flatListRef);
 
@@ -1781,6 +1784,8 @@ export const FeedScreen = ({ route }: any) => {
           contentInsetAdjustmentBehavior="automatic"
           onScroll={handleScroll}
           scrollEventThrottle={16}
+          viewabilityConfig={viewabilityConfig}
+          onViewableItemsChanged={onViewableItemsChanged}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
