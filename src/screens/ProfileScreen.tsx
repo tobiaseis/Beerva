@@ -132,6 +132,7 @@ export const ProfileScreen = ({ route }: any) => {
   const [pushUnsupportedReason, setPushUnsupportedReason] = useState<string | null>(null);
   const [pushSubscribed, setPushSubscribed] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
+  const [engagementBusy, setEngagementBusy] = useState(false);
   const [pushReminderHintVisible, setPushReminderHintVisible] = useState(false);
   const showPushReminderHint = Boolean(route?.params?.showPushReminderHint);
 
@@ -446,6 +447,24 @@ export const ProfileScreen = ({ route }: any) => {
   }
 
   const joinDate = profile?.updated_at ? new Date(profile.updated_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'Recently';
+  const engagementPushesEnabled = profile?.engagement_pushes_enabled !== false;
+
+  const toggleEngagementPushes = async () => {
+    if (!profile?.id || engagementBusy) return;
+    const next = !engagementPushesEnabled;
+    setEngagementBusy(true);
+    setProfile((current: any) => (current ? { ...current, engagement_pushes_enabled: next } : current));
+    const { error } = await supabase
+      .from('profiles')
+      .update({ engagement_pushes_enabled: next })
+      .eq('id', profile.id);
+    if (error) {
+      console.error('Engagement push preference error:', error);
+      setProfile((current: any) => (current ? { ...current, engagement_pushes_enabled: !next } : current));
+      showAlert('Could not save', 'Try again in a moment.');
+    }
+    setEngagementBusy(false);
+  };
 
   return (
     <ScrollView
@@ -619,6 +638,27 @@ export const ProfileScreen = ({ route }: any) => {
           <Text style={styles.pushHintText}>{pushUnsupportedReason}</Text>
         </View>
       ) : null}
+
+      <TouchableOpacity
+        style={[styles.pushButton, engagementPushesEnabled ? styles.pushButtonOn : styles.pushButtonOff]}
+        onPress={toggleEngagementPushes}
+        disabled={engagementBusy}
+        activeOpacity={0.75}
+        accessibilityRole="switch"
+        accessibilityState={{ checked: engagementPushesEnabled, disabled: engagementBusy }}
+        accessibilityLabel="Weekend reminders & weekly recap"
+      >
+        {engagementPushesEnabled ? (
+          <Bell color={colors.primary} size={20} />
+        ) : (
+          <BellOff color={colors.textMuted} size={20} />
+        )}
+        <Text style={[styles.pushButtonText, engagementPushesEnabled ? styles.pushButtonTextOn : null]}>
+          {engagementPushesEnabled
+            ? 'Weekend reminders & weekly recap on'
+            : 'Weekend reminders & weekly recap off'}
+        </Text>
+      </TouchableOpacity>
 
       {profile?.is_admin === true ? (
         <TouchableOpacity
