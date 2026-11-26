@@ -82,7 +82,8 @@
     "test:record-performance": "node scripts/recordScreenPerformance.test.js",
     "test:feed-list": "node scripts/feedList.test.js",
     "test:post-views": "node scripts/postViews.test.js",
-    "test:challenge-nights-out": "node scripts/challengeNightsOut.test.js"
+    "test:challenge-nights-out": "node scripts/challengeNightsOut.test.js",
+    "test:weekly-streaks": "node scripts/weeklyStreaks.test.js"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",
