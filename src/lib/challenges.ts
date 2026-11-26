@@ -53,6 +53,7 @@ export type ChallengeLeaderboardRow = {
   avatar_url?: string | null;
   progress_value?: number | string | null;
   completed?: boolean | null;
+  nights_out?: number | string | null;
 };
 
 export type ChallengeLeaderboardScopeRow = {
@@ -96,6 +97,9 @@ export type ChallengeLeaderboardEntry = {
   avatarUrl: string | null;
   progressValue: number;
   completed: boolean;
+  // Distinct 06:00-06:00 drinking days inside the challenge window. Null when
+  // the backend predates the nights-out column.
+  nightsOut: number | null;
 };
 
 export type ChallengeLeaderboard = {
@@ -118,6 +122,12 @@ const toInteger = (value: number | string | null | undefined) => Math.round(toNu
 const toIntegerOrNull = (value: number | string | null | undefined) => {
   const parsed = toNumber(value);
   return parsed > 0 ? Math.round(parsed) : null;
+};
+
+const toNightsOutOrNull = (value: number | string | null | undefined) => {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? Math.max(0, Math.round(parsed)) : null;
 };
 
 const toStringOrNull = (value: string | null | undefined) => {
@@ -220,11 +230,21 @@ export const getChallengePreJoinCopy = (
     : 'Join this challenge to track your progress.'
 );
 
+export const formatNightsOut = (nights: number) => (
+  `${nights} ${nights === 1 ? 'night' : 'nights'} out`
+);
+
 export const getLeaderboardEntryMeta = (
-  entry: Pick<ChallengeLeaderboardEntry, 'completed' | 'progressValue'> | { completed?: boolean | null; progressValue?: number | string | null },
+  entry: Pick<ChallengeLeaderboardEntry, 'completed' | 'progressValue'> & { nightsOut?: number | null }
+    | { completed?: boolean | null; progressValue?: number | string | null; nightsOut?: number | null },
   challenge: Pick<ChallengeSummary, 'challengeType' | 'metricType'> | { challengeType?: ChallengeType | string | null; metricType?: ChallengeMetricType | string | null }
 ) => {
   if (isLeaderboardChallenge(challenge)) {
+    // The total sits on the right of the row, so the subtitle says how many
+    // nights out it took. Older backends without nights_out keep the total.
+    if (typeof entry.nightsOut === 'number') {
+      return formatNightsOut(entry.nightsOut);
+    }
     return formatChallengeProgress(entry.progressValue, null, CHALLENGE_TYPE.LEADERBOARD, challenge.metricType);
   }
 
@@ -266,6 +286,7 @@ export const mapChallengeLeaderboardRow = (row: ChallengeLeaderboardRow): Challe
   avatarUrl: toStringOrNull(row.avatar_url),
   progressValue: toNumber(row.progress_value),
   completed: row.completed === true,
+  nightsOut: toNightsOutOrNull(row.nights_out),
 });
 
 const mapChallengeLeaderboardScopeRow = (
