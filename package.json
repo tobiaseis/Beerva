@@ -83,7 +83,8 @@
     "test:feed-list": "node scripts/feedList.test.js",
     "test:post-views": "node scripts/postViews.test.js",
     "test:challenge-nights-out": "node scripts/challengeNightsOut.test.js",
-    "test:weekly-streaks": "node scripts/weeklyStreaks.test.js"
+    "test:weekly-streaks": "node scripts/weeklyStreaks.test.js",
+    "test:friday-nudge": "node scripts/fridayNudge.test.js"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",
