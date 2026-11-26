@@ -6,6 +6,8 @@ import { ArrowLeft, Beer, CalendarDays, MapPin, UserCheck, UserPlus } from 'luci
 import { CachedImage } from '../components/CachedImage';
 import { IgnoredDrinkBadge } from '../components/IgnoredDrinkBadge';
 import { StreakAvatar } from '../components/StreakAvatar';
+import { WeeklyStreakBadge } from '../components/WeeklyStreakBadge';
+import { useWeeklyStreak } from '../lib/useWeeklyStreak';
 import { ProfileStatsPanel } from '../components/ProfileStatsPanel';
 import { fetchChallengeAwards } from '../lib/challengeAwardsApi';
 import { emptyStats, getVolumeMl, ProfileSessionStatsRow, Stats, TopPubVisit, TrophyDefinition } from '../lib/profileStats';
@@ -133,6 +135,7 @@ const formatPints = (session: PublicSession) => {
 export const UserProfileScreen = ({ navigation, route }: any) => {
   const { screenTopBarPaddingTop } = usePwaParityInsets();
   const profileId = route?.params?.userId as string | undefined;
+  const weeklyStreak = useWeeklyStreak(profileId ?? null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [stats, setStats] = useState<Stats>(emptyStats);
@@ -411,6 +414,10 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
         </View>
         <Text style={typography.h1}>{profile.username || 'Beer Lover'}</Text>
         <Text style={typography.bodyMuted}>Joined {joinDate}</Text>
+        <WeeklyStreakBadge
+          weeks={weeklyStreak.weeklyStreak}
+          activeThisWeek={weeklyStreak.activeThisWeek}
+        />
 
         <View style={styles.followStats}>
           <View style={styles.followStat} accessible accessibilityLabel={`${followCounts.followers} followers`}>

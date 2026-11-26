@@ -16,6 +16,8 @@ import { openMaps } from '../lib/maps';
 import { CachedImage } from '../components/CachedImage';
 import { IgnoredDrinkBadge } from '../components/IgnoredDrinkBadge';
 import { StreakAvatar } from '../components/StreakAvatar';
+import { WeeklyStreakBadge } from '../components/WeeklyStreakBadge';
+import { useWeeklyStreak } from '../lib/useWeeklyStreak';
 import { getUsernameSaveErrorMessage, normalizeUsername } from '../lib/usernames';
 import { AppButton } from '../components/AppButton';
 import { AvatarCropModal } from '../components/AvatarCropModal';
@@ -104,6 +106,7 @@ export const ProfileScreen = ({ route }: any) => {
   const { modalHeaderPaddingTop, profileHeaderPaddingTop, tabContentPaddingBottom } = usePwaParityInsets();
   const navigation = useNavigation<any>();
   const [profile, setProfile] = useState<any>(null);
+  const weeklyStreak = useWeeklyStreak(profile?.id ?? null);
   const [stats, setStats] = useState<Stats>(emptyStats);
   const [pintTimeline, setPintTimeline] = useState<PintTimelinePoint[]>([]);
   const [topPubVisits, setTopPubVisits] = useState<TopPubVisit[]>([]);
@@ -468,6 +471,11 @@ export const ProfileScreen = ({ route }: any) => {
         </View>
         <Text style={typography.h1}>{profile?.username || 'Beer Lover'}</Text>
         <Text style={typography.bodyMuted}>Joined {joinDate}</Text>
+        <WeeklyStreakBadge
+          weeks={weeklyStreak.weeklyStreak}
+          activeThisWeek={weeklyStreak.activeThisWeek}
+          isOwnProfile
+        />
         <View style={styles.followStats}>
           <TouchableOpacity
             style={styles.followStat}
