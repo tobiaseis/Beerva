@@ -27,6 +27,8 @@ import { AuthScreen } from '../screens/AuthScreen';
 import { ProfileSetupScreen } from '../screens/ProfileSetupScreen';
 import { NotificationsScreen } from '../screens/NotificationsScreen';
 import { PostDetailScreen } from '../screens/PostDetailScreen';
+import { WeeklyRecapScreen } from '../screens/WeeklyRecapScreen';
+import { getRecapLaunchParamsFromSearch, RecapLaunchParams } from '../lib/recapLaunchParams';
 import { EditSessionScreen } from '../screens/EditSessionScreen';
 import { HangoverRatingScreen } from '../screens/HangoverRatingScreen';
 import { ChugVerificationScreen } from '../screens/ChugVerificationScreen';
@@ -86,6 +88,7 @@ type RootStackParamList = {
   ChugVerification: ChugVerificationLaunchParams;
   FakeBeer: undefined;
   AdminTools: { initialSegment?: 'submissions' } | undefined;
+  WeeklyRecap: { weekStart?: string; notificationId?: string | null } | undefined;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -140,6 +143,7 @@ const linking: LinkingOptions<RootStackParamList> = {
       ChugVerification: 'chug-verification/:attemptId',
       FakeBeer: 'fake-beer',
       AdminTools: 'admin',
+      WeeklyRecap: 'recap/:weekStart?',
     },
   },
 };
@@ -213,6 +217,19 @@ const clearNotificationLaunchParams = () => {
   if (Platform.OS !== 'web' || typeof window === 'undefined') return;
   const url = new URL(window.location.href);
   url.searchParams.delete('notifications');
+  url.searchParams.delete('notificationId');
+  window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+};
+
+const getRecapLaunchParamsFromUrl = (): RecapLaunchParams | null => {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return null;
+  return getRecapLaunchParamsFromSearch(window.location.search);
+};
+
+const clearRecapLaunchParams = () => {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+  const url = new URL(window.location.href);
+  url.searchParams.delete('recap');
   url.searchParams.delete('notificationId');
   window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
 };
@@ -400,6 +417,7 @@ export const RootNavigator = () => {
   const pendingPostOpenRef = useRef<PostLaunchParams | null>(getPostLaunchParamsFromUrl());
   const pendingChallengeOpenRef = useRef<ChallengeLaunchParams | null>(getChallengeLaunchParamsFromUrl());
   const pendingChugVerificationOpenRef = useRef<ChugVerificationLaunchParams | null>(getChugVerificationLaunchParamsFromUrl());
+  const pendingRecapOpenRef = useRef<RecapLaunchParams | null>(getRecapLaunchParamsFromUrl());
   const sessionUserId = session?.user?.id ?? null;
   useNativePushLifecycle(sessionUserId);
   const sessionHasCachedUsername = hasCachedUsername(session);
@@ -452,6 +470,15 @@ export const RootNavigator = () => {
     if (target.kind === 'adminTools') {
       navigationRef.navigate('AdminTools', {
         initialSegment: target.initialSegment,
+      });
+      markNotificationRead(target.notificationId);
+      return true;
+    }
+
+    if (target.kind === 'recap') {
+      navigationRef.navigate('WeeklyRecap', {
+        weekStart: target.weekStart,
+        notificationId: target.notificationId,
       });
       markNotificationRead(target.notificationId);
       return true;
@@ -656,6 +683,18 @@ export const RootNavigator = () => {
       return;
     }
 
+    const pendingRecapOpen = pendingRecapOpenRef.current;
+    if (pendingRecapOpen) {
+      pendingRecapOpenRef.current = null;
+      navigationRef.navigate('WeeklyRecap', {
+        weekStart: pendingRecapOpen.weekStart,
+        notificationId: pendingRecapOpen.notificationId,
+      });
+      markNotificationRead(pendingRecapOpen.notificationId);
+      clearRecapLaunchParams();
+      return;
+    }
+
     const pendingChallengeOpen = pendingChallengeOpenRef.current;
     if (pendingChallengeOpen) {
       pendingChallengeOpenRef.current = null;
@@ -724,6 +763,7 @@ export const RootNavigator = () => {
                   <Stack.Screen name="ChugVerification" component={ChugVerificationScreen} />
                   <Stack.Screen name="FakeBeer" component={FakeBeerScreen} options={{ animation: 'none' }} />
                   <Stack.Screen name="AdminTools" component={AdminToolsScreen} />
+                  <Stack.Screen name="WeeklyRecap" component={WeeklyRecapScreen} />
                 </Stack.Navigator>
                 <PushReminderPrompt onShowProfileHint={openPushReminderProfileHint} />
               </>

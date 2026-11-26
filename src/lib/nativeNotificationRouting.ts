@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 
 import { getChallengeLaunchParamsFromSearch } from './challengeLaunchParams';
 import { getPostLaunchParamsFromSearch } from './postTargets';
+import { getRecapLaunchParamsFromSearch } from './recapLaunchParams';
 
 // Supported push launch markers: notifications=1, post_type, hangover=1, chug_verification=1, challenge=.
 export type NativeNotificationTarget =
@@ -11,7 +12,8 @@ export type NativeNotificationTarget =
   | { kind: 'hangover'; targetType: 'session' | 'pub_crawl'; targetId: string; notificationId?: string | null }
   | { kind: 'chugVerification'; attemptId: string; notificationId?: string | null }
   | { kind: 'adminTools'; initialSegment: 'submissions'; notificationId?: string | null }
-  | { kind: 'challenge'; challengeSlug: string; notificationId?: string | null };
+  | { kind: 'challenge'; challengeSlug: string; notificationId?: string | null }
+  | { kind: 'recap'; weekStart: string; notificationId?: string | null };
 
 const getSearchFromUrl = (url: string) => {
   try {
@@ -32,6 +34,11 @@ export const getNativeNotificationTargetFromUrl = (url?: string | null): NativeN
   if (!url) return null;
   const search = getSearchFromUrl(url);
   const params = new URLSearchParams(search);
+
+  const recap = getRecapLaunchParamsFromSearch(search);
+  if (recap) {
+    return { kind: 'recap', weekStart: recap.weekStart, notificationId: recap.notificationId };
+  }
 
   const challenge = getChallengeLaunchParamsFromSearch(search);
   if (challenge) {
