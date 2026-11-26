@@ -10,7 +10,7 @@ import { fetchSessionBuddySummaries, SessionBuddy } from './sessionBuddies';
 import { mapChugAttemptRow, SessionChugAttempt, SessionChugAttemptRow } from './chugAttempts';
 import { FeedItem } from './feedTypes';
 import { ChallengeSummary } from './challenges';
-import { fetchSessionNightRuns } from './weeklyStreaks';
+import { fetchSessionNightRuns, fetchWeeklyStreaks, WeeklyStreak } from './weeklyStreaks';
 import { fetchMyPostViewCounts, getPostViewKey, PostViewTarget } from './postViews';
 
 type FollowRow = {
@@ -126,7 +126,12 @@ const fetchFeedPageViaClientHydration = async ({
   const officialPosts = officialPostsResult.slice(0, pageSize);
   const sessionIds = sessionRows.map((session) => session.id);
 
-  const [detailsBySession, chugsResult, buddiesBySession, officialPostChallengeSummaries, nightRunsBySession] = await withTimeout(
+  const authorIds = Array.from(new Set([
+    ...sessionRows.map((session) => session.user_id as string),
+    ...crawls.map((crawl) => crawl.userId),
+  ].filter(Boolean)));
+
+  const [detailsBySession, chugsResult, buddiesBySession, officialPostChallengeSummaries, nightRunsBySession, weeklyStreaksByUser] = await withTimeout(
     Promise.all([
       sessionIds.length > 0
         ? fetchSessionFeedDetails(sessionIds)
@@ -147,6 +152,9 @@ const fetchFeedPageViaClientHydration = async ({
       sessionIds.length > 0
         ? fetchSessionNightRuns(sessionIds)
         : Promise.resolve(new Map<string, number>()),
+      authorIds.length > 0
+        ? fetchWeeklyStreaks(authorIds)
+        : Promise.resolve(new Map<string, WeeklyStreak>()),
     ]),
     timeoutMs,
     'Feed details are taking too long.'
@@ -197,6 +205,7 @@ const fetchFeedPageViaClientHydration = async ({
           : null,
         author_current_streak: detail?.authorCurrentStreak ?? 0,
         nights_in_a_row: nightRunsBySession.get(session.id) ?? null,
+        author_weekly_streak: weeklyStreaksByUser.get(session.user_id)?.weeklyStreak ?? 0,
         cheer_profiles: detailCheers.map((cheer) => ({
           id: cheer.userId,
           username: cheer.username,
@@ -307,6 +316,7 @@ const fetchFeedPageViaClientHydration = async ({
       crawl: {
         ...feedItem.crawl,
         viewsCount: viewCountsByPost.get(getPostViewKey({ targetType: 'pub_crawl', targetId: feedItem.crawl.id })) ?? null,
+        authorWeeklyStreak: weeklyStreaksByUser.get(feedItem.crawl.userId)?.weeklyStreak ?? 0,
         comments: feedItem.crawl.comments.map((comment) => ({
           ...comment,
           mentions: commentMentionsBySource.get(comment.id) || [],

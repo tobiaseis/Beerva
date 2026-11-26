@@ -63,8 +63,8 @@ assert.match(
 
 assert.match(
   source,
-  />\s*Longest Streak\s*<\/Text>/,
-  'longest streak label should stay as plain text'
+  />\s*Nights in a Row\s*<\/Text>/,
+  'nights in a row label should stay as plain text'
 );
 
 assert.match(

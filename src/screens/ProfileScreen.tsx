@@ -482,6 +482,7 @@ export const ProfileScreen = ({ route }: any) => {
             recyclingKey={`profile-${profile?.id}-${profile?.avatar_url || 'fallback'}`}
             accessibilityLabel={`${profile?.username || 'Beer Lover'}'s avatar`}
             streak={stats.currentStreak}
+            weeklyStreak={weeklyStreak.weeklyStreak}
             showCount
           />
           <TouchableOpacity style={styles.editBadge} onPress={() => setIsEditing(true)}>

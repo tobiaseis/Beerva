@@ -1014,11 +1014,11 @@ const profileStatsPanelSource = fs.readFileSync(
   path.resolve(__dirname, '..', 'src/components/ProfileStatsPanel.tsx'),
   'utf8'
 );
-assert.match(profileStatsPanelSource, /Longest Streak/, 'profile stats panel should show a longest streak box under best session');
+assert.match(profileStatsPanelSource, /Nights in a Row/, 'profile stats panel should show a nights in a row box under best session');
 assert.match(profileStatsPanelSource, /stats\.longestDayStreak/, 'longest streak box should use the existing longest day streak stat');
 assert.match(profileStatsPanelSource, /highScoreGrid/, 'best session and streak boxes should sit side-by-side in one row');
 assert.match(profileStatsPanelSource, /Show best session details/, 'best session stat box should open a details view');
-assert.match(profileStatsPanelSource, /Show longest streak details/, 'longest streak stat box should open a details view');
+assert.match(profileStatsPanelSource, /Show nights in a row details/, 'nights in a row stat box should open a details view');
 assert.match(
   profileStatsPanelSource,
   /Unlock all trophies to get a secret prize!/,

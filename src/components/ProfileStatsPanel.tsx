@@ -87,11 +87,11 @@ export const ProfileStatsPanel = ({ stats, pintTimeline = [], topPubVisits = [],
       }
     : insightModal === 'longest-streak'
       ? {
-          title: 'Longest Streak',
+          title: 'Nights in a Row',
           value: stats.longestDayStreak,
-          unit: stats.longestDayStreak === 1 ? 'day' : 'days',
-          subtitle: 'Your longest run of drinking days',
-          description: 'Longest Streak is the most consecutive drinking days you have ever recorded. A drinking day follows the app day bucket, so late-night sessions still belong to the night they started.',
+          unit: stats.longestDayStreak === 1 ? 'night' : 'nights',
+          subtitle: 'Your longest run of nights out',
+          description: 'Nights in a Row is the most consecutive nights out you have ever recorded. A night runs from 06:00 to 06:00, so late-night sessions still belong to the night they started. Your streak on your profile counts weeks instead: one night out a week keeps it going.',
         }
       : null;
 
@@ -185,11 +185,11 @@ export const ProfileStatsPanel = ({ stats, pintTimeline = [], topPubVisits = [],
           style={styles.highScorePressable}
           onPress={() => setInsightModal('longest-streak')}
           accessibilityRole="button"
-          accessibilityLabel="Show longest streak details"
+          accessibilityLabel="Show nights in a row details"
         >
           <Surface padded={false} style={styles.highScoreTile}>
             <Text style={styles.highScoreLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
-              Longest Streak
+              Nights in a Row
             </Text>
             <View style={styles.highScoreMetricRow}>
               <Text style={styles.highScoreEmoji} numberOfLines={1}>🔥</Text>

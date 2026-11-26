@@ -89,7 +89,7 @@ assert.match(streakAvatar, /isReduceMotionEnabled/);
 assert.match(streakAvatar, /getFlameTierConfig/);
 // Count label is gated behind showCount.
 assert.match(streakAvatar, /showCount/);
-assert.match(streakAvatar, /day streak/);
+assert.match(streakAvatar, /nights in a row/);
 // Profile count label should attach beside the avatar, not overlap the
 // username/edit button with a negative absolute bottom offset.
 assert.match(streakAvatar, /countSide/);

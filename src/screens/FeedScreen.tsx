@@ -410,6 +410,7 @@ export const FeedSessionCard = React.memo(({
             recyclingKey={`avatar-${item.user_id}-${item.profiles?.avatar_url || 'fallback'}`}
             accessibilityLabel={`${username}'s avatar`}
             streak={item.author_current_streak || 0}
+            weeklyStreak={item.author_weekly_streak || 0}
           />
           <View style={styles.userInfo}>
             <Text style={styles.userName} numberOfLines={1}>{username}</Text>

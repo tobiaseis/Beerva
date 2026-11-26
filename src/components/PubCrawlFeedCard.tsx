@@ -130,6 +130,7 @@ export const PubCrawlFeedCard = ({
             recyclingKey={`avatar-${crawl.userId}-${crawl.avatarUrl || 'fallback'}`}
             accessibilityLabel={`${username}'s avatar`}
             streak={crawl.authorCurrentStreak || 0}
+            weeklyStreak={crawl.authorWeeklyStreak || 0}
           />
           <View style={styles.userInfo}>
             <Text style={styles.userName} numberOfLines={1}>{username}</Text>

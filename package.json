@@ -85,7 +85,8 @@
     "test:challenge-nights-out": "node scripts/challengeNightsOut.test.js",
     "test:weekly-streaks": "node scripts/weeklyStreaks.test.js",
     "test:friday-nudge": "node scripts/fridayNudge.test.js",
-    "test:weekly-recap": "node scripts/weeklyRecap.test.js"
+    "test:weekly-recap": "node scripts/weeklyRecap.test.js",
+    "test:weekly-avatar-badge": "node scripts/weeklyAvatarBadge.test.js"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",

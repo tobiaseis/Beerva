@@ -102,6 +102,7 @@ export type PubCrawl = {
   comments: PubCrawlComment[];
   stops: PubCrawlStop[];
   viewsCount?: number | null;
+  authorWeeklyStreak?: number | null;
 };
 
 export type PubCrawlProfile = {

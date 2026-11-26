@@ -21,6 +21,7 @@ import { MentionText } from '../components/MentionText';
 import { PubCrawlFeedCard } from '../components/PubCrawlFeedCard';
 import { PostViewersModal } from '../components/PostViewersModal';
 import { fetchSessionNightRuns } from '../lib/weeklyStreaks';
+import { useWeeklyStreak } from '../lib/useWeeklyStreak';
 import {
   fetchMyPostViewCounts,
   getPostViewKey,
@@ -370,6 +371,7 @@ export const PostDetailScreen = () => {
 
   const loadedTargetId = targetType === 'pub_crawl' ? crawl?.id ?? null : session?.id ?? null;
   const loadedAuthorId = targetType === 'pub_crawl' ? crawl?.userId ?? null : session?.user_id ?? null;
+  const authorWeeklyStreak = useWeeklyStreak(loadedAuthorId);
   const viewTarget = useMemo<PostViewTarget | null>(
     () => (loadedTargetId ? { targetType, targetId: loadedTargetId } : null),
     [loadedTargetId, targetType]
@@ -724,7 +726,11 @@ export const PostDetailScreen = () => {
       return (
         <View>
           <PubCrawlFeedCard
-            crawl={ownViewsCount === null ? crawl : { ...crawl, viewsCount: ownViewsCount }}
+            crawl={{
+              ...crawl,
+              ...(ownViewsCount === null ? {} : { viewsCount: ownViewsCount }),
+              authorWeeklyStreak: authorWeeklyStreak.weeklyStreak,
+            }}
             currentUserId={currentUserId}
             isCheering={cheering}
             onToggleCheer={toggleCrawlCheers}
@@ -754,6 +760,7 @@ export const PostDetailScreen = () => {
             ...session,
             ...(ownViewsCount === null ? {} : { views_count: ownViewsCount }),
             nights_in_a_row: nightsInARow ?? session.nights_in_a_row ?? null,
+            author_weekly_streak: authorWeeklyStreak.weeklyStreak,
           }}
           currentUserId={currentUserId}
           isCheering={cheering}
@@ -776,7 +783,7 @@ export const PostDetailScreen = () => {
         </View>
       </View>
     );
-  }, [cheering, crawl, currentUserId, deleteSession, editSession, nightsInARow, openComments, openProfile, ownViewsCount, session, toggleCheers, toggleCrawlCheers]);
+  }, [authorWeeklyStreak.weeklyStreak, cheering, crawl, currentUserId, deleteSession, editSession, nightsInARow, openComments, openProfile, ownViewsCount, session, toggleCheers, toggleCrawlCheers]);
 
   return (
     <View style={styles.container}>

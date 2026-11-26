@@ -8,11 +8,16 @@ import {
   Text,
   View,
 } from 'react-native';
-import { Flame } from 'lucide-react-native';
+import { CalendarCheck, Flame } from 'lucide-react-native';
 import Svg, { Circle, Defs, LinearGradient, Path, RadialGradient, Stop } from 'react-native-svg';
 
 import { CachedImage } from './CachedImage';
 import { getFlameTierConfig } from '../lib/streakFlame';
+import {
+  formatWeeklyAvatarBadge,
+  getWeeklyAvatarBadgeTier,
+  WEEKLY_AVATAR_BADGE_COLORS,
+} from '../lib/weeklyStreakBadge';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 
@@ -30,8 +35,11 @@ type StreakAvatarProps = {
   style?: StyleProp<any>;
   recyclingKey?: string;
   accessibilityLabel?: string;
+  // Consecutive nights out: drives the flame.
   streak: number;
   showCount?: boolean;
+  // Consecutive weeks with a night out: drives the small badge (4+ weeks).
+  weeklyStreak?: number;
 };
 
 type AvatarFlamePath = {
@@ -140,8 +148,10 @@ export const StreakAvatar = React.memo(({
   accessibilityLabel,
   streak,
   showCount = false,
+  weeklyStreak = 0,
 }: StreakAvatarProps) => {
   const tier = getFlameTierConfig(streak);
+  const weeklyTier = getWeeklyAvatarBadgeTier(weeklyStreak);
   const [reduceMotion, setReduceMotion] = useState(false);
   const flicker = useRef(new Animated.Value(0)).current;
   const instanceIdRef = useRef<number | null>(null);
@@ -212,19 +222,71 @@ export const StreakAvatar = React.memo(({
     }
   });
 
+  // Weekly streak badge: bottom-right on small avatars, top-right on profile
+  // avatars, where the nights chip and the edit button use the bottom corners.
+  const weeklyBadgeSize = Math.max(16, Math.round(size * 0.3));
+  const weeklyColors = weeklyTier ? WEEKLY_AVATAR_BADGE_COLORS[weeklyTier] : null;
+  const weeklyBadge = weeklyColors ? (
+    <View
+      pointerEvents="none"
+      style={[
+        styles.weeklyBadge,
+        showCount ? styles.weeklyBadgeTop : styles.weeklyBadgeBottom,
+        {
+          minWidth: weeklyBadgeSize,
+          height: weeklyBadgeSize,
+          borderRadius: weeklyBadgeSize / 2,
+          backgroundColor: weeklyColors.fill,
+        },
+      ]}
+    >
+      {size >= 64 ? (
+        <CalendarCheck color={weeklyColors.text} size={Math.round(weeklyBadgeSize * 0.5)} strokeWidth={2.5} />
+      ) : null}
+      <Text
+        style={[
+          styles.weeklyBadgeText,
+          {
+            color: weeklyColors.text,
+            fontSize: Math.max(9, Math.round(weeklyBadgeSize * 0.45)),
+            lineHeight: Math.max(11, Math.round(weeklyBadgeSize * 0.55)),
+          },
+        ]}
+        numberOfLines={1}
+      >
+        {formatWeeklyAvatarBadge(weeklyStreak)}
+      </Text>
+    </View>
+  ) : null;
+  const weeklyLabel = weeklyBadge ? `${weeklyStreak}-week streak` : null;
+
   const avatar = (
     <CachedImage
       uri={uri}
       fallbackUri={fallbackUri}
-      style={tier ? imageStyle : style}
+      style={tier || weeklyBadge ? imageStyle : style}
       recyclingKey={recyclingKey}
       accessibilityLabel={accessibilityLabel}
     />
   );
 
-  // No-op when there is no streak flame to show.
-  if (!tier) {
+  // Plain avatar when there is neither a flame nor a weekly badge.
+  if (!tier && !weeklyBadge) {
     return avatar;
+  }
+
+  if (!tier) {
+    return (
+      <View
+        style={[styles.wrap, wrapMargin]}
+        accessibilityLabel={accessibilityLabel ? `${accessibilityLabel}, ${weeklyLabel}` : weeklyLabel || undefined}
+      >
+        <View style={[styles.avatarHolder, { width: size, height: size }]}>
+          {avatar}
+          {weeklyBadge}
+        </View>
+      </View>
+    );
   }
 
   // Constant fraction keeps the avatar at ~radius 30 in the 100-unit viewBox,
@@ -234,14 +296,13 @@ export const StreakAvatar = React.memo(({
   const gradientId = `flame-grad-${tier.tier}-${uid}`;
   const glowId = `flame-glow-${tier.tier}-${uid}`;
 
-  const streakLabel = `${streak} day${streak === 1 ? '' : 's'}`;
+  const streakLabel = `${streak} night${streak === 1 ? '' : 's'}`;
+  const flameLabel = [`${streak} nights in a row`, weeklyLabel].filter(Boolean).join(', ');
 
   return (
     <View
       style={[styles.wrap, wrapMargin]}
-      accessibilityLabel={
-        accessibilityLabel ? `${accessibilityLabel}, ${streak} day streak` : `${streak} day streak`
-      }
+      accessibilityLabel={accessibilityLabel ? `${accessibilityLabel}, ${flameLabel}` : flameLabel}
     >
       {/* Flame stage is the full flame box but uses a negative margin so it only
           occupies the avatar's footprint in layout — the flame paints around the
@@ -300,6 +361,8 @@ export const StreakAvatar = React.memo(({
               <Text style={styles.countText} numberOfLines={1}>{streakLabel}</Text>
             </View>
           ) : null}
+
+          {weeklyBadge}
         </View>
       </View>
     </View>
@@ -345,6 +408,28 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.primaryBorder,
     zIndex: 2,
+  },
+  weeklyBadge: {
+    position: 'absolute',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: colors.background,
+    zIndex: 3,
+  },
+  weeklyBadgeBottom: {
+    right: -3,
+    bottom: -3,
+  },
+  weeklyBadgeTop: {
+    right: -2,
+    top: -2,
+  },
+  weeklyBadgeText: {
+    fontWeight: '800',
   },
   countText: {
     ...typography.tiny,

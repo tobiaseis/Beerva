@@ -409,6 +409,7 @@ export const UserProfileScreen = ({ navigation, route }: any) => {
             recyclingKey={`profile-${profile.id}-${profile.avatar_url || 'fallback'}`}
             accessibilityLabel={`${profile.username || 'Beer Lover'}'s avatar`}
             streak={stats.currentStreak}
+            weeklyStreak={weeklyStreak.weeklyStreak}
             showCount
           />
         </View>
