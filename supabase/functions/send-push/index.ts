@@ -8,6 +8,7 @@
 
 import webpush from 'npm:web-push@3.6.7';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { buildFridayNudgeCopy } from '../_shared/engagementCopy.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -142,7 +143,8 @@ type NotificationRow = {
   id: string;
   user_id: string;
   actor_id: string | null;
-  type: 'cheer' | 'invite' | 'session_started' | 'comment' | 'mention' | 'invite_response' | 'pub_crawl_started' | 'hangover_check' | 'follow' | 'chug_verification' | 'drinking_buddy_added' | 'official_post' | 'beverage_submission';
+  type: 'cheer' | 'invite' | 'session_started' | 'comment' | 'mention' | 'invite_response' | 'pub_crawl_started' | 'hangover_check' | 'follow' | 'chug_verification' | 'drinking_buddy_added' | 'official_post' | 'beverage_submission'
+    | 'friday_nudge';
   reference_id: string | null;
   metadata?: {
     pub_name?: string | null;
@@ -162,6 +164,10 @@ type NotificationRow = {
     surface?: 'post' | 'comment' | string | null;
     mention_id?: string | null;
     source_id?: string | null;
+    week_start?: string | null;
+    weekly_streak?: number | string | null;
+    mate_names?: string[] | null;
+    mates_out?: number | string | null;
   } | null;
 };
 
@@ -325,6 +331,10 @@ Deno.serve(async (req) => {
   } else if (record.type === 'hangover_check') {
     title = 'Morning-after damage report';
     bodyText = 'Did last night win? Tap to rate the hangover before your liver files a bug report.';
+  } else if (record.type === 'friday_nudge') {
+    const nudgeCopy = buildFridayNudgeCopy(record.metadata);
+    title = nudgeCopy.title;
+    bodyText = nudgeCopy.body;
   }
 
   const hangoverTargetType = record.metadata?.target_type === 'pub_crawl' ? 'pub_crawl' : 'session';
@@ -343,6 +353,8 @@ Deno.serve(async (req) => {
     url = `/?notifications=1&notificationId=${encodeURIComponent(record.id)}`;
   } else if (record.type === 'beverage_submission') {
     url = `/?notifications=1&beverage_submission=1&notificationId=${encodeURIComponent(record.id)}`;
+  } else if (record.type === 'friday_nudge') {
+    url = `/?tab=record&notificationId=${encodeURIComponent(record.id)}`;
   } else if ((record.type === 'cheer' || record.type === 'comment' || record.type === 'mention') && record.reference_id) {
     // Deep-link straight to the post that was cheered, commented on, or mentioned the user.
     url = `/?post=${encodeURIComponent(record.reference_id)}&post_type=${encodeURIComponent(postTargetType)}&notificationId=${encodeURIComponent(record.id)}`;
