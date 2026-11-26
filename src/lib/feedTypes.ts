@@ -51,6 +51,7 @@ export type FeedSession = {
     avatar_url?: string | null;
   } | null;
   author_current_streak?: number | null;
+  nights_in_a_row?: number | null;
   cheer_profiles: ProfilePreview[];
   comments: FeedComment[];
   mentions?: ContentMention[];

@@ -20,6 +20,7 @@ import { MentionComposer } from '../components/MentionComposer';
 import { MentionText } from '../components/MentionText';
 import { PubCrawlFeedCard } from '../components/PubCrawlFeedCard';
 import { PostViewersModal } from '../components/PostViewersModal';
+import { fetchSessionNightRuns } from '../lib/weeklyStreaks';
 import {
   fetchMyPostViewCounts,
   getPostViewKey,
@@ -124,6 +125,7 @@ export const PostDetailScreen = () => {
   const [submittingComment, setSubmittingComment] = useState(false);
   const [viewingImageUrl, setViewingImageUrl] = useState<string | null>(null);
   const [ownViewsCount, setOwnViewsCount] = useState<number | null>(null);
+  const [nightsInARow, setNightsInARow] = useState<number | null>(null);
   const [viewersTarget, setViewersTarget] = useState<PostViewTarget | null>(null);
   const composerRef = useRef<TextInput>(null);
   const listRef = useRef<FlatList>(null);
@@ -397,6 +399,20 @@ export const PostDetailScreen = () => {
       cancelled = true;
     };
   }, [currentUserId, loadedAuthorId, viewTarget]);
+
+  const sessionIdForRun = session?.id ?? null;
+  useEffect(() => {
+    setNightsInARow(null);
+    if (!sessionIdForRun) return undefined;
+
+    let cancelled = false;
+    fetchSessionNightRuns([sessionIdForRun]).then((runs) => {
+      if (!cancelled) setNightsInARow(runs.get(sessionIdForRun) ?? null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionIdForRun]);
 
   const openProfile = useCallback((userId: string) => {
     if (userId === currentUserId) {
@@ -734,7 +750,11 @@ export const PostDetailScreen = () => {
     return (
       <View>
         <FeedSessionCard
-          item={ownViewsCount === null ? session : { ...session, views_count: ownViewsCount }}
+          item={{
+            ...session,
+            ...(ownViewsCount === null ? {} : { views_count: ownViewsCount }),
+            nights_in_a_row: nightsInARow ?? session.nights_in_a_row ?? null,
+          }}
           currentUserId={currentUserId}
           isCheering={cheering}
           onDeleteSession={deleteSession}
@@ -756,7 +776,7 @@ export const PostDetailScreen = () => {
         </View>
       </View>
     );
-  }, [cheering, crawl, currentUserId, deleteSession, editSession, openComments, openProfile, ownViewsCount, session, toggleCheers, toggleCrawlCheers]);
+  }, [cheering, crawl, currentUserId, deleteSession, editSession, nightsInARow, openComments, openProfile, ownViewsCount, session, toggleCheers, toggleCrawlCheers]);
 
   return (
     <View style={styles.container}>

@@ -10,6 +10,7 @@ import { fetchSessionBuddySummaries, SessionBuddy } from './sessionBuddies';
 import { mapChugAttemptRow, SessionChugAttempt, SessionChugAttemptRow } from './chugAttempts';
 import { FeedItem } from './feedTypes';
 import { ChallengeSummary } from './challenges';
+import { fetchSessionNightRuns } from './weeklyStreaks';
 import { fetchMyPostViewCounts, getPostViewKey, PostViewTarget } from './postViews';
 
 type FollowRow = {
@@ -125,7 +126,7 @@ const fetchFeedPageViaClientHydration = async ({
   const officialPosts = officialPostsResult.slice(0, pageSize);
   const sessionIds = sessionRows.map((session) => session.id);
 
-  const [detailsBySession, chugsResult, buddiesBySession, officialPostChallengeSummaries] = await withTimeout(
+  const [detailsBySession, chugsResult, buddiesBySession, officialPostChallengeSummaries, nightRunsBySession] = await withTimeout(
     Promise.all([
       sessionIds.length > 0
         ? fetchSessionFeedDetails(sessionIds)
@@ -143,6 +144,9 @@ const fetchFeedPageViaClientHydration = async ({
         console.error('Official challenge actions fetch error:', error);
         return new Map<string, ChallengeSummary>();
       }),
+      sessionIds.length > 0
+        ? fetchSessionNightRuns(sessionIds)
+        : Promise.resolve(new Map<string, number>()),
     ]),
     timeoutMs,
     'Feed details are taking too long.'
@@ -192,6 +196,7 @@ const fetchFeedPageViaClientHydration = async ({
           ? { username: detail.author.username, avatar_url: detail.author.avatarUrl }
           : null,
         author_current_streak: detail?.authorCurrentStreak ?? 0,
+        nights_in_a_row: nightRunsBySession.get(session.id) ?? null,
         cheer_profiles: detailCheers.map((cheer) => ({
           id: cheer.userId,
           username: cheer.username,

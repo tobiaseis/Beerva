@@ -24,6 +24,7 @@ import { useNotifications } from '../lib/notificationsContext';
 import { EmptyIllustration } from '../components/EmptyIllustration';
 import { FeedList } from '../components/FeedList';
 import { usePostViewTracking } from '../lib/usePostViewTracking';
+import { formatNightsInARow, shouldShowNightsInARow } from '../lib/weeklyStreaks';
 import { PostViewsSummary } from '../components/PostViewsSummary';
 import { PostViewersModal } from '../components/PostViewersModal';
 import type { PostViewTarget } from '../lib/postViews';
@@ -413,6 +414,11 @@ export const FeedSessionCard = React.memo(({
           <View style={styles.userInfo}>
             <Text style={styles.userName} numberOfLines={1}>{username}</Text>
             <Text style={styles.timeText}>{getTimeAgo(item.created_at)}</Text>
+            {shouldShowNightsInARow(item.nights_in_a_row) ? (
+              <Text style={styles.nightsInARowText} numberOfLines={1}>
+                🔥 {formatNightsInARow(item.nights_in_a_row as number)}
+              </Text>
+            ) : null}
           </View>
         </TouchableOpacity>
         {isOwnPost ? (
@@ -2222,6 +2228,12 @@ const styles = StyleSheet.create({
   },
   timeText: {
     ...typography.caption,
+    marginTop: 2,
+  },
+  nightsInARowText: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: '700',
     marginTop: 2,
   },
   imagePressable: {
