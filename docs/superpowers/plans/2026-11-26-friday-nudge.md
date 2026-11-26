@@ -135,7 +135,7 @@ assert.deepEqual(copy.buildFridayNudgeCopy({ mate_names: [' ', 42, null] }), {
 
 // Edge function.
 const sendPush = read('supabase/functions/send-push/index.ts');
-assert.match(sendPush, /import \{ buildFridayNudgeCopy \} from '\.\.\/_shared\/engagementCopy\.ts';/);
+assert.match(sendPush, /import \{ buildFridayNudgeCopy[^}]*\} from '\.\.\/_shared\/engagementCopy\.ts';/);
 assert.match(sendPush, /\| 'friday_nudge'/);
 assert.match(sendPush, /record\.type === 'friday_nudge'[\s\S]*buildFridayNudgeCopy\(record\.metadata\)/);
 assert.match(sendPush, /url = `\/\?tab=record&notificationId=\$\{encodeURIComponent\(record\.id\)\}`/, 'the push opens the Record screen');
