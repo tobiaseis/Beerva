@@ -12,6 +12,7 @@ import {
   NotificationMetadata,
 } from '../lib/notificationMessages';
 import { useNotifications } from '../lib/notificationsContext';
+import { buildFridayNudgeCopy } from '../../supabase/functions/_shared/engagementCopy';
 import { getNotificationPostTarget, PostTarget } from '../lib/postTargets';
 import { declineSessionBuddy } from '../lib/sessionBuddies';
 import { supabase } from '../lib/supabase';
@@ -35,7 +36,8 @@ type NotificationType =
   | 'chug_verification'
   | 'drinking_buddy_added'
   | 'official_post'
-  | 'beverage_submission';
+  | 'beverage_submission'
+  | 'friday_nudge';
 type InviteStatus = 'pending' | 'accepted' | 'declined';
 
 type ProfilePreview = {
@@ -299,6 +301,10 @@ export const NotificationsScreen = ({ navigation }: any) => {
     navigation.navigate('AdminTools', { initialSegment: 'submissions' });
   }, [navigation]);
 
+  const openRecord = useCallback(() => {
+    navigation.navigate('MainTabs', { screen: 'Record' });
+  }, [navigation]);
+
   const openOfficialChallenge = useCallback((item: NotificationRow) => {
     const challengeSlug = item.metadata?.challenge_slug?.trim();
     if (!challengeSlug) return;
@@ -407,6 +413,34 @@ export const NotificationsScreen = ({ navigation }: any) => {
           </View>
           <View style={styles.iconContainer}>
             <Megaphone color={colors.primary} size={22} />
+          </View>
+        </View>
+      );
+    }
+
+    if (item.type === 'friday_nudge') {
+      const nudgeCopy = buildFridayNudgeCopy(item.metadata);
+      return (
+        <View style={[styles.card, !item.read && styles.unreadCard]}>
+          <View style={styles.avatarContainer}>
+            <View style={styles.officialAvatar}>
+              <Image source={beervaLogo} style={styles.officialLogo} />
+            </View>
+          </View>
+          <View style={styles.content}>
+            <Text style={styles.username}>{nudgeCopy.title}</Text>
+            <Text style={styles.officialNotificationBody}>{nudgeCopy.body}</Text>
+            <Text style={styles.time}>{getTimeAgo(item.created_at)}</Text>
+            <TouchableOpacity
+              style={styles.hangoverActionButton}
+              onPress={openRecord}
+              activeOpacity={0.76}
+              accessibilityRole="button"
+              accessibilityLabel="Log a night out"
+            >
+              <Beer color={colors.background} size={16} />
+              <Text style={styles.hangoverActionText}>Log a night</Text>
+            </TouchableOpacity>
           </View>
         </View>
       );
@@ -549,7 +583,7 @@ export const NotificationsScreen = ({ navigation }: any) => {
         </View>
       </View>
     );
-  }, [currentUserId, declineBuddy, decliningBuddyIds, openAdminSubmissions, openChugVerification, openHangoverRating, openOfficialChallenge, openPost, openProfile, respondToInvite, respondingInviteIds]);
+  }, [currentUserId, declineBuddy, decliningBuddyIds, openAdminSubmissions, openChugVerification, openHangoverRating, openOfficialChallenge, openPost, openProfile, openRecord, respondToInvite, respondingInviteIds]);
 
   return (
     <View style={styles.container}>

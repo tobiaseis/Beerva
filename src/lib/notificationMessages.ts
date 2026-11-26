@@ -22,6 +22,12 @@ export type NotificationMetadata = {
   surface?: 'post' | 'comment' | string | null;
   mention_id?: string | null;
   source_id?: string | null;
+  week_start?: string | null;
+  weekly_streak?: number | string | null;
+  mate_names?: string[] | null;
+  mates_out?: number | string | null;
+  nights_out?: number | string | null;
+  seen_by?: number | string | null;
 };
 
 export type NotificationMessageInput = {
