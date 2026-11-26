@@ -8,7 +8,7 @@
 
 import webpush from 'npm:web-push@3.6.7';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-import { buildFridayNudgeCopy } from '../_shared/engagementCopy.ts';
+import { buildFridayNudgeCopy, buildWeeklyRecapCopy } from '../_shared/engagementCopy.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -144,7 +144,8 @@ type NotificationRow = {
   user_id: string;
   actor_id: string | null;
   type: 'cheer' | 'invite' | 'session_started' | 'comment' | 'mention' | 'invite_response' | 'pub_crawl_started' | 'hangover_check' | 'follow' | 'chug_verification' | 'drinking_buddy_added' | 'official_post' | 'beverage_submission'
-    | 'friday_nudge';
+    | 'friday_nudge'
+    | 'weekly_recap';
   reference_id: string | null;
   metadata?: {
     pub_name?: string | null;
@@ -168,6 +169,8 @@ type NotificationRow = {
     weekly_streak?: number | string | null;
     mate_names?: string[] | null;
     mates_out?: number | string | null;
+    nights_out?: number | string | null;
+    seen_by?: number | string | null;
   } | null;
 };
 
@@ -335,6 +338,10 @@ Deno.serve(async (req) => {
     const nudgeCopy = buildFridayNudgeCopy(record.metadata);
     title = nudgeCopy.title;
     bodyText = nudgeCopy.body;
+  } else if (record.type === 'weekly_recap') {
+    const recapCopy = buildWeeklyRecapCopy(record.metadata);
+    title = recapCopy.title;
+    bodyText = recapCopy.body;
   }
 
   const hangoverTargetType = record.metadata?.target_type === 'pub_crawl' ? 'pub_crawl' : 'session';
@@ -355,6 +362,8 @@ Deno.serve(async (req) => {
     url = `/?notifications=1&beverage_submission=1&notificationId=${encodeURIComponent(record.id)}`;
   } else if (record.type === 'friday_nudge') {
     url = `/?tab=record&notificationId=${encodeURIComponent(record.id)}`;
+  } else if (record.type === 'weekly_recap' && record.metadata?.week_start) {
+    url = `/?recap=${encodeURIComponent(record.metadata.week_start)}&notificationId=${encodeURIComponent(record.id)}`;
   } else if ((record.type === 'cheer' || record.type === 'comment' || record.type === 'mention') && record.reference_id) {
     // Deep-link straight to the post that was cheered, commented on, or mentioned the user.
     url = `/?post=${encodeURIComponent(record.reference_id)}&post_type=${encodeURIComponent(postTargetType)}&notificationId=${encodeURIComponent(record.id)}`;

@@ -65,3 +65,22 @@ export const buildFridayNudgeCopy = (metadata?: EngagementMetadata | null): Enga
     body: 'Heading out tonight? Log your first round on Beerva.',
   };
 };
+
+export const buildWeeklyRecapCopy = (metadata?: EngagementMetadata | null): EngagementCopy => {
+  const nightsOut = toCount(metadata?.nights_out);
+  const seenBy = toCount(metadata?.seen_by);
+  const matesOut = toCount(metadata?.mates_out);
+  const title = 'Your week on Beerva 🍻';
+  const nights = `${nightsOut} ${nightsOut === 1 ? 'night' : 'nights'}`;
+
+  if (nightsOut > 0 && seenBy > 0) {
+    return { title, body: `${nights} out, seen by ${seenBy} ${seenBy === 1 ? 'mate' : 'mates'}. Tap for your recap.` };
+  }
+  if (nightsOut > 0) {
+    return { title, body: `${nights} out this week. Tap for your recap.` };
+  }
+  if (matesOut > 0) {
+    return { title, body: `${matesOut} ${matesOut === 1 ? 'mate was' : 'mates were'} out this week. See what you missed.` };
+  }
+  return { title, body: 'Your weekly recap is ready.' };
+};
