@@ -495,6 +495,15 @@ export const ProfileScreen = ({ route }: any) => {
           activeThisWeek={weeklyStreak.activeThisWeek}
           isOwnProfile
         />
+        <TouchableOpacity
+          style={styles.weekRecapLink}
+          onPress={() => navigation.navigate('WeeklyRecap')}
+          activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel="See your week"
+        >
+          <Text style={styles.weekRecapLinkText}>See your week →</Text>
+        </TouchableOpacity>
         <View style={styles.followStats}>
           <TouchableOpacity
             style={styles.followStat}
@@ -989,6 +998,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 6,
     lineHeight: 16,
+  },
+  weekRecapLink: {
+    marginTop: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  weekRecapLinkText: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: '800',
   },
   pushButton: {
     flexDirection: 'row',
